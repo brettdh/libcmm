@@ -144,13 +144,11 @@ int main()
     int rc;
 
     struct th_arg args;
-    mc_socket_t s;
-    rc = cmm_socket(&s, PF_INET, SOCK_STREAM, 0);
-    if (rc < 0) {
+    shared_sock = cmm_socket(PF_INET, SOCK_STREAM, 0);
+    if (shared_sock < 0) {
 	perror("socket");
 	exit(-1);
     }
-    shared_sock = s;
 
     srv_addr.sin_family = AF_INET;
     srv_addr.sin_port = htons(PORT);

@@ -19,7 +19,7 @@ extern "C" {
 #include <sys/socket.h>
 
 /* opaque socket structure; multi-colored socket */
-typedef void* mc_socket_t;
+typedef int mc_socket_t;
 
 /* return codes for cmm_*() functions; see below */
 #define CMM_FAILED -1
@@ -92,9 +92,8 @@ int cmm_connect(mc_socket_t sock,
 /* applications should use these in place of socket() and close()
  * to create and destroy mc_sockets. */
 
-/* returns 0 on success, -1 on failure. On success, *sockp is filled in
- * with the mc_socket_t handle. */
-int cmm_socket(mc_socket_t *sockp, int family, int type, int protocol);
+/* returns a usable mc_socket_t on success, -1 on failure. */
+mc_socket_t cmm_socket(int family, int type, int protocol);
 
 /* returns 0 on success, -1 on failure. */
 int cmm_close(mc_socket_t sock);

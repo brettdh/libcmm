@@ -508,7 +508,7 @@ int cmm_connect(mc_socket_t sock,
 	CMMSockHash::const_accessor ac;
 	if (!cmm_sock_hash.find(ac, sock)) {
 	    fprintf(stderr, 
-		    "Error: tried to cmm_connect socket %p "
+		    "Error: tried to cmm_connect socket %d "
 		    "not created by cmm_socket\n", sock);
 	    errno = EBADF;
 	    return CMM_FAILED; /* assert(0)? */
@@ -516,7 +516,7 @@ int cmm_connect(mc_socket_t sock,
 	if (ac->second->addr != NULL) {
 	    fprintf(stderr, 
 		    "Warning: tried to cmm_connect an "
-		    "already-connected socket %p\n", sock);
+		    "already-connected socket %d\n", sock);
 	    errno = EISCONN;
 	    return CMM_FAILED;
 	}
@@ -545,7 +545,7 @@ int cmm_connect(mc_socket_t sock,
     return 0;
 }
 
-int cmm_socket(mc_socket_t *sockp, int family, int type, int protocol)
+mc_socket_t cmm_socket(int family, int type, int protocol)
 {
     /* just for validating arguments */
     int s = socket(family, type, protocol);
@@ -560,15 +560,14 @@ int cmm_socket(mc_socket_t *sockp, int family, int type, int protocol)
     if (cmm_sock_hash.insert(ac, new_sk->sock)) {
 	ac->second = new_sk;
     } else {
-	fprintf(stderr, "Error: new socket %p is already in hash!  WTF?\n", 
+	fprintf(stderr, "Error: new socket %d is already in hash!  WTF?\n", 
 		new_sk->sock);
 	/* for now we will ignore the case in which someone creates 
 	 * 2^32 (2^64) sockets. */
 	assert(0);
     }
 
-    *sockp = new_sk->sock;
-    return 0;
+    return new_sk->sock;
 }
 
 int cmm_close(mc_socket_t sock)
