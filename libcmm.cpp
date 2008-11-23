@@ -110,7 +110,7 @@ static atomic<u_long> next_mc_sock;
 cmm_sock::cmm_sock(int family, int type, int protocol) 
 {
     /* XXX: this could wrap around... eventually */
-    sock = (mc_socket_t)next_mc_sock++; 
+    sock = (mc_socket_t)++next_mc_sock; 
 
     sock_family = family;
     sock_type = type;
