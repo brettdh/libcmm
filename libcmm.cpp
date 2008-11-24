@@ -62,8 +62,15 @@ struct csocket {
 typedef std::map<u_long, struct csocket *> CSockHash;
 typedef std::vector<struct csocket *> CSockList;
 
+struct sockopt {
+    void *optval;
+    socklen_t optlen;
+
+    sockopt() : optval(NULL), optlen(0) {}
+};
+
 /* < optname, (optval, optlen) > */
-typedef std::map<int, std::pair<void*,socklen_t> > SockOptNames;
+typedef std::map<int, struct sockopt> SockOptNames;
 
 /* < level, < optname, (optval, optlen) > > */
 typedef std::map<int, SockOptNames> SockOptHash;
@@ -414,16 +421,68 @@ int cmm_getsockopt(mc_socket_t sock, int level, int optname,
 int cmm_setsockopt(mc_socket_t sock, int level, int optname, 
 		   const void *optval, socklen_t optlen)
 {
-    return -1; /* TODO: implement for mc_sockets */
+    CMMSockHash::accessor ac;
+    if (!cmm_sock_hash.find(ac, sock)) {
+	errno = EBADF;
+	return CMM_FAILED;
+    }
+    struct cmm_sock *sk = ac->second;
+    assert(sk);
+
+    for (CSockList::iterator it = sk->csocks.begin();
+	 it != sk->csocks.end(); it++) {
+	struct csocket *csock = *it;
+	assert(csock);
+	if (csock->osfd != -1) {
+	    int rc = setsockopt(csock->osfd, level, optname, optval, optlen);
+	    if (rc < 0) {
+		return rc;
+	    }
+	}
+    }
+    /* all succeeded */
+
+    /* inserts if not present */
+    struct sockopt &opt = sk->sockopts[level][optname];
+    if (opt.optval) {
+	free(opt.optval);
+    }
+    opt.optlen = optlen;
+    opt.optval = malloc(optlen);
+    assert(opt.optval);
+    memcpy(opt.optval, optval, optlen);
+
+    return 0;
 }
 
 /* these are all sockopts that have succeeded in the past. 
  * for now, let's assume they succeed again. 
  * this may be invalid; maybe some sockopts succeed on one interface
  * but fail on another?  not sure. XXX */
-static void set_all_sockopts(mc_socket_t sock, int osfd)
+/* REQ: call with write lock on this cmm_sock */
+static int set_all_sockopts(struct cmm_sock *sk, int osfd)
 {
-    /* TODO: implement */
+    assert(sk);
+
+    if (osfd != -1) {
+	for (SockOptHash::const_iterator i = sk->sockopts.begin();
+	     i != sk->sockopts.end(); i++) {
+	    int level = i->first;
+	    const SockOptNames &optnames = i->second;
+	    for (SockOptNames::const_iterator j = optnames.begin();
+		 j != optnames.end(); j++) {
+		int optname = j->first;
+		const struct sockopt &opt = j->second;
+		int rc = setsockopt(osfd, level, optname, 
+				    opt.optval, opt.optlen);
+		if (rc < 0) {
+		    return rc;
+		}
+	    }
+	}
+    }
+    
+    return 0;
 }
 
 /* make sure that sock is ready to send data with up_label. */
@@ -431,32 +490,44 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 {
     int newfd;
 
-    CMMSockHash::accessor ac;
+    CMMSockHash::const_accessor read_ac;
+	    
     struct cmm_sock *sk = NULL;
-    if (cmm_sock_hash.find(ac, sock)) {
-	sk = ac->second;
-    } else {
+    if (!cmm_sock_hash.find(read_ac, sock)) {
 	assert(0); /* already checked in caller */
     }
+
+    sk = read_ac->second;
+    assert(sk);
     
     struct csocket *csock = sk->sock_color_hash[up_label];
-    assert(csock);
+    assert(csock); /* XXX: need a better way to enforce that programmers 
+		    * only use the available labels */
     if (csock->osfd == -1) {
 	assert(csock->cur_label == 0); /* only for multiplexing */
 	
 	if (sk->serial) {
 	    if (sk->active_csock) {
-		/* XXX: check return value? */
+		read_ac.release();
 		if (sk->label_down_cb) {
+		    /* XXX: check return value? */
 		    sk->label_down_cb(sock, sk->active_csock->cur_label,
 				      sk->cb_arg);
 		}
+
+		CMMSockHash::accessor write_ac;
+		if (!cmm_sock_hash.find(write_ac, sock)) {
+		    assert(0);
+		}
+		assert(write_ac->second == sk);
+		
 		close(sk->active_csock->osfd);
 		sk->active_csock->osfd = -1;
 		sk->active_csock->cur_label = 0;
+		sk->active_csock = NULL;
+	    } else {
+		read_ac.release();
 	    }
-	    
-	    sk->active_csock = NULL;
 	} else {
 	    assert(0); /* TODO: remove after implementing parallel mode */
 	}
@@ -467,11 +538,20 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	    fprintf(stderr, "libcmm: error creating new socket\n");
 	    return newfd;
 	}
-	
-	set_all_sockopts(sock, newfd);
 
-	/* connect new socket with current label */
-	set_socket_labels(newfd, up_label);
+	{
+	    CMMSockHash::accessor write_ac;
+	    if (!cmm_sock_hash.find(write_ac, sock)) {
+		assert(0);
+	    }
+	    assert(write_ac->second == sk);
+
+	    set_all_sockopts(sk, newfd);
+	    
+	    /* connect new socket with current label */
+	    set_socket_labels(newfd, up_label);
+	}
+
 	if (connect(newfd, sk->addr, sk->addrlen) < 0) {
 	    close(newfd);
 	    fprintf(stderr, "libcmm: error connecting new socket\n");
@@ -482,10 +562,19 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	    /* XXX: this may be a race; i'm not sure. */
 	    return -1;
 	}
-	/* XXX: check return value? */
+
 	if (sk->label_up_cb) {
+	    /* XXX: check return value? */
 	    sk->label_up_cb(sk->sock, up_label, sk->cb_arg);
 	}
+
+	
+	CMMSockHash::accessor write_ac;
+	if (!cmm_sock_hash.find(write_ac, sock)) {
+	    assert(0);
+	}
+	assert(write_ac->second == sk);
+
 	csock->osfd = newfd;
 	csock->cur_label = up_label;
 	if (sk->serial) {
@@ -595,6 +684,7 @@ int cmm_close(mc_socket_t sock)
 	cmm_sock_hash.erase(ac);
 	ac.release();
 
+	assert(sk);
 	sk->sock_color_hash.clear();
 	for (CSockList::iterator it = sk->csocks.begin();
 	     it != sk->csocks.end(); it++) {

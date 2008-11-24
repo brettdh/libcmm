@@ -73,12 +73,12 @@ typedef int (*connection_event_cb_t)(mc_socket_t sock, u_long labels,
 				     void* arg);
 
 /* cmm_connect stores the two socket event callbacks and a shared argument.
- * net_down_cb is called any time the connection needs to be torn down, and
- * net_up_cb is called any time the connection needs to be re-established.
+ * label_down_cb is called any time the connection needs to be torn down, and
+ * label_up_cb is called any time the connection needs to be re-established.
  *
  * Requirements:
- *   -net_down_cb should not cmm_close() the socket.
- *   -net_up_cb should assume that the mc_socket is connected. After the
+ *   -label_down_cb should not cmm_close() the socket.
+ *   -label_up_cb should assume that the mc_socket is connected. After the
  *     initial call to cmm_connect, the library takes care of setting up 
  *     connections as needed before sending data.
  */
