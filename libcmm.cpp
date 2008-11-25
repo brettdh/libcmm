@@ -116,7 +116,12 @@ static atomic<u_long> next_mc_sock;
 
 cmm_sock::cmm_sock(int family, int type, int protocol) 
 {
-    /* XXX: this could wrap around... eventually */
+    /* XXX: this could wrap around... eventually. */
+    /* Eventually, do something better here. */
+    if (next_mc_sock < 0) {
+	errno = EMFILE;
+	return -1;
+    }
     sock = (mc_socket_t)++next_mc_sock; 
 
     sock_family = family;
@@ -408,6 +413,26 @@ int cmm_writev(mc_socket_t sock, const struct iovec *vec, int count,
     return writev(get_osfd(sock, labels), vec, count);
 }
 
+
+static void unwrap_fd_set(int nsfd, fd_set *fs)
+{
+    nsfd = (nsfd > next_mc_sock) ? (next_mc_sock) : (nsfd);
+
+    
+}
+
+static void wrap_fd_set(int nsfd, fd_set *fs)
+{
+    nsfd = (nsfd > next_mc_sock) ? (next_mc_sock) : (nsfd);
+
+    
+}
+
+int cmm_select()
+{
+
+}
+
 /* simple wrappers */
 /* these just translate the socket to the underlying osfd and call the
  * original system call */
@@ -563,24 +588,26 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	    return -1;
 	}
 
+	{
+	    CMMSockHash::accessor write_ac;
+	    if (!cmm_sock_hash.find(write_ac, sock)) {
+		assert(0);
+	    }
+	    assert(write_ac->second == sk);
+	    assert(csock == sk->sock_color_hash[up_label]);
+	    
+	    csock->osfd = newfd;
+	    csock->cur_label = up_label;
+	    if (sk->serial) {
+		sk->active_csock = csock;
+	    } else {
+		assert(0); /* TODO: remove after implementing parallel mode */
+	    }
+	}
+
 	if (sk->label_up_cb) {
 	    /* XXX: check return value? */
 	    sk->label_up_cb(sk->sock, up_label, sk->cb_arg);
-	}
-
-	
-	CMMSockHash::accessor write_ac;
-	if (!cmm_sock_hash.find(write_ac, sock)) {
-	    assert(0);
-	}
-	assert(write_ac->second == sk);
-
-	csock->osfd = newfd;
-	csock->cur_label = up_label;
-	if (sk->serial) {
-	    sk->active_csock = csock;
-	} else {
-	    assert(0); /* TODO: remove after implementing parallel mode */
 	}
     }
     
