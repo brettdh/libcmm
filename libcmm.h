@@ -17,6 +17,7 @@ extern "C" {
 #include <sys/uio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 
 /* opaque socket structure; multi-colored socket */
 typedef int mc_socket_t;
@@ -63,6 +64,15 @@ int cmm_getsockopt(mc_socket_t sock, int level, int optname,
 		   void *optval, socklen_t *optlen);
 int cmm_setsockopt(mc_socket_t sock, int level, int optname, 
 		   const void *optval, socklen_t optlen);
+
+/* first three fd_sets may only contain real os file descriptors.
+ * next three fd_sets may only contain mc_socket_t's. */
+int cmm_select(mc_socket_t nfds, 
+	       fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
+	       fd_set *mc_readfds, fd_set *mc_writefds, fd_set *mc_exceptfds,
+	       struct timeval *timeout);
+
+int cmm_read(mc_socket_t sock, void *buf, size_t count);
 
 /* connection callbacks take as arguments the socket file descriptor
  * in question, the labels for this reconnection, and a pointer to 

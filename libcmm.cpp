@@ -3,9 +3,11 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <assert.h>
 #include <map>
 #include <vector>
+using std::vector; using std::pair;
 
 #include <connmgr_labels.h>
 
@@ -55,8 +57,13 @@ struct labeled_thunk_queue {
 struct csocket {
     int osfd;
     u_long cur_label;
+    int connected;
     
-    csocket() : osfd(-1), cur_label(0) {}
+    csocket(int family, int type, int protocol) {
+	osfd = socket(family, type, protocol);
+	cur_label = 0;
+	connected = 0;
+    }
 };
 
 typedef std::map<u_long, struct csocket *> CSockHash;
@@ -112,7 +119,7 @@ typedef concurrent_hash_map<mc_socket_t,
 			    struct cmm_sock*, 
 			    MyHashCompare<mc_socket_t> > CMMSockHash;
 static CMMSockHash cmm_sock_hash;
-static atomic<u_long> next_mc_sock;
+static atomic<mc_socket_t> next_mc_sock;
 
 cmm_sock::cmm_sock(int family, int type, int protocol) 
 {
@@ -120,7 +127,7 @@ cmm_sock::cmm_sock(int family, int type, int protocol)
     /* Eventually, do something better here. */
     if (next_mc_sock < 0) {
 	errno = EMFILE;
-	return -1;
+	return;
     }
     sock = (mc_socket_t)++next_mc_sock; 
 
@@ -135,8 +142,9 @@ cmm_sock::cmm_sock(int family, int type, int protocol)
     cb_arg = NULL;
     
     /* TODO: read these from /proc instead of hard-coding them. */
-    struct csocket *bg_sock = new struct csocket;
-    struct csocket *ondemand_sock = new struct csocket;
+    struct csocket *bg_sock = new struct csocket(family, type, protocol);
+    struct csocket *ondemand_sock = new struct csocket(family, type, protocol);
+
     sock_color_hash[CONNMGR_LABEL_BACKGROUND] = bg_sock;
     sock_color_hash[CONNMGR_LABEL_ONDEMAND] = ondemand_sock;
     csocks.push_back(bg_sock);
@@ -413,29 +421,163 @@ int cmm_writev(mc_socket_t sock, const struct iovec *vec, int count,
     return writev(get_osfd(sock, labels), vec, count);
 }
 
-
-static void unwrap_fd_set(int nsfd, fd_set *fs)
+/* assume the fds in mc_fds are mc_socket_t's.  
+ * add the real osfds to os_fds, and
+ * also put them in osfd_list, so we can iterate through them. 
+ * maxosfd gets the largest osfd seen. */
+static int make_real_fd_set(int nfds, const fd_set *mc_fds, fd_set *os_fds,
+			    vector<pair<mc_socket_t,int> > &osfd_list, 
+			    int *maxosfd)
 {
-    nsfd = (nsfd > next_mc_sock) ? (next_mc_sock) : (nsfd);
+    if (!mc_fds) {
+	return 0;
+    }
+    if (!os_fds) {
+	return -1;
+    }
 
+//    fprintf(stderr, "DBG: about to check fd_set %p for mc_sockets\n", mc_fds);
+    for (mc_socket_t s = nfds - 1; s > 0; s--) {
+//	fprintf(stderr, "DBG: checking mc_socket %d\n", s);
+	if (FD_ISSET(s, mc_fds)) {
+//	    fprintf(stderr, "DBG: mc_socket %d is set\n", s);
+	    CMMSockHash::const_accessor ac;
+	    if (!cmm_sock_hash.find(ac, s)) {
+		errno = EBADF;
+		return -1;
+	    }
+	    struct cmm_sock *sk = ac->second;
+	    assert(sk);
+	    if (sk->serial) {
+		struct csocket *csock = sk->active_csock;
+		if (csock) {
+		    int osfd = csock->osfd;
+		    if (osfd == -1) {
+			errno = EBADF;
+			return -1;
+		    } else {
+			osfd_list.push_back(pair<mc_socket_t,int>(s,osfd));
+		    }
+		} else {
+		    errno = EBADF;
+		    return -1;
+		}
+	    } else {
+		assert(0); /* TODO: implement parallel mode */
+	    }
+	}
+    }
+
+    for (size_t i = 0; i < osfd_list.size(); i++) {
+	FD_SET(osfd_list[i].second, os_fds);
+	if (maxosfd) {
+	    if (osfd_list[i].second > *maxosfd) {
+		*maxosfd = osfd_list[i].second;
+	    }
+	}
+    }
+    return 0;
+}
+
+static void make_mc_fd_set(fd_set *mc_set, fd_set *os_set,
+			  const vector<pair<mc_socket_t, int> >&osfd_list)
+{
+    //int total = 0;
+    if (!mc_set) {
+	return;
+    }
+    FD_ZERO(mc_set);
+    for (size_t j = 0; j < osfd_list.size(); j++) {
+	if (FD_ISSET(osfd_list[j].second, os_set)) {
+	    FD_CLR(osfd_list[j].second, os_set);
+	    FD_SET(osfd_list[j].first, mc_set);
+	    //total++;
+	}
+    }
+    //return total;
+}
+
+int cmm_select(mc_socket_t nfds, 
+	       fd_set *os_readfds, fd_set *os_writefds, fd_set *os_exceptfds,
+	       fd_set *mc_readfds, fd_set *mc_writefds, fd_set *mc_exceptfds,
+	       struct timeval *timeout)
+{
+    int maxosfd = nfds;
+    int rc;
+
+    vector<pair<mc_socket_t, int> > readosfd_list;
+    vector<pair<mc_socket_t, int> > writeosfd_list;
+    vector<pair<mc_socket_t, int> > exceptosfd_list;
+    fd_set readfds, writefds, exceptfds;
+
+    FD_ZERO(&readfds);
+    FD_ZERO(&writefds);
+    FD_ZERO(&exceptfds);
+    if (os_readfds) {
+	readfds = *os_readfds;
+    }
+    if (os_writefds) {
+	writefds = *os_writefds;
+    }
+    if (os_exceptfds) {
+	exceptfds = *os_exceptfds;
+    }
     
+    rc = make_real_fd_set(nfds, mc_readfds, &readfds, readosfd_list, 
+			  &maxosfd);
+    rc += make_real_fd_set(nfds, mc_writefds, &writefds, writeosfd_list, 
+			   &maxosfd);
+    rc += make_real_fd_set(nfds, mc_exceptfds, &exceptfds, exceptosfd_list, 
+			   &maxosfd);
+    if (rc < 0) {
+	return -1;
+    }
+
+    rc = select(maxosfd + 1, &readfds, &writefds, &exceptfds, timeout);
+    if (rc < 0) {
+	return rc;
+    }
+
+    /* add up the number of set mc_sockets */
+    make_mc_fd_set(mc_readfds, &readfds, readosfd_list);
+    make_mc_fd_set(mc_writefds, &writefds, writeosfd_list);
+    make_mc_fd_set(mc_exceptfds, &exceptfds, exceptosfd_list);
+
+    /* at this point, the only fds left in these are osfds */
+    if (os_readfds) {
+	*os_readfds = readfds;
+    }
+    if (os_writefds) {
+	*os_writefds = writefds;
+    }
+    if (os_exceptfds) {
+	*os_exceptfds = exceptfds;
+    }
+
+    return rc;
 }
 
-static void wrap_fd_set(int nsfd, fd_set *fs)
+int cmm_read(mc_socket_t sock, void *buf, size_t count)
 {
-    nsfd = (nsfd > next_mc_sock) ? (next_mc_sock) : (nsfd);
-
+    CMMSockHash::const_accessor ac;
+    if (!cmm_sock_hash.find(ac, sock)) {
+	errno = EBADF;
+	return CMM_FAILED;
+    }
     
+    struct cmm_sock *sk = ac->second;
+    assert(sk);
+    if (sk->serial) {
+	struct csocket *csock = sk->active_csock;
+	if (!csock || !csock->connected) {
+	    errno = ENOTCONN;
+	    return -1;
+	}
+	return read(csock->osfd, buf, count);
+    } else {
+	assert(0); /* TODO: implement parallel mode. (read is a bit tricky.) */
+    }
 }
-
-int cmm_select()
-{
-
-}
-
-/* simple wrappers */
-/* these just translate the socket to the underlying osfd and call the
- * original system call */
 
 int cmm_getsockopt(mc_socket_t sock, int level, int optname, 
 		   void *optval, socklen_t *optlen)
@@ -528,7 +670,7 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
     struct csocket *csock = sk->sock_color_hash[up_label];
     assert(csock); /* XXX: need a better way to enforce that programmers 
 		    * only use the available labels */
-    if (csock->osfd == -1) {
+    if (!csock->connected) {
 	assert(csock->cur_label == 0); /* only for multiplexing */
 	
 	if (sk->serial) {
@@ -547,8 +689,11 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 		assert(write_ac->second == sk);
 		
 		close(sk->active_csock->osfd);
-		sk->active_csock->osfd = -1;
+		sk->active_csock->osfd = socket(sk->sock_family, 
+						sk->sock_type,
+						sk->sock_protocol);
 		sk->active_csock->cur_label = 0;
+		sk->active_csock->connected = 0;
 		sk->active_csock = NULL;
 	    } else {
 		read_ac.release();
@@ -557,13 +702,6 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	    assert(0); /* TODO: remove after implementing parallel mode */
 	}
 	
-	newfd = socket(sk->sock_family, sk->sock_type, sk->sock_protocol);
-	if (newfd < 0) {
-	    perror("socket");
-	    fprintf(stderr, "libcmm: error creating new socket\n");
-	    return newfd;
-	}
-
 	{
 	    CMMSockHash::accessor write_ac;
 	    if (!cmm_sock_hash.find(write_ac, sock)) {
@@ -571,13 +709,13 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	    }
 	    assert(write_ac->second == sk);
 
-	    set_all_sockopts(sk, newfd);
+	    set_all_sockopts(sk, csock->osfd);
 	    
 	    /* connect new socket with current label */
-	    set_socket_labels(newfd, up_label);
+	    set_socket_labels(csock->osfd, up_label);
 	}
 
-	if (connect(newfd, sk->addr, sk->addrlen) < 0) {
+	if (connect(csock->osfd, sk->addr, sk->addrlen) < 0) {
 	    close(newfd);
 	    fprintf(stderr, "libcmm: error connecting new socket\n");
 	    /* we've previously checked, and the label should be
@@ -596,8 +734,8 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	    assert(write_ac->second == sk);
 	    assert(csock == sk->sock_color_hash[up_label]);
 	    
-	    csock->osfd = newfd;
 	    csock->cur_label = up_label;
+	    csock->connected = 1;
 	    if (sk->serial) {
 		sk->active_csock = csock;
 	    } else {
