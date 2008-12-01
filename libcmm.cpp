@@ -655,10 +655,9 @@ static int set_all_sockopts(struct cmm_sock *sk, int osfd)
 /* make sure that sock is ready to send data with up_label. */
 static int prepare_socket(mc_socket_t sock, u_long up_label)
 {
-    int newfd;
-
     CMMSockHash::const_accessor read_ac;
-	    
+    CMMSockHash::accessor write_ac;
+
     struct cmm_sock *sk = NULL;
     if (!cmm_sock_hash.find(read_ac, sock)) {
 	assert(0); /* already checked in caller */
@@ -682,7 +681,6 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 				      sk->cb_arg);
 		}
 
-		CMMSockHash::accessor write_ac;
 		if (!cmm_sock_hash.find(write_ac, sock)) {
 		    assert(0);
 		}
@@ -697,26 +695,23 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 		sk->active_csock = NULL;
 	    } else {
 		read_ac.release();
+		if (!cmm_sock_hash.find(write_ac, sock)) {
+		    assert(0);
+		}
+		assert(write_ac->second == sk);
+		assert(csock == sk->sock_color_hash[up_label]);
 	    }
 	} else {
 	    assert(0); /* TODO: remove after implementing parallel mode */
 	}
 	
-	{
-	    CMMSockHash::accessor write_ac;
-	    if (!cmm_sock_hash.find(write_ac, sock)) {
-		assert(0);
-	    }
-	    assert(write_ac->second == sk);
-
-	    set_all_sockopts(sk, csock->osfd);
-	    
-	    /* connect new socket with current label */
-	    set_socket_labels(csock->osfd, up_label);
-	}
+	set_all_sockopts(sk, csock->osfd);
+	
+	/* connect new socket with current label */
+	set_socket_labels(csock->osfd, up_label);
 
 	if (connect(csock->osfd, sk->addr, sk->addrlen) < 0) {
-	    close(newfd);
+	    close(csock->osfd);
 	    fprintf(stderr, "libcmm: error connecting new socket\n");
 	    /* we've previously checked, and the label should be
 	     * available... so this failure is something else. */
@@ -725,23 +720,15 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	    /* XXX: this may be a race; i'm not sure. */
 	    return CMM_FAILED;
 	}
-
-	{
-	    CMMSockHash::accessor write_ac;
-	    if (!cmm_sock_hash.find(write_ac, sock)) {
-		assert(0);
-	    }
-	    assert(write_ac->second == sk);
-	    assert(csock == sk->sock_color_hash[up_label]);
-	    
-	    csock->cur_label = up_label;
-	    csock->connected = 1;
-	    if (sk->serial) {
-		sk->active_csock = csock;
-	    } else {
-		assert(0); /* TODO: remove after implementing parallel mode */
-	    }
+	
+	csock->cur_label = up_label;
+	csock->connected = 1;
+	if (sk->serial) {
+	    sk->active_csock = csock;
+	} else {
+	    assert(0); /* TODO: remove after implementing parallel mode */
 	}
+	write_ac.release();
 
 	if (sk->label_up_cb) {
 	    int rc = sk->label_up_cb(sk->sock, up_label, sk->cb_arg);
