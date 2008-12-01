@@ -687,7 +687,7 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 		    assert(0);
 		}
 		assert(write_ac->second == sk);
-		
+
 		close(sk->active_csock->osfd);
 		sk->active_csock->osfd = socket(sk->sock_family, 
 						sk->sock_type,
@@ -723,7 +723,7 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	    /* XXX: maybe check scout_label_available(up_label) again? 
 	     *      if it is not, return CMM_DEFERRED? */
 	    /* XXX: this may be a race; i'm not sure. */
-	    return -1;
+	    return CMM_FAILED;
 	}
 
 	{
@@ -744,8 +744,31 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	}
 
 	if (sk->label_up_cb) {
-	    /* XXX: check return value? */
-	    sk->label_up_cb(sk->sock, up_label, sk->cb_arg);
+	    int rc = sk->label_up_cb(sk->sock, up_label, sk->cb_arg);
+	    if (rc < 0) {
+		fprintf(stderr, "error: application-level up_cb failed\n");
+
+		CMMSockHash::accessor write_ac;
+		if (!cmm_sock_hash.find(write_ac, sock)) {
+		    assert(0);
+		}
+		assert(write_ac->second == sk);
+		assert(csock == sk->sock_color_hash[up_label]);
+		
+		close(csock->osfd);
+		csock->osfd = socket(sk->sock_family, 
+				     sk->sock_type,
+				     sk->sock_protocol);
+		csock->cur_label = 0;
+		csock->connected = 0;
+		if (sk->serial) {
+		    sk->active_csock = NULL;
+		} else {
+		    assert(0); /* TODO: implement parallel mode */
+		}
+		
+		return CMM_FAILED;
+	    }
 	}
     }
     
