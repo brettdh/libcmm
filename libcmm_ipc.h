@@ -22,6 +22,8 @@ void scout_request_update();
 /* only call when a message is definitely present. */
 u_long scout_receive_label_update();
 
+void scout_labels_changed(u_long *new_up_labels, u_long *new_down_labels);
+
 typedef enum {
     CMM_MSG_SUBSCRIBE=1,
     CMM_MSG_UNSUBSCRIBE,

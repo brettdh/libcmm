@@ -153,6 +153,7 @@ void scout_ipc_deinit(void)
     }
 }
 
+static u_long prev_labels_available;
 static u_long labels_available;
 
 int scout_net_available(u_long labels)
@@ -185,6 +186,18 @@ u_long scout_receive_label_update()
 		msg.opcode);
 	return 0;
     }
+    prev_labels_available = labels_available;
     labels_available = msg.data.labels;
     return labels_available;
+}
+
+void scout_labels_changed(u_long *new_up_labels, u_long *new_down_labels)
+{
+    if (new_up_labels) {
+	*new_up_labels = (~prev_labels_available) & labels_available;
+    }
+
+    if (new_down_labels) {
+	*new_down_labels = (~labels_available) & prev_labels_available;
+    }
 }

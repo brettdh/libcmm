@@ -87,6 +87,9 @@ struct cmm_sock {
     CSockHash sock_color_hash;
     CSockList csocks;
 
+    /* XXX: The Right Way to do this is to subclass cmm_sock.
+     * Note to self: do that ASAP and remove this, along with 
+     * the associated asserts. */
     int serial; /* 1 if only one real socket can be connected at a time.
                  * 0 if many can be connected at a time. */
     struct csocket *active_csock; /* only non-NULL if this socket is serial. */
@@ -246,8 +249,56 @@ static void net_status_change_handler(int sig)
     fprintf(stderr, "Got update message from scout, labels=%lu\n",
 	    cur_labels);
 
+    u_long new_up_labels;
+    u_long new_down_labels;
+    scout_labels_changed(&new_up_labels, &new_down_labels);
+    fprintf(stderr, "New labels available: %lu\n", new_up_labels);
+    fprintf(stderr, "Labels now unavailable: %lu\n", new_down_labels);
+
     fprintf(stderr, "Before:\n---\n");
     print_thunks();
+
+#if 0 /* XXX: come back to this.  maybe this should reconnect the last
+       * available label? */
+    /* put down the sockets connected on now-unavailable networks. */
+    for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
+	 sk_iter != cmm_sock_hash.end(); sk_iter++) {
+	CMMSockHash::accessor ac;
+	if (!cmm_sock_hash.find(ac, sk_iter->first)) {
+	    assert(0);
+	}
+	struct cmm_sock *sk = ac->second;
+	assert(sk);
+	if (sk->serial) {
+	    if (sk->active_csock &&
+		sk->active_csock->cur_label & new_down_labels) {
+		if (sk->label_down_cb) {
+		    ac.release();
+		    sk->label_down_cb(sk->sock, sk->active_csock->cur_label, 
+				      sk->cb_arg);
+		    if (!cmm_sock_hash.find(ac, sk_iter->first)) {
+			assert(0);
+		    }
+		    assert(sk == ac->second);
+		}
+
+		/* the down handler may have reconnected the socket,
+		 * so make sure not to close it in that case */
+		if (sk->active_csock->cur_label & new_down_labels) {
+		    close(sk->active_csock->osfd);
+		    sk->active_csock->osfd = socket(sk->sock_family, 
+						    sk->sock_type,
+						    sk->sock_protocol);
+		    sk->active_csock->cur_label = 0;
+		    sk->active_csock->connected = 0;
+		    sk->active_csock = NULL;
+		}
+	    }
+	} else {
+	    assert(0); /* TODO: implement parallel mode */
+	}
+    }
+#endif
 
     ThunkQueue matches;
     
