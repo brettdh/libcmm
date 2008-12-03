@@ -14,6 +14,18 @@ using std::vector; using std::pair;
 #include "libcmm.h"
 #include "libcmm_ipc.h"
 
+#define CMM_TIMING
+#ifdef CMM_TIMING
+#include "timeops.h"
+
+#include "tbb/mutex.h"
+static tbb::mutex timing_mutex;
+#define TIMING_FILE "/tmp/cmm_timing.txt"
+static FILE *timing_file;
+static int num_switches;
+static struct timeval total_switch_time;
+#endif
+
 #include "tbb/concurrent_hash_map.h"
 #include "tbb/concurrent_queue.h"
 #include "tbb/atomic.h"
@@ -192,12 +204,43 @@ static void libcmm_init(void)
     }
 
     scout_ipc_init(CMM_SIGNAL);
+
+#ifdef CMM_TIMING
+    tbb::mutex::scoped_lock(timing_mutex);
+    num_switches = 0;
+    timerclear(&total_switch_time);
+    struct timeval now;
+    TIME(now);
+    timing_file = fopen(TIMING_FILE, "a");
+    if (timing_file) {
+	fprintf(timing_file, "*** Started new run at %ld.%ld, PID %d\n",
+		now.tv_sec, now.tv_usec, getpid());
+    }
+#endif
 }
 
 
 static void libcmm_deinit(void) __attribute__((destructor));
 static void libcmm_deinit(void)
 {
+#ifdef CMM_TIMING
+    {
+	tbb::mutex::scoped_lock(timing_mutex);
+	
+	if (timing_file) {
+	    struct timeval now;
+	    TIME(now);
+	    fprintf(timing_file, "*** Finished run at %ld.%ld, PID %d;\n",
+		    now.tv_sec, now.tv_usec, getpid());
+	    fprintf(timing_file, 
+		    "*** Total time spent switching labels: "
+		    "%ld.%ld seconds in %d switches\n",
+		    total_switch_time.tv_sec, total_switch_time.tv_usec, 
+		    num_switches);
+	}
+    }
+#endif
+
     ThunkHash::iterator it;
 
     for (it = thunk_hash.begin(); it != thunk_hash.end(); it++) {
@@ -721,6 +764,13 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
     assert(csock); /* XXX: need a better way to enforce that programmers 
 		    * only use the available labels */
     if (!csock->connected) {
+#ifdef CMM_TIMING
+	struct timeval start;
+	struct timeval end;
+	struct timeval diff;
+	
+	TIME(start);
+#endif
 	assert(csock->cur_label == 0); /* only for multiplexing */
 	
 	if (sk->serial) {
@@ -762,6 +812,7 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	set_socket_labels(csock->osfd, up_label);
 
 	if (connect(csock->osfd, sk->addr, sk->addrlen) < 0) {
+	    perror("connect");
 	    close(csock->osfd);
 	    fprintf(stderr, "libcmm: error connecting new socket\n");
 	    /* we've previously checked, and the label should be
@@ -808,6 +859,25 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 		return CMM_FAILED;
 	    }
 	}
+#ifdef CMM_TIMING
+	TIME(end);
+	{
+	    tbb::mutex::scoped_lock(timing_mutex);
+	    
+	    if (timing_file) {
+		TIMEDIFF(start, end, diff);
+		struct timeval tmp = total_switch_time;
+		timeradd(&tmp, &diff, &total_switch_time);
+		
+		fprintf(timing_file, "Switch %d at %ld.%ld: %ld.%ld; total %ld.%ld\n",
+			++num_switches, 
+			start.tv_sec, start.tv_usec,
+			diff.tv_sec, diff.tv_usec,
+			total_switch_time.tv_sec, 
+			total_switch_time.tv_usec);
+	    }
+	}
+#endif
     }
     
     return 0;
