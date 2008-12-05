@@ -24,6 +24,8 @@ static tbb::mutex timing_mutex;
 static FILE *timing_file;
 static int num_switches;
 static struct timeval total_switch_time;
+static struct timeval total_time_in_connect;
+static struct timeval total_time_in_up_cb;
 #endif
 
 #include "tbb/concurrent_hash_map.h"
@@ -209,11 +211,13 @@ static void libcmm_init(void)
     tbb::mutex::scoped_lock(timing_mutex);
     num_switches = 0;
     timerclear(&total_switch_time);
+    timerclear(&total_time_in_connect);
+    timerclear(&total_time_in_up_cb);
     struct timeval now;
     TIME(now);
     timing_file = fopen(TIMING_FILE, "a");
     if (timing_file) {
-	fprintf(timing_file, "*** Started new run at %ld.%ld, PID %d\n",
+	fprintf(timing_file, "*** Started new run at %ld.%06ld, PID %d\n",
 		now.tv_sec, now.tv_usec, getpid());
     }
 #endif
@@ -230,13 +234,22 @@ static void libcmm_deinit(void)
 	if (timing_file) {
 	    struct timeval now;
 	    TIME(now);
-	    fprintf(timing_file, "*** Finished run at %ld.%ld, PID %d;\n",
+	    fprintf(timing_file, "*** Finished run at %ld.%06ld, PID %d;\n",
 		    now.tv_sec, now.tv_usec, getpid());
 	    fprintf(timing_file, 
 		    "*** Total time spent switching labels: "
-		    "%ld.%ld seconds in %d switches\n",
+		    "%ld.%06ld seconds in %d switches\n",
 		    total_switch_time.tv_sec, total_switch_time.tv_usec, 
 		    num_switches);
+	    fprintf(timing_file, 
+		    "*** Total time spent in connect(): %ld.%06ld seconds\n",
+		    total_time_in_connect.tv_sec, 
+		    total_time_in_connect.tv_usec);
+	    fprintf(timing_file, 
+		    "*** Total time spent in up_cb: %ld.%06ld seconds\n",
+		    total_time_in_up_cb.tv_sec, 
+		    total_time_in_up_cb.tv_usec);
+
 	}
     }
 #endif
@@ -765,11 +778,20 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 		    * only use the available labels */
     if (!csock->connected) {
 #ifdef CMM_TIMING
-	struct timeval start;
-	struct timeval end;
+	struct timeval switch_start;
+	struct timeval switch_end;
+	struct timeval connect_start;
+	struct timeval connect_end;
+	struct timeval up_cb_start;
+	struct timeval up_cb_end;
 	struct timeval diff;
+
+	timerclear(&connect_start);
+	timerclear(&connect_end);
+	timerclear(&up_cb_start);
+	timerclear(&up_cb_end);
 	
-	TIME(start);
+	TIME(switch_start);
 #endif
 	assert(csock->cur_label == 0); /* only for multiplexing */
 	
@@ -811,7 +833,14 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	/* connect new socket with current label */
 	set_socket_labels(csock->osfd, up_label);
 
-	if (connect(csock->osfd, sk->addr, sk->addrlen) < 0) {
+#ifdef CMM_TIMING
+	TIME(connect_start);
+#endif
+	int rc = connect(csock->osfd, sk->addr, sk->addrlen);
+#ifdef CMM_TIMING
+	TIME(connect_end);
+#endif
+	if (rc < 0) {
 	    perror("connect");
 	    close(csock->osfd);
 	    fprintf(stderr, "libcmm: error connecting new socket\n");
@@ -820,6 +849,11 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	    /* XXX: maybe check scout_label_available(up_label) again? 
 	     *      if it is not, return CMM_DEFERRED? */
 	    /* XXX: this may be a race; i'm not sure. */
+#ifdef CMM_TIMING
+	    TIMEDIFF(connect_start, connect_end, diff);
+	    fprintf(timing_file, "connect() failed after %ld.%06ld seconds\n",
+		    diff.tv_sec, diff.tv_usec);
+#endif
 	    return CMM_FAILED;
 	}
 	
@@ -833,8 +867,21 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	write_ac.release();
 
 	if (sk->label_up_cb) {
+#ifdef CMM_TIMING
+	TIME(up_cb_start);
+#endif
 	    int rc = sk->label_up_cb(sk->sock, up_label, sk->cb_arg);
+#ifdef CMM_TIMING
+	TIME(up_cb_end);
+#endif
 	    if (rc < 0) {
+#ifdef CMM_TIMING
+		TIMEDIFF(up_cb_start, up_cb_end, diff);
+		fprintf(timing_file, 
+			"error: application-level up_cb failed"
+			"after %ld.%06ld\n",
+			diff.tv_sec, diff.tv_usec);
+#endif
 		fprintf(stderr, "error: application-level up_cb failed\n");
 
 		CMMSockHash::accessor write_ac;
@@ -860,21 +907,30 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	    }
 	}
 #ifdef CMM_TIMING
-	TIME(end);
+	TIME(switch_end);
 	{
 	    tbb::mutex::scoped_lock(timing_mutex);
 	    
 	    if (timing_file) {
-		TIMEDIFF(start, end, diff);
+		TIMEDIFF(switch_start, switch_end, diff);
 		struct timeval tmp = total_switch_time;
 		timeradd(&tmp, &diff, &total_switch_time);
 		
-		fprintf(timing_file, "Switch %d at %ld.%ld: %ld.%ld; total %ld.%ld\n",
+		fprintf(timing_file, "Switch %d at %ld.%06ld: %ld.%06ld; ",
 			++num_switches, 
-			start.tv_sec, start.tv_usec,
-			diff.tv_sec, diff.tv_usec,
-			total_switch_time.tv_sec, 
-			total_switch_time.tv_usec);
+			switch_start.tv_sec, switch_start.tv_usec,
+			diff.tv_sec, diff.tv_usec);
+		if (connect_start.tv_sec > 0) {
+		    TIMEDIFF(connect_start, connect_end, diff);
+		    fprintf(timing_file, "connect(): %ld.%06ld; ",
+			    diff.tv_sec, diff.tv_usec);
+		}
+		if (up_cb_start.tv_sec > 0) {
+		    TIMEDIFF(up_cb_start, up_cb_end, diff);
+		    fprintf(timing_file, "up_cb(): %ld.%06ld",
+			    diff.tv_sec, diff.tv_usec);
+		}
+		fprintf(timing_file, "\n");
 	    }
 	}
 #endif
