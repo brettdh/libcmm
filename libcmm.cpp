@@ -924,11 +924,15 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 		    TIMEDIFF(connect_start, connect_end, diff);
 		    fprintf(timing_file, "connect(): %ld.%06ld; ",
 			    diff.tv_sec, diff.tv_usec);
+		    struct timeval tmp = total_time_in_connect;
+		    timeradd(&tmp, &diff, &total_time_in_connect);
 		}
 		if (up_cb_start.tv_sec > 0) {
 		    TIMEDIFF(up_cb_start, up_cb_end, diff);
 		    fprintf(timing_file, "up_cb(): %ld.%06ld",
 			    diff.tv_sec, diff.tv_usec);
+		    struct timeval tmp = total_time_in_up_cb;
+		    timeradd(&tmp, &diff, &total_time_in_up_cb);
 		}
 		fprintf(timing_file, "\n");
 	    }
