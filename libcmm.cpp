@@ -855,7 +855,7 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	
 	struct timespec timeout;
 	timeout.tv_sec = 0;
-	timeout.tv_nsec = 200*1000*1000;
+	timeout.tv_nsec = 100*1000*1000;
 	nanosleep(&timeout, NULL);
 
 #ifdef CMM_TIMING
