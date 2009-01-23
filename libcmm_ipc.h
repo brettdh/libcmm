@@ -16,7 +16,7 @@ extern "C" {
 
 void scout_ipc_init(int wakeup_sig);
 void scout_ipc_deinit(void);
-int scout_net_available(u_long labels);
+bool scout_net_available(u_long labels);
 void scout_request_update();
 
 /* only call when a message is definitely present. */

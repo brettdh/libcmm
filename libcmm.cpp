@@ -172,6 +172,7 @@ cmm_sock::cmm_sock(int family, int type, int protocol)
     sock_color_hash[CONNMGR_LABEL_BLUE] = ondemand_sock;
 
     /* TODO (eventually): remove this and implement the flag in cmm_connect. */
+    /* XXX: but see above XXX about subclassing */
     serial = 1;
     active_csock = NULL;
 }
@@ -773,7 +774,26 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
     sk = read_ac->second;
     assert(sk);
     
-    struct csocket *csock = sk->sock_color_hash[up_label];
+    struct csocket *csock = NULL;
+    if (up_label) {
+	csock = sk->sock_color_hash[up_label];
+    } else {
+	if (sk->serial && sk->active_csock) {
+	    csock = sk->active_csock;
+	    up_label = sk->active_csock->cur_label;
+	} else {
+	    assert(sk->serial); /* XXX: remove after subclassing for serial */
+	    for (CSockHash::iterator iter = sk->sock_color_hash.begin();
+		 iter != sk->sock_color_hash.end(); iter++) {
+		u_long label = iter->first;
+		struct csocket *candidate = iter->second;
+		if (candidate && scout_net_available(label)) {
+		    csock = candidate;
+		    up_label = label;
+		}
+	    }
+	}
+    }
     assert(csock); /* XXX: need a better way to enforce that programmers 
 		    * only use the available labels */
     if (!csock->connected) {

@@ -156,9 +156,12 @@ void scout_ipc_deinit(void)
 static u_long prev_labels_available;
 static u_long labels_available;
 
-int scout_net_available(u_long labels)
+/* checks to see if the labels requested are available.
+ * if no labels requested (i.e. labels==0), checks to see if
+ * ANY labels are available. */
+bool scout_net_available(u_long labels)
 {
-    return (labels_available & labels);
+    return (labels) ? (labels_available & labels) : (labels_available);
 }
 
 u_long scout_receive_label_update(void);
