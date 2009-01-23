@@ -852,6 +852,11 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	
 	/* connect new socket with current label */
 	set_socket_labels(csock->osfd, up_label);
+	
+	struct timespec timeout;
+	timeout.tv_sec = 0;
+	timeout.tv_nsec = 300*1000*1000;
+	nanosleep(&timeout, NULL);
 
 #ifdef CMM_TIMING
 	TIME(connect_start);
