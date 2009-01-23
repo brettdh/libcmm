@@ -18,7 +18,7 @@ libcmm.so: libcmm.o libcmm_ipc.o
 
 libcmm_test.o: libcmm.h
 libcmm_scout.o: libcmm.h libcmm_ipc.h
-libcmm.o: libcmm.h libcmm_ipc.h
+libcmm.o: libcmm.h libcmm_ipc.h timeops.h
 libcmm_ipc.o: libcmm_ipc.h
 
 clean:

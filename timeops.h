@@ -13,7 +13,7 @@
 do {                                                             \
     assert(((tve).tv_sec > (tvb).tv_sec)                         \
 	   || (((tve).tv_sec == (tvb).tv_sec)                    \
-	       && ((tve).tv_usec > (tvb).tv_usec)));             \
+	       && ((tve).tv_usec >= (tvb).tv_usec)));             \
     if ((tve).tv_usec < (tvb).tv_usec) {                         \
 	(tvr).tv_usec = 1000000 + (tve).tv_usec - (tvb).tv_usec; \
 	(tvr).tv_sec = (tve).tv_sec - (tvb).tv_sec - 1;          \
