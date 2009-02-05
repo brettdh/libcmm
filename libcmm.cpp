@@ -299,7 +299,7 @@ static void net_status_change_handler(int sig)
      * 3) Clean up.
      */
 
-    fprintf(stderr, "Signalled by scout\n");
+    //fprintf(stderr, "Signalled by scout\n");
     
     /* bitmask of all available bit labels ORed together */
     u_long cur_labels = scout_receive_label_update();
@@ -312,8 +312,8 @@ static void net_status_change_handler(int sig)
     fprintf(stderr, "New labels available: %lu\n", new_up_labels);
     fprintf(stderr, "Labels now unavailable: %lu\n", new_down_labels);
 
-    fprintf(stderr, "Before:\n---\n");
-    print_thunks();
+    //fprintf(stderr, "Before:\n---\n");
+    //print_thunks();
 
 #if 0 /* XXX: come back to this.  maybe this should reconnect the last
        * available label? */
@@ -382,8 +382,8 @@ static void net_status_change_handler(int sig)
     /* matches now contains all thunks that match the labels 
      * (including thunks on all sockets) */
 
-    fprintf(stderr, "After:\n---\n");
-    print_thunks();
+    //fprintf(stderr, "After:\n---\n");
+    //print_thunks();
 
     while (!matches.empty()) {
 	struct thunk *th = NULL;
@@ -417,10 +417,10 @@ static void set_socket_labels(int osfd, u_long labels)
 	fprintf(stderr, "Warning: failed getting socket %d labels %lu\n",
 		osfd, labels);
     } else {
-	fprintf(stderr, "old socket labels %lu ", old_labels);
+	//fprintf(stderr, "old socket labels %lu ", old_labels);
     }
 #endif
-    fprintf(stderr, "new socket labels %lu\n", labels);
+    //fprintf(stderr, "new socket labels %lu\n", labels);
 
     rc = setsockopt(osfd, SOL_SOCKET, SO_CONNMGR_LABELS,
 			&labels, sizeof(labels));
@@ -853,10 +853,12 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	/* connect new socket with current label */
 	set_socket_labels(csock->osfd, up_label);
 	
+#if 0
 	struct timespec timeout;
 	timeout.tv_sec = 0;
-	timeout.tv_nsec = 100*1000*1000;
+	timeout.tv_nsec = 300*1000*1000;
 	nanosleep(&timeout, NULL);
+#endif
 
 #ifdef CMM_TIMING
 	TIME(connect_start);
