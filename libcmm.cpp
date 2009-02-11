@@ -23,7 +23,12 @@ static tbb::mutex timing_mutex;
 #define TIMING_FILE "/tmp/cmm_timing.txt"
 static FILE *timing_file;
 static int num_switches;
+static int num_switches_to_bg;
+static int num_switches_to_fg;
 static struct timeval total_switch_time;
+static struct timeval total_switch_time_to_bg;
+static struct timeval total_switch_time_to_fg;
+
 static struct timeval total_time_in_connect;
 static struct timeval total_time_in_up_cb;
 #endif
@@ -210,8 +215,10 @@ static void libcmm_init(void)
 
 #ifdef CMM_TIMING
     tbb::mutex::scoped_lock(timing_mutex);
-    num_switches = 0;
+    num_switches = num_switches_to_bg = num_switches_to_fg = 0;
     timerclear(&total_switch_time);
+    timerclear(&total_switch_time_to_bg);
+    timerclear(&total_switch_time_to_fg);
     timerclear(&total_time_in_connect);
     timerclear(&total_time_in_up_cb);
     struct timeval now;
@@ -239,9 +246,11 @@ static void libcmm_deinit(void)
 		    now.tv_sec, now.tv_usec, getpid());
 	    fprintf(timing_file, 
 		    "*** Total time spent switching labels: "
-		    "%ld.%06ld seconds in %d switches\n",
+		    "%ld.%06ld seconds (%ld.%06ld bg->fg, %ld.%06ld fg->bg) in %d switches (%d bg->fg, %d fg->bg)\n",
 		    total_switch_time.tv_sec, total_switch_time.tv_usec, 
-		    num_switches);
+		    total_switch_time_to_fg.tv_sec, total_switch_time_to_fg.tv_usec,
+		    total_switch_time_to_bg.tv_sec, total_switch_time_to_bg.tv_usec,
+		    num_switches, num_switches_to_fg, num_switches_to_bg);
 	    fprintf(timing_file, 
 		    "*** Total time spent in connect(): %ld.%06ld seconds\n",
 		    total_time_in_connect.tv_sec, 
@@ -760,6 +769,30 @@ static int set_all_sockopts(struct cmm_sock *sk, int osfd)
     return 0;
 }
 
+static int floorLog2(unsigned int n) 
+{
+    int pos = 0;
+    if (n >= 1<<16) { n >>= 16; pos += 16; }
+    if (n >= 1<< 8) { n >>=  8; pos +=  8; }
+    if (n >= 1<< 4) { n >>=  4; pos +=  4; }
+    if (n >= 1<< 2) { n >>=  2; pos +=  2; }
+    if (n >= 1<< 1) {           pos +=  1; }
+    return ((n == 0) ? (-1) : pos);
+}
+
+static const char *label_strings[CONNMGR_LABEL_COUNT+1] = {"red", "blue", 
+							   "ondemand", "background", 
+							   "(invalid)"};
+
+static const char *label_str(u_long label)
+{
+    int index = floorLog2(label);
+    if (index < 0 || index >= CONNMGR_LABEL_COUNT) {
+	index = CONNMGR_LABEL_COUNT; // "(invalid)" string
+    }
+    return label_strings[index];
+}
+
 /* make sure that sock is ready to send data with up_label. */
 static int prepare_socket(mc_socket_t sock, u_long up_label)
 {
@@ -813,10 +846,12 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	
 	TIME(switch_start);
 #endif
+	u_long down_label = 0;
 	assert(csock->cur_label == 0); /* only for multiplexing */
 	
 	if (sk->serial) {
 	    if (sk->active_csock) {
+		down_label = sk->active_csock->cur_label;
 		read_ac.release();
 		if (sk->label_down_cb) {
 		    /* XXX: check return value? */
@@ -942,11 +977,23 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 		TIMEDIFF(switch_start, switch_end, diff);
 		struct timeval tmp = total_switch_time;
 		timeradd(&tmp, &diff, &total_switch_time);
+		if (down_label == CONNMGR_LABEL_BACKGROUND && 
+		    up_label == CONNMGR_LABEL_ONDEMAND) {
+		    num_switches_to_fg++;
+		    tmp = total_switch_time_to_fg;
+		    timeradd(&tmp, &diff, &total_switch_time_to_fg);
+		} else if (down_label == CONNMGR_LABEL_ONDEMAND && 
+			   up_label == CONNMGR_LABEL_BACKGROUND) {
+		    num_switches_to_bg++;
+		    tmp = total_switch_time_to_bg;
+		    timeradd(&tmp, &diff, &total_switch_time_to_bg);
+		}
 		
-		fprintf(timing_file, "Switch %d at %ld.%06ld: %ld.%06ld; ",
+		fprintf(timing_file, "Switch %d at %ld.%06ld: %ld.%06ld; from %s to %s; ",
 			++num_switches, 
 			switch_start.tv_sec, switch_start.tv_usec,
-			diff.tv_sec, diff.tv_usec);
+			diff.tv_sec, diff.tv_usec,
+			label_str(down_label), label_str(up_label));
 		if (connect_start.tv_sec > 0) {
 		    TIMEDIFF(connect_start, connect_end, diff);
 		    fprintf(timing_file, "connect(): %ld.%06ld; ",
