@@ -7,6 +7,10 @@
 #include <assert.h>
 #include <map>
 #include <vector>
+#include <stropts.h>
+#include <sys/ioctl.h>
+#include <sys/poll.h>
+#include <fcntl.h>
 using std::vector; using std::pair;
 
 #include <connmgr_labels.h>
@@ -111,6 +115,7 @@ struct cmm_sock {
      * the associated asserts. */
     int serial; /* 1 if only one real socket can be connected at a time.
                  * 0 if many can be connected at a time. */
+		int non_blocking; /* 1 if non blocking, 0 otherwise*/
     struct csocket *active_csock; /* only non-NULL if this socket is serial. */
 
     int sock_family; /* these are used for re-creating the socket */
@@ -179,6 +184,7 @@ cmm_sock::cmm_sock(int family, int type, int protocol)
     /* TODO (eventually): remove this and implement the flag in cmm_connect. */
     /* XXX: but see above XXX about subclassing */
     serial = 1;
+		non_blocking=0;
     active_csock = NULL;
 }
 
@@ -521,7 +527,7 @@ ssize_t cmm_send(mc_socket_t sock, const void *buf, size_t len, int flags,
     if (rc < 0) {
 	return rc;
     }
-    
+		printf("Sending with label %lu\n",labels);
     return send(get_osfd(sock, labels), buf, len, flags);
 }
 
@@ -674,12 +680,64 @@ int cmm_select(mc_socket_t nfds,
     return rc;
 }
 
+int cmm_poll(struct pollfd fds[], nfds_t nfds, int timeout)
+{
+
+	CMMSockHash::const_accessor ac;	
+	for(nfds_t i=0; i<nfds; i++)
+	{
+		if(!cmm_sock_hash.find(ac, fds[i].fd))
+			continue;												//this is a non mc_socket
+		else {
+			struct cmm_sock *sk = ac->second;
+			assert(sk);
+			if (sk->serial) {
+				struct csocket *csock = sk->active_csock;
+				if (!csock || !csock->connected){
+					errno = ENOTCONN;
+					return -1;
+				}
+				fds[i].fd=csock->osfd;	
+			}
+			else
+				assert(0);						//parallel not implemented yet
+		}
+	}
+
+	ac.release();
+	return poll(fds, nfds, timeout);
+}
+
+int cmm_getpeername(int socket, struct sockaddr *address, socklen_t *address_len)
+{
+    CMMSockHash::const_accessor ac;
+    if (!cmm_sock_hash.find(ac, socket)) {
+					return getpeername(socket, address, address_len);
+    }
+		    
+		struct cmm_sock *sk = ac->second;
+    assert(sk);
+    if (sk->serial) {
+				struct csocket *csock = sk->active_csock;
+				if (!csock || !csock->connected) {
+						errno = ENOTCONN;
+						return -1;
+				}
+				return getpeername(csock->osfd,address, address_len);
+    } 
+		else {
+				assert(0); //parallel mode not implemented
+    }
+	
+}
+
 int cmm_read(mc_socket_t sock, void *buf, size_t count)
 {
     CMMSockHash::const_accessor ac;
     if (!cmm_sock_hash.find(ac, sock)) {
-	errno = EBADF;
-	return CMM_FAILED;
+	//errno = EBADF;
+	//return CMM_FAILED;
+			return read(sock, buf,count);
     }
     
     struct cmm_sock *sk = ac->second;
@@ -699,16 +757,34 @@ int cmm_read(mc_socket_t sock, void *buf, size_t count)
 int cmm_getsockopt(mc_socket_t sock, int level, int optname, 
 		   void *optval, socklen_t *optlen)
 {
-    return -1; /* TODO: implement for mc_sockets */
+    CMMSockHash::const_accessor ac;
+    if (!cmm_sock_hash.find(ac, sock)) {
+					return getsockopt(sock, level, optname, optval, optlen);
+    }
+
+		struct cmm_sock *sk = ac->second;
+    assert(sk);
+    if (sk->serial) {
+				struct csocket *csock = sk->active_csock;
+				if (!csock || !csock->connected) {
+						errno = ENOTCONN;
+						return -1;
+				}
+				return getsockopt(csock->osfd, level, optname, optval, optlen);
+    } 
+		else {
+				assert(0); 		//Parallel mode not implemented
+    }
 }
 
 int cmm_setsockopt(mc_socket_t sock, int level, int optname, 
 		   const void *optval, socklen_t optlen)
 {
+		int rc = 0;
     CMMSockHash::accessor ac;
     if (!cmm_sock_hash.find(ac, sock)) {
 	errno = EBADF;
-	return CMM_FAILED;
+	return CMM_FAILED;			//I think this probably needs to be handled like read above.
     }
     struct cmm_sock *sk = ac->second;
     assert(sk);
@@ -718,7 +794,18 @@ int cmm_setsockopt(mc_socket_t sock, int level, int optname,
 	struct csocket *csock = *it;
 	assert(csock);
 	if (csock->osfd != -1) {
-	    int rc = setsockopt(csock->osfd, level, optname, optval, optlen);
+			if(optname==O_NONBLOCK){
+
+				int flags;
+    		flags = fcntl(csock->osfd, F_GETFL, 0);
+    		flags |= O_NONBLOCK;
+    		(void)fcntl(csock->osfd, F_SETFL, flags);
+				sk->non_blocking=1;
+					
+			}
+			else
+					rc = setsockopt(csock->osfd, level, optname, optval, optlen);
+
 	    if (rc < 0) {
 		return rc;
 	    }
@@ -903,6 +990,9 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	TIME(connect_end);
 #endif
 	if (rc < 0) {
+			if(errno==EINPROGRESS || errno==EWOULDBLOCK)
+					errno = EAGAIN;					//is this what we want for the 'send', i.e wait until the sock is conn'ed.
+			else {
 	    perror("connect");
 	    close(csock->osfd);
 	    fprintf(stderr, "libcmm: error connecting new socket\n");
@@ -917,6 +1007,7 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 		    diff.tv_sec, diff.tv_usec);
 #endif
 	    return CMM_FAILED;
+		}
 	}
 	
 	csock->cur_label = up_label;
@@ -1018,7 +1109,7 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 }
 
 int cmm_connect(mc_socket_t sock, 
-		const struct sockaddr *serv_addr, socklen_t addrlen,
+		const struct sockaddr *serv_addr, socklen_t addrlen, u_long labels,
 		connection_event_cb_t label_down_cb,
 		connection_event_cb_t label_up_cb,
 		void *cb_arg)
@@ -1060,6 +1151,19 @@ int cmm_connect(mc_socket_t sock,
     } else {
 	assert(0);
     }
+    if(sk->non_blocking==1)
+		{
+			  struct csocket *csock = NULL;
+    		if (labels) {
+						csock = sk->sock_color_hash[labels];
+   			} 
+				assert(csock);			//Make sure programmers use existing labels
+				csock->connected=1;
+				csock->cur_label = labels;
+				sk->active_csock = csock;
+				int rc = connect(csock->osfd, serv_addr, addrlen);
+				return rc;
+		}
     
     return 0;
 }

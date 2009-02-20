@@ -18,6 +18,7 @@ extern "C" {
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
+#include <sys/poll.h>
 
 /* opaque socket structure; multi-colored socket */
 typedef int mc_socket_t;
@@ -27,7 +28,7 @@ typedef int mc_socket_t;
 #define CMM_DEFERRED -2
 
 /* signal, fired from connection scout, used to invoke thunks */
-#define CMM_SIGNAL SIGHUP
+#define CMM_SIGNAL SIGVTALRM
 
 /*** CMM socket function wrappers ***/
 
@@ -73,6 +74,8 @@ int cmm_select(mc_socket_t nfds,
 	       struct timeval *timeout);
 
 int cmm_read(mc_socket_t sock, void *buf, size_t count);
+int cmm_poll(struct pollfd fds[], nfds_t nfds, int timeout);
+int cmm_getpeername(int socket, struct sockaddr *address, socklen_t *address_len);
 
 /* connection callbacks take as arguments the socket file descriptor
  * in question, the labels for this reconnection, and a pointer to 
@@ -93,7 +96,7 @@ typedef int (*connection_event_cb_t)(mc_socket_t sock, u_long labels,
  *     connections as needed before sending data.
  */
 int cmm_connect(mc_socket_t sock, 
-		const struct sockaddr *serv_addr, socklen_t addrlen,
+		const struct sockaddr *serv_addr, socklen_t addrlen, u_long labels,
 		connection_event_cb_t label_down_cb,
 		connection_event_cb_t label_up_cb,
 		void *cb_arg);
