@@ -124,7 +124,7 @@ int srv_connect(u_long label)
 	    HOST, PORT, label);
     rc = cmm_connect(shared_sock, (struct sockaddr*)&srv_addr,
 		     (socklen_t)sizeof(srv_addr),
-		     NULL, NULL, NULL);
+		     label, NULL, NULL, NULL);
     if (rc < 0) {
 	if (errno == EINTR) {
 	    goto conn_retry;
