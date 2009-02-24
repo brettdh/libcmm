@@ -7,11 +7,13 @@
 #include <assert.h>
 #include <map>
 #include <vector>
+#include <memory>
 #include <stropts.h>
 #include <sys/ioctl.h>
 #include <sys/poll.h>
 #include <fcntl.h>
 using std::vector; using std::pair;
+using std::auto_ptr;
 
 #include <connmgr_labels.h>
 
@@ -84,8 +86,19 @@ struct csocket {
     
     csocket(int family, int type, int protocol) {
 	osfd = socket(family, type, protocol);
+	if (osfd < 0) {
+	    /* out of file descriptors or memory at this point */
+	    throw osfd;
+	}
 	cur_label = 0;
 	connected = 0;
+    }
+
+    ~csocket() {
+	if (osfd > 0) {
+	    /* if it's a real open socket */
+	    close(osfd);
+	}
     }
 };
 
@@ -122,6 +135,7 @@ struct cmm_sock {
     int sock_type;
     int sock_protocol;
     SockOptHash sockopts;
+
     struct sockaddr *addr; /* these are used for reconnecting the socket */
     socklen_t addrlen;
 
@@ -131,7 +145,14 @@ struct cmm_sock {
 
     cmm_sock(int family, int type, int protocol);
     ~cmm_sock() {
+	for (CSockList::iterator it = csocks.begin();
+	     it != csocks.end(); it++) {
+	    struct csocket *victim = *it;
+	    delete victim;
+	}
+
 	free(addr);
+	close(sock);
     }
 };
 
@@ -146,17 +167,15 @@ typedef concurrent_hash_map<mc_socket_t,
 			    struct cmm_sock*, 
 			    MyHashCompare<mc_socket_t> > CMMSockHash;
 static CMMSockHash cmm_sock_hash;
-static atomic<mc_socket_t> next_mc_sock;
 
 cmm_sock::cmm_sock(int family, int type, int protocol) 
 {
-    /* XXX: this could wrap around... eventually. */
-    /* Eventually, do something better here. */
-    if (next_mc_sock < 0) {
-	errno = EMFILE;
-	return;
+    /* reserve a dummy OS file descriptor for this mc_socket. */
+    sock = socket(family, type, protocol);
+    if (sock < 0) {
+	/* invalid params, or no more FDs/memory left. */
+	throw sock; /* :-) */
     }
-    sock = (mc_socket_t)++next_mc_sock; 
 
     sock_family = family;
     sock_type = type;
@@ -330,7 +349,7 @@ static void net_status_change_handler(int sig)
     //fprintf(stderr, "Before:\n---\n");
     //print_thunks();
 
-#if 0 /* XXX: come back to this.  maybe this should reconnect the last
+#if 1 /* XXX: come back to this.  maybe this should reconnect the last
        * available label? */
     /* put down the sockets connected on now-unavailable networks. */
     for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
@@ -794,18 +813,18 @@ int cmm_setsockopt(mc_socket_t sock, int level, int optname,
 	struct csocket *csock = *it;
 	assert(csock);
 	if (csock->osfd != -1) {
-			if(optname==O_NONBLOCK){
-
-				int flags;
+	    if(optname==O_NONBLOCK){
+		
+		int flags;
     		flags = fcntl(csock->osfd, F_GETFL, 0);
     		flags |= O_NONBLOCK;
     		(void)fcntl(csock->osfd, F_SETFL, flags);
-				sk->non_blocking=1;
-					
-			}
-			else
-					rc = setsockopt(csock->osfd, level, optname, optval, optlen);
-
+		sk->non_blocking=1;
+		
+	    }
+	    else
+		rc = setsockopt(csock->osfd, level, optname, optval, optlen);
+	    
 	    if (rc < 0) {
 		return rc;
 	    }
@@ -897,11 +916,19 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
     struct csocket *csock = NULL;
     if (up_label) {
 	csock = sk->sock_color_hash[up_label];
+	if (!csock) {
+	    /* caller specified an invalid label */
+	    errno = EINVAL;
+	    return CMM_FAILED;
+	}
     } else {
 	if (sk->serial && sk->active_csock) {
 	    csock = sk->active_csock;
 	    up_label = sk->active_csock->cur_label;
 	} else {
+	    /* no active csock, no label specified;
+	     * just grab the first socket that exists and whose network
+	     * is available */
 	    assert(sk->serial); /* XXX: remove after subclassing for serial */
 	    for (CSockHash::iterator iter = sk->sock_color_hash.begin();
 		 iter != sk->sock_color_hash.end(); iter++) {
@@ -914,8 +941,11 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	    }
 	}
     }
-    assert(csock); /* XXX: need a better way to enforce that programmers 
-		    * only use the available labels */
+    if (!csock) {
+	errno = ENOTCONN;
+	return CMM_FAILED;
+    }
+
     if (!csock->connected) {
 #ifdef CMM_TIMING
 	struct timeval switch_start;
@@ -975,13 +1005,6 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	/* connect new socket with current label */
 	set_socket_labels(csock->osfd, up_label);
 	
-#if 0
-	struct timespec timeout;
-	timeout.tv_sec = 0;
-	timeout.tv_nsec = 300*1000*1000;
-	nanosleep(&timeout, NULL);
-#endif
-
 #ifdef CMM_TIMING
 	TIME(connect_start);
 #endif
@@ -990,24 +1013,26 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	TIME(connect_end);
 #endif
 	if (rc < 0) {
-			if(errno==EINPROGRESS || errno==EWOULDBLOCK)
-					errno = EAGAIN;					//is this what we want for the 'send', i.e wait until the sock is conn'ed.
-			else {
-	    perror("connect");
-	    close(csock->osfd);
-	    fprintf(stderr, "libcmm: error connecting new socket\n");
-	    /* we've previously checked, and the label should be
-	     * available... so this failure is something else. */
-	    /* XXX: maybe check scout_label_available(up_label) again? 
-	     *      if it is not, return CMM_DEFERRED? */
-	    /* XXX: this may be a race; i'm not sure. */
+	    if(errno==EINPROGRESS || errno==EWOULDBLOCK)
+		//is this what we want for the 'send', 
+		//i.e wait until the sock is conn'ed.
+		errno = EAGAIN;	 
+	    else {
+		perror("connect");
+		close(csock->osfd);
+		fprintf(stderr, "libcmm: error connecting new socket\n");
+		/* we've previously checked, and the label should be
+		 * available... so this failure is something else. */
+		/* XXX: maybe check scout_label_available(up_label) again? 
+		 *      if it is not, return CMM_DEFERRED? */
+		/* XXX: this may be a race; i'm not sure. */
 #ifdef CMM_TIMING
-	    TIMEDIFF(connect_start, connect_end, diff);
-	    fprintf(timing_file, "connect() failed after %ld.%06ld seconds\n",
-		    diff.tv_sec, diff.tv_usec);
+		TIMEDIFF(connect_start, connect_end, diff);
+		fprintf(timing_file, "connect() failed after %ld.%06ld seconds\n",
+			diff.tv_sec, diff.tv_usec);
 #endif
-	    return CMM_FAILED;
-		}
+		return CMM_FAILED;
+	    }
 	}
 	
 	csock->cur_label = up_label;
@@ -1021,11 +1046,11 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 
 	if (sk->label_up_cb) {
 #ifdef CMM_TIMING
-	TIME(up_cb_start);
+	    TIME(up_cb_start);
 #endif
 	    int rc = sk->label_up_cb(sk->sock, up_label, sk->cb_arg);
 #ifdef CMM_TIMING
-	TIME(up_cb_end);
+	    TIME(up_cb_end);
 #endif
 	    if (rc < 0) {
 #ifdef CMM_TIMING
@@ -1038,23 +1063,22 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 		fprintf(stderr, "error: application-level up_cb failed\n");
 
 		CMMSockHash::accessor write_ac;
-		if (!cmm_sock_hash.find(write_ac, sock)) {
-		    assert(0);
-		}
-		assert(write_ac->second == sk);
-		assert(csock == sk->sock_color_hash[up_label]);
-		
-		close(csock->osfd);
-		csock->osfd = socket(sk->sock_family, 
-				     sk->sock_type,
-				     sk->sock_protocol);
-		csock->cur_label = 0;
-		csock->connected = 0;
-		if (sk->serial) {
-		    sk->active_csock = NULL;
-		} else {
-		    assert(0); /* TODO: implement parallel mode */
-		}
+		if (cmm_sock_hash.find(write_ac, sock)) {
+		    assert(write_ac->second == sk);
+		    assert(csock == sk->sock_color_hash[up_label]);
+		    
+		    close(csock->osfd);
+		    csock->osfd = socket(sk->sock_family, 
+					 sk->sock_type,
+					 sk->sock_protocol);
+		    csock->cur_label = 0;
+		    csock->connected = 0;
+		    if (sk->serial) {
+			sk->active_csock = NULL;
+		    } else {
+			assert(0); /* TODO: implement parallel mode */
+		    }
+		} /* else: must have already been cmm_close()d */
 		
 		return CMM_FAILED;
 	    }
@@ -1151,33 +1175,37 @@ int cmm_connect(mc_socket_t sock,
     } else {
 	assert(0);
     }
-    if(sk->non_blocking==1)
-		{
-			  struct csocket *csock = NULL;
-    		if (labels) {
-						csock = sk->sock_color_hash[labels];
-   			} 
-				assert(csock);			//Make sure programmers use existing labels
-				csock->connected=1;
-				csock->cur_label = labels;
-				sk->active_csock = csock;
-				int rc = connect(csock->osfd, serv_addr, addrlen);
-				return rc;
-		}
+    if(sk->non_blocking==1) {
+	struct csocket *csock = NULL;
+	if (labels) {
+	    csock = sk->sock_color_hash[labels];
+	} 
+	assert(csock);     //Make sure programmers use existing labels
+	csock->connected=1;  /* XXX: this needs a comment explaining
+			      * what's going on. It looks like connect
+			      * could fail and this flag would still be
+			      * set to 1, but I'm assuming that this is
+			      * okay because of non-blocking stuff. */
+	csock->cur_label = labels;
+	sk->active_csock = csock;
+	int rc = connect(csock->osfd, serv_addr, addrlen);
+	return rc;
+    }
     
     return 0;
 }
 
 mc_socket_t cmm_socket(int family, int type, int protocol)
 {
-    /* just for validating arguments */
-    int s = socket(family, type, protocol);
-    if (s < 0) {
-	return s;
+    struct cmm_sock *new_sk = NULL;
+    try {
+	/* automatically clean up if cmm_sock() throws */
+	auto_ptr<struct cmm_sock> ptr(new cmm_sock(family, type, protocol));
+	
+	new_sk = ptr.release();
+    } catch (int oserr) {
+	return oserr;
     }
-    close(s);
-
-    struct cmm_sock *new_sk = new cmm_sock(family, type, protocol);
 
     CMMSockHash::accessor ac;
     if (cmm_sock_hash.insert(ac, new_sk->sock)) {
@@ -1185,12 +1213,36 @@ mc_socket_t cmm_socket(int family, int type, int protocol)
     } else {
 	fprintf(stderr, "Error: new socket %d is already in hash!  WTF?\n", 
 		new_sk->sock);
-	/* for now we will ignore the case in which someone creates 
-	 * 2^32 (2^64) sockets. */
 	assert(0);
     }
 
     return new_sk->sock;
+}
+
+int cmm_shutdown(mc_socket_t sock, int how)
+{
+    int rc = 0;
+    CMMSockHash::accessor ac;
+    if (cmm_sock_hash.find(ac, sock)) {
+	struct cmm_sock *sk = ac->second;
+	assert(sk);
+	for (CSockList::iterator it = sk->csocks.begin();
+	     it != sk->csocks.end(); it++) {
+	    struct csocket *csock = *it;
+	    assert(csock);
+	    if (csock->osfd > 0) {
+		rc = shutdown(csock->osfd, how);
+		if (rc < 0) {
+		    return rc;
+		}
+	    }
+	}
+    } else {
+	errno = EBADF;
+	rc = -1;
+    }
+
+    return rc;
 }
 
 int cmm_close(mc_socket_t sock)
@@ -1219,18 +1271,8 @@ int cmm_close(mc_socket_t sock)
 	ac.release();
 
 	assert(sk);
-	sk->sock_color_hash.clear();
-	for (CSockList::iterator it = sk->csocks.begin();
-	     it != sk->csocks.end(); it++) {
-	    struct csocket *victim = *it;
-	    assert(victim);
-	    if (victim->osfd > 0) {
-		close(victim->osfd);
-	    }
-	    delete victim;
-	}
-	sk->csocks.clear();
-	delete sk;
+
+	delete sk; /* moved the rest of the cleanup to the destructor */
 	return 0;
     } else {
 	fprintf(stderr, "Warning: cmm_close()ing a socket that's not "

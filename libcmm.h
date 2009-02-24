@@ -96,7 +96,8 @@ typedef int (*connection_event_cb_t)(mc_socket_t sock, u_long labels,
  *     connections as needed before sending data.
  */
 int cmm_connect(mc_socket_t sock, 
-		const struct sockaddr *serv_addr, socklen_t addrlen, u_long labels,
+		const struct sockaddr *serv_addr, socklen_t addrlen, 
+		u_long initial_labels,
 		connection_event_cb_t label_down_cb,
 		connection_event_cb_t label_up_cb,
 		void *cb_arg);
@@ -107,6 +108,9 @@ int cmm_connect(mc_socket_t sock,
 
 /* returns a usable mc_socket_t on success, -1 on failure. */
 mc_socket_t cmm_socket(int family, int type, int protocol);
+
+/* returns 0 on success, -1 on failure. */
+int cmm_shutdown(mc_socket_t sock, int how);
 
 /* returns 0 on success, -1 on failure. */
 int cmm_close(mc_socket_t sock);
