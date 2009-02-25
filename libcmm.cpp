@@ -756,7 +756,7 @@ int cmm_read(mc_socket_t sock, void *buf, size_t count)
     if (!cmm_sock_hash.find(ac, sock)) {
 	//errno = EBADF;
 	//return CMM_FAILED;
-			return read(sock, buf,count);
+	return read(sock, buf,count);
     }
     
     struct cmm_sock *sk = ac->second;
@@ -778,7 +778,7 @@ int cmm_getsockopt(mc_socket_t sock, int level, int optname,
 {
     CMMSockHash::const_accessor ac;
     if (!cmm_sock_hash.find(ac, sock)) {
-					return getsockopt(sock, level, optname, optval, optlen);
+	return getsockopt(sock, level, optname, optval, optlen);
     }
 
 		struct cmm_sock *sk = ac->second;
