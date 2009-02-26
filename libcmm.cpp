@@ -1062,25 +1062,29 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 #endif
 		fprintf(stderr, "error: application-level up_cb failed\n");
 
-		CMMSockHash::accessor write_ac;
-		if (cmm_sock_hash.find(write_ac, sock)) {
-		    assert(write_ac->second == sk);
-		    assert(csock == sk->sock_color_hash[up_label]);
+		if (rc == CMM_DEFERRED) {
+		    return rc;
+		} else {
+		    CMMSockHash::accessor write_ac;
+		    if (cmm_sock_hash.find(write_ac, sock)) {
+			assert(write_ac->second == sk);
+			assert(csock == sk->sock_color_hash[up_label]);
+			
+			close(csock->osfd);
+			csock->osfd = socket(sk->sock_family, 
+					     sk->sock_type,
+					     sk->sock_protocol);
+			csock->cur_label = 0;
+			csock->connected = 0;
+			if (sk->serial) {
+			    sk->active_csock = NULL;
+			} else {
+			    assert(0); /* TODO: implement parallel mode */
+			}
+		    } /* else: must have already been cmm_close()d */
 		    
-		    close(csock->osfd);
-		    csock->osfd = socket(sk->sock_family, 
-					 sk->sock_type,
-					 sk->sock_protocol);
-		    csock->cur_label = 0;
-		    csock->connected = 0;
-		    if (sk->serial) {
-			sk->active_csock = NULL;
-		    } else {
-			assert(0); /* TODO: implement parallel mode */
-		    }
-		} /* else: must have already been cmm_close()d */
-		
-		return CMM_FAILED;
+		    return CMM_FAILED;
+		}
 	    }
 	}
 #ifdef CMM_TIMING
@@ -1217,6 +1221,43 @@ mc_socket_t cmm_socket(int family, int type, int protocol)
     }
 
     return new_sk->sock;
+}
+
+int cmm_reset(mc_socket_t sock)
+{
+    CMMSockHash::accessor ac;
+    if (cmm_sock_hash.find(ac, sock)) {
+	struct cmm_sock *sk = ac->second;
+	assert(sk);
+	if (sk->non_blocking) {
+	    fprintf(stderr, 
+		    "WARNING: cmm_reset not implemented for "
+		    "non-blocking sockets!!!\n");
+	    return CMM_FAILED;
+	}
+	for (CSockList::iterator it = sk->csocks.begin();
+	     it != sk->csocks.end(); it++) {
+	    struct csocket *csock = *it;
+	    assert(csock);
+
+	    close(csock->osfd);
+	    csock->osfd = socket(sk->sock_family, 
+				 sk->sock_type,
+				 sk->sock_protocol);
+	    csock->connected = 0;
+	    csock->cur_label = 0;
+	}
+	if (sk->serial) {
+	    sk->active_csock = NULL;
+	} else {
+	    assert(0); /* XXX: implement parallel mode. */
+	}
+
+	return 0;
+    } else {
+	/* no such mc_socket */
+	return CMM_FAILED;
+    }
 }
 
 int cmm_shutdown(mc_socket_t sock, int how)

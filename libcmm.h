@@ -115,6 +115,12 @@ int cmm_shutdown(mc_socket_t sock, int how);
 /* returns 0 on success, -1 on failure. */
 int cmm_close(mc_socket_t sock);
 
+/* to be called on a mc_socket that has encountered some kind of error.
+ * "Resets" the mc_socket to the state before any real connections
+ * have been made and initialized. The next operation on the 
+ * mc_socket after cmm_reset will trigger reconnection and 
+ * replay of the application-level callback. */
+int cmm_reset(mc_socket_t sock);
   
 /* This one is not tested yet. */
 /* Looks through the socket's queue of thunks and cancels any and all
