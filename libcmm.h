@@ -68,6 +68,10 @@ int cmm_setsockopt(mc_socket_t sock, int level, int optname,
 
 /* first three fd_sets may only contain real os file descriptors.
  * next three fd_sets may only contain mc_socket_t's. */
+/* XXX: this can be greatly simplified, since we now reserve real os 
+ * file descriptors when calling cmm_socket.  Basically, we don't need
+ * separate fd sets; we can just look up all the fds in the hash
+ * and figure out which ones are really mc_sockets. */
 int cmm_select(mc_socket_t nfds, 
 	       fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 	       fd_set *mc_readfds, fd_set *mc_writefds, fd_set *mc_exceptfds,
@@ -114,6 +118,12 @@ int cmm_shutdown(mc_socket_t sock, int how);
 
 /* returns 0 on success, -1 on failure. */
 int cmm_close(mc_socket_t sock);
+
+/* checks whether label is available.
+ * if so, prepares socket for sending on that label and returns 0.
+ * if not, tries to register (fn,arg)  */
+int cmm_check_label(mc_socket_t sock, u_long label,
+		    resume_handler_t fn, void *arg);
 
 /* to be called on a mc_socket that has encountered some kind of error.
  * "Resets" the mc_socket to the state before any real connections

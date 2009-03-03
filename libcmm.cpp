@@ -346,8 +346,8 @@ static void net_status_change_handler(int sig)
     fprintf(stderr, "New labels available: %lu\n", new_up_labels);
     fprintf(stderr, "Labels now unavailable: %lu\n", new_down_labels);
 
-    //fprintf(stderr, "Before:\n---\n");
-    //print_thunks();
+    fprintf(stderr, "Before:\n---\n");
+    print_thunks();
 
 #if 1 /* XXX: come back to this.  maybe this should reconnect the last
        * available label? */
@@ -416,8 +416,8 @@ static void net_status_change_handler(int sig)
     /* matches now contains all thunks that match the labels 
      * (including thunks on all sockets) */
 
-    //fprintf(stderr, "After:\n---\n");
-    //print_thunks();
+    fprintf(stderr, "After:\n---\n");
+    print_thunks();
 
     while (!matches.empty()) {
 	struct thunk *th = NULL;
@@ -478,6 +478,11 @@ static void enqueue_handler(mc_socket_t sock, u_long label,
     struct thunk * new_thunk = new struct thunk(fn, arg, label, sock);
 
     hash_ac->second->thunk_queue.push(new_thunk);
+
+
+    fprintf(stderr, "Registered thunk %p, arg %p on mc_sock %d label %lu.\n", 
+	    fn, arg, sock, label);
+    print_thunks();
 }
 
 static int sock_preapprove(mc_socket_t sock, u_long labels, 
@@ -582,7 +587,7 @@ static int make_real_fd_set(int nfds, const fd_set *mc_fds, fd_set *os_fds,
     for (mc_socket_t s = nfds - 1; s > 0; s--) {
 //	fprintf(stderr, "DBG: checking mc_socket %d\n", s);
 	if (FD_ISSET(s, mc_fds)) {
-//	    fprintf(stderr, "DBG: mc_socket %d is set\n", s);
+	    fprintf(stderr, "DBG: mc_socket %d is set\n", s);
 	    CMMSockHash::const_accessor ac;
 	    if (!cmm_sock_hash.find(ac, s)) {
 		errno = EBADF;
@@ -601,6 +606,8 @@ static int make_real_fd_set(int nfds, const fd_set *mc_fds, fd_set *os_fds,
 			osfd_list.push_back(pair<mc_socket_t,int>(s,osfd));
 		    }
 		} else {
+		    fprintf(stderr,
+			    "DBG: cmm_select on a disconnected socket\n");
 		    errno = EBADF;
 		    return -1;
 		}
@@ -758,7 +765,8 @@ int cmm_read(mc_socket_t sock, void *buf, size_t count)
 	//return CMM_FAILED;
 	return read(sock, buf,count);
     }
-    
+
+    int osfd = -1;
     struct cmm_sock *sk = ac->second;
     assert(sk);
     if (sk->serial) {
@@ -767,7 +775,9 @@ int cmm_read(mc_socket_t sock, void *buf, size_t count)
 	    errno = ENOTCONN;
 	    return -1;
 	}
-	return read(csock->osfd, buf, count);
+	osfd = csock->osfd;
+	ac.release();
+	return read(osfd, buf, count);
     } else {
 	assert(0); /* TODO: implement parallel mode. (read is a bit tricky.) */
     }
@@ -1235,6 +1245,7 @@ int cmm_reset(mc_socket_t sock)
 		    "non-blocking sockets!!!\n");
 	    return CMM_FAILED;
 	}
+#if 0
 	for (CSockList::iterator it = sk->csocks.begin();
 	     it != sk->csocks.end(); it++) {
 	    struct csocket *csock = *it;
@@ -1247,8 +1258,23 @@ int cmm_reset(mc_socket_t sock)
 	    csock->connected = 0;
 	    csock->cur_label = 0;
 	}
+#endif
 	if (sk->serial) {
-	    sk->active_csock = NULL;
+	    if (sk->active_csock) {
+		struct csocket *csock = sk->active_csock;
+//		u_long label = csock->cur_label;
+
+		sk->active_csock = NULL;
+		close(csock->osfd);
+		csock->osfd = socket(sk->sock_family,
+				     sk->sock_type,
+				     sk->sock_protocol);
+		csock->connected = 0;
+		csock->cur_label = 0;
+
+//		ac.release();
+//		return prepare_socket(sock, label);
+	    }
 	} else {
 	    assert(0); /* XXX: implement parallel mode. */
 	}
@@ -1258,6 +1284,12 @@ int cmm_reset(mc_socket_t sock)
 	/* no such mc_socket */
 	return CMM_FAILED;
     }
+}
+
+int cmm_check_label(mc_socket_t sock, u_long label,
+		    resume_handler_t fn, void *arg)
+{
+    return sock_preapprove(sock, label, fn, arg);
 }
 
 int cmm_shutdown(mc_socket_t sock, int how)
