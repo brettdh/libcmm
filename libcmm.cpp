@@ -587,7 +587,7 @@ static int make_real_fd_set(int nfds, const fd_set *mc_fds, fd_set *os_fds,
     for (mc_socket_t s = nfds - 1; s > 0; s--) {
 //	fprintf(stderr, "DBG: checking mc_socket %d\n", s);
 	if (FD_ISSET(s, mc_fds)) {
-	    fprintf(stderr, "DBG: mc_socket %d is set\n", s);
+	  //	    fprintf(stderr, "DBG: mc_socket %d is set\n", s);
 	    CMMSockHash::const_accessor ac;
 	    if (!cmm_sock_hash.find(ac, s)) {
 		errno = EBADF;
