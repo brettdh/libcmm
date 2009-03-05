@@ -215,8 +215,7 @@ void handle_term(int)
 void usage(char *argv[])
 {
     fprintf(stderr, "Usage: %s <ap> [uptime downtime]\n", argv[0]);
-    fprintf(stderr, "Usage:    uptime,downtime are in milliseconds.\n");
-    fprintf(stderr, "Usage:    Default: up 30secs, down 5secs.\n");
+    fprintf(stderr, "Usage:    uptime,downtime are in seconds.\n");
     exit(-1);
 }
 
@@ -236,17 +235,21 @@ int main(int argc, char *argv[])
 	usage(argv);
     }
 
-    useconds_t UP_TIME = 30;
-    useconds_t DOWN_TIME = 5;
+    bool sampling = false;
+
+    useconds_t up_time = 30;
+    useconds_t down_time = 5;
     if (argc == 4) {
-	UP_TIME = atoi(argv[2]);
-	DOWN_TIME = atoi(argv[3]);
-	if (UP_TIME < MIN_TIME || DOWN_TIME < MIN_TIME) {
+	up_time = atoi(argv[2]);
+	down_time = atoi(argv[3]);
+	if (up_time < MIN_TIME || down_time < MIN_TIME) {
 	    fprintf(stderr, 
 		    "Error: uptime and downtime must be greater than "
 		    "%u second.\n", MIN_TIME);
 	    exit(-1);
 	}
+    } else if (argc == 2) {
+        sampling = true;
     }
 
     signal(SIGINT, handle_term);
@@ -262,22 +265,22 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "Couldn't create IPCListener thread, exiting\n");
 	exit(-1);
     }
-    
+
     while (running) {
 	iface_up = true;
 	labels_available = UP_LABELS;
 	fprintf(stderr, "%s is up\n", argv[1]);
 	notify_all_subscribers();
-	//if (sleep(UP_TIME) != 0) break;
-	thread_sleep(UP_TIME);
+	//if (sleep(up_time) != 0) break;
+	thread_sleep(up_time);
 	if (!running) break;
 
 	iface_up = false;
 	labels_available = DOWN_LABELS;
 	fprintf(stderr, "%s is down\n", argv[1]);
 	notify_all_subscribers();
-	//if (sleep(DOWN_TIME) != 0) break;
-	thread_sleep(DOWN_TIME);
+	//if (sleep(down_time) != 0) break;
+	thread_sleep(down_time);
     }
 
     pthread_join(tid, NULL);
