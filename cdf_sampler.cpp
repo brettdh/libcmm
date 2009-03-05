@@ -1,6 +1,15 @@
 #include "cdf_sampler.h"
+#include <cstdlib>
 
-void read_availability_distribution(char *cdf_filename, cdf_map_t &cdf_map)
+/* returns a pseudo-random double in the range [0,1]. */
+static double randDouble() {
+    return (random() / (static_cast<double>(RAND_MAX) + 1.0));
+}
+
+
+        
+void 
+CDFSampler::read_availability_distribution(char *cdf_filename)
 {
     cdf_map.clear();
     /* read file */
@@ -14,7 +23,8 @@ void read_availability_distribution(char *cdf_filename, cdf_map_t &cdf_map)
 }
 
 /* sample from the quantile function (inverse CDF) */
-double sample_quantile(const cdf_map_t &cdf_map, double alpha)
+double 
+CDFSampler::sample_quantile(double alpha)
 {
     cdf_map_t::const_iterator lower = cdf_map.lower_bound(alpha);
     if (alpha == lower->first) 
@@ -26,14 +36,9 @@ double sample_quantile(const cdf_map_t &cdf_map, double alpha)
 
     /* interpolate on the CDF.  For large data sets, 
      * should be close to accurate. */
-    double slope = (upper->second - lower->second)/(upper->first - lower->first);
+    double slope = ((upper->second - lower->second)
+                    / (upper->first - lower->first));
     double delta = alpha - lower->first;
     double estimate = (lower->second + (slope*delta));
     return estimate;
 }
-
-void prepare_scout(, double total_duration)
-{
-
-}
-

@@ -68,7 +68,7 @@ int cmm_setsockopt(mc_socket_t sock, int level, int optname,
 
 /* first three fd_sets may only contain real os file descriptors.
  * next three fd_sets may only contain mc_socket_t's. */
-/* XXX: this can be greatly simplified, since we now reserve real os 
+/* XXX: this can be greatly simplified, since we now reserve real OS 
  * file descriptors when calling cmm_socket.  Basically, we don't need
  * separate fd sets; we can just look up all the fds in the hash
  * and figure out which ones are really mc_sockets. */

@@ -11,10 +11,16 @@ class CDFSampler {
   public:
     CDFSampler(const char *filename, double duration);
     double sample();
+
   private:
     cdf_map_t cdf_map;
-    std::vector<double> prealloc_samples;
+    std::vector<double> samples;
     int last_index;
+
+    /* utility functions */
+    void read_distribution(const char *filename);
+    double sample_quantile(double alpha);
+    void generate_samples();
 };
 
 
