@@ -221,6 +221,8 @@ void usage(char *argv[])
 {
     fprintf(stderr, "Usage: %s <ap> [uptime downtime]\n", argv[0]);
     fprintf(stderr, "Usage:    uptime,downtime are in seconds.\n");
+    fprintf(stderr, "\nUsage 2: %s <encounter duration cdf file> "
+	    "\n                       <disconnect duration cdf file>\n", argv[0]);
     exit(-1);
 }
 
