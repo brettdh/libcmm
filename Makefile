@@ -3,9 +3,12 @@ LIBTBB:=-ltbb_debug
 LDFLAGS:=-L.  $(LIBTBB) -lrt
 
 LIBRARIES:=libcmm.so
-EXECUTABLES:=conn_scout cmm_test
+EXECUTABLES:=conn_scout cmm_test cdf_test
 
 all: $(LIBRARIES) $(EXECUTABLES)
+
+cdf_test: cdf_test.o cdf_sampler.o
+	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
 cmm_test: libcmm_test.o libcmm.so
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $^
@@ -20,6 +23,8 @@ libcmm_test.o: libcmm.h
 libcmm_scout.o: libcmm.h libcmm_ipc.h
 libcmm.o: libcmm.h libcmm_ipc.h timeops.h
 libcmm_ipc.o: libcmm_ipc.h
+cdf_sampler.o: cdf_sampler.h
+cdf_test.o: cdf_sampler.h
 
 clean:
 	rm -f *~ *.o $(LIBRARIES) $(EXECUTABLES) .tbbinstall .libinstall .hdrinstall .bininstall
