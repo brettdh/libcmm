@@ -8,7 +8,7 @@ EXECUTABLES:=conn_scout cmm_test cdf_test
 all: $(LIBRARIES) $(EXECUTABLES)
 
 cdf_test: cdf_test.o cdf_sampler.o
-	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $^
+	$(CXX) $(CFLAGS) -o $@ $^
 
 cmm_test: libcmm_test.o libcmm.so
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $^
