@@ -13,14 +13,14 @@ cdf_test: cdf_test.o cdf_sampler.o
 cmm_test: libcmm_test.o libcmm.so
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
-conn_scout: libcmm_scout.o
+conn_scout: libcmm_scout.o cdf_sampler.o
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
 libcmm.so: libcmm.o libcmm_ipc.o
 	$(CXX) $(CFLAGS) $(LDFLAGS) -shared -o $@ $^
 
 libcmm_test.o: libcmm.h
-libcmm_scout.o: libcmm.h libcmm_ipc.h
+libcmm_scout.o: libcmm.h libcmm_ipc.h cdf_sampler.h
 libcmm.o: libcmm.h libcmm_ipc.h timeops.h
 libcmm_ipc.o: libcmm_ipc.h
 cdf_sampler.o: cdf_sampler.h

@@ -11,7 +11,7 @@ typedef std::map<double, double> cdf_map_t;
 class CDFSampler {
   public:
     /* throws:
-     *    Err if file can't be opened
+     *    CDFErr if file can't be opened
      */
     CDFSampler(const char *filename, double duration);
     double sample();
@@ -23,15 +23,15 @@ class CDFSampler {
 
     /* utility functions */
     void read_distribution(const char *filename);
-    double sample_quantile(double alpha);
+    double sample_quantile();
     void generate_samples();
 };
 
-class Err {
+class CDFErr {
   public:
     std::string str;
 
-    Err(std::string _str) : str(_str) {}
+    CDFErr(std::string _str) : str(_str) {}
 };
 
 

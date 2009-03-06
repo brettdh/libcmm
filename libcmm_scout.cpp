@@ -3,6 +3,7 @@
 #include <mqueue.h>
 #include <signal.h>
 #include <assert.h>
+#include <math.h>
 
 #include <queue>
 using std::queue;
@@ -15,6 +16,10 @@ using std::queue;
 #include "libcmm_ipc.h"
 #include "tbb/atomic.h"
 #include "tbb/concurrent_hash_map.h"
+
+#include "cdf_sampler.h"
+#include <memory>
+using std::auto_ptr;
 
 using tbb::atomic;
 
@@ -219,39 +224,72 @@ void usage(char *argv[])
     exit(-1);
 }
 
-void thread_sleep(int seconds)
+void thread_sleep(double fseconds)
 {
-    struct timespec timeout;
-    timeout.tv_sec = seconds;
-    timeout.tv_nsec = 0;
-    nanosleep(&timeout, NULL);
+    double iseconds = 0.0;
+    double fnseconds = modf(fseconds, &iseconds);
+    struct timespec timeout, rem;
+    timeout.tv_sec = (time_t)iseconds;
+    timeout.tv_nsec = (long)(fnseconds*1000000000);
+    rem.tv_sec = 0;
+    rem.tv_nsec = 0;
+
+    while (nanosleep(&timeout, &rem) < 0) {
+	if (!running) return;
+
+	if (errno == EINTR) {
+	    timeout.tv_sec = rem.tv_sec;
+	    timeout.tv_nsec = rem.tv_nsec;
+	} else {
+	    perror("nanosleep");
+	    return;
+	}
+    }
+
 }
 
 #define MIN_TIME 1
 
 int main(int argc, char *argv[])
 {
-    if (argc != 2 && argc != 4) {
+    if (argc != 3 && argc != 4) {
 	usage(argv);
     }
 
     bool sampling = false;
+    CDFSampler *up_time_samples = NULL;
+    CDFSampler *down_time_samples = NULL;
+    double presample_duration = 3600.0;
+    char *ifname = "background";
 
-    useconds_t up_time = 30;
-    useconds_t down_time = 5;
+    double up_time = 30.0;
+    double down_time = 5.0;
     if (argc == 4) {
-	up_time = atoi(argv[2]);
-	down_time = atoi(argv[3]);
+	//ifname = argv[1];
+	up_time = atof(argv[2]);
+	down_time = atof(argv[3]);
 	if (up_time < MIN_TIME || down_time < MIN_TIME) {
 	    fprintf(stderr, 
 		    "Error: uptime and downtime must be greater than "
 		    "%u second.\n", MIN_TIME);
 	    exit(-1);
 	}
-    } else if (argc == 2) {
+    } else if (argc == 3) {
         sampling = true;
+	try {
+	    auto_ptr<CDFSampler> up_ptr(new CDFSampler(argv[1], 
+						       presample_duration));
+	    auto_ptr<CDFSampler> down_ptr(new CDFSampler(argv[2],
+							 presample_duration));
+	    
+	    up_time_samples = up_ptr.release();
+	    down_time_samples = down_ptr.release();
+	} catch (CDFErr &e) {
+	    fprintf(stderr, "CDF Error: %s\n", e.str.c_str());
+	    exit(1);
+	}
     }
-
+    
     signal(SIGINT, handle_term);
 
     running = true;
@@ -267,22 +305,30 @@ int main(int argc, char *argv[])
     }
 
     while (running) {
+	if (sampling) {
+	    up_time = up_time_samples->sample();
+	}
 	iface_up = true;
 	labels_available = UP_LABELS;
-	fprintf(stderr, "%s is up\n", argv[1]);
+	fprintf(stderr, "%s is up for %lf seconds\n", ifname, up_time);
 	notify_all_subscribers();
 	//if (sleep(up_time) != 0) break;
 	thread_sleep(up_time);
 	if (!running) break;
 
+	if (sampling) {
+	    down_time = down_time_samples->sample();
+	}
 	iface_up = false;
 	labels_available = DOWN_LABELS;
-	fprintf(stderr, "%s is down\n", argv[1]);
+	fprintf(stderr, "%s is down for %lf seconds\n", ifname, down_time);
 	notify_all_subscribers();
 	//if (sleep(down_time) != 0) break;
 	thread_sleep(down_time);
     }
 
+    delete up_time_samples;
+    delete down_time_samples;
     pthread_join(tid, NULL);
     fprintf(stderr, "Scout gracefully quit.\n");
     return 0;

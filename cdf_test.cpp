@@ -16,9 +16,13 @@ int main(int argc, char *argv[])
 	while (1) {
 	    double sample = sampler.sample();
 	    printf("Sample %d: %lf\n", ++i, sample);
+	    if (sample < 0.0) {
+		/* for our purposes, the CDF has no negative x values. */
+		throw CDFErr("negative sample!  BUG IN CDF_SAMPLER CODE.");
+	    }
 	    sleep(1);
 	}
-    } catch (Err &e) {
+    } catch (CDFErr &e) {
 	fprintf(stderr, "Error: %s\n", e.str.c_str());
 	exit(1);
     }
