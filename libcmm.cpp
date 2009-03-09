@@ -211,12 +211,74 @@ typedef concurrent_hash_map<u_long, struct labeled_thunk_queue *,
 			    MyHashCompare<u_long> > ThunkHash;
 static ThunkHash thunk_hash;
 
+#define IMPORT_RULES
+#ifdef IMPORT_RULES
+/**The following used for providing label rules**/
+#define RULE_FILE "/tmp/cmm_rules_for_labels"
+typedef concurrent_queue<u_long> RuleQueue;
+struct RuleStruct{
+	RuleQueue rule_queue;
+};
+
+typedef concurrent_hash_map<u_long, struct RuleStruct *, MyHashCompare<u_long> > RuleHash;
+static RuleHash rule_hash;
+
+typedef concurrent_hash_map<u_long, u_long, MyHashCompare<u_long> > SuperiorLookUp; 
+static SuperiorLookUp sup_look_up;
+#endif
+
 static void net_status_change_handler(int sig);
 static int prepare_socket(mc_socket_t sock, u_long label);
 
 static void libcmm_init(void) __attribute__((constructor));
 static void libcmm_init(void)
 {
+#ifdef IMPORT_RULES
+		/** Rules Part1: pupulate the rule_hash from the options file**/
+		printf("Parsing the label rules file...\n");
+		FILE * fp;
+		fp = fopen(RULE_FILE,"r");
+		if (fp == NULL) {
+				printf("Could not open the rules file. Proceeding with default. \n");
+		}
+		else{	
+			char str_buf[250];
+			const char delimiters[] = " :";
+			
+			while(fgets(str_buf,sizeof(str_buf), fp))
+			{
+				char* token;
+				token = strtok(str_buf,	delimiters);
+				u_long temp_label = (u_long)strtol(token,NULL,0);	
+	
+				printf("Preferences for interface: %lu \n",temp_label);
+	
+				SuperiorLookUp::accessor lookup_ac;
+				if (!sup_look_up.find(lookup_ac, temp_label))
+					sup_look_up.insert(lookup_ac, temp_label);
+				lookup_ac->second=temp_label;
+				
+				RuleHash::accessor hash_ac;
+				if (!rule_hash.find(hash_ac, temp_label))
+				{
+					rule_hash.insert(hash_ac, temp_label);	
+					struct RuleStruct* new_rs = new struct RuleStruct;
+					hash_ac->second=new_rs;
+				}
+				
+				while((token=strtok(NULL,delimiters))!=NULL)
+				{
+					temp_label=(u_long)strtol(token,NULL,0);
+					printf("Use interface: %lu", temp_label);
+					hash_ac->second->rule_queue.push(temp_label);
+				}
+				printf("\n\n");
+			}
+			
+			fclose(fp);
+		}
+#endif
+
     memset(&ignore_action, 0, sizeof(ignore_action));
     memset(&net_status_change_action, 0, sizeof(net_status_change_action));
     memset(&old_action, 0, sizeof(old_action));
@@ -345,6 +407,28 @@ static void net_status_change_handler(int sig)
     scout_labels_changed(&new_up_labels, &new_down_labels);
     fprintf(stderr, "New labels available: %lu\n", new_up_labels);
     fprintf(stderr, "Labels now unavailable: %lu\n", new_down_labels);
+
+#ifdef IMPORT_RULES
+		/** Rules Part 2: setup the sup_lookup map for quicker check of interface superioriy**/
+		for(RuleHash::iterator rule_iter = rule_hash.begin(); rule_iter != rule_hash.end(); rule_iter++){
+			u_long head_label = rule_iter->first;
+				
+			SuperiorLookUp::accessor supper_ac;
+			if (!sup_look_up.find(supper_ac, head_label))
+				continue;
+			supper_ac->second = supper_ac->first;							//return to original, new info comming from scout
+
+			struct RuleStruct* rule_struct  = rule_iter->second;
+			for(RuleQueue::iterator q_iter = rule_struct->rule_queue.begin(); q_iter != rule_struct->rule_queue.end(); q_iter++){
+					
+					if(cur_labels & *q_iter){
+						fprintf(stderr,"Label %lu will use interface with label %lu\n", supper_ac->first, *q_iter);
+						supper_ac->second = *q_iter;
+						break;
+					}
+			}
+		}
+#endif
 
     fprintf(stderr, "Before:\n---\n");
     print_thunks();
@@ -540,6 +624,22 @@ static int get_osfd(mc_socket_t sock, u_long label)
     }
 }
 
+#ifdef IMPORT_RULES
+/** checks to see if there is a preffered interface for this label **/
+u_long cmm_set_supperior_label(u_long label)
+{
+		SuperiorLookUp::const_accessor lookup_ac;
+		if (!sup_look_up.find(lookup_ac, label)){
+			//printf("in superior lookup returned: %lu\n",label );
+			return label;
+		
+		}else{
+			//printf("in superior lookup returned: %lu\n",lookup_ac->second );
+			return lookup_ac->second;
+		}
+
+}
+#endif
 /*** CMM socket function wrappers ***/
 
 ssize_t cmm_send(mc_socket_t sock, const void *buf, size_t len, int flags,
@@ -547,6 +647,10 @@ ssize_t cmm_send(mc_socket_t sock, const void *buf, size_t len, int flags,
 {
     int rc;
 
+#ifdef IMPORT_RULES
+		/** Rules Part 3: Update labels if a better interface is available**/
+		labels = cmm_set_supperior_label(labels);	
+#endif
     rc = sock_preapprove(sock, labels, resume_handler, arg);
     if (rc < 0) {
 	return rc;

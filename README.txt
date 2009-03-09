@@ -92,3 +92,11 @@ function on their stored arguments.  cmm_thunk_cancel is currently
 ineffective if called from within a thunk being executed by the signal
 handler; this is just a bug, rather than a hard requirement of the
 API.
+
+Describing label preferences:
+[Could be done manually or by the connection scout]
+The API reads in a configuration file to determine if some interfaces are
+'superior' than others. This helps the API to dynamically choose a better
+interface if multiple are available. Check the sample configuration file
+for format.
+	 
