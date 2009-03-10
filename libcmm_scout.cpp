@@ -228,13 +228,18 @@ void usage(char *argv[])
 
 void thread_sleep(double fseconds)
 {
-    double iseconds = 0.0;
+    double iseconds = -1.0;
     double fnseconds = modf(fseconds, &iseconds);
     struct timespec timeout, rem;
     timeout.tv_sec = (time_t)iseconds;
     timeout.tv_nsec = (long)(fnseconds*1000000000);
     rem.tv_sec = 0;
     rem.tv_nsec = 0;
+
+    if (timeout.tv_sec < 0.0) {
+	fprintf(stderr, "Error: fseconds negative (or just too big!)\n");
+	raise(SIGINT);
+    }
 
     while (nanosleep(&timeout, &rem) < 0) {
 	if (!running) return;

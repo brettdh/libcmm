@@ -535,7 +535,7 @@ static void set_socket_labels(int osfd, u_long labels)
 	fprintf(stderr, "Warning: failed getting socket %d labels %lu\n",
 		osfd, labels);
     } else {
-	//fprintf(stderr, "old socket labels %lu ", old_labels);
+      //fprintf(stderr, "old socket labels %lu ", old_labels);
     }
 #endif
     //fprintf(stderr, "new socket labels %lu\n", labels);
@@ -626,7 +626,7 @@ static int get_osfd(mc_socket_t sock, u_long label)
 
 #ifdef IMPORT_RULES
 /** checks to see if there is a preffered interface for this label **/
-u_long cmm_set_supperior_label(u_long label)
+static u_long set_superior_label(u_long label)
 {
 		SuperiorLookUp::const_accessor lookup_ac;
 		if (!sup_look_up.find(lookup_ac, label)){
@@ -649,7 +649,7 @@ ssize_t cmm_send(mc_socket_t sock, const void *buf, size_t len, int flags,
 
 #ifdef IMPORT_RULES
 		/** Rules Part 3: Update labels if a better interface is available**/
-		labels = cmm_set_supperior_label(labels);	
+		labels = set_superior_label(labels);	
 #endif
     rc = sock_preapprove(sock, labels, resume_handler, arg);
     if (rc < 0) {
@@ -664,6 +664,10 @@ int cmm_writev(mc_socket_t sock, const struct iovec *vec, int count,
 {
     int rc;
 
+#ifdef IMPORT_RULES
+		/** Rules Part 3: Update labels if a better interface is available**/
+		labels = set_superior_label(labels);	
+#endif
     rc = sock_preapprove(sock, labels, resume_handler, arg);
     if (rc < 0) {
 	return rc;
@@ -1118,6 +1122,7 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	
 	/* connect new socket with current label */
 	set_socket_labels(csock->osfd, up_label);
+	fprintf(stderr, "About to connect socket, label=%lu\n", up_label);
 	
 #ifdef CMM_TIMING
 	TIME(connect_start);
