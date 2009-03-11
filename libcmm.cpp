@@ -118,6 +118,9 @@ typedef std::map<int, struct sockopt> SockOptNames;
 /* < level, < optname, (optval, optlen) > > */
 typedef std::map<int, SockOptNames> SockOptHash;
 
+
+#define IMPORT_RULES /* see notes below about label "precedence" rules */
+
 struct cmm_sock {
     mc_socket_t sock;
     CSockHash sock_color_hash;
@@ -142,6 +145,13 @@ struct cmm_sock {
     connection_event_cb_t label_down_cb;
     connection_event_cb_t label_up_cb;
     void *cb_arg;
+
+#ifdef IMPORT_RULES
+    int connecting; /* true iff the cmm_socket is currently in the process
+		     * of calling any label_up callback.  Used to ensure
+		     * we don't accidentally pick a "superior" label
+		     * in this case. */
+#endif
 
     cmm_sock(int family, int type, int protocol);
     ~cmm_sock() {
@@ -211,7 +221,6 @@ typedef concurrent_hash_map<u_long, struct labeled_thunk_queue *,
 			    MyHashCompare<u_long> > ThunkHash;
 static ThunkHash thunk_hash;
 
-#define IMPORT_RULES
 #ifdef IMPORT_RULES
 /**The following used for providing label rules**/
 #define RULE_FILE "/tmp/cmm_rules_for_labels"
@@ -430,8 +439,8 @@ static void net_status_change_handler(int sig)
 		}
 #endif
 
-    fprintf(stderr, "Before:\n---\n");
-    print_thunks();
+    //fprintf(stderr, "Before:\n---\n");
+    //print_thunks();
 
 #if 1 /* XXX: come back to this.  maybe this should reconnect the last
        * available label? */
@@ -500,8 +509,8 @@ static void net_status_change_handler(int sig)
     /* matches now contains all thunks that match the labels 
      * (including thunks on all sockets) */
 
-    fprintf(stderr, "After:\n---\n");
-    print_thunks();
+    //fprintf(stderr, "After:\n---\n");
+    //print_thunks();
 
     while (!matches.empty()) {
 	struct thunk *th = NULL;
@@ -566,7 +575,7 @@ static void enqueue_handler(mc_socket_t sock, u_long label,
 
     fprintf(stderr, "Registered thunk %p, arg %p on mc_sock %d label %lu.\n", 
 	    fn, arg, sock, label);
-    print_thunks();
+    //print_thunks();
 }
 
 static int sock_preapprove(mc_socket_t sock, u_long labels, 
@@ -626,18 +635,33 @@ static int get_osfd(mc_socket_t sock, u_long label)
 
 #ifdef IMPORT_RULES
 /** checks to see if there is a preffered interface for this label **/
-static u_long set_superior_label(u_long label)
+static u_long set_superior_label(mc_socket_t sock, u_long label)
 {
-		SuperiorLookUp::const_accessor lookup_ac;
-		if (!sup_look_up.find(lookup_ac, label)){
-			//printf("in superior lookup returned: %lu\n",label );
-			return label;
-		
-		}else{
-			//printf("in superior lookup returned: %lu\n",lookup_ac->second );
-			return lookup_ac->second;
-		}
+    {
+	CMMSockHash::const_accessor read_ac;
+	if (cmm_sock_hash.find(read_ac, sock)) {
+	    struct cmm_sock *sk = read_ac->second;
+	    assert(sk);
+	    if (sk->connecting) {
+		/* ensure that label_up callbacks only use the real
+		 * labels that they were invoked with */
+		return label;
+	    } else {
+		/* ignore; will fail in sock_preapprove */
+	    }
+	}
+    }
 
+    SuperiorLookUp::const_accessor lookup_ac;
+    if (!sup_look_up.find(lookup_ac, label)){
+	//printf("in superior lookup returned: %lu\n",label );
+	return label;
+	
+    }else{
+	//printf("in superior lookup returned: %lu\n",lookup_ac->second );
+	return lookup_ac->second;
+    }
+    
 }
 #endif
 /*** CMM socket function wrappers ***/
@@ -649,7 +673,7 @@ ssize_t cmm_send(mc_socket_t sock, const void *buf, size_t len, int flags,
 
 #ifdef IMPORT_RULES
 		/** Rules Part 3: Update labels if a better interface is available**/
-		labels = set_superior_label(labels);	
+		labels = set_superior_label(sock, labels);	
 #endif
     rc = sock_preapprove(sock, labels, resume_handler, arg);
     if (rc < 0) {
@@ -666,7 +690,7 @@ int cmm_writev(mc_socket_t sock, const struct iovec *vec, int count,
 
 #ifdef IMPORT_RULES
 		/** Rules Part 3: Update labels if a better interface is available**/
-		labels = set_superior_label(labels);	
+		labels = set_superior_label(sock, labels);	
 #endif
     rc = sock_preapprove(sock, labels, resume_handler, arg);
     if (rc < 0) {
@@ -1156,6 +1180,9 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	
 	csock->cur_label = up_label;
 	csock->connected = 1;
+#ifdef IMPORT_RULES
+	sk->connecting = 1;
+#endif
 	if (sk->serial) {
 	    sk->active_csock = csock;
 	} else {
@@ -1171,6 +1198,14 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 #ifdef CMM_TIMING
 	    TIME(up_cb_end);
 #endif
+#ifdef IMPORT_RULES
+	    if (cmm_sock_hash.find(write_ac, sock)) {
+		assert(write_ac->second == sk);
+		sk->connecting = 0;
+		write_ac.release();
+	    }
+#endif
+
 	    if (rc < 0) {
 #ifdef CMM_TIMING
 		TIMEDIFF(up_cb_start, up_cb_end, diff);
