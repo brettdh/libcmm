@@ -488,7 +488,7 @@ static void net_status_change_handler(int sig)
     }
 #endif
 
-    ThunkQueue matches;
+    //ThunkQueue matches;
     
     /* Handlers are fired:
      *  -for the same label in the order they were enqueued, and
@@ -502,11 +502,12 @@ static void net_status_change_handler(int sig)
 		tq->thunk_queue.pop(th);
 		assert(th);
 		if (th->fn) {
-		    matches.push(th);
-		} else {
-		    /* clean up cancelled thunks */
-		    delete th;
+		    //matches.push(th);
+		    th->fn(th->arg);
+		    /* application was required to free() or save th->arg */
 		}
+		/* clean up finished/cancelled thunks */
+		delete th;
 	    }
 	}
     }
@@ -516,21 +517,25 @@ static void net_status_change_handler(int sig)
     //fprintf(stderr, "After:\n---\n");
     //print_thunks();
 
+#if 0
     while (!matches.empty()) {
 	struct thunk *th = NULL;
 	matches.pop(th);
 	assert(th);
-	assert(th->fn);
-
-	/* no need to do this anymore; this will get done as a side effect
-	 * of any cmm_(stuff) the thunk does. */
-	/* reconnect_socket(th->sock); */
-
-	/* invoke application-level magic */
-	th->fn(th->arg);
+	
+	/* if NULL, it was cancelled */
+	if (th->fn) {
+	    /* no need to do this anymore; this will get done as a side effect
+	     * of any cmm_(stuff) the thunk does. */
+	    /* reconnect_socket(th->sock); */
+	    
+	    /* invoke application-level magic */
+	    th->fn(th->arg);
+	}
 	/* application was required to free() or save th->arg */
 	delete th;
     }
+#endif
 }
 
 #ifndef SO_CONNMGR_LABELS
@@ -1519,26 +1524,31 @@ int cmm_close(mc_socket_t sock)
 }
 
 /* if deleter is non-NULL, it will be called on the handler's arg. */
-void cmm_thunk_cancel(u_long label, 
-		      void (*handler)(void*), void (*deleter)(void*))
+int cmm_thunk_cancel(u_long label, 
+		     void (*handler)(void*), void *arg,
+		     void (*deleter)(void*))
 {
+    int thunks_cancelled = 0;
     ThunkHash::accessor hash_ac;
     if (!thunk_hash.find(hash_ac, label)) {
-	return;
+	return 0;
     }
     struct labeled_thunk_queue *tq = hash_ac->second;
     
     for (ThunkQueue::iterator it = tq->thunk_queue.begin();
 	 it != tq->thunk_queue.end(); it++) {
 	struct thunk *& victim = *it;
-	if (victim->fn == handler) {
+	if (victim->fn == handler && victim->arg == arg) {
 	    if (deleter) {
 		deleter(victim->arg);
 	    }
 	    victim->arg = NULL;
 	    victim->fn = NULL;
 	    victim->label = 0;
+	    thunks_cancelled++;
 	    /* this thunk will be cleaned up later */
 	}
     }
+
+    return thunks_cancelled;
 }
