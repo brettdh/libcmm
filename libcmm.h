@@ -136,8 +136,10 @@ int cmm_reset(mc_socket_t sock);
 /* Looks through the socket's queue of thunks and cancels any and all
  * that match this handler.
  * If deleter is non-NULL, it will be called on the handler's arg. */
-void cmm_thunk_cancel(mc_socket_t sock, 
-		      void (*handler)(void*), void (*deleter)(void*));
+/* returns the number of thunks cancelled. */
+int cmm_thunk_cancel(u_long label, 
+		     void (*handler)(void*), void *arg,
+		     void (*deleter)(void*));
 
 
 #ifdef __cplusplus
