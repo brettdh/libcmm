@@ -447,25 +447,29 @@ static void net_status_change_handler(int sig)
     /* put down the sockets connected on now-unavailable networks. */
     for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
 	 sk_iter != cmm_sock_hash.end(); sk_iter++) {
-	CMMSockHash::accessor ac;
-	if (!cmm_sock_hash.find(ac, sk_iter->first)) {
+	CMMSockHash::const_accessor read_ac;
+	if (!cmm_sock_hash.find(read_ac, sk_iter->first)) {
 	    assert(0);
 	}
-	struct cmm_sock *sk = ac->second;
+	struct cmm_sock *sk = read_ac->second;
 	assert(sk);
 	if (sk->serial) {
 	    if (sk->active_csock &&
 		sk->active_csock->cur_label & new_down_labels) {
 		if (sk->label_down_cb) {
-		    ac.release();
+		    read_ac.release();
 		    sk->label_down_cb(sk->sock, sk->active_csock->cur_label, 
 				      sk->cb_arg);
-		    if (!cmm_sock_hash.find(ac, sk_iter->first)) {
-			assert(0);
-		    }
-		    assert(sk == ac->second);
-		}
+		} else {
+                    read_ac.release();
+                }
 
+                CMMSockHash::accessor write_ac;
+                if (!cmm_sock_hash.find(write_ac, sk_iter->first)) {
+                    assert(0);
+                }
+                assert(sk == write_ac->second);
+                
 		/* the down handler may have reconnected the socket,
 		 * so make sure not to close it in that case */
 		if (sk->active_csock->cur_label & new_down_labels) {
@@ -1130,6 +1134,7 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 		sk->active_csock->cur_label = 0;
 		sk->active_csock->connected = 0;
 		sk->active_csock = NULL;
+
 	    } else {
 		read_ac.release();
 		if (!cmm_sock_hash.find(write_ac, sock)) {
@@ -1147,7 +1152,14 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 	/* connect new socket with current label */
 	set_socket_labels(csock->osfd, up_label);
 	fprintf(stderr, "About to connect socket, label=%lu\n", up_label);
-	
+        
+        write_ac.release();
+        if (!cmm_sock_hash.find(read_ac, sock)) {
+            assert(0);
+        }
+        assert(read_ac->second == sk);
+        assert(csock == sk->sock_color_hash[up_label]);
+        
 #ifdef CMM_TIMING
 	TIME(connect_start);
 #endif
@@ -1155,6 +1167,13 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 #ifdef CMM_TIMING
 	TIME(connect_end);
 #endif
+        read_ac.release();
+        if (!cmm_sock_hash.find(write_ac, sock)) {
+          assert(0);
+        }
+        assert(write_ac->second == sk);
+        assert(csock == sk->sock_color_hash[up_label]);
+        
 	if (rc < 0) {
 	    if(errno==EINPROGRESS || errno==EWOULDBLOCK)
 		//is this what we want for the 'send', 

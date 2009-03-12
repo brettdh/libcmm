@@ -267,7 +267,7 @@ int main(int argc, char *argv[])
     CDFSampler *up_time_samples = NULL;
     CDFSampler *down_time_samples = NULL;
     double presample_duration = 3600.0;
-    char *ifname = "background";
+    const char *ifname = "background";
 
     double up_time = 30.0;
     double down_time = 5.0;
