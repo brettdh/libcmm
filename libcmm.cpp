@@ -1413,24 +1413,10 @@ int cmm_reset(mc_socket_t sock)
 		    "non-blocking sockets!!!\n");
 	    return CMM_FAILED;
 	}
-#if 0
-	for (CSockList::iterator it = sk->csocks.begin();
-	     it != sk->csocks.end(); it++) {
-	    struct csocket *csock = *it;
-	    assert(csock);
 
-	    close(csock->osfd);
-	    csock->osfd = socket(sk->sock_family, 
-				 sk->sock_type,
-				 sk->sock_protocol);
-	    csock->connected = 0;
-	    csock->cur_label = 0;
-	}
-#endif
 	if (sk->serial) {
 	    if (sk->active_csock) {
 		struct csocket *csock = sk->active_csock;
-//		u_long label = csock->cur_label;
 
 		sk->active_csock = NULL;
 		close(csock->osfd);
@@ -1439,9 +1425,6 @@ int cmm_reset(mc_socket_t sock)
 				     sk->sock_protocol);
 		csock->connected = 0;
 		csock->cur_label = 0;
-
-//		ac.release();
-//		return prepare_socket(sock, label);
 	    }
 	} else {
 	    assert(0); /* XXX: implement parallel mode. */
