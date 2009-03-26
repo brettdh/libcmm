@@ -86,32 +86,28 @@ CMMSocketSerial::prepare(u_long label)
     CMMSockHash::const_accessor read_ac;
     CMMSockHash::accessor write_ac;
 
-    struct cmm_sock *sk = NULL;
     if (!cmm_sock_hash.find(read_ac, sock)) {
-	assert(0); /* already checked in caller */
+	assert(0);
     }
 
-    sk = read_ac->second;
-    assert(sk);
-    
     struct csocket *csock = NULL;
     if (up_label) {
-	csock = sk->sock_color_hash[up_label];
+	csock = sock_color_hash[up_label];
 	if (!csock) {
 	    /* caller specified an invalid label */
 	    errno = EINVAL;
 	    return CMM_FAILED;
 	}
     } else {
-	if (sk->active_csock) {
-	    csock = sk->active_csock;
-	    up_label = sk->active_csock->cur_label;
+	if (active_csock) {
+	    csock = active_csock;
+	    up_label = active_csock->cur_label;
 	} else {
 	    /* no active csock, no label specified;
 	     * just grab the first socket that exists and whose network
 	     * is available */
-	    for (CSockHash::iterator iter = sk->sock_color_hash.begin();
-		 iter != sk->sock_color_hash.end(); iter++) {
+	    for (CSockHash::iterator iter = sock_color_hash.begin();
+		 iter != sock_color_hash.end(); iter++) {
 		u_long label = iter->first;
 		struct csocket *candidate = iter->second;
 		if (candidate && scout_net_available(label)) {
@@ -146,13 +142,13 @@ CMMSocketSerial::prepare(u_long label)
 	u_long down_label = 0;
 	assert(csock->cur_label == 0); /* only for multiplexing */
 	
-        if (sk->active_csock) {
-            down_label = sk->active_csock->cur_label;
+        if (active_csock) {
+            down_label = active_csock->cur_label;
             read_ac.release();
-            if (sk->label_down_cb) {
+            if (label_down_cb) {
                 /* XXX: check return value? */
-                sk->label_down_cb(sock, sk->active_csock->cur_label,
-                                  sk->cb_arg);
+                label_down_cb(sock, active_csock->cur_label,
+                                  cb_arg);
             }
             
             if (!cmm_sock_hash.find(write_ac, sock)) {
@@ -160,13 +156,13 @@ CMMSocketSerial::prepare(u_long label)
             }
             assert(write_ac->second == sk);
             
-            close(sk->active_csock->osfd);
-            sk->active_csock->osfd = socket(sk->sock_family, 
-                                            sk->sock_type,
-                                            sk->sock_protocol);
-            sk->active_csock->cur_label = 0;
-            sk->active_csock->connected = 0;
-            sk->active_csock = NULL;
+            close(active_csock->osfd);
+            active_csock->osfd = socket(sock_family, 
+                                            sock_type,
+                                            sock_protocol);
+            active_csock->cur_label = 0;
+            active_csock->connected = 0;
+            active_csock = NULL;
             
         } else {
             read_ac.release();
@@ -174,7 +170,7 @@ CMMSocketSerial::prepare(u_long label)
                 assert(0);
             }
             assert(write_ac->second == sk);
-            assert(csock == sk->sock_color_hash[up_label]);
+            assert(csock == sock_color_hash[up_label]);
         }
 	
 	set_all_sockopts(sk, csock->osfd);
@@ -188,12 +184,12 @@ CMMSocketSerial::prepare(u_long label)
             assert(0);
         }
         assert(read_ac->second == sk);
-        assert(csock == sk->sock_color_hash[up_label]);
+        assert(csock == sock_color_hash[up_label]);
         
 #ifdef CMM_TIMING
 	TIME(connect_start);
 #endif
-	int rc = connect(csock->osfd, sk->addr, sk->addrlen);
+	int rc = connect(csock->osfd, addr, addrlen);
 #ifdef CMM_TIMING
 	TIME(connect_end);
 #endif
@@ -202,7 +198,7 @@ CMMSocketSerial::prepare(u_long label)
           assert(0);
         }
         assert(write_ac->second == sk);
-        assert(csock == sk->sock_color_hash[up_label]);
+        assert(csock == sock_color_hash[up_label]);
         
 	if (rc < 0) {
 	    if(errno==EINPROGRESS || errno==EWOULDBLOCK)
@@ -230,23 +226,23 @@ CMMSocketSerial::prepare(u_long label)
 	csock->cur_label = up_label;
 	csock->connected = 1;
 #ifdef IMPORT_RULES
-	sk->connecting = 1;
+	connecting = 1;
 #endif
-	sk->active_csock = csock;
+	active_csock = csock;
 	write_ac.release();
 
-	if (sk->label_up_cb) {
+	if (label_up_cb) {
 #ifdef CMM_TIMING
 	    TIME(up_cb_start);
 #endif
-	    int rc = sk->label_up_cb(sk->sock, up_label, sk->cb_arg);
+	    int rc = label_up_cb(sock, up_label, cb_arg);
 #ifdef CMM_TIMING
 	    TIME(up_cb_end);
 #endif
 #ifdef IMPORT_RULES
 	    if (cmm_sock_hash.find(write_ac, sock)) {
 		assert(write_ac->second == sk);
-		sk->connecting = 0;
+		connecting = 0;
 		write_ac.release();
 	    }
 #endif
@@ -267,15 +263,15 @@ CMMSocketSerial::prepare(u_long label)
 		    CMMSockHash::accessor write_ac;
 		    if (cmm_sock_hash.find(write_ac, sock)) {
 			assert(write_ac->second == sk);
-			assert(csock == sk->sock_color_hash[up_label]);
+			assert(csock == sock_color_hash[up_label]);
 			
 			close(csock->osfd);
-			csock->osfd = socket(sk->sock_family, 
-					     sk->sock_type,
-					     sk->sock_protocol);
+			csock->osfd = socket(sock_family, 
+					     sock_type,
+					     sock_protocol);
 			csock->cur_label = 0;
 			csock->connected = 0;
-			sk->active_csock = NULL;
+			active_csock = NULL;
 		    } /* else: must have already been cmm_close()d */
 		    
 		    return CMM_FAILED;
