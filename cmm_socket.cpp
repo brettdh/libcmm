@@ -146,36 +146,36 @@ CMMSocketSerial::prepare(u_long label)
 	u_long down_label = 0;
 	assert(csock->cur_label == 0); /* only for multiplexing */
 	
-	    if (sk->active_csock) {
-		down_label = sk->active_csock->cur_label;
-		read_ac.release();
-		if (sk->label_down_cb) {
-		    /* XXX: check return value? */
-		    sk->label_down_cb(sock, sk->active_csock->cur_label,
-				      sk->cb_arg);
-		}
-
-		if (!cmm_sock_hash.find(write_ac, sock)) {
-		    assert(0);
-		}
-		assert(write_ac->second == sk);
-
-		close(sk->active_csock->osfd);
-		sk->active_csock->osfd = socket(sk->sock_family, 
-						sk->sock_type,
-						sk->sock_protocol);
-		sk->active_csock->cur_label = 0;
-		sk->active_csock->connected = 0;
-		sk->active_csock = NULL;
-
-	    } else {
-		read_ac.release();
-		if (!cmm_sock_hash.find(write_ac, sock)) {
-		    assert(0);
-		}
-		assert(write_ac->second == sk);
-		assert(csock == sk->sock_color_hash[up_label]);
-	    }
+        if (sk->active_csock) {
+            down_label = sk->active_csock->cur_label;
+            read_ac.release();
+            if (sk->label_down_cb) {
+                /* XXX: check return value? */
+                sk->label_down_cb(sock, sk->active_csock->cur_label,
+                                  sk->cb_arg);
+            }
+            
+            if (!cmm_sock_hash.find(write_ac, sock)) {
+                assert(0);
+            }
+            assert(write_ac->second == sk);
+            
+            close(sk->active_csock->osfd);
+            sk->active_csock->osfd = socket(sk->sock_family, 
+                                            sk->sock_type,
+                                            sk->sock_protocol);
+            sk->active_csock->cur_label = 0;
+            sk->active_csock->connected = 0;
+            sk->active_csock = NULL;
+            
+        } else {
+            read_ac.release();
+            if (!cmm_sock_hash.find(write_ac, sock)) {
+                assert(0);
+            }
+            assert(write_ac->second == sk);
+            assert(csock == sk->sock_color_hash[up_label]);
+        }
 	
 	set_all_sockopts(sk, csock->osfd);
 	
