@@ -690,29 +690,28 @@ int cmm_writev(mc_socket_t sock, const struct iovec *vec, int count,
  * add the real osfds to os_fds, and
  * also put them in osfd_list, so we can iterate through them. 
  * maxosfd gets the largest osfd seen. */
-static int make_real_fd_set(int nfds, const fd_set *mc_fds, fd_set *os_fds,
+static int make_real_fd_set(int nfds, fd_set *fds,
 			    vector<pair<mc_socket_t,int> > &osfd_list, 
 			    int *maxosfd)
 {
-    if (!mc_fds) {
-	return 0;
-    }
-    if (!os_fds) {
+    if (!fds) {
 	return -1;
     }
 
-//    fprintf(stderr, "DBG: about to check fd_set %p for mc_sockets\n", mc_fds);
+    //fprintf(stderr, "DBG: about to check fd_set %p for mc_sockets\n", fds);
     for (mc_socket_t s = nfds - 1; s > 0; s--) {
-//	fprintf(stderr, "DBG: checking mc_socket %d\n", s);
-	if (FD_ISSET(s, mc_fds)) {
-	  //	    fprintf(stderr, "DBG: mc_socket %d is set\n", s);
+        //fprintf(stderr, "DBG: checking fd %d\n", s);
+	if (FD_ISSET(s, fds)) {
+            //fprintf(stderr, "DBG: fd %d is set\n", s);
 	    CMMSockHash::const_accessor ac;
 	    if (!cmm_sock_hash.find(ac, s)) {
-		errno = EBADF;
-		return -1;
+                /* This must be a real file descriptor, not a mc_socket. 
+                 * No translation needed. */
+                continue;
 	    }
 	    struct cmm_sock *sk = ac->second;
 	    assert(sk);
+            /* TODO-IMPL: sk->make_real_fd_set */
 	    if (sk->serial) {
 		struct csocket *csock = sk->active_csock;
 		if (csock) {
@@ -724,6 +723,7 @@ static int make_real_fd_set(int nfds, const fd_set *mc_fds, fd_set *os_fds,
 			osfd_list.push_back(pair<mc_socket_t,int>(s,osfd));
 		    }
 		} else {
+                    /* XXX: what about the nonblocking case? */
 		    fprintf(stderr,
 			    "DBG: cmm_select on a disconnected socket\n");
 		    errno = EBADF;
@@ -735,91 +735,71 @@ static int make_real_fd_set(int nfds, const fd_set *mc_fds, fd_set *os_fds,
 	}
     }
 
+    assert (maxosfd);
     for (size_t i = 0; i < osfd_list.size(); i++) {
-	FD_SET(osfd_list[i].second, os_fds);
-	if (maxosfd) {
-	    if (osfd_list[i].second > *maxosfd) {
-		*maxosfd = osfd_list[i].second;
-	    }
-	}
+        FD_CLR(osfd_list[i].first, fds);
+	FD_SET(osfd_list[i].second, fds);
+        if (osfd_list[i].second > *maxosfd) {
+            *maxosfd = osfd_list[i].second;
+        }
     }
     return 0;
 }
 
-static void make_mc_fd_set(fd_set *mc_set, fd_set *os_set,
+/* translate osfds back to mc_sockets.  Return the number of
+ * duplicate mc_sockets. */
+static int make_mc_fd_set(fd_set *fds,
 			  const vector<pair<mc_socket_t, int> >&osfd_list)
 {
-    //int total = 0;
-    if (!mc_set) {
-	return;
+    int dups = 0;
+    if (!fds) {
+	return 0;
     }
-    FD_ZERO(mc_set);
+
     for (size_t j = 0; j < osfd_list.size(); j++) {
-	if (FD_ISSET(osfd_list[j].second, os_set)) {
-	    FD_CLR(osfd_list[j].second, os_set);
-	    FD_SET(osfd_list[j].first, mc_set);
-	    //total++;
+	if (FD_ISSET(osfd_list[j].second, fds)) {
+            /* this works because mc_socket fds and osfds never overlap */
+	    FD_CLR(osfd_list[j].second, fds);
+            if (FD_ISSET(osfd_list[j].first, fds)) {
+                dups++;
+            } else {
+                FD_SET(osfd_list[j].first, fds);
+            }
 	}
     }
-    //return total;
+
+    return dups;
 }
 
 int cmm_select(mc_socket_t nfds, 
-	       fd_set *os_readfds, fd_set *os_writefds, fd_set *os_exceptfds,
-	       fd_set *mc_readfds, fd_set *mc_writefds, fd_set *mc_exceptfds,
+	       fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 	       struct timeval *timeout)
 {
     int maxosfd = nfds;
     int rc;
 
+    /* these lists will be populated with the mc_socket mappings
+     * that were in the original fd_sets */
     vector<pair<mc_socket_t, int> > readosfd_list;
     vector<pair<mc_socket_t, int> > writeosfd_list;
     vector<pair<mc_socket_t, int> > exceptosfd_list;
-    fd_set readfds, writefds, exceptfds;
 
-    FD_ZERO(&readfds);
-    FD_ZERO(&writefds);
-    FD_ZERO(&exceptfds);
-    if (os_readfds) {
-	readfds = *os_readfds;
-    }
-    if (os_writefds) {
-	writefds = *os_writefds;
-    }
-    if (os_exceptfds) {
-	exceptfds = *os_exceptfds;
-    }
-    
-    rc = make_real_fd_set(nfds, mc_readfds, &readfds, readosfd_list, 
-			  &maxosfd);
-    rc += make_real_fd_set(nfds, mc_writefds, &writefds, writeosfd_list, 
-			   &maxosfd);
-    rc += make_real_fd_set(nfds, mc_exceptfds, &exceptfds, exceptosfd_list, 
-			   &maxosfd);
+    rc = make_real_fd_set(nfds, &readfds, readosfd_list, &maxosfd);
+    rc += make_real_fd_set(nfds, &writefds, writeosfd_list, &maxosfd);
+    rc += make_real_fd_set(nfds, &exceptfds, exceptosfd_list, &maxosfd);
     if (rc < 0) {
 	return -1;
     }
 
-    rc = select(maxosfd + 1, &readfds, &writefds, &exceptfds, timeout);
+    rc = select(maxosfd + 1, &read_osfds, &writefds, &exceptfds, timeout);
     if (rc < 0) {
 	return rc;
     }
 
-    /* add up the number of set mc_sockets */
-    make_mc_fd_set(mc_readfds, &readfds, readosfd_list);
-    make_mc_fd_set(mc_writefds, &writefds, writeosfd_list);
-    make_mc_fd_set(mc_exceptfds, &exceptfds, exceptosfd_list);
-
-    /* at this point, the only fds left in these are osfds */
-    if (os_readfds) {
-	*os_readfds = readfds;
-    }
-    if (os_writefds) {
-	*os_writefds = writefds;
-    }
-    if (os_exceptfds) {
-	*os_exceptfds = exceptfds;
-    }
+    /* map osfds back to mc_sockets, and correct for duplicates */
+    rc -= make_mc_fd_set(&readfds, readosfd_list);
+    rc -= make_mc_fd_set(&writefds, writeosfd_list);
+    rc -= make_mc_fd_set(&exceptfds, exceptosfd_list);
 
     return rc;
 }
@@ -835,6 +815,7 @@ int cmm_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 		else {
 			struct cmm_sock *sk = ac->second;
 			assert(sk);
+                        /* TODO-IMPL: sk->poll */
 			if (sk->serial) {
 				struct csocket *csock = sk->active_csock;
 				if (!csock || !csock->connected){
@@ -861,6 +842,7 @@ int cmm_getpeername(int socket, struct sockaddr *address, socklen_t *address_len
 		    
 		struct cmm_sock *sk = ac->second;
     assert(sk);
+    /* TODO-IMPL: sk->getpeername */
     if (sk->serial) {
 				struct csocket *csock = sk->active_csock;
 				if (!csock || !csock->connected) {
@@ -887,6 +869,7 @@ int cmm_read(mc_socket_t sock, void *buf, size_t count)
     int osfd = -1;
     struct cmm_sock *sk = ac->second;
     assert(sk);
+    /* TODO-IMPL: sk->read */
     if (sk->serial) {
 	struct csocket *csock = sk->active_csock;
 	if (!csock || !csock->connected) {
@@ -911,6 +894,7 @@ int cmm_getsockopt(mc_socket_t sock, int level, int optname,
 
 		struct cmm_sock *sk = ac->second;
     assert(sk);
+    /* TODO-IMPL: sk->getsockopt */
     if (sk->serial) {
 				struct csocket *csock = sk->active_csock;
 				if (!csock || !csock->connected) {
@@ -1391,6 +1375,7 @@ int cmm_reset(mc_socket_t sock)
 	    return CMM_FAILED;
 	}
 
+        /* TODO-IMPL: sk->reset */
 	if (sk->serial) {
 	    if (sk->active_csock) {
 		struct csocket *csock = sk->active_csock;

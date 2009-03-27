@@ -65,13 +65,9 @@ CMMSocket::close(mc_socket_t sock)
 {
     CMMSockHash::accessor ac;
     if (cmm_sock_hash.find(ac, sock)) {
-	struct cmm_sock *sk = ac->second;
 	cmm_sock_hash.erase(ac);
-	ac.release();
-
-	assert(sk);
-
-	delete sk; /* moved the rest of the cleanup to the destructor */
+        /* the CMMSocket object gets destroyed by the shared_ptr. */
+        /* moved the rest of the cleanup to the destructor */
 	return 0;
     } else {
 	fprintf(stderr, "Warning: cmm_close()ing a socket that's not "
@@ -134,7 +130,8 @@ CMMSocketSerial::CMMSocketSerial()
     active_csock = NULL;
 }
 
-// XXX: in progress. 
+// XXX: may be decomposable into unique and common portions
+// XXX: for serial/parallel mc_sockets
 void
 CMMSocketSerial::prepare(u_long label)
 {

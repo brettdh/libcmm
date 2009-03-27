@@ -44,8 +44,10 @@ class CMMSocket {
     virtual int setup(u_long up_label) = 0;
     virtual int teardown(u_long down_label) = 0;
     
-  private:
+  protected:
     CMMSocket(int family, int type, int protocol);
+
+    int setAllSockopts(int osfd);
 
     static CMMSockHash cmm_sock_hash;
     CMMSockHash::const_accessor read_ac;
@@ -57,12 +59,14 @@ class CMMSocket {
 
     int non_blocking; /* 1 if non blocking, 0 otherwise*/
 
-    int sock_family; /* these are used for re-creating the socket */
+    /* these are used for re-creating the socket */
+    int sock_family; 
     int sock_type;
     int sock_protocol;
     SockOptHash sockopts;
 
-    struct sockaddr *addr; /* these are used for reconnecting the socket */
+    /* these are used for reconnecting the socket */
+    struct sockaddr *addr; 
     socklen_t addrlen;
 
     connection_event_cb_t label_down_cb;
