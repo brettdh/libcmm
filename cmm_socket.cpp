@@ -1,6 +1,5 @@
 #include "cmm_socket.h"
 
-
 struct csocket {
     int osfd;
     u_long cur_label;
@@ -24,6 +23,47 @@ csocket::~csocket()
 	/* if it's a real open socket */
 	close(osfd);
     }
+}
+
+/* TODO: add parallel option */
+mc_socket_t
+CMMSocket::create(int family, int type, int protocol)
+{
+    CMMSocketPtr new_sk;
+    try {
+	/* automatically clean up if cmm_sock() throws */
+	new_sk = new CMMSocketSerial(family, type, protocol));
+    } catch (int oserr) {
+	return oserr;
+    }
+
+    CMMSockHash::accessor ac;
+    if (cmm_sock_hash.insert(ac, new_sk->sock)) {
+	ac->second = new_sk;
+    } else {
+	fprintf(stderr, "Error: new socket %d is already in hash!  WTF?\n", 
+		new_sk->sock);
+	assert(0);
+    }
+
+    return new_sk->sock;
+}
+
+CMMSocketPtr
+CMMSocket::lookup(mc_socket_t sock)
+{
+    CMMSockHash::const_accessor read_ac;
+    if (!cmm_sock_hash.find(read_ac, sock)) {
+        return CMMSocketPtr(); /* works like NULL */
+    } else {
+        return read_ac->second;
+    }
+}
+
+void
+CMMSocket::close(mc_socket_t sock)
+{
+    /* TODO */
 }
 
 CMMSocket::CMMSocket(int family, int type, int protocol) 
@@ -355,4 +395,42 @@ CMMSocket::setAllSockopts(int osfd)
     }
     
     return 0;
+}
+
+void CMMSocketSerial::teardown(u_long down_label)
+{
+    CMMSockHash::const_accessor read_ac;
+    if (!cmm_sock_hash.find(read_ac, sock)) {
+	assert(0);
+    }
+    assert(read_ac->second == this);
+    
+    if (sk->active_csock &&
+	sk->active_csock->cur_label & down_label) {
+	if (sk->label_down_cb) {
+	    read_ac.release();
+	    sk->label_down_cb(sk->sock, sk->active_csock->cur_label, 
+			      sk->cb_arg);
+	} else {
+	    read_ac.release();
+	}
+	
+	CMMSockHash::accessor write_ac;
+	if (!cmm_sock_hash.find(write_ac, sk_iter->first)) {
+	    assert(0);
+	}
+	assert(sk == write_ac->second);
+        
+	/* the down handler may have reconnected the socket,
+	 * so make sure not to close it in that case */
+	if (sk->active_csock->cur_label & down_label) {
+	    close(sk->active_csock->osfd);
+	    sk->active_csock->osfd = socket(sk->sock_family, 
+					    sk->sock_type,
+					    sk->sock_protocol);
+	    sk->active_csock->cur_label = 0;
+	    sk->active_csock->connected = 0;
+	    sk->active_csock = NULL;
+	}
+    }
 }

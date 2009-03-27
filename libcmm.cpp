@@ -418,32 +418,33 @@ static void net_status_change_handler(int sig)
     fprintf(stderr, "Labels now unavailable: %lu\n", new_down_labels);
 
 #ifdef IMPORT_RULES
-		/** Rules Part 2: setup the sup_lookup map for quicker check of interface superioriy**/
-		for(RuleHash::iterator rule_iter = rule_hash.begin(); rule_iter != rule_hash.end(); rule_iter++){
-			u_long head_label = rule_iter->first;
-				
-			SuperiorLookUp::accessor supper_ac;
-			if (!sup_look_up.find(supper_ac, head_label))
-				continue;
-			supper_ac->second = supper_ac->first;							//return to original, new info comming from scout
-
-			struct RuleStruct* rule_struct  = rule_iter->second;
-			for(RuleQueue::iterator q_iter = rule_struct->rule_queue.begin(); q_iter != rule_struct->rule_queue.end(); q_iter++){
-					
-					if(cur_labels & *q_iter){
-						fprintf(stderr,"Label %lu will use interface with label %lu\n", supper_ac->first, *q_iter);
-						supper_ac->second = *q_iter;
-						break;
-					}
-			}
-		}
+    /** Rules Part 2: setup the sup_lookup map for quicker check of interface superioriy**/
+    for (RuleHash::iterator rule_iter = rule_hash.begin(); 
+	 rule_iter != rule_hash.end(); rule_iter++){
+	u_long head_label = rule_iter->first;
+	
+	SuperiorLookUp::accessor supper_ac;
+	if (!sup_look_up.find(supper_ac, head_label))
+	    continue;
+	//return to original, new info comming from scout
+	supper_ac->second = supper_ac->first;  
+	
+	struct RuleStruct* rule_struct  = rule_iter->second;
+	for (RuleQueue::iterator q_iter = rule_struct->rule_queue.begin(); 
+	     q_iter != rule_struct->rule_queue.end(); q_iter++) {
+	    if(cur_labels & *q_iter){
+		fprintf(stderr,"Label %lu will use interface with label %lu\n", 
+			supper_ac->first, *q_iter);
+		supper_ac->second = *q_iter;
+		break;
+	    }
+	}
+    }
 #endif
-
+    
     //fprintf(stderr, "Before:\n---\n");
     //print_thunks();
 
-#if 1 /* XXX: come back to this.  maybe this should reconnect the last
-       * available label? */
     /* put down the sockets connected on now-unavailable networks. */
     for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
 	 sk_iter != cmm_sock_hash.end(); sk_iter++) {
@@ -453,6 +454,7 @@ static void net_status_change_handler(int sig)
 	}
 	struct cmm_sock *sk = read_ac->second;
 	assert(sk);
+	/* TODO-REPLACE: sk->teardown(new_down_labels); BEGIN */
 	if (sk->serial) {
 	    if (sk->active_csock &&
 		sk->active_csock->cur_label & new_down_labels) {
@@ -485,11 +487,9 @@ static void net_status_change_handler(int sig)
 	} else {
 	    assert(0); /* TODO: implement parallel mode */
 	}
+	/* TODO-REPLACE: sk->teardown(new_down_labels); END */
     }
-#endif
 
-    //ThunkQueue matches;
-    
     /* Handlers are fired:
      *  -for the same label in the order they were enqueued, and
      *  -for different labels in arbitrary order. */
@@ -502,7 +502,6 @@ static void net_status_change_handler(int sig)
 		tq->thunk_queue.pop(th);
 		assert(th);
 		if (th->fn) {
-		    //matches.push(th);
 		    th->fn(th->arg);
 		    /* application was required to free() or save th->arg */
 		}
@@ -511,31 +510,9 @@ static void net_status_change_handler(int sig)
 	    }
 	}
     }
-    /* matches now contains all thunks that match the labels 
-     * (including thunks on all sockets) */
 
     //fprintf(stderr, "After:\n---\n");
     //print_thunks();
-
-#if 0
-    while (!matches.empty()) {
-	struct thunk *th = NULL;
-	matches.pop(th);
-	assert(th);
-	
-	/* if NULL, it was cancelled */
-	if (th->fn) {
-	    /* no need to do this anymore; this will get done as a side effect
-	     * of any cmm_(stuff) the thunk does. */
-	    /* reconnect_socket(th->sock); */
-	    
-	    /* invoke application-level magic */
-	    th->fn(th->arg);
-	}
-	/* application was required to free() or save th->arg */
-	delete th;
-    }
-#endif
 }
 
 #ifndef SO_CONNMGR_LABELS

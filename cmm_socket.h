@@ -4,6 +4,8 @@
 #include <map>
 #include <vector>
 
+#include <boost/shared_ptr.hpp>
+
 struct csocket;
 
 typedef std::map<u_long, struct csocket *> CSockHash;
@@ -22,9 +24,18 @@ typedef std::map<int, struct sockopt> SockOptNames;
 /* < level, < optname, (optval, optlen) > > */
 typedef std::map<int, SockOptNames> SockOptHash;
 
+typedef tbb:concurrent_hash_map<mc_socket_t, 
+                                struct cmm_sock*, 
+                                MyHashCompare<mc_socket_t> > CMMSockHash;
+
+typedef boost::shared_ptr<CMMSocket> CMMSocketPtr;
+
 class CMMSocket {
   public:
-    CMMSocket(int family, int type, int protocol);
+    static mc_socket_t create(int family, int type, int protocol);
+    static CMMSocketPtr lookup(mc_socket_t sock);
+    static void close(mc_socket_t sock);
+
     virtual ~CMMSocket();
 
     /* make sure that the socket is ready to send data with up_label. */
@@ -34,12 +45,17 @@ class CMMSocket {
     virtual int teardown(u_long down_label) = 0;
     
   private:
+    CMMSocket(int family, int type, int protocol);
+
+    static CMMSockHash cmm_sock_hash;
+    CMMSockHash::const_accessor read_ac;
+    CMMSockHash::accessor write_ac;
+
     mc_socket_t sock;
     CSockHash sock_color_hash;
     CSockList csocks;
 
     int non_blocking; /* 1 if non blocking, 0 otherwise*/
-    struct csocket *active_csock; /* only non-NULL if this socket is serial. */
 
     int sock_family; /* these are used for re-creating the socket */
     int sock_type;
@@ -64,11 +80,13 @@ class CMMSocket {
 
 class CMMSocketSerial : public CMMSocket {
   public:
-    CMMSocketSerial(int family, int type, int protocol);
-
     virtual int prepare(u_long up_label);
     virtual int setup(u_long up_label);
     virtual int teardown(u_long down_label);
+    
+  private: 
+    CMMSocketSerial(int family, int type, int protocol);
+    struct csocket *active_csock;
 };
 
 class CMMSocketParallel : public CMMSocket {
