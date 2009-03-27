@@ -142,6 +142,7 @@ CMMSocketSerial::prepare(u_long label)
 	u_long down_label = 0;
 	assert(csock->cur_label == 0); /* only for multiplexing */
 	
+        //teardown();
         if (active_csock) {
             down_label = active_csock->cur_label;
             read_ac.release();
@@ -154,7 +155,7 @@ CMMSocketSerial::prepare(u_long label)
             if (!cmm_sock_hash.find(write_ac, sock)) {
                 assert(0);
             }
-            assert(write_ac->second == sk);
+            assert(write_ac->second == this);
             
             close(active_csock->osfd);
             active_csock->osfd = socket(sock_family, 
@@ -169,11 +170,12 @@ CMMSocketSerial::prepare(u_long label)
             if (!cmm_sock_hash.find(write_ac, sock)) {
                 assert(0);
             }
-            assert(write_ac->second == sk);
+            assert(write_ac->second == this);
             assert(csock == sock_color_hash[up_label]);
         }
+        // end teardown() code
 	
-	set_all_sockopts(sk, csock->osfd);
+	setAllSockopts(csock->osfd);
 	
 	/* connect new socket with current label */
 	set_socket_labels(csock->osfd, up_label);
@@ -183,7 +185,7 @@ CMMSocketSerial::prepare(u_long label)
         if (!cmm_sock_hash.find(read_ac, sock)) {
             assert(0);
         }
-        assert(read_ac->second == sk);
+        assert(read_ac->second == this);
         assert(csock == sock_color_hash[up_label]);
         
 #ifdef CMM_TIMING
@@ -195,9 +197,9 @@ CMMSocketSerial::prepare(u_long label)
 #endif
         read_ac.release();
         if (!cmm_sock_hash.find(write_ac, sock)) {
-          assert(0);
+            assert(0);
         }
-        assert(write_ac->second == sk);
+        assert(write_ac->second == this);
         assert(csock == sock_color_hash[up_label]);
         
 	if (rc < 0) {
@@ -241,7 +243,7 @@ CMMSocketSerial::prepare(u_long label)
 #endif
 #ifdef IMPORT_RULES
 	    if (cmm_sock_hash.find(write_ac, sock)) {
-		assert(write_ac->second == sk);
+		assert(write_ac->second == this);
 		connecting = 0;
 		write_ac.release();
 	    }
@@ -262,7 +264,7 @@ CMMSocketSerial::prepare(u_long label)
 		} else {
 		    CMMSockHash::accessor write_ac;
 		    if (cmm_sock_hash.find(write_ac, sock)) {
-			assert(write_ac->second == sk);
+			assert(write_ac->second == this);
 			assert(csock == sock_color_hash[up_label]);
 			
 			close(csock->osfd);
@@ -322,6 +324,34 @@ CMMSocketSerial::prepare(u_long label)
 	    }
 	}
 #endif
+    } /* if (!csock->connected) */
+    
+    return 0;
+}
+
+/* these are all sockopts that have succeeded in the past. 
+ * for now, let's assume they succeed again. 
+ * this may be invalid; maybe some sockopts succeed on one interface
+ * but fail on another?  not sure. XXX */
+/* REQ: call with write lock on this cmm_sock */
+int 
+CMMSocket::setAllSockopts(int osfd)
+{
+    if (osfd != -1) {
+	for (SockOptHash::const_iterator i = sockopts.begin(); i != sockopts.end(); i++) {
+	    int level = i->first;
+	    const SockOptNames &optnames = i->second;
+	    for (SockOptNames::const_iterator j = optnames.begin();
+		 j != optnames.end(); j++) {
+		int optname = j->first;
+		const struct sockopt &opt = j->second;
+		int rc = setsockopt(osfd, level, optname, 
+				    opt.optval, opt.optlen);
+		if (rc < 0) {
+		    return rc;
+		}
+	    }
+	}
     }
     
     return 0;
