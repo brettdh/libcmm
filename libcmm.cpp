@@ -784,22 +784,22 @@ int cmm_select(mc_socket_t nfds,
     vector<pair<mc_socket_t, int> > writeosfd_list;
     vector<pair<mc_socket_t, int> > exceptosfd_list;
 
-    rc = make_real_fd_set(nfds, &readfds, readosfd_list, &maxosfd);
-    rc += make_real_fd_set(nfds, &writefds, writeosfd_list, &maxosfd);
-    rc += make_real_fd_set(nfds, &exceptfds, exceptosfd_list, &maxosfd);
+    rc = make_real_fd_set(nfds, readfds, readosfd_list, &maxosfd);
+    rc += make_real_fd_set(nfds, writefds, writeosfd_list, &maxosfd);
+    rc += make_real_fd_set(nfds, exceptfds, exceptosfd_list, &maxosfd);
     if (rc < 0) {
 	return -1;
     }
 
-    rc = select(maxosfd + 1, &read_osfds, &writefds, &exceptfds, timeout);
+    rc = select(maxosfd + 1, readfds, writefds, exceptfds, timeout);
     if (rc < 0) {
 	return rc;
     }
 
     /* map osfds back to mc_sockets, and correct for duplicates */
-    rc -= make_mc_fd_set(&readfds, readosfd_list);
-    rc -= make_mc_fd_set(&writefds, writeosfd_list);
-    rc -= make_mc_fd_set(&exceptfds, exceptosfd_list);
+    rc -= make_mc_fd_set(readfds, readosfd_list);
+    rc -= make_mc_fd_set(writefds, writeosfd_list);
+    rc -= make_mc_fd_set(exceptfds, exceptosfd_list);
 
     return rc;
 }

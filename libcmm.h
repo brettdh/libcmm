@@ -66,15 +66,9 @@ int cmm_getsockopt(mc_socket_t sock, int level, int optname,
 int cmm_setsockopt(mc_socket_t sock, int level, int optname, 
 		   const void *optval, socklen_t optlen);
 
-/* first three fd_sets may only contain real os file descriptors.
- * next three fd_sets may only contain mc_socket_t's. */
-/* XXX: this can be greatly simplified, since we now reserve real OS 
- * file descriptors when calling cmm_socket.  Basically, we don't need
- * separate fd sets; we can just look up all the fds in the hash
- * and figure out which ones are really mc_sockets. */
+/* fd_sets can contain mc_sockets and real os fds. */
 int cmm_select(mc_socket_t nfds, 
 	       fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
-	       fd_set *mc_readfds, fd_set *mc_writefds, fd_set *mc_exceptfds,
 	       struct timeval *timeout);
 
 int cmm_read(mc_socket_t sock, void *buf, size_t count);
