@@ -784,22 +784,44 @@ int cmm_select(mc_socket_t nfds,
     vector<pair<mc_socket_t, int> > writeosfd_list;
     vector<pair<mc_socket_t, int> > exceptosfd_list;
 
-    rc = make_real_fd_set(nfds, readfds, readosfd_list, &maxosfd);
-    rc += make_real_fd_set(nfds, writefds, writeosfd_list, &maxosfd);
-    rc += make_real_fd_set(nfds, exceptfds, exceptosfd_list, &maxosfd);
+    rc = 0;
+    fd_set tmp_readfds, tmp_writefds, tmp_exceptfds;
+    FD_ZERO(&tmp_readfds);
+    FD_ZERO(&tmp_writefds);
+    FD_ZERO(&tmp_exceptfds);
+
+    if (readfds) {
+	tmp_readfds = *readfds;
+	rc += make_real_fd_set(nfds, &tmp_readfds, readosfd_list, &maxosfd);
+    }
+    if (writefds) {
+	tmp_writefds = *writefds;
+	rc += make_real_fd_set(nfds, &tmp_writefds, writeosfd_list, &maxosfd);
+    }
+    if (exceptfds) {
+	tmp_exceptfds = *exceptfds;
+	rc += make_real_fd_set(nfds, &tmp_exceptfds, exceptosfd_list, &maxosfd);
+    }
+
     if (rc < 0) {
 	return -1;
     }
 
-    rc = select(maxosfd + 1, readfds, writefds, exceptfds, timeout);
+    rc = select(maxosfd + 1, &tmp_readfds, &tmp_writefds, &tmp_exceptfds, 
+		timeout);
     if (rc < 0) {
+	/* select does not modify the fd_sets if failure occurs */
 	return rc;
     }
 
     /* map osfds back to mc_sockets, and correct for duplicates */
-    rc -= make_mc_fd_set(readfds, readosfd_list);
-    rc -= make_mc_fd_set(writefds, writeosfd_list);
-    rc -= make_mc_fd_set(exceptfds, exceptosfd_list);
+    rc -= make_mc_fd_set(&tmp_readfds, readosfd_list);
+    rc -= make_mc_fd_set(&tmp_writefds, writeosfd_list);
+    rc -= make_mc_fd_set(&tmp_exceptfds, exceptosfd_list);
+
+    if (readfds)   { *readfds   = tmp_readfds;   }
+    if (writefds)  { *writefds  = tmp_writefds;  }
+    if (exceptfds) { *exceptfds = tmp_exceptfds; }
 
     return rc;
 }
