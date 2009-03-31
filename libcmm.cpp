@@ -695,7 +695,7 @@ static int make_real_fd_set(int nfds, fd_set *fds,
 			    int *maxosfd)
 {
     if (!fds) {
-	return -1;
+	return 0;
     }
 
     //fprintf(stderr, "DBG: about to check fd_set %p for mc_sockets\n", fds);
