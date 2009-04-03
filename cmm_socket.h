@@ -24,11 +24,11 @@ typedef std::map<int, struct sockopt> SockOptNames;
 /* < level, < optname, (optval, optlen) > > */
 typedef std::map<int, SockOptNames> SockOptHash;
 
+typedef boost::shared_ptr<CMMSocket> CMMSocketPtr;
 typedef tbb:concurrent_hash_map<mc_socket_t, 
-                                struct cmm_sock*, 
+                                CMMSocketPtr, 
                                 MyHashCompare<mc_socket_t> > CMMSockHash;
 
-typedef boost::shared_ptr<CMMSocket> CMMSocketPtr;
 
 class CMMSocket {
   public:
@@ -44,14 +44,29 @@ class CMMSocket {
     virtual int setup(u_long up_label) = 0;
     virtual int teardown(u_long down_label) = 0;
     
+    static int mc_select(mc_socket_t nfds, 
+			 fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
+			 struct timeval *timeout);
+    static int mc_poll(struct pollfd fds[], nfds_t nfds, int timeout);
+    virtual int mc_getpeername(int socket, struct sockaddr *address, 
+			       socklen_t *address_len) = 0;
+
+    
   protected:
     CMMSocket(int family, int type, int protocol);
 
     int setAllSockopts(int osfd);
+    typedef std::vector<std::pair<mc_socket_t, int> > mcSocketOsfdPairList;
+
+    /* append <mc_socket_t,osfd> pairs to this vector for each 
+     * such mapping in this mc_socket. 
+     * Returns 0 if all the mappings were appended, 
+     *        -1 if there were no connected osfds. */
+    virtual int getRealFds(mcSocketOsfdPairList &osfd_list) = 0;
+    virtual void pollMapBack(struct pollfd *origfd, 
+			     const struct pollfd *realfd) = 0;
 
     static CMMSockHash cmm_sock_hash;
-    CMMSockHash::const_accessor read_ac;
-    CMMSockHash::accessor write_ac;
 
     mc_socket_t sock;
     CSockHash sock_color_hash;
@@ -79,6 +94,12 @@ class CMMSocket {
 		     * we don't accidentally pick a "superior" label
 		     * in this case. */
 #endif
+  private:
+    static int makeRealFdSet(int nfds, fd_set *fds,
+			     mcSocketOsfdPairList &osfd_list, 
+			     int *maxosfd) = 0;
+    static int makeMcFdSet(fd_set *fds, mcSocketOsfdPairList &osfd_list);
+
 };
 
 
@@ -87,7 +108,16 @@ class CMMSocketSerial : public CMMSocket {
     virtual int prepare(u_long up_label);
     virtual int setup(u_long up_label);
     virtual int teardown(u_long down_label);
+    int mc_poll(struct pollfd fds[], nfds_t nfds, int timeout);
+    int mc_getpeername(int socket, struct sockaddr *address, 
+		       socklen_t *address_len);
     
+  protected:
+    virtual 
+    int makeRealFdSet(int nfds, fd_set *fds,
+		      std::vector<std::pair<mc_socket_t,int> > &osfd_list, 
+		      int *maxosfd);
+
   private: 
     CMMSocketSerial(int family, int type, int protocol);
     struct csocket *active_csock;

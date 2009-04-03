@@ -711,7 +711,7 @@ static int make_real_fd_set(int nfds, fd_set *fds,
 	    }
 	    struct cmm_sock *sk = ac->second;
 	    assert(sk);
-            /* TODO-IMPL: sk->make_real_fd_set */
+            /* TODO-REPLACE: sk->make_real_fd_set */
 	    if (sk->serial) {
 		struct csocket *csock = sk->active_csock;
 		if (csock) {
@@ -778,6 +778,7 @@ int cmm_select(mc_socket_t nfds,
     int maxosfd = nfds;
     int rc;
 
+    /* TODO-REPLACE: CMMSocket::mc_select */
     /* these lists will be populated with the mc_socket mappings
      * that were in the original fd_sets */
     vector<pair<mc_socket_t, int> > readosfd_list;
@@ -837,7 +838,7 @@ int cmm_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 		else {
 			struct cmm_sock *sk = ac->second;
 			assert(sk);
-                        /* TODO-IMPL: sk->poll */
+                        /* TODO-REPLACE: sk->poll */
 			if (sk->serial) {
 				struct csocket *csock = sk->active_csock;
 				if (!csock || !csock->connected){
@@ -864,7 +865,7 @@ int cmm_getpeername(int socket, struct sockaddr *address, socklen_t *address_len
 		    
 		struct cmm_sock *sk = ac->second;
     assert(sk);
-    /* TODO-IMPL: sk->getpeername */
+    /* TODO-REPLACE: sk->getpeername */
     if (sk->serial) {
 				struct csocket *csock = sk->active_csock;
 				if (!csock || !csock->connected) {

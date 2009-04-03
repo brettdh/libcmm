@@ -446,3 +446,262 @@ void CMMSocketSerial::teardown(u_long down_label)
 	}
     }
 }
+
+
+/* assume the fds in mc_fds are mc_socket_t's.  
+ * add the real osfds to os_fds, and
+ * also put them in osfd_list, so we can iterate through them. 
+ * maxosfd gets the largest osfd seen. */
+int 
+CMMSocketSerial::makeRealFdSet(int nfds, fd_set *fds,
+			       mcSocketOsfdPairList &osfd_list, 
+			       int *maxosfd)
+{
+    if (!fds) {
+	return 0;
+    }
+
+    //fprintf(stderr, "DBG: about to check fd_set %p for mc_sockets\n", fds);
+    for (mc_socket_t s = nfds - 1; s > 0; s--) {
+        //fprintf(stderr, "DBG: checking fd %d\n", s);
+	if (FD_ISSET(s, fds)) {
+            //fprintf(stderr, "DBG: fd %d is set\n", s);
+	    CMMSockHash::const_accessor ac;
+	    if (!cmm_sock_hash.find(ac, s)) {
+                /* This must be a real file descriptor, not a mc_socket. 
+                 * No translation needed. */
+                continue;
+	    }
+
+	    CMMSockPtr sk = ac->second;
+	    assert(sk);
+	    if (sk->getRealFds(osfd_list) != 0) {
+		/* XXX: what about the nonblocking case? */
+		fprintf(stderr,
+			"DBG: cmm_select on a disconnected socket\n");
+		errno = EBADF;
+		return -1;
+	    }
+	}
+    }
+
+    assert (maxosfd);
+    for (size_t i = 0; i < osfd_list.size(); i++) {
+        FD_CLR(osfd_list[i].first, fds);
+	FD_SET(osfd_list[i].second, fds);
+        if (osfd_list[i].second > *maxosfd) {
+            *maxosfd = osfd_list[i].second;
+        }
+    }
+    return 0;
+}
+
+int 
+CMMSocketSerial::getRealFds(mcSocketOsfdPairList &osfd_list)
+{
+    if (active_csock) {
+	int osfd = active_csock->osfd;
+	if (osfd == -1) {
+	    return -1;
+	} else {
+	    osfd_list.push_back(pair<mc_socket_t,int>(sock,osfd));
+	    return 0;
+	}
+    } else {
+	return -1;
+    }
+}
+
+
+/* translate osfds back to mc_sockets.  Return the number of
+ * duplicate mc_sockets. */
+int 
+CMMSocket::makeMcFdSet(fd_set *fds, const mcSocketOsfdPairList &osfd_list)
+{
+    int dups = 0;
+    if (!fds) {
+	return 0;
+    }
+
+    for (size_t j = 0; j < osfd_list.size(); j++) {
+	if (FD_ISSET(osfd_list[j].second, fds)) {
+            /* this works because mc_socket fds and osfds never overlap */
+	    FD_CLR(osfd_list[j].second, fds);
+            if (FD_ISSET(osfd_list[j].first, fds)) {
+                dups++;
+            } else {
+                FD_SET(osfd_list[j].first, fds);
+            }
+	}
+    }
+
+    return dups;
+}
+
+int 
+CMMSocket::mc_select(mc_socket_t nfds, 
+		     fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
+		     struct timeval *timeout)
+{
+    int maxosfd = nfds;
+    int rc;
+
+    /* these lists will be populated with the mc_socket mappings
+     * that were in the original fd_sets */
+    mcSocketOsfdPairList readosfd_list;
+    mcSocketOsfdPairList writeosfd_list;
+    mcSocketOsfdPairList exceptosfd_list;
+
+    rc = 0;
+    fd_set tmp_readfds, tmp_writefds, tmp_exceptfds;
+    FD_ZERO(&tmp_readfds);
+    FD_ZERO(&tmp_writefds);
+    FD_ZERO(&tmp_exceptfds);
+
+    if (readfds) {
+	tmp_readfds = *readfds;
+	rc += makeRealFdSet(nfds, &tmp_readfds, readosfd_list, &maxosfd);
+    }
+    if (writefds) {
+	tmp_writefds = *writefds;
+	rc += makeRealFdSet(nfds, &tmp_writefds, writeosfd_list, &maxosfd);
+    }
+    if (exceptfds) {
+	tmp_exceptfds = *exceptfds;
+	rc += makeRealFdSet(nfds, &tmp_exceptfds, exceptosfd_list, &maxosfd);
+    }
+
+    if (rc < 0) {
+	return -1;
+    }
+
+    rc = select(maxosfd + 1, &tmp_readfds, &tmp_writefds, &tmp_exceptfds, 
+		timeout);
+    if (rc < 0) {
+	/* select does not modify the fd_sets if failure occurs */
+	return rc;
+    }
+
+    /* map osfds back to mc_sockets, and correct for duplicates */
+    rc -= makeMcFdSet(&tmp_readfds, readosfd_list);
+    rc -= makeMcFdSet(&tmp_writefds, writeosfd_list);
+    rc -= makeMcFdSet(&tmp_exceptfds, exceptosfd_list);
+
+    if (readfds)   { *readfds   = tmp_readfds;   }
+    if (writefds)  { *writefds  = tmp_writefds;  }
+    if (exceptfds) { *exceptfds = tmp_exceptfds; }
+
+    return rc;
+}
+
+int 
+CMMSocket::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
+{
+    /* maps osfds to pointers into the original fds array */
+    map<int, struct pollfd*> osfds_to_pollfds;
+    vector<struct pollfd> real_fds_list;
+    for(nfds_t i=0; i<nfds; i++) {
+	mcSocketOsfdPairList osfd_list;
+	CMMSockHash::const_accessor ac;	
+	if(!cmm_sock_hash.find(ac, fds[i].fd)) {
+	    real_fds_list.push_back(fds[i]);
+	    osfds_to_pollfds[fds[i].fd] = &fds[i];
+	    continue; //this is a non mc_socket
+	} else {
+	    struct cmm_sock *sk = ac->second;
+	    assert(sk);
+	    if (sk->getRealFds(osfd_list) != 0) {
+		errno = ENOTCONN;
+		return -1;
+	    }
+	    for (int j = 0; j < osfd_list.size(); j++) {
+		/* copy struct pollfd, overwrite fd */
+		real_fds_list.push_back(fds[i]);
+		real_fds_list.back().fd = osfd_list[i].second;
+		osfds_to_pollfds[osfd_list[i].second] = &fds[i];
+	    }
+	}
+    }
+
+    nfds_t real_nfds = real_fds_list.size();
+    struct pollfd *realfds = new struct pollfd[real_nfds];
+    for (nfds_t i = 0; i < real_nfds; i++) {
+	realfds[i] = real_fds_list[i];
+    }
+
+    int rc = poll(realfds, real_nfds, timeout);
+    if (rc == 0) {
+	return rc;
+    }
+
+    int lastfd = -1;
+    for (nfds_t i = 0; i < real_nfds; i++) {
+	struct pollfd *origfd = osfds_to_pollfds[realfds[i].fd];
+	assert(origfd);
+	CMMSockHash::const_accessor ac;	
+	if(!cmm_sock_hash.find(ac, fds[i].fd)) {
+	    origfd->revents = realfds[i].revents;
+	} else {
+	    CMMSocketPtr sk = ac->second;
+	    assert(sk);
+	    sk->pollMapBack(origfd, &realfds[i]);
+	}
+    }
+    delete realfds;
+}
+
+void
+CMMSocketSerial::pollMapBack(struct pollfd *origfd, 
+			     const struct pollfd *realfd)
+{
+    assert(origfd && realfd && origfd->fd == sock);
+
+    /* XXX: is this assertion valid? */
+    //assert(active_csock && active_csock->osfd == realfd->fd);
+
+    /* no worries about duplicates here. whee! */
+    origfd->revents = realfd->revents;
+}
+
+int 
+CMMSocketSerial::mc_getpeername(int socket, struct sockaddr *address, 
+				socklen_t *address_len)
+{
+    CMMSockHash::const_accessor ac;
+    if (!cmm_sock_hash.find(ac, socket)) {
+	/* pass-through for non-mc-sockets */
+	return getpeername(socket, address, address_len);
+    }
+    
+    struct cmm_sock *sk = ac->second;
+    assert(sk);
+    struct csocket *csock = sk->active_csock;
+    if (!csock || !csock->connected) {
+	errno = ENOTCONN;
+	return -1;
+    }
+    return getpeername(csock->osfd,address, address_len);
+}
+
+int 
+CMMSocketSerial::mc_read(mc_socket_t sock, void *buf, size_t count)
+{
+    CMMSockHash::const_accessor ac;
+    if (!cmm_sock_hash.find(ac, sock)) {
+	//errno = EBADF;
+	//return CMM_FAILED;
+	return read(sock, buf,count);
+    }
+
+    int osfd = -1;
+    struct cmm_sock *sk = ac->second;
+    assert(sk);
+    struct csocket *csock = sk->active_csock;
+    if (!csock || !csock->connected) {
+	errno = ENOTCONN;
+	return -1;
+    }
+    osfd = csock->osfd;
+    ac.release();
+    return read(osfd, buf, count);
+}
