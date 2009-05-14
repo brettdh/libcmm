@@ -3,6 +3,7 @@
 # a simple tcp server
 
 import SocketServer
+import sys
 
 class EchoRequestHandler(SocketServer.BaseRequestHandler ):
     def setup(self):
@@ -29,7 +30,11 @@ class MySockServer(SocketServer.ThreadingTCPServer):
         self.allow_reuse_address = True
         SocketServer.ThreadingTCPServer.__init__(self, addr, handler)
 
+if len(sys.argv) > 1:
+    port = int(sys.argv[1])
+else:
+    port = 4242
 #server = SocketServer.ThreadingTCPServer(('', 4242), EchoRequestHandler)
-server = MySockServer(('', 4242), EchoRequestHandler)
+server = MySockServer(('', port), EchoRequestHandler)
 server.allow_reuse_address = True
 server.serve_forever()
