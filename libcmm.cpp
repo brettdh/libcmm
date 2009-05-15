@@ -97,6 +97,7 @@ struct csocket {
     ~csocket() {
 	if (osfd > 0) {
 	    /* if it's a real open socket */
+	    shutdown(osfd, SHUT_RDWR);
 	    close(osfd);
 	}
     }
@@ -162,6 +163,7 @@ struct cmm_sock {
 	}
 
 	free(addr);
+	shutdown(sock, SHUT_RDWR);
 	close(sock);
     }
 };
@@ -475,6 +477,7 @@ static void net_status_change_handler(int sig)
 		/* the down handler may have reconnected the socket,
 		 * so make sure not to close it in that case */
 		if (sk->active_csock->cur_label & new_down_labels) {
+		    shutdown(sk->active_csock->osfd, SHUT_RDWR);
 		    close(sk->active_csock->osfd);
 		    sk->active_csock->osfd = socket(sk->sock_family, 
 						    sk->sock_type,
@@ -1116,6 +1119,7 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 		}
 		assert(write_ac->second == sk);
 
+		shutdown(sk->active_csock->osfd, SHUT_RDWR);
 		close(sk->active_csock->osfd);
 		sk->active_csock->osfd = socket(sk->sock_family, 
 						sk->sock_type,
@@ -1170,6 +1174,7 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 		errno = EAGAIN;	 
 	    else {
 		perror("connect");
+		shutdown(csock->osfd, SHUT_RDWR);
 		close(csock->osfd);
 		fprintf(stderr, "libcmm: error connecting new socket\n");
 		/* we've previously checked, and the label should be
@@ -1232,6 +1237,7 @@ static int prepare_socket(mc_socket_t sock, u_long up_label)
 			assert(write_ac->second == sk);
 			assert(csock == sk->sock_color_hash[up_label]);
 			
+			shutdown(csock->osfd, SHUT_RDWR);
 			close(csock->osfd);
 			csock->osfd = socket(sk->sock_family, 
 					     sk->sock_type,
@@ -1404,6 +1410,7 @@ int cmm_reset(mc_socket_t sock)
 		struct csocket *csock = sk->active_csock;
 
 		sk->active_csock = NULL;
+		shutdown(csock->osfd, SHUT_RDWR);
 		close(csock->osfd);
 		csock->osfd = socket(sk->sock_family,
 				     sk->sock_type,
