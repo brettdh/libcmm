@@ -245,51 +245,48 @@ static void libcmm_init(void) __attribute__((constructor));
 static void libcmm_init(void)
 {
 #ifdef IMPORT_RULES
-		/** Rules Part1: pupulate the rule_hash from the options file**/
-		printf("Parsing the label rules file...\n");
-		FILE * fp;
-		fp = fopen(RULE_FILE,"r");
-		if (fp == NULL) {
-				printf("Could not open the rules file. Proceeding with default. \n");
-		}
-		else{	
-			char str_buf[250];
-			const char delimiters[] = " :";
-			
-			while(fgets(str_buf,sizeof(str_buf), fp))
-			{
-				char* token;
-				token = strtok(str_buf,	delimiters);
-				u_long temp_label = (u_long)strtol(token,NULL,0);	
-	
-				printf("Preferences for interface: %lu \n",temp_label);
-	
-				SuperiorLookUp::accessor lookup_ac;
-				if (!sup_look_up.find(lookup_ac, temp_label))
-					sup_look_up.insert(lookup_ac, temp_label);
-				lookup_ac->second=temp_label;
-				
-				RuleHash::accessor hash_ac;
-				if (!rule_hash.find(hash_ac, temp_label))
-				{
-					rule_hash.insert(hash_ac, temp_label);	
-					struct RuleStruct* new_rs = new struct RuleStruct;
-					hash_ac->second=new_rs;
-				}
-				
-				while((token=strtok(NULL,delimiters))!=NULL)
-				{
-					temp_label=(u_long)strtol(token,NULL,0);
-					printf("Use interface: %lu", temp_label);
-					hash_ac->second->rule_queue.push(temp_label);
-				}
-				printf("\n\n");
-			}
-			
-			fclose(fp);
-		}
+    /** Rules Part1: pupulate the rule_hash from the options file**/
+    printf("Parsing the label rules file...\n");
+    FILE * fp;
+    fp = fopen(RULE_FILE,"r");
+    if (fp == NULL) {
+        printf("Could not open the rules file. Proceeding with default. \n");
+    } else{	
+        char str_buf[250];
+        const char delimiters[] = " :";
+        
+        while(fgets(str_buf, sizeof(str_buf), fp)) {
+            char* token;
+            token = strtok(str_buf, delimiters);
+            u_long temp_label = (u_long)strtol(token, NULL, 0);	
+            
+            printf("Preferences for interface: %lu \n", temp_label);
+            
+            SuperiorLookUp::accessor lookup_ac;
+            if (!sup_look_up.find(lookup_ac, temp_label)) {
+                sup_look_up.insert(lookup_ac, temp_label);
+            }
+            lookup_ac->second = temp_label;
+            
+            RuleHash::accessor hash_ac;
+            if (!rule_hash.find(hash_ac, temp_label)) {
+                rule_hash.insert(hash_ac, temp_label);	
+                struct RuleStruct* new_rs = new struct RuleStruct;
+                hash_ac->second = new_rs;
+            }
+            
+            while((token = strtok(NULL,delimiters)) != NULL) {
+                temp_label = (u_long)strtol(token, NULL, 0);
+                printf("Use interface: %lu", temp_label);
+                hash_ac->second->rule_queue.push(temp_label);
+            }
+            printf("\n\n");
+        }
+        
+        fclose(fp);
+    }
 #endif
-
+    
     memset(&ignore_action, 0, sizeof(ignore_action));
     memset(&net_status_change_action, 0, sizeof(net_status_change_action));
     memset(&old_action, 0, sizeof(old_action));
@@ -420,7 +417,7 @@ static void net_status_change_handler(int sig)
     fprintf(stderr, "Labels now unavailable: %lu\n", new_down_labels);
 
 #ifdef IMPORT_RULES
-    /** Rules Part 2: setup the sup_lookup map for quicker check of interface superioriy**/
+    /** Rules Part 2: setup the sup_lookup map for quicker check of interface superiority**/
     for (RuleHash::iterator rule_iter = rule_hash.begin(); 
 	 rule_iter != rule_hash.end(); rule_iter++){
 	u_long head_label = rule_iter->first;
@@ -539,7 +536,7 @@ static void set_socket_labels(int osfd, u_long labels)
     //fprintf(stderr, "new socket labels %lu\n", labels);
 
     rc = setsockopt(osfd, SOL_SOCKET, SO_CONNMGR_LABELS,
-			&labels, sizeof(labels));
+                    &labels, sizeof(labels));
     if (rc < 0) {
 	fprintf(stderr, "Warning: failed setting socket %d labels %lu\n",
 		osfd, labels);
