@@ -60,8 +60,8 @@ CMMSocket::lookup(mc_socket_t sock)
     }
 }
 
-void
-CMMSocket::close(mc_socket_t sock)
+int
+CMMSocket::close()
 {
     CMMSockHash::accessor ac;
     if (cmm_sock_hash.find(ac, sock)) {
@@ -128,6 +128,30 @@ CMMSocket::~CMMSocket()
 CMMSocketSerial::CMMSocketSerial()
 {
     active_csock = NULL;
+}
+
+static int floorLog2(unsigned int n) 
+{
+    int pos = 0;
+    if (n >= 1<<16) { n >>= 16; pos += 16; }
+    if (n >= 1<< 8) { n >>=  8; pos +=  8; }
+    if (n >= 1<< 4) { n >>=  4; pos +=  4; }
+    if (n >= 1<< 2) { n >>=  2; pos +=  2; }
+    if (n >= 1<< 1) {           pos +=  1; }
+    return ((n == 0) ? (-1) : pos);
+}
+
+static const char *label_strings[CONNMGR_LABEL_COUNT+1] = {"red", "blue", 
+							   "ondemand", "background", 
+							   "(invalid)"};
+
+static const char *label_str(u_long label)
+{
+    int index = floorLog2(label);
+    if (index < 0 || index >= CONNMGR_LABEL_COUNT) {
+	index = CONNMGR_LABEL_COUNT; // "(invalid)" string
+    }
+    return label_strings[index];
 }
 
 // XXX: may be decomposable into unique and common portions
@@ -664,18 +688,18 @@ CMMSocketSerial::pollMapBack(struct pollfd *origfd,
 }
 
 int 
-CMMSocketSerial::mc_getpeername(int socket, struct sockaddr *address, 
+CMMSocketSerial::mc_getpeername(struct sockaddr *address, 
 				socklen_t *address_len)
 {
     CMMSockHash::const_accessor ac;
-    if (!cmm_sock_hash.find(ac, socket)) {
-	/* pass-through for non-mc-sockets */
-	return getpeername(socket, address, address_len);
+    if (!cmm_sock_hash.find(ac, sock)) {
+        assert(0);
+
+	/* pass-through for non-mc-sockets; now a layer above */
+	// return getpeername(sock, address, address_len);
     }
     
-    struct cmm_sock *sk = ac->second;
-    assert(sk);
-    struct csocket *csock = sk->active_csock;
+    struct csocket *csock = active_csock;
     if (!csock || !csock->connected) {
 	errno = ENOTCONN;
 	return -1;
@@ -684,19 +708,19 @@ CMMSocketSerial::mc_getpeername(int socket, struct sockaddr *address,
 }
 
 int 
-CMMSocketSerial::mc_read(mc_socket_t sock, void *buf, size_t count)
+CMMSocketSerial::mc_read(void *buf, size_t count)
 {
     CMMSockHash::const_accessor ac;
     if (!cmm_sock_hash.find(ac, sock)) {
+        assert(0);
+
 	//errno = EBADF;
 	//return CMM_FAILED;
-	return read(sock, buf,count);
+	//return read(sock, buf,count);
     }
 
     int osfd = -1;
-    struct cmm_sock *sk = ac->second;
-    assert(sk);
-    struct csocket *csock = sk->active_csock;
+    struct csocket *csock = active_csock;
     if (!csock || !csock->connected) {
 	errno = ENOTCONN;
 	return -1;
@@ -704,4 +728,97 @@ CMMSocketSerial::mc_read(mc_socket_t sock, void *buf, size_t count)
     osfd = csock->osfd;
     ac.release();
     return read(osfd, buf, count);
+}
+
+int 
+CMMSocketSerial::mc_getsockopt(int level, int optname, 
+                               void *optval, socklen_t *optlen)
+{
+    CMMSockHash::const_accessor ac;
+    if (!cmm_sock_hash.find(ac, sock)) {
+	//return getsockopt(sock, level, optname, optval, optlen);
+        assert(0);
+    }
+
+    struct csocket *csock = active_csock;
+    if (!csock || !csock->connected) {
+        errno = ENOTCONN;
+        return -1;
+    }
+    return getsockopt(csock->osfd, level, optname, optval, optlen);
+}
+
+int
+CMMSocketSerial::mc_setsockopt(int level, int optname, 
+                               const void *optval, socklen_t optlen)
+{
+    int rc = 0;
+    CMMSockHash::accessor ac;
+    if (!cmm_sock_hash.find(ac, sock)) {
+        assert(0);
+    }
+
+    for (CSockList::iterator it = csocks.begin(); it != csocks.end(); it++) {
+	struct csocket *csock = *it;
+	assert(csock);
+	if (csock->osfd != -1) {
+	    if(optname == O_NONBLOCK) {
+                int flags;
+                flags = fcntl(csock->osfd, F_GETFL, 0);
+                flags |= O_NONBLOCK;
+                (void)fcntl(csock->osfd, F_SETFL, flags);
+                non_blocking = 1;
+	    } else {
+		rc = setsockopt(csock->osfd, level, optname, optval, optlen);
+            }
+	    
+	    if (rc < 0) {
+		return rc;
+	    }
+	}
+    }
+    /* all succeeded */
+
+    /* inserts if not present */
+    struct sockopt &opt = sockopts[level][optname];
+    if (opt.optval) {
+	free(opt.optval);
+    }
+    opt.optlen = optlen;
+    opt.optval = malloc(optlen);
+    assert(opt.optval);
+    memcpy(opt.optval, optval, optlen);
+
+    return 0;
+}
+
+int 
+CMMSocketSerial::reset()
+{
+    CMMSockHash::accessor ac;
+    if (!cmm_sock_hash.find(ac, sock)) {
+        assert(0);
+    }
+
+    if (non_blocking) {
+        fprintf(stderr, 
+                "WARNING: cmm_reset not implemented for "
+                "non-blocking sockets!!!\n");
+        return CMM_FAILED;
+    }
+    
+    if (active_csock) {
+        struct csocket *csock = active_csock;
+        
+        active_csock = NULL;
+        shutdown(csock->osfd, SHUT_RDWR);
+        close(csock->osfd);
+        csock->osfd = socket(sock_family,
+                             sock_type,
+                             sock_protocol);
+        csock->connected = 0;
+        csock->cur_label = 0;
+    }
+    
+    return 0;
 }

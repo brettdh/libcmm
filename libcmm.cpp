@@ -895,7 +895,7 @@ int cmm_read(mc_socket_t sock, void *buf, size_t count)
     int osfd = -1;
     struct cmm_sock *sk = ac->second;
     assert(sk);
-    /* TODO-IMPL: sk->read */
+    /* TODO-REPLACE: sk->read */
     if (sk->serial) {
 	struct csocket *csock = sk->active_csock;
 	if (!csock || !csock->connected) {
@@ -920,17 +920,17 @@ int cmm_getsockopt(mc_socket_t sock, int level, int optname,
 
 		struct cmm_sock *sk = ac->second;
     assert(sk);
-    /* TODO-IMPL: sk->getsockopt */
+    /* TODO-REPLACE: sk->getsockopt */
     if (sk->serial) {
-				struct csocket *csock = sk->active_csock;
-				if (!csock || !csock->connected) {
-						errno = ENOTCONN;
-						return -1;
-				}
-				return getsockopt(csock->osfd, level, optname, optval, optlen);
+        struct csocket *csock = sk->active_csock;
+        if (!csock || !csock->connected) {
+            errno = ENOTCONN;
+            return -1;
+        }
+        return getsockopt(csock->osfd, level, optname, optval, optlen);
     } 
-		else {
-				assert(0); 		//Parallel mode not implemented
+    else {
+        assert(0);   //Parallel mode not implemented
     }
 }
 
@@ -940,8 +940,9 @@ int cmm_setsockopt(mc_socket_t sock, int level, int optname,
 		int rc = 0;
     CMMSockHash::accessor ac;
     if (!cmm_sock_hash.find(ac, sock)) {
+        //I think this probably needs to be handled like read above.
 	errno = EBADF;
-	return CMM_FAILED;			//I think this probably needs to be handled like read above.
+	return CMM_FAILED; 
     }
     struct cmm_sock *sk = ac->second;
     assert(sk);
@@ -1404,7 +1405,7 @@ int cmm_reset(mc_socket_t sock)
 	    return CMM_FAILED;
 	}
 
-        /* TODO-IMPL: sk->reset */
+        /* TODO-REPLACE: sk->reset */
 	if (sk->serial) {
 	    if (sk->active_csock) {
 		struct csocket *csock = sk->active_csock;
