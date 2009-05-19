@@ -1,11 +1,41 @@
 #include "cmm_socket.h"
 #include "cmm_socket.private.h"
+#include <connmgr_labels.h>
+#include "libcmm.h"
+#include "libcmm_ipc.h"
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/socket.h>
 
-CMMSocketSerial::CMMSocketSerial()
+#include <map>
+using std::pair;
+
+CMMSocketSerial::CMMSocketSerial(int family, int type, int flags)
+    : CMMSocket(family, type, flags)
 {
     active_csock = NULL;
 }
 
+int
+CMMSocketSerial::non_blocking_connect(u_long initial_labels)
+{
+    struct csocket *csock = NULL;
+    if (initial_labels) {
+        csock = sock_color_hash[initial_labels];
+    } 
+    assert(csock);     //Make sure programmers use existing labels
+    csock->connected=1;  /* XXX: this needs a comment explaining
+                          * what's going on. It looks like connect
+                          * could fail and this flag would still be
+                          * set to 1, but I'm assuming that this is
+                          * okay because of non-blocking stuff. */
+    csock->cur_label = initial_labels;
+    active_csock = csock;
+    int rc = connect(csock->osfd, addr, addrlen);
+    return rc;
+}
+
+#ifdef CMM_TIMING
 static int floorLog2(unsigned int n) 
 {
     int pos = 0;
@@ -29,11 +59,12 @@ static const char *label_str(u_long label)
     }
     return label_strings[index];
 }
+#endif
 
 // XXX: may be decomposable into unique and common portions
 // XXX: for serial/parallel mc_sockets
-void
-CMMSocketSerial::prepare(u_long label)
+int
+CMMSocketSerial::prepare(u_long up_label)
 {
     CMMSockHash::const_accessor read_ac;
     CMMSockHash::accessor write_ac;
@@ -107,7 +138,7 @@ CMMSocketSerial::prepare(u_long label)
             if (!cmm_sock_hash.find(write_ac, sock)) {
                 assert(0);
             }
-            assert(write_ac->second == this);
+            assert(get_pointer(write_ac->second) == this);
             
             close(active_csock->osfd);
             active_csock->osfd = socket(sock_family, 
@@ -122,12 +153,12 @@ CMMSocketSerial::prepare(u_long label)
             if (!cmm_sock_hash.find(write_ac, sock)) {
                 assert(0);
             }
-            assert(write_ac->second == this);
+            assert(get_pointer(write_ac->second) == this);
             assert(csock == sock_color_hash[up_label]);
         }
         // end teardown() code
 	
-	setAllSockopts(csock->osfd);
+	set_all_sockopts(csock->osfd);
 	
 	/* connect new socket with current label */
 	set_socket_labels(csock->osfd, up_label);
@@ -137,7 +168,7 @@ CMMSocketSerial::prepare(u_long label)
         if (!cmm_sock_hash.find(read_ac, sock)) {
             assert(0);
         }
-        assert(read_ac->second == this);
+        assert(get_pointer(read_ac->second) == this);
         assert(csock == sock_color_hash[up_label]);
         
 #ifdef CMM_TIMING
@@ -151,7 +182,7 @@ CMMSocketSerial::prepare(u_long label)
         if (!cmm_sock_hash.find(write_ac, sock)) {
             assert(0);
         }
-        assert(write_ac->second == this);
+        assert(get_pointer(write_ac->second) == this);
         assert(csock == sock_color_hash[up_label]);
         
 	if (rc < 0) {
@@ -195,7 +226,7 @@ CMMSocketSerial::prepare(u_long label)
 #endif
 #ifdef IMPORT_RULES
 	    if (cmm_sock_hash.find(write_ac, sock)) {
-		assert(write_ac->second == this);
+		assert(get_pointer(write_ac->second) == this);
 		connecting = 0;
 		write_ac.release();
 	    }
@@ -216,7 +247,7 @@ CMMSocketSerial::prepare(u_long label)
 		} else {
 		    CMMSockHash::accessor write_ac;
 		    if (cmm_sock_hash.find(write_ac, sock)) {
-			assert(write_ac->second == this);
+			assert(get_pointer(write_ac->second) == this);
 			assert(csock == sock_color_hash[up_label]);
 			
 			close(csock->osfd);
@@ -281,95 +312,47 @@ CMMSocketSerial::prepare(u_long label)
     return 0;
 }
 
-void CMMSocketSerial::teardown(u_long down_label)
+void
+CMMSocketSerial::teardown(u_long down_label)
 {
     CMMSockHash::const_accessor read_ac;
     if (!cmm_sock_hash.find(read_ac, sock)) {
 	assert(0);
     }
-    assert(read_ac->second == this);
+    assert(get_pointer(read_ac->second) == this);
     
-    if (sk->active_csock &&
-	sk->active_csock->cur_label & down_label) {
-	if (sk->label_down_cb) {
+    if (active_csock &&
+	active_csock->cur_label & down_label) {
+	if (label_down_cb) {
 	    read_ac.release();
-	    sk->label_down_cb(sk->sock, sk->active_csock->cur_label, 
-			      sk->cb_arg);
+	    label_down_cb(sock, active_csock->cur_label, 
+                          cb_arg);
 	} else {
 	    read_ac.release();
 	}
 	
 	CMMSockHash::accessor write_ac;
-	if (!cmm_sock_hash.find(write_ac, sk_iter->first)) {
+	if (!cmm_sock_hash.find(write_ac, sock)) {
 	    assert(0);
 	}
-	assert(sk == write_ac->second);
+	assert(this == get_pointer(write_ac->second));
         
 	/* the down handler may have reconnected the socket,
 	 * so make sure not to close it in that case */
-	if (sk->active_csock->cur_label & down_label) {
-	    close(sk->active_csock->osfd);
-	    sk->active_csock->osfd = socket(sk->sock_family, 
-					    sk->sock_type,
-					    sk->sock_protocol);
-	    sk->active_csock->cur_label = 0;
-	    sk->active_csock->connected = 0;
-	    sk->active_csock = NULL;
+	if (active_csock->cur_label & down_label) {
+	    close(active_csock->osfd);
+	    active_csock->osfd = socket(sock_family, 
+                                        sock_type,
+                                        sock_protocol);
+	    active_csock->cur_label = 0;
+	    active_csock->connected = 0;
+	    active_csock = NULL;
 	}
     }
 }
 
-
-/* assume the fds in mc_fds are mc_socket_t's.  
- * add the real osfds to os_fds, and
- * also put them in osfd_list, so we can iterate through them. 
- * maxosfd gets the largest osfd seen. */
 int 
-CMMSocketSerial::makeRealFdSet(int nfds, fd_set *fds,
-			       mcSocketOsfdPairList &osfd_list, 
-			       int *maxosfd)
-{
-    if (!fds) {
-	return 0;
-    }
-
-    //fprintf(stderr, "DBG: about to check fd_set %p for mc_sockets\n", fds);
-    for (mc_socket_t s = nfds - 1; s > 0; s--) {
-        //fprintf(stderr, "DBG: checking fd %d\n", s);
-	if (FD_ISSET(s, fds)) {
-            //fprintf(stderr, "DBG: fd %d is set\n", s);
-	    CMMSockHash::const_accessor ac;
-	    if (!cmm_sock_hash.find(ac, s)) {
-                /* This must be a real file descriptor, not a mc_socket. 
-                 * No translation needed. */
-                continue;
-	    }
-
-	    CMMSockPtr sk = ac->second;
-	    assert(sk);
-	    if (sk->getRealFds(osfd_list) != 0) {
-		/* XXX: what about the nonblocking case? */
-		fprintf(stderr,
-			"DBG: cmm_select on a disconnected socket\n");
-		errno = EBADF;
-		return -1;
-	    }
-	}
-    }
-
-    assert (maxosfd);
-    for (size_t i = 0; i < osfd_list.size(); i++) {
-        FD_CLR(osfd_list[i].first, fds);
-	FD_SET(osfd_list[i].second, fds);
-        if (osfd_list[i].second > *maxosfd) {
-            *maxosfd = osfd_list[i].second;
-        }
-    }
-    return 0;
-}
-
-int 
-CMMSocketSerial::getRealFds(mcSocketOsfdPairList &osfd_list)
+CMMSocketSerial::get_real_fds(mcSocketOsfdPairList &osfd_list)
 {
     if (active_csock) {
 	int osfd = active_csock->osfd;
@@ -385,7 +368,7 @@ CMMSocketSerial::getRealFds(mcSocketOsfdPairList &osfd_list)
 }
 
 void
-CMMSocketSerial::pollMapBack(struct pollfd *origfd, 
+CMMSocketSerial::poll_map_back(struct pollfd *origfd, 
 			     const struct pollfd *realfd)
 {
     assert(origfd && realfd && origfd->fd == sock);
@@ -503,7 +486,7 @@ CMMSocketSerial::mc_setsockopt(int level, int optname,
 }
 
 int 
-CMMSocketSerial::mc_reset()
+CMMSocketSerial::reset()
 {
     CMMSockHash::accessor ac;
     if (!cmm_sock_hash.find(ac, sock)) {
