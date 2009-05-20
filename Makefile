@@ -16,7 +16,8 @@ cmm_test: libcmm_test.o libcmm.so
 conn_scout: libcmm_scout.o cdf_sampler.o
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
-libcmm.so: libcmm.o libcmm_ipc.o
+libcmm.so: libcmm.o libcmm_ipc.o #cmm_socket.o cmm_socket_impl.o \
+#	   cmm_socket_serial.o cmm_socket_passthrough.o
 	$(CXX) $(CFLAGS) $(LDFLAGS) -shared -o $@ $^
 
 libcmm_test.o: libcmm.h

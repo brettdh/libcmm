@@ -20,12 +20,19 @@ CMMSocket::close(mc_socket_t sock)
     return CMMSocketImpl::close(sock);
 }
 
+void
+CMMSocket::put_label_down(u_long down_label)
+{
+    CMMSocketImpl::put_label_down(down_label);
+}
+
 int 
 CMMSocket::mc_select(mc_socket_t nfds, 
 		     fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 		     struct timeval *timeout)
 {
-    return CMMSocketImpl::mc_select(nfds, readfds, writefds, timeout);
+    return CMMSocketImpl::mc_select(nfds, readfds, writefds, 
+				    exceptfds, timeout);
 }
 
 int 

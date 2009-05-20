@@ -49,8 +49,21 @@ CMMSocketPassThrough::mc_setsockopt(int level, int optname,
     return setsockopt(sock, level, optname, optval, optlen);
 }
 
+int
+CMMSocketPassThrough::mc_shutdown(int how)
+{
+    return shutdown(sock, how);
+}
+
 int 
 CMMSocketPassThrough::reset()
+{
+    /* not meaningful on regular sockets */
+    return 0;
+}
+
+int 
+CMMSocketPassThrough::check_label(u_long label, resume_handler_t fn, void *arg)
 {
     /* not meaningful on regular sockets */
     return 0;

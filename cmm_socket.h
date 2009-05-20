@@ -20,7 +20,10 @@ class CMMSocket {
     static CMMSocketPtr lookup(mc_socket_t sock);
     static int close(mc_socket_t sock);
 
+    static void put_label_down(u_long down_label);
+
     virtual int reset() = 0;
+    virtual int check_label(u_long label, resume_handler_t fn, void *arg) = 0;
 
     virtual int mc_connect(const struct sockaddr *serv_addr, 
                            socklen_t addrlen, 
@@ -48,6 +51,8 @@ class CMMSocket {
     virtual int mc_writev(const struct iovec *vec, int count,
                           u_long labels, resume_handler_t resume_handler, 
                           void *arg) = 0;
+
+    virtual int mc_shutdown(int how) = 0;
 
     virtual ~CMMSocket() {}
 };

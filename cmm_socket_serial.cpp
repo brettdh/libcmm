@@ -10,6 +10,8 @@
 #include <map>
 using std::pair;
 
+#include "cmm_timing.h"
+
 CMMSocketSerial::CMMSocketSerial(int family, int type, int flags)
     : CMMSocketImpl(family, type, flags)
 {
