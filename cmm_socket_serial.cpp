@@ -11,7 +11,7 @@
 using std::pair;
 
 CMMSocketSerial::CMMSocketSerial(int family, int type, int flags)
-    : CMMSocket(family, type, flags)
+    : CMMSocketImpl(family, type, flags)
 {
     active_csock = NULL;
 }

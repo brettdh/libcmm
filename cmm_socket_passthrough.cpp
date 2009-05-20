@@ -50,51 +50,8 @@ CMMSocketPassThrough::mc_setsockopt(int level, int optname,
 }
 
 int 
-CMMSocketPassThrough::mc_reset()
+CMMSocketPassThrough::reset()
 {
     /* not meaningful on regular sockets */
     return 0;
-}
-
-int 
-CMMSocketPassThrough::get_real_fds(mcSocketOsfdPairList &osfd_list)
-{
-    /* since these are never in the hash, this should never be called */
-    assert(0);
-    osfd_list.push_back(pair<mc_socket_t,int>(sock, sock));
-    return 0;
-}
-
-void 
-CMMSocketPassThrough::poll_map_back(struct pollfd *origfd, 
-                                  const struct pollfd *realfd)
-{
-    /* since these are never in the hash, this should never be called */
-    assert(0);
-    origfd->revents = realfd->revents;
-}
-
-
-int 
-CMMSocketPassThrough::prepare(u_long up_label)
-{
-    assert(0);
-}
-
-int 
-CMMSocketPassThrough::setup(u_long up_label)
-{
-    assert(0);
-}
-
-void
-CMMSocketPassThrough::teardown(u_long down_label)
-{
-    assert(0);
-}
-
-int 
-CMMSocketPassThrough::non_blocking_connect(u_long initial_labels)
-{
-    assert(0);
 }

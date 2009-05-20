@@ -34,8 +34,11 @@ struct MyHashCompare {
     bool equal(T s1, T s2) const { return s1==s2; }
 };
 
+class CMMSocketImpl;
+typedef boost::shared_ptr<CMMSocketImpl> CMMSocketImplPtr;
+
 typedef tbb::concurrent_hash_map<mc_socket_t, 
-                                 CMMSocketPtr, 
+                                 CMMSocketImplPtr, 
                                  MyHashCompare<mc_socket_t> > CMMSockHash;
 
 struct thunk {
@@ -73,6 +76,10 @@ typedef std::vector<std::pair<mc_socket_t, int> > mcSocketOsfdPairList;
 
 class CMMSocketImpl : public CMMSocket {
   public:
+    static mc_socket_t create(int family, int type, int protocol);
+    static CMMSocketPtr lookup(mc_socket_t sock);
+    static int close(mc_socket_t sock);
+
     virtual int mc_connect(const struct sockaddr *serv_addr, socklen_t addrlen,
                            u_long initial_labels,
                            connection_event_cb_t label_down_cb,
@@ -85,6 +92,14 @@ class CMMSocketImpl : public CMMSocket {
     virtual int mc_writev(const struct iovec *vec, int count,
                           u_long labels, resume_handler_t resume_handler, 
                           void *arg);    
+
+    static int mc_select(mc_socket_t nfds, 
+			 fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
+			 struct timeval *timeout);
+    static int mc_poll(struct pollfd fds[], nfds_t nfds, int timeout);
+
+    
+    virtual ~CMMSocketImpl();
 
   protected:
     static CMMSockHash cmm_sock_hash;
@@ -190,7 +205,7 @@ class CMMSocketParallel : public CMMSocketImpl {
 
 class CMMSocketPassThrough : public CMMSocket {
   public:
-    CMMSocketPassThrough(mc_socket_t sock);
+    CMMSocketPassThrough(mc_socket_t sock_);
 
     virtual int mc_getpeername(struct sockaddr *address, 
                                socklen_t *address_len);
@@ -203,6 +218,20 @@ class CMMSocketPassThrough : public CMMSocket {
     virtual int get_real_fds(mcSocketOsfdPairList &osfd_list);
     virtual void poll_map_back(struct pollfd *origfd, 
 			     const struct pollfd *realfd);
+
+    virtual int mc_connect(const struct sockaddr *serv_addr, socklen_t addrlen,
+                           u_long initial_labels,
+                           connection_event_cb_t label_down_cb,
+                           connection_event_cb_t label_up_cb,
+                           void *cb_arg);
+    virtual ssize_t mc_send(const void *buf, size_t len, int flags,
+                            u_long labels, resume_handler_t resume_handler, 
+                            void *arg);
+    virtual int mc_writev(const struct iovec *vec, int count,
+                          u_long labels, resume_handler_t resume_handler, 
+                          void *arg);
+  private:
+    mc_socket_t sock;
 };
 
 #ifndef SO_CONNMGR_LABELS
