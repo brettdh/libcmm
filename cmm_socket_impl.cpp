@@ -550,9 +550,21 @@ CMMSocketImpl::put_label_down(u_long down_label)
 }
 
 int
-CMMSocketImpl::check_label(u_long label, resume_handler_t fn, void *arg)
+CMMSocketImpl::check_label(u_long labels, resume_handler_t fn, void *arg)
 {
-    return preapprove(label, fn, arg);
+    int rc = -1;
+    if (scout_net_available(labels)) {
+	rc = 0;
+    } else {
+	if (fn) {
+	    enqueue_handler(sock, labels, fn, arg);
+	    rc = CMM_DEFERRED;
+	} else {
+	    rc = CMM_FAILED;
+	}
+    }
+    
+    return rc;
 }
 
 void set_socket_labels(int osfd, u_long labels)
