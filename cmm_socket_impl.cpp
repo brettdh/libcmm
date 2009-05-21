@@ -12,6 +12,8 @@
 using std::map; using std::vector;
 using std::set;
 
+CMMSockHash CMMSocketImpl::cmm_sock_hash;
+
 csocket::csocket(int family, int type, int protocol) 
 {
     osfd = socket(family, type, protocol);
@@ -70,7 +72,7 @@ CMMSocketImpl::lookup(mc_socket_t sock)
 }
 
 int
-CMMSocketImpl::close(mc_socket_t sock)
+CMMSocketImpl::mc_close(mc_socket_t sock)
 {
     CMMSockHash::accessor ac;
     if (cmm_sock_hash.find(ac, sock)) {
@@ -551,4 +553,29 @@ int
 CMMSocketImpl::check_label(u_long label, resume_handler_t fn, void *arg)
 {
     return preapprove(label, fn, arg);
+}
+
+void set_socket_labels(int osfd, u_long labels)
+{
+    int rc;
+#if 1 /* debug */
+    u_long old_labels = 0;
+    socklen_t len = sizeof(old_labels);
+    rc = getsockopt(osfd, SOL_SOCKET, SO_CONNMGR_LABELS, 
+		    &old_labels, &len);
+    if (rc < 0) {
+	fprintf(stderr, "Warning: failed getting socket %d labels %lu\n",
+		osfd, labels);
+    } else {
+      //fprintf(stderr, "old socket labels %lu ", old_labels);
+    }
+#endif
+    //fprintf(stderr, "new socket labels %lu\n", labels);
+
+    rc = setsockopt(osfd, SOL_SOCKET, SO_CONNMGR_LABELS,
+                    &labels, sizeof(labels));
+    if (rc < 0) {
+	fprintf(stderr, "Warning: failed setting socket %d labels %lu\n",
+		osfd, labels);
+    }
 }

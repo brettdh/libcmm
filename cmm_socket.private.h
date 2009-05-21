@@ -43,7 +43,7 @@ class CMMSocketImpl : public CMMSocket {
   public:
     static mc_socket_t create(int family, int type, int protocol);
     static CMMSocketPtr lookup(mc_socket_t sock);
-    static int close(mc_socket_t sock);
+    static int mc_close(mc_socket_t sock);
 
     static void put_label_down(u_long down_label);
     virtual int check_label(u_long label, resume_handler_t fn, void *arg);
@@ -84,7 +84,7 @@ class CMMSocketImpl : public CMMSocket {
     /* make sure that the socket is ready to send data with up_label. */
     virtual int prepare(u_long up_label) = 0;
 
-    virtual int setup(u_long up_label) = 0;
+    //virtual int setup(u_long up_label) = 0;
     virtual void teardown(u_long down_label) = 0;
     
     int set_all_sockopts(int osfd);
@@ -139,7 +139,7 @@ class CMMSocketImpl : public CMMSocket {
 class CMMSocketSerial : public CMMSocketImpl {
   public:
     virtual int prepare(u_long up_label);
-    virtual int setup(u_long up_label);
+    //virtual int setup(u_long up_label);
     virtual void teardown(u_long down_label);
 
     virtual int mc_getpeername(struct sockaddr *address, 
@@ -166,7 +166,7 @@ class CMMSocketSerial : public CMMSocketImpl {
 class CMMSocketParallel : public CMMSocketImpl {
   public:
     virtual int prepare(u_long up_label);
-    virtual int setup(u_long up_label);
+    //virtual int setup(u_long up_label);
     virtual void teardown(u_long down_label);
 };
 
@@ -200,32 +200,6 @@ class CMMSocketPassThrough : public CMMSocket {
     mc_socket_t sock;
 };
 
-#ifndef SO_CONNMGR_LABELS
-#define SO_CONNMGR_LABELS 39
-#endif
-void set_socket_labels(int osfd, u_long labels)
-{
-    int rc;
-#if 1 /* debug */
-    u_long old_labels = 0;
-    socklen_t len = sizeof(old_labels);
-    rc = getsockopt(osfd, SOL_SOCKET, SO_CONNMGR_LABELS, 
-		    &old_labels, &len);
-    if (rc < 0) {
-	fprintf(stderr, "Warning: failed getting socket %d labels %lu\n",
-		osfd, labels);
-    } else {
-      //fprintf(stderr, "old socket labels %lu ", old_labels);
-    }
-#endif
-    //fprintf(stderr, "new socket labels %lu\n", labels);
-
-    rc = setsockopt(osfd, SOL_SOCKET, SO_CONNMGR_LABELS,
-                    &labels, sizeof(labels));
-    if (rc < 0) {
-	fprintf(stderr, "Warning: failed setting socket %d labels %lu\n",
-		osfd, labels);
-    }
-}
+void set_socket_labels(int osfd, u_long labels);
 
 #endif /* include guard */

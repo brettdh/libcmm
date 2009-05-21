@@ -18,7 +18,7 @@ class CMMSocket {
   public:
     static mc_socket_t create(int family, int type, int protocol);
     static CMMSocketPtr lookup(mc_socket_t sock);
-    static int close(mc_socket_t sock);
+    static int mc_close(mc_socket_t sock);
 
     static void put_label_down(u_long down_label);
 

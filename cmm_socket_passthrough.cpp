@@ -36,6 +36,17 @@ CMMSocketPassThrough::mc_read(void *buf, size_t count)
 }
 
 int 
+CMMSocketPassThrough::mc_connect(const struct sockaddr *serv_addr, 
+                                 socklen_t addrlen_, 
+                                 u_long initial_labels,
+                                 connection_event_cb_t label_down_cb_,
+                                 connection_event_cb_t label_up_cb_,
+                                 void *cb_arg_)
+{
+    return connect(sock, serv_addr, addrlen_);
+}
+
+int 
 CMMSocketPassThrough::mc_getsockopt(int level, int optname, 
                                     void *optval, socklen_t *optlen)
 {

@@ -371,7 +371,7 @@ int cmm_shutdown(mc_socket_t sock, int how)
 
 int cmm_close(mc_socket_t sock)
 {
-    return CMMSocket::close(sock);
+    return CMMSocket::mc_close(sock);
 }
 
 /* if deleter is non-NULL, it will be called on the handler's arg. */

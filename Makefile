@@ -16,16 +16,22 @@ cmm_test: libcmm_test.o libcmm.so
 conn_scout: libcmm_scout.o cdf_sampler.o
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
-libcmm.so: libcmm.o libcmm_ipc.o #cmm_socket.o cmm_socket_impl.o \
-#	   cmm_socket_serial.o cmm_socket_passthrough.o
+libcmm.so: libcmm_new.o libcmm_ipc.o cmm_socket.o cmm_socket_impl.o \
+	   cmm_socket_serial.o cmm_socket_passthrough.o thunks.o
 	$(CXX) $(CFLAGS) $(LDFLAGS) -shared -o $@ $^
 
 libcmm_test.o: libcmm.h
 libcmm_scout.o: libcmm.h libcmm_ipc.h cdf_sampler.h
 libcmm.o: libcmm.h libcmm_ipc.h timeops.h
+libcmm_new.o: libcmm.h libcmm_ipc.h timeops.h
 libcmm_ipc.o: libcmm_ipc.h
 cdf_sampler.o: cdf_sampler.h
 cdf_test.o: cdf_sampler.h
+cmm_socket.o: cmm_socket.h cmm_socket.private.h thunks.h common.h
+cmm_socket_impl.o: cmm_socket.h cmm_socket.private.h thunks.h common.h
+cmm_socket_serial.o: cmm_socket.h cmm_socket.private.h thunks.h common.h
+cmm_socket_passthrough.o: cmm_socket.h cmm_socket.private.h thunks.h common.h
+thunks.o: thunks.h
 
 clean:
 	rm -f *~ *.o $(LIBRARIES) $(EXECUTABLES) .tbbinstall .libinstall .hdrinstall .bininstall

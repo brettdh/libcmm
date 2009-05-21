@@ -15,9 +15,9 @@ CMMSocket::lookup(mc_socket_t sock)
 }
 
 int
-CMMSocket::close(mc_socket_t sock)
+CMMSocket::mc_close(mc_socket_t sock)
 {
-    return CMMSocketImpl::close(sock);
+    return CMMSocketImpl::mc_close(sock);
 }
 
 void
