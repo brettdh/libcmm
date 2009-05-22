@@ -200,6 +200,8 @@ class CMMSocketPassThrough : public CMMSocket {
     mc_socket_t sock;
 };
 
+#define FAKE_SOCKET_MAGIC_LABELS 0xDECAFBAD
+
 void set_socket_labels(int osfd, u_long labels);
 
 #endif /* include guard */

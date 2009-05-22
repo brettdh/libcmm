@@ -3,6 +3,7 @@
 #include "libcmm.h"
 #include "libcmm_ipc.h"
 #include <connmgr_labels.h>
+#include <sys/stat.h>
 
 #include "thunks.h"
 
@@ -60,6 +61,31 @@ CMMSocketImpl::create(int family, int type, int protocol)
     return new_sock;
 }
 
+/* check that this file descriptor really refers to a multi-socket.
+ * Qualifications:
+ *   1) Must be a socket, and
+ *   2) Must have our magic-number flag set.
+ */
+static int
+sanity_check(mc_socket_t sock)
+{
+    struct stat st;
+    int rc = fstat(sock, &st);
+    if (rc == 0) {
+        u_long labels = 0;
+        socklen_t len = sizeof(labels);
+        if (st.st_mode & S_IFSOCK) {
+            rc = getsockopt(sock, SOL_SOCKET, SO_CONNMGR_LABELS,
+                            &labels, &len);
+            if (rc == 0 && labels == FAKE_SOCKET_MAGIC_LABELS) {
+                return 0;
+            }
+        }
+    }
+    fprintf(stderr, "ERROR: mc_socket sanity check FAILED!\n");
+    return -1;
+}
+
 CMMSocketPtr
 CMMSocketImpl::lookup(mc_socket_t sock)
 {
@@ -67,6 +93,8 @@ CMMSocketImpl::lookup(mc_socket_t sock)
     if (!cmm_sock_hash.find(read_ac, sock)) {
         return CMMSocketPtr(new CMMSocketPassThrough(sock));
     } else {
+        int rc = sanity_check(sock);
+        assert(rc == 0);
         return read_ac->second;
     }
 }
@@ -97,6 +125,9 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
 	/* invalid params, or no more FDs/memory left. */
 	throw sock; /* :-) */
     }
+
+    /* so we can identify this FD as a mc_socket later */
+    set_socket_labels(sock, FAKE_SOCKET_MAGIC_LABELS);
 
     sock_family = family;
     sock_type = type;
@@ -317,20 +348,26 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
 
     if (readfds) {
 	tmp_readfds = *readfds;
-	rc += make_real_fd_set(nfds, &tmp_readfds, readosfd_list, &maxosfd);
+	rc = make_real_fd_set(nfds, &tmp_readfds, readosfd_list, &maxosfd);
+        if (rc < 0) {
+            return -1;
+        }
     }
     if (writefds) {
 	tmp_writefds = *writefds;
-	rc += make_real_fd_set(nfds, &tmp_writefds, writeosfd_list, &maxosfd);
+	rc = make_real_fd_set(nfds, &tmp_writefds, writeosfd_list, &maxosfd);
+        if (rc < 0) {
+            return -1;
+        }
     }
     if (exceptfds) {
 	tmp_exceptfds = *exceptfds;
-	rc += make_real_fd_set(nfds, &tmp_exceptfds, exceptosfd_list,&maxosfd);
+	rc = make_real_fd_set(nfds, &tmp_exceptfds, exceptosfd_list,&maxosfd);
+        if (rc < 0) {
+          return -1;
+        }
     }
 
-    if (rc < 0) {
-	return -1;
-    }
 
     rc = select(maxosfd + 1, &tmp_readfds, &tmp_writefds, &tmp_exceptfds, 
 		timeout);
