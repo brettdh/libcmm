@@ -1,4 +1,4 @@
-#ifdef cmm_timing_h
+#ifndef cmm_timing_h
 #define cmm_timing_h
 
 #define CMM_TIMING
@@ -6,7 +6,7 @@
 #include "timeops.h"
 
 #include "tbb/mutex.h"
-tbb::mutex timing_mutex;
+extern tbb::mutex timing_mutex;
 #define TIMING_FILE "/tmp/cmm_timing.txt"
 extern FILE *timing_file;
 extern int num_switches;

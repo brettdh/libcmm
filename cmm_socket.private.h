@@ -13,8 +13,13 @@ struct csocket {
     ~csocket();
 };
 
+#include <map>
+#include <vector>
+#include <set>
+
 typedef std::map<u_long, struct csocket *> CSockHash;
 typedef std::vector<struct csocket *> CSockList;
+typedef std::set<struct csocket *> CSockSet;
 
 struct sockopt {
     void *optval;
@@ -102,6 +107,7 @@ class CMMSocketImpl : public CMMSocket {
     mc_socket_t sock;
     CSockHash sock_color_hash;
     CSockList csocks;
+    CSockSet connected_csocks;
 
     int non_blocking; /* 1 if non blocking, 0 otherwise*/
 
@@ -160,7 +166,7 @@ class CMMSocketSerial : public CMMSocketImpl {
     virtual int non_blocking_connect(u_long initial_labels);
 
   private: 
-    struct csocket *active_csock;
+    //struct csocket *active_csock;
 };
 
 class CMMSocketParallel : public CMMSocketImpl {

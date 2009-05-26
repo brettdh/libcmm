@@ -354,7 +354,7 @@ static void libcmm_deinit(void)
 		    "*** Total time spent in up_cb: %ld.%06ld seconds\n",
 		    total_time_in_up_cb.tv_sec, 
 		    total_time_in_up_cb.tv_usec);
-
+            fclose(timing_file);
 	}
     }
 #endif

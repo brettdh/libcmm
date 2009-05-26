@@ -1,14 +1,9 @@
 #ifndef cmm_socket_h
 #define cmm_socket_h
 
-#include <map>
-#include <vector>
-
 #include <boost/shared_ptr.hpp>
 
 #include "libcmm.h"
-#include "tbb/concurrent_hash_map.h"
-#include "tbb/concurrent_queue.h"
 
 class CMMSocket;
 

@@ -437,9 +437,14 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 	if(!cmm_sock_hash.find(ac, fds[i].fd)) {
 	    origfd->revents = realfds[i].revents;
 	} else {
-	    CMMSocketImplPtr sk = ac->second;
-	    assert(sk);
-	    sk->poll_map_back(origfd, &realfds[i]);
+            //CMMSocketImplPtr sk = ac->second;
+	    //assert(sk);
+	    //sk->poll_map_back(origfd, &realfds[i]);
+
+            /* XXX: does this make sense? 
+             * If an event happened on any of the underlying FDs, 
+             * it happened on the multi-socket */
+            origfd->revents |= realfds[i].revents;
 	}
         if (orig_fds.find(origfd->fd) == orig_fds.end()) {
             orig_fds.insert(origfd->fd);
@@ -619,8 +624,8 @@ void set_socket_labels(int osfd, u_long labels)
       //fprintf(stderr, "old socket labels %lu ", old_labels);
     }
 #endif
-    //fprintf(stderr, "new socket labels %lu\n", labels);
-
+    //fprintf(stderr, "new socket labels %lu (socket %d)\n", labels, osfd);
+    
     rc = setsockopt(osfd, SOL_SOCKET, SO_CONNMGR_LABELS,
                     &labels, sizeof(labels));
     if (rc < 0) {

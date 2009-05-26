@@ -15,7 +15,7 @@ using std::pair;
 CMMSocketSerial::CMMSocketSerial(int family, int type, int flags)
     : CMMSocketImpl(family, type, flags)
 {
-    active_csock = NULL;
+    //active_csock = NULL;
 }
 
 int
@@ -32,7 +32,8 @@ CMMSocketSerial::non_blocking_connect(u_long initial_labels)
                           * set to 1, but I'm assuming that this is
                           * okay because of non-blocking stuff. */
     csock->cur_label = initial_labels;
-    active_csock = csock;
+    //active_csock = csock;
+    connected_csocks.push_back(csock);
     int rc = connect(csock->osfd, addr, addrlen);
     return rc;
 }
@@ -63,8 +64,7 @@ static const char *label_str(u_long label)
 }
 #endif
 
-// XXX: may be decomposable into unique and common portions
-// XXX: for serial/parallel mc_sockets
+/* TODO: move into CMMSocketImpl (mostly) */
 int
 CMMSocketSerial::prepare(u_long up_label)
 {
@@ -84,22 +84,30 @@ CMMSocketSerial::prepare(u_long up_label)
 	    return CMM_FAILED;
 	}
     } else {
-	if (active_csock) {
-	    csock = active_csock;
-	    up_label = active_csock->cur_label;
-	} else {
-	    /* no active csock, no label specified;
-	     * just grab the first socket that exists and whose network
-	     * is available */
+        bool retry = true;
+        while (1) {
+            /* just grab the first socket that exists and whose network
+	     * is available, giving preference to a connected socket
+             * if any are connected */
 	    for (CSockHash::iterator iter = sock_color_hash.begin();
 		 iter != sock_color_hash.end(); iter++) {
 		u_long label = iter->first;
 		struct csocket *candidate = iter->second;
-		if (candidate && scout_net_available(label)) {
-		    csock = candidate;
-		    up_label = label;
+		if (candidate) {
+                    if (candidate->connected ||
+                        (!retry && scout_net_available(label))) {
+                        csock = candidate;
+                        up_label = label;
+                    }
 		}
 	    }
+            if (csock || !retry) {
+                /* If found on the first try 
+                 * or not found on the second, we're done
+                 */
+                break;
+            }
+            retry = false;
 	}
     }
     if (!csock) {
@@ -128,6 +136,9 @@ CMMSocketSerial::prepare(u_long up_label)
 	assert(csock->cur_label == 0); /* only for multiplexing */
 	
         //teardown();
+        /* TODO: make generic to multiple active csocks 
+         *       (except that this is serial-specific behavior)
+         */
         if (active_csock) {
             down_label = active_csock->cur_label;
             read_ac.release();
@@ -215,7 +226,8 @@ CMMSocketSerial::prepare(u_long up_label)
 #ifdef IMPORT_RULES
 	connecting = 1;
 #endif
-	active_csock = csock;
+	//active_csock = csock;
+        connected_csocks.insert(csock);
 	write_ac.release();
 
 	if (label_up_cb) {
@@ -258,7 +270,8 @@ CMMSocketSerial::prepare(u_long up_label)
 					     sock_protocol);
 			csock->cur_label = 0;
 			csock->connected = 0;
-			active_csock = NULL;
+			//active_csock = NULL;
+                        connected_csocks.erase(csock);
 		    } /* else: must have already been cmm_close()d */
 		    
 		    return CMM_FAILED;
@@ -323,12 +336,11 @@ CMMSocketSerial::teardown(u_long down_label)
     }
     assert(get_pointer(read_ac->second) == this);
     
-    if (active_csock &&
-	active_csock->cur_label & down_label) {
+    struct csocket *csock = sock_color_hash[down_label];
+    if (csock && (csock->cur_label & down_label) && csock->connected) {
 	if (label_down_cb) {
 	    read_ac.release();
-	    label_down_cb(sock, active_csock->cur_label, 
-                          cb_arg);
+	    label_down_cb(sock, csock->cur_label, cb_arg);
 	} else {
 	    read_ac.release();
 	}
@@ -339,36 +351,37 @@ CMMSocketSerial::teardown(u_long down_label)
 	}
 	assert(this == get_pointer(write_ac->second));
         
-	/* the down handler may have reconnected the socket,
-	 * so make sure not to close it in that case */
-	if (active_csock->cur_label & down_label) {
-	    close(active_csock->osfd);
-	    active_csock->osfd = socket(sock_family, 
-                                        sock_type,
-                                        sock_protocol);
-	    active_csock->cur_label = 0;
-	    active_csock->connected = 0;
-	    active_csock = NULL;
-	}
+        close(csock->osfd);
+        csock->osfd = socket(sock_family, 
+                                    sock_type,
+                                    sock_protocol);
+        csock->cur_label = 0;
+        csock->connected = 0;
+        //active_csock = NULL;
+        connected_csocks.erase(csock);
     }
 }
 
 int 
 CMMSocketSerial::get_real_fds(mcSocketOsfdPairList &osfd_list)
 {
-    if (active_csock) {
-	int osfd = active_csock->osfd;
-	if (osfd == -1) {
-	    return -1;
-	} else {
-	    osfd_list.push_back(pair<mc_socket_t,int>(sock,osfd));
-	    return 0;
-	}
-    } else {
-	return -1;
+    if (connected_csocks.empty()) {
+        return -1;
     }
+
+    for (CSockSet::iterator it = connected_csocks.begin();
+         it != connected_csocks.end(); it++) {
+        struct csocket *csock = *it;
+        int osfd = csock->osfd;
+        assert(osfd > 0);
+
+        osfd_list.push_back(pair<mc_socket_t,int>(sock,osfd));
+    }
+
+    return 0;
 }
 
+#if 0
 void
 CMMSocketSerial::poll_map_back(struct pollfd *origfd, 
 			     const struct pollfd *realfd)
@@ -381,6 +394,7 @@ CMMSocketSerial::poll_map_back(struct pollfd *origfd,
     /* no worries about duplicates here. whee! */
     origfd->revents = realfd->revents;
 }
+#endif
 
 int 
 CMMSocketSerial::mc_getpeername(struct sockaddr *address, 
@@ -394,12 +408,17 @@ CMMSocketSerial::mc_getpeername(struct sockaddr *address,
 	// return getpeername(sock, address, address_len);
     }
     
-    struct csocket *csock = active_csock;
-    if (!csock || !csock->connected) {
-	errno = ENOTCONN;
-	return -1;
-    }
-    return getpeername(csock->osfd,address, address_len);
+    //struct csocket *csock = active_csock;
+    if (connected_csocks.empty()) {
+        /* XXX: maybe instead call prepare() and then proceed */
+        errno = ENOTCONN;
+        return -1;
+    } 
+
+    struct csocket *csock = *(connected_csocks.begin());
+    assert (!csock && !csock->connected);
+
+    return getpeername(csock->osfd, address, address_len);
 }
 
 int 
@@ -415,6 +434,7 @@ CMMSocketSerial::mc_read(void *buf, size_t count)
     }
 
     int osfd = -1;
+    /* TODO: make generic to multiple active csocks */
     struct csocket *csock = active_csock;
     if (!csock || !csock->connected) {
 	errno = ENOTCONN;
@@ -435,6 +455,7 @@ CMMSocketSerial::mc_getsockopt(int level, int optname,
         assert(0);
     }
 
+    /* TODO: make generic to multiple active csocks */
     struct csocket *csock = active_csock;
     if (!csock || !csock->connected) {
         errno = ENOTCONN;
@@ -502,6 +523,7 @@ CMMSocketSerial::reset()
         return CMM_FAILED;
     }
     
+    /* TODO: make generic to multiple active csocks */
     if (active_csock) {
         struct csocket *csock = active_csock;
         

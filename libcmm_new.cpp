@@ -167,6 +167,7 @@ static void libcmm_deinit(void)
 		    total_time_in_up_cb.tv_sec, 
 		    total_time_in_up_cb.tv_usec);
 
+            fclose(timing_file);
 	}
     }
 #endif
