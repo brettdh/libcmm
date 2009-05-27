@@ -4,19 +4,11 @@
 #include "cmm_socket.h"
 #include "common.h"
 
-struct csocket {
-    int osfd;
-    u_long cur_label;
-    int connected;
-
-    csocket(int family, int type, int protocol);
-    ~csocket();
-};
-
 #include <map>
 #include <vector>
 #include <set>
 
+struct csocket;
 typedef std::map<u_long, struct csocket *> CSockHash;
 typedef std::vector<struct csocket *> CSockList;
 typedef std::set<struct csocket *> CSockSet;
@@ -37,6 +29,7 @@ typedef std::map<int, SockOptNames> SockOptHash;
 class CMMSocketImpl;
 typedef boost::shared_ptr<CMMSocketImpl> CMMSocketImplPtr;
 
+#include "tbb/concurrent_hash_map.h"
 typedef tbb::concurrent_hash_map<mc_socket_t, 
                                  CMMSocketImplPtr, 
                                  MyHashCompare<mc_socket_t> > CMMSockHash;
@@ -46,7 +39,8 @@ typedef std::vector<std::pair<mc_socket_t, int> > mcSocketOsfdPairList;
 
 class CMMSocketImpl : public CMMSocket {
   public:
-    static mc_socket_t create(int family, int type, int protocol);
+    static mc_socket_t create(int family, int type, int protocol,
+                              int cmm_flags);
     static CMMSocketPtr lookup(mc_socket_t sock);
     static int mc_close(mc_socket_t sock);
 
@@ -72,6 +66,14 @@ class CMMSocketImpl : public CMMSocket {
 			 struct timeval *timeout);
     static int mc_poll(struct pollfd fds[], nfds_t nfds, int timeout);
 
+    virtual int mc_getpeername(struct sockaddr *address, 
+                               socklen_t *address_len);
+    virtual int reset();
+    virtual int mc_read(void *buf, size_t count);
+    virtual int mc_getsockopt(int level, int optname, 
+                              void *optval, socklen_t *optlen);
+    virtual int mc_setsockopt(int level, int optname, 
+                              const void *optval, socklen_t optlen);
     
     virtual ~CMMSocketImpl();
 
@@ -84,13 +86,13 @@ class CMMSocketImpl : public CMMSocket {
                    resume_handler_t resume_handler, void *arg);
 
 
-    virtual int non_blocking_connect(u_long initial_labels) = 0;
+    virtual int non_blocking_connect(u_long initial_labels);
 
     /* make sure that the socket is ready to send data with up_label. */
-    virtual int prepare(u_long up_label) = 0;
+    virtual int prepare(u_long up_label);
 
     //virtual int setup(u_long up_label) = 0;
-    virtual void teardown(u_long down_label) = 0;
+    virtual void teardown(u_long down_label);
     
     int set_all_sockopts(int osfd);
 
@@ -98,16 +100,20 @@ class CMMSocketImpl : public CMMSocket {
      * such mapping in this mc_socket. 
      * Returns 0 if all the mappings were appended, 
      *        -1 if there were no connected osfds. */
-    virtual int get_real_fds(mcSocketOsfdPairList &osfd_list) = 0;
-    virtual void poll_map_back(struct pollfd *origfd, 
-			     const struct pollfd *realfd) = 0;
+    virtual int get_real_fds(mcSocketOsfdPairList &osfd_list);
 
-    CMMSocketImpl(int family, int type, int protocol);
+    struct csocket * get_readable_csock(CMMSockHash::const_accessor& ac);
+
+    CMMSocketImpl(int family, int type, int protocol, int cmm_flags);
 
     mc_socket_t sock;
     CSockHash sock_color_hash;
     CSockList csocks;
     CSockSet connected_csocks;
+    bool serial; /* 1 iff only one connection allowed at a time */
+    bool app_setup_only_once; /* 1 iff conn_setup_cb should only
+                               * be called if there were previously
+                               * no connections. (see libcmm.h) */
 
     int non_blocking; /* 1 if non blocking, 0 otherwise*/
 
@@ -131,7 +137,6 @@ class CMMSocketImpl : public CMMSocket {
 		     * we don't accidentally pick a "superior" label
 		     * in this case. */
 #endif
-  private:
     static int make_real_fd_set(int nfds, fd_set *fds,
 			     mcSocketOsfdPairList &osfd_list, 
 			     int *maxosfd);
@@ -139,41 +144,6 @@ class CMMSocketImpl : public CMMSocket {
                               const mcSocketOsfdPairList &osfd_list);
 
     int get_osfd(u_long label);
-};
-
-
-class CMMSocketSerial : public CMMSocketImpl {
-  public:
-    virtual int prepare(u_long up_label);
-    //virtual int setup(u_long up_label);
-    virtual void teardown(u_long down_label);
-
-    virtual int mc_getpeername(struct sockaddr *address, 
-                               socklen_t *address_len);
-    virtual int reset();
-    virtual int mc_read(void *buf, size_t count);
-    virtual int mc_getsockopt(int level, int optname, 
-                              void *optval, socklen_t *optlen);
-    virtual int mc_setsockopt(int level, int optname, 
-                              const void *optval, socklen_t optlen);
-    virtual int get_real_fds(mcSocketOsfdPairList &osfd_list);
-    virtual void poll_map_back(struct pollfd *origfd, 
-			     const struct pollfd *realfd);
-
- protected:
-    friend class CMMSocketImpl;
-    CMMSocketSerial(int family, int type, int protocol);
-    virtual int non_blocking_connect(u_long initial_labels);
-
-  private: 
-    //struct csocket *active_csock;
-};
-
-class CMMSocketParallel : public CMMSocketImpl {
-  public:
-    virtual int prepare(u_long up_label);
-    //virtual int setup(u_long up_label);
-    virtual void teardown(u_long down_label);
 };
 
 class CMMSocketPassThrough : public CMMSocket {

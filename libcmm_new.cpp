@@ -349,9 +349,10 @@ int cmm_connect(mc_socket_t sock,
 					       cb_arg);
 }
 
-mc_socket_t cmm_socket(int family, int type, int protocol)
+mc_socket_t cmm_socket(int family, int type, int protocol,
+                       int cmm_flags)
 {
-    return CMMSocket::create(family, type, protocol);
+    return CMMSocket::create(family, type, protocol, cmm_flags);
 }
 
 int cmm_reset(mc_socket_t sock)

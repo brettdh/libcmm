@@ -104,8 +104,25 @@ int cmm_connect(mc_socket_t sock,
 /* applications should use these in place of socket() and close()
  * to create and destroy mc_sockets. */
 
-/* returns a usable mc_socket_t on success, -1 on failure. */
-mc_socket_t cmm_socket(int family, int type, int protocol);
+/* returns a usable mc_socket_t on success, -1 on failure. 
+ * The cmm_flags bitmask should contain exactly one of
+ * CMM_FLAGS_SERIAL or CMM_FLAGS_PARALLEL, 
+ * and optionally may contain CMM_FLAGS_APP_SETUP_ONLY_ONCE.
+ * Flags:
+ *  CMM_FLAGS_SERIAL: the socket will maintain at most one connection.
+ *  CMM_FLAGS_PARALLEL: the socket may maintain multiple connections.
+ *  CMM_FLAGS_APP_SETUP_ONLY_ONCE:
+ *    Any connection setup callback provided with cmm_connect will
+ *    only be called if this mc_socket has no other active connections.
+ *    The purpose of this is to avoid erroneously replaying setup packets
+ *    when using a thin proxy at the server.
+ */
+mc_socket_t cmm_socket(int family, int type, int protocol,
+                       int cmm_flags);
+
+#define CMM_FLAGS_SERIAL              0x1
+#define CMM_FLAGS_PARALLEL            0x2
+#define CMM_FLAGS_APP_SETUP_ONLY_ONCE 0x4
 
 /* returns 0 on success, -1 on failure. */
 int cmm_shutdown(mc_socket_t sock, int how);

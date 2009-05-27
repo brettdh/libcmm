@@ -144,7 +144,7 @@ int main()
     int rc;
 
     struct th_arg args;
-    shared_sock = cmm_socket(PF_INET, SOCK_STREAM, 0);
+    shared_sock = cmm_socket(PF_INET, SOCK_STREAM, 0, CMM_FLAGS_SERIAL);
     if (shared_sock < 0) {
 	perror("socket");
 	exit(-1);

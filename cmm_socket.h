@@ -11,7 +11,8 @@ typedef boost::shared_ptr<CMMSocket> CMMSocketPtr;
 
 class CMMSocket {
   public:
-    static mc_socket_t create(int family, int type, int protocol);
+    static mc_socket_t create(int family, int type, int protocol,
+                              int cmm_flags);
     static CMMSocketPtr lookup(mc_socket_t sock);
     static int mc_close(mc_socket_t sock);
 

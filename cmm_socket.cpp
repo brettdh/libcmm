@@ -3,9 +3,9 @@
 
 /* TODO: add parallel option */
 mc_socket_t
-CMMSocket::create(int family, int type, int protocol)
+CMMSocket::create(int family, int type, int protocol, int cmm_flags)
 {
-    return CMMSocketImpl::create(family, type, protocol);
+  return CMMSocketImpl::create(family, type, protocol, cmm_flags);
 }
 
 CMMSocketPtr
