@@ -244,7 +244,9 @@ static void net_status_change_handler(int sig)
     //print_thunks();
 
     /* put down the sockets connected on now-unavailable networks. */
-    CMMSocket::put_label_down(new_down_labels);
+    if (new_down_labels != 0) {
+        CMMSocket::put_label_down(new_down_labels);
+    }
 
     fire_thunks(cur_labels);
 
@@ -304,7 +306,17 @@ int cmm_select(mc_socket_t nfds,
 	       fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 	       struct timeval *timeout)
 {
-    return CMMSocket::mc_select(nfds, readfds, writefds, exceptfds, timeout);
+    int rc = 0;
+    do {
+        rc = CMMSocket::mc_select(nfds, readfds, writefds, exceptfds, timeout);
+        if (rc < 0 && errno == EINTR) {
+            fprintf(stderr, "Select interrupted by signal; retrying "
+                    "(inside libcmm)\n");
+        } else {
+            fprintf(stderr, "mc_select returned %d, errno=%d\n", rc, errno);
+        }
+    } while (rc < 0 && errno == EINTR);
+    return rc;
 }
 
 int cmm_poll(struct pollfd fds[], nfds_t nfds, int timeout)

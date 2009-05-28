@@ -17,7 +17,7 @@ conn_scout: libcmm_scout.o cdf_sampler.o
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
 libcmm.so: libcmm_new.o libcmm_ipc.o cmm_socket.o cmm_socket_impl.o \
-	   cmm_socket_passthrough.o thunks.o cmm_timing.o
+	   cmm_socket_passthrough.o thunks.o cmm_timing.o signals.o
 	$(CXX) $(CFLAGS) $(LDFLAGS) -shared -o $@ $^
 
 libcmm_test.o: libcmm.h
@@ -32,6 +32,7 @@ cmm_socket_impl.o: cmm_socket.h cmm_socket.private.h thunks.h common.h cmm_socke
 cmm_socket_passthrough.o: cmm_socket.h cmm_socket.private.h thunks.h common.h cmm_socket.private.h
 thunks.o: thunks.h
 cmm_timing.o: cmm_timing.h
+signals.o: signals.h
 
 clean:
 	rm -f *~ *.o $(LIBRARIES) $(EXECUTABLES) .tbbinstall .libinstall .hdrinstall .bininstall

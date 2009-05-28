@@ -8,6 +8,8 @@
 #include <unistd.h>
 #include <sys/socket.h>
 
+#include <signal.h>
+#include "signals.h"
 #include "thunks.h"
 #include "cmm_timing.h"
 
@@ -47,7 +49,6 @@ csocket::~csocket()
     }
 }
 
-/* TODO: add parallel option */
 mc_socket_t
 CMMSocketImpl::create(int family, int type, int protocol, int cmm_flags)
 {
@@ -380,6 +381,8 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
     FD_ZERO(&tmp_writefds);
     FD_ZERO(&tmp_exceptfds);
 
+    fprintf(stderr, "libcmm: mc_select: making real fd_sets\n");
+
     if (readfds) {
 	tmp_readfds = *readfds;
 	rc = make_real_fd_set(nfds, &tmp_readfds, readosfd_list, &maxosfd);
@@ -402,9 +405,15 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
         }
     }
 
+    fprintf(stderr, "libcmm: about to call select()\n");
 
+    unblock_select_signals();
     rc = select(maxosfd + 1, &tmp_readfds, &tmp_writefds, &tmp_exceptfds, 
 		timeout);
+    block_select_signals();
+
+    fprintf(stderr, "libcmm: returned from select()\n");
+    
     if (rc < 0) {
 	/* select does not modify the fd_sets if failure occurs */
 	return rc;
@@ -674,28 +683,33 @@ CMMSocketImpl::get_readable_csock(CMMSockHash::const_accessor& ac)
 {
     fd_set readfds;
     int maxosfd = -1;
+    int rc;
 
-    FD_ZERO(&readfds);
-    FD_SET(sock, &readfds);
-    mcSocketOsfdPairList dummy;
-    int rc = make_real_fd_set(sock + 1, &readfds, dummy, &maxosfd);
-    if (rc < 0) {
-        /* XXX: maybe instead call prepare() and then proceed */
-        errno = ENOTCONN;
-        return NULL;
-    }
-
-    struct timeval timeout, *ptimeout;
-    timeout.tv_sec = 0;
-    timeout.tv_usec = 0;
-    ptimeout = (non_blocking ? &timeout : NULL);
+    do {
+        FD_ZERO(&readfds);
+        FD_SET(sock, &readfds);
+        mcSocketOsfdPairList dummy;
+        rc = make_real_fd_set(sock + 1, &readfds, dummy, &maxosfd);
+        if (rc < 0) {
+            /* XXX: maybe instead call prepare() and then proceed */
+            errno = ENOTCONN;
+            return NULL;
+        }
+        
+        struct timeval timeout, *ptimeout;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 0;
+        ptimeout = (non_blocking ? &timeout : NULL);
+        
+        ac.release();
+        unblock_select_signals();
+        rc = select(maxosfd + 1, &readfds, NULL, NULL, ptimeout);
+        block_select_signals();
+        if (!cmm_sock_hash.find(ac, sock)) {
+            assert(0);
+        }
+    } while (rc < 0 && errno == EINTR);
     
-    ac.release();
-    rc = select(maxosfd + 1, &readfds, NULL, NULL, ptimeout);
-    if (!cmm_sock_hash.find(ac, sock)) {
-        assert(0);
-    }
-
     if (rc < 0) {
         /* errno set by select */
         return NULL;
@@ -1098,6 +1112,12 @@ CMMSocketImpl::prepare(u_long up_label)
 	csock->connected = 1;
 
         connected_csocks.insert(csock);
+
+        // to interrupt any select() in progress, adding the new osfd
+        printf("Interrupting any selects() in progress to add osfd %d "
+               "to multi-socket %d\n",
+               csock->osfd, sock);
+        signal_selecting_threads();
 
 	if (label_up_cb && 
             (!app_setup_only_once || connected_csocks.size() == 1)) {
