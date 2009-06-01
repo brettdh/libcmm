@@ -658,14 +658,14 @@ ssize_t cmm_send(mc_socket_t sock, const void *buf, size_t len, int flags,
     int rc;
 
 #ifdef IMPORT_RULES
-		/** Rules Part 3: Update labels if a better interface is available**/
-		labels = set_superior_label(sock, labels);	
+    /** Rules Part 3: Update labels if a better interface is available**/
+    labels = set_superior_label(sock, labels);	
 #endif
     rc = sock_preapprove(sock, labels, resume_handler, arg);
     if (rc < 0) {
-	return rc;
+        return rc;
     }
-		printf("Sending with label %lu\n",labels);
+    printf("Sending with label %lu\n",labels);
     return send(get_osfd(sock, labels), buf, len, flags);
 }
 
@@ -675,8 +675,8 @@ int cmm_writev(mc_socket_t sock, const struct iovec *vec, int count,
     int rc;
 
 #ifdef IMPORT_RULES
-		/** Rules Part 3: Update labels if a better interface is available**/
-		labels = set_superior_label(sock, labels);	
+    /** Rules Part 3: Update labels if a better interface is available**/
+    labels = set_superior_label(sock, labels);	
 #endif
     rc = sock_preapprove(sock, labels, resume_handler, arg);
     if (rc < 0) {
