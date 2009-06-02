@@ -116,14 +116,16 @@ Substream::~Substream()
 
 void 
 Substream::addSend(const void *buf, size_t len, int flags,
-             u_long labels, resume_handler_t fn, void *arg)
+                   u_long labels, resume_handler_t fn, void *arg)
 {
+    ops.push(new SendOperation(buf, len, flags, labels, fn, arg));
 }
 
 void 
 Substream::addWritev(const struct iovec *vec, int count,
-               u_long labels, resume_handler_t fn, void *arg)
+                     u_long labels, resume_handler_t fn, void *arg)
 {
+    ops.push(new WritevOperation(buf, len, flags, labels, fn, arg));
 }
 
 int 
