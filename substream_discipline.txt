@@ -1,0 +1,43 @@
+* Data handling at proxy
+  * Push data to proxy when it is enqueued
+    * Proxy then handles buffering as needed
+    + Proxy (co-located with server) is probably better-provisioned
+      than mobile client; more room for buffering
+  * Buffering scenarios at the proxy
+    1) Substream with no deps / fulfulled deps
+       * Simple; can start sending packets on as they arrive (but see below)
+    2) Substream with unfulfilled deps
+       * Proxy cannot begin sending until deps are fulfilled
+  * Proxy must guarantee:
+    1) Bytes from different substreams do not interleave
+    2) Server sees a substream's dependencies before the substream itself
+
+* Notable scenarios
+  1) Data on two incoming channels: a long substream and a short substream
+     * Suppose no ordering constraint between them
+     * Could start sending packets from the long substream as they arrive...
+     * ...but then the small substreams have to wait for the entire long
+       substream to complete
+     * Possible approaches
+       1) Proxy waits until it has the entire substream before sending any of it
+          * This may be fine if the large substream is also background
+          * On the other hand, maybe foreground substreams should be sent 
+            immediately even if they are large
+       2) Fixed-size buffers for unconstrained substreams
+          * Begin sending as soon as the buffer is full, until the substream is
+            entirely sent
+          * Gives preference to small substreams until a large enough chunk of 
+            the large substream has arrived
+          * Not sure what it buys us if the large substream is background
+       3) Client lib tells proxy the size of the substream (app data size)
+          in advance
+          * Is this a practical requirement?
+          * Does it help to know the size of the substream, any more than it 
+            would to just have the "LARGE" label?
+          * The response to a large substream would be same as 1), but only for
+            large substreams.
+     * Perhaps some combination of these, taking small/large labels into account?
+
+* BlueFS constraints
+  1) RPC requests are atomic with respect to each other
+  2) 
