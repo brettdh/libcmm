@@ -5,7 +5,7 @@
       than mobile client; more room for buffering
   * Buffering scenarios at the proxy
     1) Substream with no deps / fulfulled deps
-       * Simple; can start sending packets on as they arrive (but see below)
+       * Proxy can start sending packets on as they arrive (but see below)
     2) Substream with unfulfilled deps
        * Proxy cannot begin sending until deps are fulfilled
   * Proxy must guarantee:
@@ -13,7 +13,7 @@
     2) Server sees a substream's dependencies before the substream itself
 
 * Notable scenarios
-  1) Data on two incoming channels: a long substream and a short substream
+  1) Data on two incoming channels: a long substream and many short substreams
      * Suppose no ordering constraint between them
      * Could start sending packets from the long substream as they arrive...
      * ...but then the small substreams have to wait for the entire long
@@ -26,18 +26,63 @@
        2) Fixed-size buffers for unconstrained substreams
           * Begin sending as soon as the buffer is full, until the substream is
             entirely sent
-          * Gives preference to small substreams until a large enough chunk of 
+          * Gives preference to small substreams until a "large enough" chunk of 
             the large substream has arrived
           * Not sure what it buys us if the large substream is background
+          * The large substream will be preferred after a while, which devolves
+            to starving small substreams as above
        3) Client lib tells proxy the size of the substream (app data size)
           in advance
           * Is this a practical requirement?
           * Does it help to know the size of the substream, any more than it 
             would to just have the "LARGE" label?
-          * The response to a large substream would be same as 1), but only for
-            large substreams.
+          * Actually, do these mean different things?
+            * The label of LARGE could mean that this packet is part of a 
+              large sequence, not that the packet itself is large.
+          * The response to a large substream would be same as 1), for only those
+             large substreams.
      * Perhaps some combination of these, taking small/large labels into account?
+  2) Multiple connections to proxy with a client failure
+     * Proxy is sending bytes to the server as they arrive
+     * Client connection fails in the middle of a substream
+       * The client has at least one other surviving connection to the proxy
+     * Proxy is aware of client failure
+     * Proxy has committed a portion of the substream to the server
+     * The server is probably waiting for the rest of a message
+     * Should the proxy close the connection and force the client to retry?
+       * No way to abort the substream otherwise, without modifying
+         application protocol
+     * Buffering the entire substream at the client or proxy would avoid this
+       * This pushes the performance issue to the client; i.e. 
+         breaking large substreams into a linearly dependent sequence of
+         smaller substreams
+
+  * Observation: waiting to send a substream until all its bytes have arrived
+    seems to simplify subtle design issues in the two examples above, 
+    so perhaps we should start there.  (Aside: in both of our example  
+    applications, foreground requests are small (though their responses may be 
+    large) and background requests are small or large.)
 
 * BlueFS constraints
-  1) RPC requests are atomic with respect to each other
-  2) 
+  1) Bytes of different RPC requests do not interleave
+     * i.e. each RPC request (header+data) is a substream
+  2) Each Multi depends on the one preceding itself (but that's already 
+     guaranteed for any set of RPCs in a single thread)
+  3) No deps between GetAttrs, but they are ordered in the downcall thread
+  4) More fundamentally: 
+     a) Two-way RPCs in a single thread order themselves since the next request
+        waits for the current response
+     b) One-way RPCs in a single thread use ordering API if constraints needed
+     c) One- or two-way RPCs in different threads also use ordering API if needed
+     * Note: 4)a-c may be general rules for other applications
+       (s/RPC/request-response/)
+
+* Communicating substream information to the proxy
+  1) Announce beginning and end of each substream with header msg
+  2) Each sending operation in a substream first sends a small header, containing
+     * Substream ID
+     * Length of this operation's data
+  3) "Begin substream %d" header contains:
+     * Substream ID
+     * Substream dependencies
+  4) "End substream %d" header only contains the substream ID
