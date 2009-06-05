@@ -1,17 +1,10 @@
 #include <sys/uio.h>
 #include "tbb/concurrent_hash_map.h"
 #include <queue>
+#include <set>
+using std::queue; using std::set;
 
 #include "substream.h"
-
-class Operation;
-typedef std::queue<Operation*> OperationQueue;
-
-class Substream;
-
-#include <boost/shared_ptr.hpp>
-typedef boost::shared_ptr<Substream> SubstreamPtr;
-typedef tbb::concurrent_hash_map<substream_id_t, SubstreamPtr> SubstreamHash;
 
 class Operation {
   public:
@@ -41,31 +34,33 @@ Operation::send(int sock)
 }
 
 
+typedef queue<Operation*> OperationQueue;
+
 class Substream {
   public:
     Substream(mc_socket_t sock);
-
+    
+    void addSend(const void *buf, size_t len);
     int sendAll();
-
-    static SubstreamPtr lookup(substream_id_t id_);
     substream_id_t getID();
 
     ~Substream();
     
   private:
-    static SubstreamHash substreams;
-
-    static substream_id_t next_id;
-
     substream_id_t id;
     mc_socket_t sock;
     OperationQueue ops;
     bool aborted;
 };
 
-SubstreamHash Substream::substreams;
-substream_id_t Substream::next_id = 0;
+typedef tbb::concurrent_hash_map<substream_id_t, Substream*> SubstreamHash;
+static SubstreamHash substreams_pending;
 
+/* Proxy is currently single-threaded;
+ * These will need to be properly synchronized if we make it
+ *   multithreaded later */
+static substream_id_t next_id = 0;
+static set<substream_id_t> substreams_sent;
 
 Substream::Substream(mc_socket_t sock_)
     : sock(sock_), aborted(false)
@@ -73,7 +68,7 @@ Substream::Substream(mc_socket_t sock_)
     do {
         id = next_id++;
         SubstreamHash::accessor ac;
-        if (substreams.insert(ac, id)) {
+        if (substreams_pending.insert(ac, id)) {
             ac->second = this;
             break;
         } else {
@@ -133,4 +128,28 @@ substream_id_t
 Substream::getID()
 {
     return id;
+}
+
+int substream_incoming(int sock)
+{
+    SubstreamHdr hdr;
+    memset(&hdr, 0, sizeof(hdr));
+    int rc = recv(sock, &hdr, sizeof(hdr), MSG_PEEK);
+    if (rc != sizeof(hdr)) {
+	return rc;
+    }
+    return (ntohl(hdr.magic) == SUBSTREAM_MAGIC) ? 1 : 0;
+}
+
+int begin(substream_id_t id)
+{
+    
+}
+
+int add_send(substream_id_t id, const void *buf, size_t len)
+{
+}
+
+int end(substream_id_t id)
+{
 }
