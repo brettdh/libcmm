@@ -19,8 +19,42 @@ happen as soon as possible, as well as a background sychornization
 that can wait for some time. In the previous case, the application
 will use a label like 'ONDEMAND' with such packets, and in the later
 uses a label like 'BACKGROUND'.  As such, applications act upon
-MC_Sockets (Multi Colored Sockets), that can take labels to describe
-intent.
+multi-sockets, socket-like network endpoints, the operations on which
+include labels to describe intent.
+
+Applications initially use connection-oriented sockets for one (or
+both) of two tasks: 1) accepting and 2) initiating connections.  After
+this initial step, communication on the connection is a symmetric
+matter of sending and receiving bytes with the relevant system calls.
+In order to use multi-sockets, developers should understand the
+analogues to these operations that are meaningful on multi-sockets,
+which we describe here.  For brevity, we refer to the connection
+initiator as the "client" and the connection acceptor as the "server";
+this does not imply or require a strict client-server application
+design.
+
+1) Accepting connections
+
+After creating a socket with the socket() system call, the server will
+assign a local address to the socket using the bind() system call.
+The server then indicates its willingness to accept connections by
+calling listen() followed by accept().
+
+THIS PART OF THE API IS NOT FINALIZED; HERE'S ONE POSSIBLE DESIGN.
+In the case of multi-sockets, the listening socket is a regular TCP
+socket. The server calls cmm_listen to create the connection backlog
+and register the listener socket with libcmm.  Following cmm_listen,
+a cmm_accept call on the listener socket returns a multi-socket file
+descriptor.  Further cmm_accept calls on this listener socket will
+return the same multi-socket file descriptor, internally accepting
+the new physical connection and adding it to the multi-socket.
+
+2) Initiating connections
+
+After creating a socket with the socket() system call, the client
+connects to the server using the connect() system call.  Similarly,
+clients use cmm_connect for this purpose on multi-sockets; see below
+for additional details.
 
 Each of the standard functions such as cmm_connect, cmm_send,
 cmm_writev etc. take custom resume handler and argument (hereafter
@@ -70,14 +104,14 @@ more).  Examples include cmm_select, cmm_setsockopt, cmm_getpeername,
 cmm_read, etc.
 
 We provide two functions to help applications deal with failed network
-operations.  Firstly, the cmm_check_label function returns 0
-if the given label is available; if the label is unavailable, it returns
+operations.  Firstly, the cmm_check_label function returns 0 if the
+given label is available; if the label is unavailable, it returns
 CMM_DEFERRED and registers the supplied thunk (or CMM_FAILED if no
-thunk is supplied).  If an operation fails in the middle of its system call
-(for example, due to a network becoming unavailable), we simply pass
-the error back to the caller.  This error must be dealt with by the
-application, since a portion of the original message buffer may have
-been sent.  Applications can use cmm_check_label to inform their
+thunk is supplied).  If an operation fails in the middle of its system
+call (for example, due to a network becoming unavailable), we simply
+pass the error back to the caller.  This error must be dealt with by
+the application, since a portion of the original message buffer may
+have been sent.  Applications can use cmm_check_label to inform their
 error-handling code.  Secondly, the cmm_reset function restores an
 mc_socket to the state just after cmm_connect was called, before any
 network operations have occurred.  The next cmm_send (or similar) will
@@ -85,13 +119,9 @@ attempt to connect the socket and run the application-specific
 label-up callback.  This is useful when recovering from an error in a
 non-deferrable function - cmm_read, for example.
 
-Thunks may be cancelled (though this is as yet untested) with the
-cmm_thunk_cancel function.  It flags all thunks matching the handler
-function pointer as cancelled and, optionally, invokes the deleter
-function on their stored arguments.  cmm_thunk_cancel is currently
-ineffective if called from within a thunk being executed by the signal
-handler; this is just a bug, rather than a hard requirement of the
-API.
+Thunks may be cancelled with the cmm_thunk_cancel function.  It flags
+all thunks matching the handler function pointer as cancelled and,
+optionally, invokes the deleter function on their stored arguments.
 
 Describing label preferences:
 [Could be done manually or by the connection scout]
