@@ -40,14 +40,13 @@ assign a local address to the socket using the bind() system call.
 The server then indicates its willingness to accept connections by
 calling listen() followed by accept().
 
-THIS PART OF THE API IS NOT FINALIZED; HERE'S ONE POSSIBLE DESIGN.
-In the case of multi-sockets, the listening socket is a regular TCP
-socket. The server calls cmm_listen to create the connection backlog
-and register the listener socket with libcmm.  Following cmm_listen,
-a cmm_accept call on the listener socket returns a multi-socket file
-descriptor.  Further cmm_accept calls on this listener socket will
-return the same multi-socket file descriptor, internally accepting
-the new physical connection and adding it to the multi-socket.
+THIS PART OF THE API IS NOT FINALIZED; HERE'S ONE POSSIBLE DESIGN.  
+In the case of multi-sockets, the listening socket remains a regular
+TCP socket. The server calls cmm_listen to create the connection
+backlog and register the listener socket with libcmm. Following
+cmm_listen, a cmm_accept call on the listener socket returns a
+multi-socket file descriptor, representing a logical connection with
+the client.  
 
 2) Initiating connections
 
