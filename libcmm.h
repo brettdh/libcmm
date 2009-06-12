@@ -1,5 +1,5 @@
-#ifndef LIBCMM_INCL_H
-#define LIBCMM_INCL_H
+#ifndef LIBCMM_H_INCL
+#define LIBCMM_H_INCL
 
 /* libcmm.h: Connection Manager Manager
  * 
@@ -76,60 +76,40 @@ int cmm_read(mc_socket_t sock, void *buf, size_t count);
 int cmm_poll(struct pollfd fds[], nfds_t nfds, int timeout);
 int cmm_getpeername(int socket, struct sockaddr *address, socklen_t *address_len);
 
-/* connection callbacks take as arguments the socket file descriptor
- * in question, the labels for this reconnection, and a pointer to 
- * any other needed data, provided with cmm_connect. 
- * REQUIREMENT: these must only call cmm_ functions with 
- * the same labels that they are passed. */
-typedef int (*connection_event_cb_t)(mc_socket_t sock, u_long labels, 
-				     void* arg);
-
-/* cmm_connect stores the two socket event callbacks and a shared argument.
- * label_down_cb is called any time the connection needs to be torn down, and
- * label_up_cb is called any time the connection needs to be re-established.
- *
- * Requirements:
- *   -label_down_cb should not cmm_close() the socket.
- *   -label_up_cb should assume that the mc_socket is connected. After the
- *     initial call to cmm_connect, the library takes care of setting up 
- *     connections as needed before sending data.
- */
+/* devnote: conn_[down|up]_cbs are no longer necessary when we own
+ * a piece at both ends of the connection (which we will; see also
+ * cmm_listen, cmm_accept). */
 int cmm_connect(mc_socket_t sock, 
-		const struct sockaddr *serv_addr, socklen_t addrlen, 
-		u_long initial_labels,
-		connection_event_cb_t label_down_cb,
-		connection_event_cb_t label_up_cb,
-		void *cb_arg);
+                const struct sockaddr *serv_addr, socklen_t addrlen);
 
+/* use these in place of listen/accept to receive multi-socket connections.
+ * listener_sock should itself not be a multi-socket. */
+
+int cmm_listen(int listener_sock, int backlog);
+
+/* cmm_accept creates and returns a multi-soocket.
+ * listener_sock should have been first passed to cmm_listen;
+ *   cmm_accept will return an error otherwise.
+ * XXX: perhaps the addr/addrlen params should be removed, since
+ *   there's no way to describe the logical address at the other end.
+ * For now, it will be filled in with the remote address of the 
+ *   underlying physical connection, even though this seems to be
+ *   poking a hole through the abstraction. */
+mc_socket_t cmm_accept(int listener_sock, 
+                       struct sockaddr *addr, socklen_t *addrlen);
 
 /* applications should use these in place of socket() and close()
  * to create and destroy mc_sockets. */
 
 /* returns a usable mc_socket_t on success, -1 on failure. 
- * The cmm_flags bitmask should contain exactly one of
- * CMM_FLAGS_SERIAL or CMM_FLAGS_PARALLEL, 
- * and optionally may contain CMM_FLAGS_APP_SETUP_ONLY_ONCE.
- * Flags:
- *  CMM_FLAGS_SERIAL: the socket will maintain at most one connection.
- *  CMM_FLAGS_PARALLEL: the socket may maintain multiple connections.
- *  CMM_FLAGS_APP_SETUP_ONLY_ONCE:
- *    Any connection setup callback provided with cmm_connect will
- *    only be called if this mc_socket has no other active connections.
- *    The purpose of this is to avoid erroneously replaying setup packets
- *    when using a thin proxy at the server.
  */
-mc_socket_t cmm_socket(int family, int type, int protocol,
-                       int cmm_flags);
-
-#define CMM_FLAGS_SERIAL              0x1
-#define CMM_FLAGS_PARALLEL            0x2
-#define CMM_FLAGS_APP_SETUP_ONLY_ONCE 0x4
-
-/* returns 0 on success, -1 on failure. */
-int cmm_shutdown(mc_socket_t sock, int how);
+mc_socket_t cmm_socket(int family, int type, int protocol);
 
 /* returns 0 on success, -1 on failure. */
 int cmm_close(mc_socket_t sock);
+
+/* returns 0 on success, -1 on failure. */
+int cmm_shutdown(mc_socket_t sock, int how);
 
 /* checks whether label is available.
  * if so, prepares socket for sending on that label and returns 0.
@@ -158,4 +138,4 @@ int cmm_thunk_cancel(u_long label,
 }
 #endif
 
-#endif /* LIBCMM_INCL_H */
+#endif
