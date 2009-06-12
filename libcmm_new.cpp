@@ -330,6 +330,17 @@ int cmm_getpeername(mc_socket_t sock, struct sockaddr *address,
     return CMMSocket::lookup(sock)->mc_getpeername(address, address_len);
 }
 
+int cmm_listen(int listener_sock, int backlog)
+{
+    return CMMSocket::mc_listen(listener_sock, backlog);
+}
+
+mc_socket_t cmm_accept(int listener_sock, 
+                       struct sockaddr *addr, socklen_t *addrlen)
+{
+    return CMMSocket::mc_accept(listener_sock, addr, addrlen);
+}
+
 int cmm_read(mc_socket_t sock, void *buf, size_t count)
 {
     return CMMSocket::lookup(sock)->mc_read(buf, count);
@@ -351,20 +362,14 @@ int cmm_setsockopt(mc_socket_t sock, int level, int optname,
 
 int cmm_connect(mc_socket_t sock, 
 		const struct sockaddr *serv_addr, socklen_t addrlen, 
-		u_long labels,
-		connection_event_cb_t label_down_cb,
-		connection_event_cb_t label_up_cb,
-		void *cb_arg)
+		u_long labels)
 {
-    return CMMSocket::lookup(sock)->mc_connect(serv_addr, addrlen, labels, 
-					       label_down_cb, label_up_cb, 
-					       cb_arg);
+    return CMMSocket::lookup(sock)->mc_connect(serv_addr, addrlen, labels);
 }
 
-mc_socket_t cmm_socket(int family, int type, int protocol,
-                       int cmm_flags)
+mc_socket_t cmm_socket(int family, int type, int protocol)
 {
-    return CMMSocket::create(family, type, protocol, cmm_flags);
+    return CMMSocket::create(family, type, protocol);
 }
 
 int cmm_reset(mc_socket_t sock)

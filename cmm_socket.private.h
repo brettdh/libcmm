@@ -9,9 +9,21 @@
 #include <set>
 
 struct csocket;
-typedef std::map<u_long, struct csocket *> CSockHash;
-typedef std::vector<struct csocket *> CSockList;
+typedef std::map<u_long, std::map<u_long, struct csocket *> > CSockLabelMap;
 typedef std::set<struct csocket *> CSockSet;
+
+class CSockMapping {
+  public:
+    struct csocket * csock_with_send_label(u_long label);
+    struct csocket * csock_with_recv_label(u_long label);
+    struct csocket * csock_with_labels(u_long send_label, u_long recv_label);
+    struct csocket * new_csock_with_labels(u_long send_label, u_long recv_label);
+    void delete_csock_with_labels(u_long
+    
+  private:
+    CSockLabelMap csocks_by_send_label;
+    CSockLabelMap csocks_by_recv_label;
+};
 
 struct sockopt {
     void *optval;
@@ -34,13 +46,15 @@ typedef tbb::concurrent_hash_map<mc_socket_t,
                                  CMMSocketImplPtr, 
                                  MyHashCompare<mc_socket_t> > CMMSockHash;
 
+typedef tbb::concurrent_hash_map<int, 
+                                 void*, /* unused; keys only, no values */
+                                 MyHashCompare<int> > ListenerSockSet;
 
 typedef std::vector<std::pair<mc_socket_t, int> > mcSocketOsfdPairList;
 
 class CMMSocketImpl : public CMMSocket {
   public:
-    static mc_socket_t create(int family, int type, int protocol,
-                              int cmm_flags);
+    static mc_socket_t create(int family, int type, int protocol);
     static CMMSocketPtr lookup(mc_socket_t sock);
     static int mc_close(mc_socket_t sock);
 
@@ -48,11 +62,7 @@ class CMMSocketImpl : public CMMSocket {
     virtual int check_label(u_long label, resume_handler_t fn, void *arg);
 
     virtual int mc_connect(const struct sockaddr *serv_addr, socklen_t addrlen,
-                           u_long initial_labels,
-                           connection_event_cb_t label_down_cb,
-                           connection_event_cb_t label_up_cb,
-                           void *cb_arg);
-
+                           u_long initial_labels);
     virtual ssize_t mc_send(const void *buf, size_t len, int flags,
                             u_long labels, resume_handler_t resume_handler, 
                             void *arg);
@@ -66,19 +76,25 @@ class CMMSocketImpl : public CMMSocket {
 			 struct timeval *timeout);
     static int mc_poll(struct pollfd fds[], nfds_t nfds, int timeout);
 
+    static int mc_listen(int listener_sock, int backlog);
+    static mc_socket_t mc_accept(int listener_sock, 
+                                 struct sockaddr *addr, socklen_t *addrlen);
+
+    virtual int mc_read(void *buf, size_t count);
+
     virtual int mc_getpeername(struct sockaddr *address, 
                                socklen_t *address_len);
     virtual int reset();
-    virtual int mc_read(void *buf, size_t count);
     virtual int mc_getsockopt(int level, int optname, 
                               void *optval, socklen_t *optlen);
     virtual int mc_setsockopt(int level, int optname, 
                               const void *optval, socklen_t optlen);
     
     virtual ~CMMSocketImpl();
-
-  protected:
+    
+  private:
     static CMMSockHash cmm_sock_hash;
+    static ListenerSockSet cmm_listeners;
 
     /* check whether this label is available; if not, 
      * register the thunk or return an error if no thunk given */
@@ -104,21 +120,16 @@ class CMMSocketImpl : public CMMSocket {
 
     struct csocket * get_readable_csock(CMMSockHash::const_accessor& ac);
 
-    CMMSocketImpl(int family, int type, int protocol, int cmm_flags);
+    CMMSocketImpl(int family, int type, int protocol);
 
     mc_socket_t sock;
-    CSockHash sock_color_hash;
-    CSockList csocks;
+    CSockMapping csocks;
     CSockSet connected_csocks;
-    bool serial; /* 1 iff only one connection allowed at a time */
-    bool app_setup_only_once; /* 1 iff conn_setup_cb should only
-                               * be called if there were previously
-                               * no connections. (see libcmm.h) */
 
     int non_blocking; /* 1 if non blocking, 0 otherwise*/
 
     /* these are used for re-creating the socket */
-    int sock_family; 
+    int sock_family;
     int sock_type;
     int sock_protocol;
     SockOptHash sockopts;
@@ -127,19 +138,16 @@ class CMMSocketImpl : public CMMSocket {
     struct sockaddr *addr; 
     socklen_t addrlen;
 
-    connection_event_cb_t label_down_cb;
-    connection_event_cb_t label_up_cb;
-    void *cb_arg;
-
-#ifdef IMPORT_RULES
+#if 0 /*def IMPORT_RULES */
+    /* In the absence of label_up callbacks, I think this is unnecessary too. */
     int connecting; /* true iff the cmm_socket is currently in the process
 		     * of calling any label_up callback.  Used to ensure
 		     * we don't accidentally pick a "superior" label
 		     * in this case. */
 #endif
     static int make_real_fd_set(int nfds, fd_set *fds,
-			     mcSocketOsfdPairList &osfd_list, 
-			     int *maxosfd);
+                                mcSocketOsfdPairList &osfd_list, 
+                                int *maxosfd);
     static int make_mc_fd_set(fd_set *fds, 
                               const mcSocketOsfdPairList &osfd_list);
 
@@ -161,10 +169,7 @@ class CMMSocketPassThrough : public CMMSocket {
                               const void *optval, socklen_t optlen);
 
     virtual int mc_connect(const struct sockaddr *serv_addr, socklen_t addrlen,
-                           u_long initial_labels,
-                           connection_event_cb_t label_down_cb,
-                           connection_event_cb_t label_up_cb,
-                           void *cb_arg);
+                           u_long initial_labels);
     virtual ssize_t mc_send(const void *buf, size_t len, int flags,
                             u_long labels, resume_handler_t resume_handler, 
                             void *arg);

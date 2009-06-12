@@ -124,7 +124,7 @@ int srv_connect(u_long label)
 	    HOST, PORT, label);
     rc = cmm_connect(shared_sock, (struct sockaddr*)&srv_addr,
 		     (socklen_t)sizeof(srv_addr),
-		     label, NULL, NULL, NULL);
+		     label);
     if (rc < 0) {
 	if (errno == EINTR) {
 	    goto conn_retry;
@@ -144,7 +144,7 @@ int main()
     int rc;
 
     struct th_arg args;
-    shared_sock = cmm_socket(PF_INET, SOCK_STREAM, 0, CMM_FLAGS_SERIAL);
+    shared_sock = cmm_socket(PF_INET, SOCK_STREAM, 0);
     if (shared_sock < 0) {
 	perror("socket");
 	exit(-1);

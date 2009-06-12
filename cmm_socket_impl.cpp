@@ -23,22 +23,24 @@ CMMSockHash CMMSocketImpl::cmm_sock_hash;
 
 struct csocket {
     int osfd;
-    u_long cur_label;
-    int connected;
+    u_long send_label;
+    u_long recv_label;
+    CMMSocketImpl *msock;
 
-    csocket(int family, int type, int protocol);
+    csocket(CMMSocketImpl *msock_, int accepted_sock);
     ~csocket();
 };
 
-csocket::csocket(int family, int type, int protocol) 
+csocket::csocket(CMMSocketImpl *msock_, int accepted_sock = -1)
+    : msock(msock_)
 {
-    osfd = socket(family, type, protocol);
+    assert(msock);
+    osfd = socket(msock->sock_family, msock->sock_type, msock->sock_protocol);
     if (osfd < 0) {
 	/* out of file descriptors or memory at this point */
 	throw osfd;
     }
     cur_label = 0;
-    connected = 0;
 }
 
 csocket::~csocket()
@@ -49,15 +51,46 @@ csocket::~csocket()
     }
 }
 
+struct csocket *
+CSockMapping::csock_with_send_label(u_long label)
+{
+    /* TODO */
+}
+
+struct csocket *
+CSockMapping::csock_with_recv_label(u_long label)
+{
+    /* TODO */
+}
+
+struct csocket *
+CSockMapping::csock_with_labels(u_long send_label, u_long recv_label)
+{
+    /* TODO */
+}
+
+struct csocket *
+CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label)
+{
+    /* TODO */
+}
+
+
 mc_socket_t
-CMMSocketImpl::create(int family, int type, int protocol, int cmm_flags)
+CMMSocketImpl::create(int accepted_sock)
+{
+    return CMMSocketImpl::create(PF_INET, SOCK_STREAM, 0, accepted_sock);
+}
+
+mc_socket_t
+CMMSocketImpl::create(int family, int type, int protocol,
+                      int accepted_sock = -1)
 {
     CMMSocketImplPtr new_sk;
     mc_socket_t new_sock = -1;
     try {
 	/* automatically clean up if cmm_sock() throws */
-        CMMSocketImplPtr tmp(new CMMSocketImpl(family, type, protocol, 
-                                               cmm_flags));
+        CMMSocketImplPtr tmp(family, type, protocol, accepted_sock);
 	new_sock = tmp->sock;
         new_sk = tmp;
     } catch (int oserr) {
@@ -79,7 +112,7 @@ CMMSocketImpl::create(int family, int type, int protocol, int cmm_flags)
 /* check that this file descriptor really refers to a multi-socket.
  * Qualifications:
  *   1) Must be a socket, and
- *   2) Must have our magic-number flag set.
+ *   2) Must have our magic-number label set.
  */
 static int
 sanity_check(mc_socket_t sock)
@@ -133,32 +166,13 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
 
 
 CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol,
-                             int cmm_flags) 
+                             int accepted_sock = -1)
 {
     /* reserve a dummy OS file descriptor for this mc_socket. */
     sock = socket(family, type, protocol);
     if (sock < 0) {
 	/* invalid params, or no more FDs/memory left. */
 	throw sock; /* :-) */
-    }
-
-    if ((cmm_flags & CMM_FLAGS_SERIAL) &&
-        (cmm_flags & CMM_FLAGS_PARALLEL)) {
-        errno = EINVAL;
-        throw sock;
-    } else if (cmm_flags & CMM_FLAGS_SERIAL) {
-        serial = true;
-    } else if (cmm_flags & CMM_FLAGS_PARALLEL) {
-        serial = false;
-    } else {
-        /* serial is the default */
-        serial = true;
-    }
-
-    if (cmm_flags & CMM_FLAGS_APP_SETUP_ONLY_ONCE) {
-        app_setup_only_once = true;
-    } else {
-        app_setup_only_once = false;
     }
 
     /* so we can identify this FD as a mc_socket later */
@@ -170,18 +184,14 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol,
     addr = NULL;
     addrlen = 0;
 
-    label_down_cb = NULL;
-    label_up_cb = NULL;
-    cb_arg = NULL;
-    
+    /* TODO: work in the accepted_sock somehow */
+
     /* TODO: read these from /proc instead of hard-coding them. */
     struct csocket *bg_sock = new struct csocket(family, type, protocol);
     struct csocket *ondemand_sock = new struct csocket(family, type, protocol);
 
     sock_color_hash[CONNMGR_LABEL_BACKGROUND] = bg_sock;
     sock_color_hash[CONNMGR_LABEL_ONDEMAND] = ondemand_sock;
-    csocks.push_back(bg_sock);
-    csocks.push_back(ondemand_sock);
 
     /* to illustrate how multiple labels can map to the same interface */
     sock_color_hash[CONNMGR_LABEL_RED] = bg_sock;
@@ -192,8 +202,8 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol,
 
 CMMSocketImpl::~CMMSocketImpl()
 {
-    for (CSockList::iterator it = csocks.begin();
-	 it != csocks.end(); it++) {
+    for (CSockList::iterator it = connected_csocks.begin();
+	 it != connected_csocks.end(); it++) {
 	struct csocket *victim = *it;
 	delete victim;
     }
@@ -204,11 +214,8 @@ CMMSocketImpl::~CMMSocketImpl()
 
 int 
 CMMSocketImpl::mc_connect(const struct sockaddr *serv_addr, 
-			  socklen_t addrlen_, 
-			  u_long initial_labels,
-			  connection_event_cb_t label_down_cb_,
-			  connection_event_cb_t label_up_cb_,
-			  void *cb_arg_)
+                          socklen_t addrlen_, 
+                          u_long initial_labels)
 {
     {    
 	CMMSockHash::const_accessor ac;
@@ -245,9 +252,6 @@ CMMSocketImpl::mc_connect(const struct sockaddr *serv_addr,
 	addrlen = addrlen_;
 	addr = (struct sockaddr *)malloc(addrlen);
 	memcpy(addr, serv_addr, addrlen_);
-	label_down_cb = label_down_cb_;
-	label_up_cb = label_up_cb_;
-	cb_arg = cb_arg_;
     } else {
 	assert(0);
     }
@@ -431,6 +435,8 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
     return rc;
 }
 
+/* TODO: similar to select(), make sure poll gets updated with 
+ * new fds as needed */
 int 
 CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 {
@@ -598,16 +604,15 @@ CMMSocketImpl::mc_shutdown(int how)
     int rc = 0;
     CMMSockHash::accessor ac;
     if (cmm_sock_hash.find(ac, sock)) {
-	for (CSockList::iterator it = csocks.begin();
-	     it != csocks.end(); it++) {
+	for (CSockList::iterator it = connected_csocks.begin();
+	     it != connected_csocks.end(); it++) {
 	    struct csocket *csock = *it;
 	    assert(csock);
-	    if (csock->osfd > 0) {
-		rc = shutdown(csock->osfd, how);
-		if (rc < 0) {
-		    return rc;
-		}
-	    }
+	    assert(csock->osfd > 0);
+            rc = shutdown(csock->osfd, how);
+            if (rc < 0) {
+                return rc;
+            }
 	}
     } else {
 	errno = EBADF;
@@ -721,7 +726,7 @@ CMMSocketImpl::get_readable_csock(CMMSockHash::const_accessor& ac)
     for (CSockSet::iterator it = connected_csocks.begin();
          it != connected_csocks.end(); it++) {
         struct csocket *csock = *it;
-        assert(csock && csock->connected);
+        assert(csock);
 
         /* XXX: this returns the first of potentially many ready sockets.
          * This may be a starvation problem; may want to somehow
@@ -735,6 +740,36 @@ CMMSocketImpl::get_readable_csock(CMMSockHash::const_accessor& ac)
      * are the only ones set in readfds, so if rc > 0, then one 
      * of them must have been set. */
     assert(0);
+}
+
+int 
+CMMSocketImpl::mc_listen(int listener_sock, int backlog)
+{
+    int rc = listen(listener_sock, backlog);
+    if (rc < 0) {
+        return rc;
+    }
+    ListenerSockSet::const_accessor ac;
+    (void)cmm_listeners.insert(ac, listener_sock);
+}
+
+mc_socket_t 
+CMMSocketImpl::mc_accept(int listener_sock, 
+                         struct sockaddr *addr, socklen_t *addrlen)
+{
+    /* TODO */
+    ListenerSockSet::const_accessor ac;
+    if (!cmm_listeners.find(ac, listener_sock)) {
+        /* pass-through */
+        return accept(listener_sock, addr, addrlen);
+    }
+    
+    int sock = accept(listener_sock, addr, addrlen);
+    if (sock < 0) {
+        return sock;
+    }
+    
+    mc_socket_t mc_sock = CMMSocketImpl::create(sock);
 }
 
 int 
@@ -763,7 +798,7 @@ CMMSocketImpl::mc_read(void *buf, size_t count)
 
 int 
 CMMSocketImpl::mc_getsockopt(int level, int optname, 
-                               void *optval, socklen_t *optlen)
+                             void *optval, socklen_t *optlen)
 {
     CMMSockHash::const_accessor ac;
     if (!cmm_sock_hash.find(ac, sock)) {
@@ -773,12 +808,21 @@ CMMSocketImpl::mc_getsockopt(int level, int optname,
         assert(0);
     }
 
-    if (csocks.empty()) {
-        assert(0);
+    if (connected_csocks.empty()) {
+        struct sockopt &opt = sockopts[level][name];
+        if (opt.optval) {
+            *optlen = opt.optlen;
+            memcpy(optval, opt.optval, opt.optlen);
+            return 0;
+        } else {
+            /* last resort; we haven't set this opt on this socket before,
+             * so just return the default for the dummy socket */
+            return getsockopt(sock, level, optname, optval, optlen);
+        }
     }
 
     /* socket options are set on all sockets, so just pick one */
-    struct csocket *csock = *(csocks.begin());
+    struct csocket *csock = *(connected_csocks.begin());
     assert(csock);
     return getsockopt(csock->osfd, level, optname, optval, optlen);
 }
@@ -794,26 +838,33 @@ CMMSocketImpl::mc_setsockopt(int level, int optname,
         assert(0);
     }
 
-    for (CSockList::iterator it = csocks.begin(); it != csocks.end(); it++) {
+    for (CSockList::iterator it = connected_csocks.begin(); 
+         it != connected_csocks.end(); it++) {
 	struct csocket *csock = *it;
 	assert(csock);
-	if (csock->osfd != -1) {
-	    if(optname == O_NONBLOCK) {
-                int flags;
-                flags = fcntl(csock->osfd, F_GETFL, 0);
-                flags |= O_NONBLOCK;
-                (void)fcntl(csock->osfd, F_SETFL, flags);
-                non_blocking = 1;
-	    } else {
-		rc = setsockopt(csock->osfd, level, optname, optval, optlen);
-            }
-	    
-	    if (rc < 0) {
-		return rc;
-	    }
-	}
+	assert(csock->osfd != -1);
+
+        if(optname == O_NONBLOCK) {
+            int flags;
+            flags = fcntl(csock->osfd, F_GETFL, 0);
+            flags |= O_NONBLOCK;
+            (void)fcntl(csock->osfd, F_SETFL, flags);
+            non_blocking = 1;
+        } else {
+            rc = setsockopt(csock->osfd, level, optname, optval, optlen);
+        }
+	
+        if (rc < 0) {
+            return rc;
+        }
     }
     /* all succeeded */
+
+    rc = setsockopt(sock, level, optname, optval, optlen);
+    if (rc < 0) {
+        fprintf(stderr, "warning: failed setting socket option on "
+                "dummy socket\n");
+    }
 
     /* inserts if not present */
     struct sockopt &opt = sockopts[level][optname];
@@ -847,15 +898,12 @@ CMMSocketImpl::reset()
     for (CSockSet::iterator it = connected_csocks.begin();
          it != connected_csocks.end(); it++) {
         struct csocket *csock = *it;
-        assert(csock && csock->connected);
+        assert(csock);
         
         shutdown(csock->osfd, SHUT_RDWR);
         close(csock->osfd);
-        csock->osfd = socket(sock_family,
-                             sock_type,
-                             sock_protocol);
-        csock->connected = 0;
         csock->cur_label = 0;
+        delete csock;
     }
 
     connected_csocks.clear();
@@ -928,7 +976,7 @@ CMMSocketImpl::mc_getpeername(struct sockaddr *address,
     return getpeername(csock->osfd, address, address_len);
 }
 
-#ifdef CMM_TIMING
+#if 0 /*def CMM_TIMING*/
 static int floorLog2(unsigned int n) 
 {
     int pos = 0;
@@ -984,11 +1032,9 @@ CMMSocketImpl::prepare(u_long up_label)
 		u_long label = iter->first;
 		struct csocket *candidate = iter->second;
 		if (candidate) {
-                    if (candidate->connected ||
-                        (!retry && scout_net_available(label))) {
-                        csock = candidate;
-                        up_label = label;
-                    }
+                    (!retry && scout_net_available(label))) {
+                    csock = candidate;
+                    up_label = label;
 		}
 	    }
             if (csock || !retry) {
@@ -1000,63 +1046,18 @@ CMMSocketImpl::prepare(u_long up_label)
             retry = false;
 	}
     }
-    if (!csock) {
+    if (!csock) {//TODO: reframe as addr=NULL
 	errno = ENOTCONN;
 	return CMM_FAILED;
     }
 
-    if (!csock->connected) {
-#ifdef CMM_TIMING
-	struct timeval switch_start;
-	struct timeval switch_end;
-	struct timeval connect_start;
-	struct timeval connect_end;
-	struct timeval up_cb_start;
-	struct timeval up_cb_end;
-	struct timeval diff;
-
-	timerclear(&connect_start);
-	timerclear(&connect_end);
-	timerclear(&up_cb_start);
-	timerclear(&up_cb_end);
-	
-	TIME(switch_start);
-#endif
-	u_long down_label = 0;
-
-        /* only if serial: disconnect before connecting new socket */
-        if (serial && !connected_csocks.empty()) {
-            assert(connected_csocks.size() == 1);
-            struct csocket *active_csock = *(connected_csocks.begin());
-
-            down_label = active_csock->cur_label;
-            read_ac.release();
-            if (label_down_cb) {
-                /* XXX: check return value? */
-                label_down_cb(sock, active_csock->cur_label,
-                                  cb_arg);
-            }
-            
-            if (!cmm_sock_hash.find(write_ac, sock)) {
-                assert(0);
-            }
-            assert(get_pointer(write_ac->second) == this);
-            
-            close(active_csock->osfd);
-            active_csock->osfd = socket(sock_family, 
-                                        sock_type,
-                                        sock_protocol);
-            active_csock->cur_label = 0;
-            active_csock->connected = 0;
-            connected_csocks.erase(active_csock);
-        } else {
-            read_ac.release();
-            if (!cmm_sock_hash.find(write_ac, sock)) {
-                assert(0);
-            }
-            assert(get_pointer(write_ac->second) == this);
-            assert(csock == sock_color_hash[up_label]);
+    if (!csock->connected) {//TODO: reframe under csock exists
+        read_ac.release();
+        if (!cmm_sock_hash.find(write_ac, sock)) {
+            assert(0);
         }
+        assert(get_pointer(write_ac->second) == this);
+        assert(csock == sock_color_hash[up_label]);
 	
 	set_all_sockopts(csock->osfd);
 	
@@ -1071,13 +1072,7 @@ CMMSocketImpl::prepare(u_long up_label)
         assert(get_pointer(read_ac->second) == this);
         assert(csock == sock_color_hash[up_label]);
         
-#ifdef CMM_TIMING
-	TIME(connect_start);
-#endif
 	int rc = connect(csock->osfd, addr, addrlen);
-#ifdef CMM_TIMING
-	TIME(connect_end);
-#endif
         read_ac.release();
         if (!cmm_sock_hash.find(write_ac, sock)) {
             assert(0);
@@ -1099,11 +1094,7 @@ CMMSocketImpl::prepare(u_long up_label)
 		/* XXX: maybe check scout_label_available(up_label) again? 
 		 *      if it is not, return CMM_DEFERRED? */
 		/* XXX: this may be a race; i'm not sure. */
-#ifdef CMM_TIMING
-		TIMEDIFF(connect_start, connect_end, diff);
-		fprintf(timing_file, "connect() failed after %ld.%06ld seconds\n",
-			diff.tv_sec, diff.tv_usec);
-#endif
+
 		return CMM_FAILED;
 	    }
 	}
@@ -1118,104 +1109,6 @@ CMMSocketImpl::prepare(u_long up_label)
                "to multi-socket %d\n",
                csock->osfd, sock);
         signal_selecting_threads();
-
-	if (label_up_cb && 
-            (!app_setup_only_once || connected_csocks.size() == 1)) {
-#ifdef IMPORT_RULES
-            connecting = 1;
-#endif
-            write_ac.release();
-#ifdef CMM_TIMING
-	    TIME(up_cb_start);
-#endif
-	    int rc = label_up_cb(sock, up_label, cb_arg);
-#ifdef CMM_TIMING
-	    TIME(up_cb_end);
-#endif
-#ifdef IMPORT_RULES
-	    if (cmm_sock_hash.find(write_ac, sock)) {
-		assert(get_pointer(write_ac->second) == this);
-		connecting = 0;
-		write_ac.release();
-	    }
-#endif
-
-	    if (rc < 0) {
-#ifdef CMM_TIMING
-		TIMEDIFF(up_cb_start, up_cb_end, diff);
-		fprintf(timing_file, 
-			"error: application-level up_cb failed"
-			"after %ld.%06ld\n",
-			diff.tv_sec, diff.tv_usec);
-#endif
-		fprintf(stderr, "error: application-level up_cb failed\n");
-
-		if (rc == CMM_DEFERRED) {
-		    return rc;
-		} else {
-		    CMMSockHash::accessor write_ac;
-		    if (cmm_sock_hash.find(write_ac, sock)) {
-			assert(get_pointer(write_ac->second) == this);
-			assert(csock == sock_color_hash[up_label]);
-			
-			close(csock->osfd);
-			csock->osfd = socket(sock_family, 
-					     sock_type,
-					     sock_protocol);
-			csock->cur_label = 0;
-			csock->connected = 0;
-                        connected_csocks.erase(csock);
-		    } /* else: must have already been cmm_close()d */
-		    
-		    return CMM_FAILED;
-		}
-	    }
-	}
-#ifdef CMM_TIMING
-	TIME(switch_end);
-	{
-	    tbb::mutex::scoped_lock(timing_mutex);
-	    
-	    if (timing_file) {
-		TIMEDIFF(switch_start, switch_end, diff);
-		struct timeval tmp = total_switch_time;
-		timeradd(&tmp, &diff, &total_switch_time);
-		if (down_label == CONNMGR_LABEL_BACKGROUND && 
-		    up_label == CONNMGR_LABEL_ONDEMAND) {
-		    num_switches_to_fg++;
-		    tmp = total_switch_time_to_fg;
-		    timeradd(&tmp, &diff, &total_switch_time_to_fg);
-		} else if (down_label == CONNMGR_LABEL_ONDEMAND && 
-			   up_label == CONNMGR_LABEL_BACKGROUND) {
-		    num_switches_to_bg++;
-		    tmp = total_switch_time_to_bg;
-		    timeradd(&tmp, &diff, &total_switch_time_to_bg);
-		}
-		
-		fprintf(timing_file, "Switch %d at %ld.%06ld: %ld.%06ld; "
-                        "from %s to %s; ",
-			++num_switches, 
-			switch_start.tv_sec, switch_start.tv_usec,
-			diff.tv_sec, diff.tv_usec,
-			label_str(down_label), label_str(up_label));
-		if (connect_start.tv_sec > 0) {
-		    TIMEDIFF(connect_start, connect_end, diff);
-		    fprintf(timing_file, "connect(): %ld.%06ld; ",
-			    diff.tv_sec, diff.tv_usec);
-		    struct timeval tmp = total_time_in_connect;
-		    timeradd(&tmp, &diff, &total_time_in_connect);
-		}
-		if (up_cb_start.tv_sec > 0) {
-		    TIMEDIFF(up_cb_start, up_cb_end, diff);
-		    fprintf(timing_file, "up_cb(): %ld.%06ld",
-			    diff.tv_sec, diff.tv_usec);
-		    struct timeval tmp = total_time_in_up_cb;
-		    timeradd(&tmp, &diff, &total_time_in_up_cb);
-		}
-		fprintf(timing_file, "\n");
-	    }
-	}
-#endif
     } /* if (!csock->connected) */
     
     return 0;
@@ -1232,12 +1125,7 @@ CMMSocketImpl::teardown(u_long down_label)
     
     struct csocket *csock = sock_color_hash[down_label];
     if (csock && (csock->cur_label & down_label) && csock->connected) {
-	if (label_down_cb) {
-	    read_ac.release();
-	    label_down_cb(sock, csock->cur_label, cb_arg);
-	} else {
-	    read_ac.release();
-	}
+        read_ac.release();
 	
 	CMMSockHash::accessor write_ac;
 	if (!cmm_sock_hash.find(write_ac, sock)) {
@@ -1247,8 +1135,8 @@ CMMSocketImpl::teardown(u_long down_label)
         
         close(csock->osfd);
         csock->osfd = socket(sock_family, 
-                                    sock_type,
-                                    sock_protocol);
+                             sock_type,
+                             sock_protocol);
         csock->cur_label = 0;
         csock->connected = 0;
         connected_csocks.erase(csock);

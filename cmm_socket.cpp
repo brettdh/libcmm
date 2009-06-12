@@ -1,11 +1,10 @@
 #include "cmm_socket.h"
 #include "cmm_socket.private.h"
 
-/* TODO: add parallel option */
 mc_socket_t
-CMMSocket::create(int family, int type, int protocol, int cmm_flags)
+CMMSocket::create(int family, int type, int protocol)
 {
-  return CMMSocketImpl::create(family, type, protocol, cmm_flags);
+  return CMMSocketImpl::create(family, type, protocol);
 }
 
 CMMSocketPtr
@@ -39,4 +38,17 @@ int
 CMMSocket::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 {
     return CMMSocketImpl::mc_poll(fds, nfds, timeout);
+}
+
+int 
+CMMSocket::mc_listen(int listener_sock, int backlog)
+{
+    return CMMSocketImpl::mc_listen(listener_sock, backlog);
+}
+
+mc_socket_t 
+CMMSocket::mc_accept(int listener_sock, 
+                     struct sockaddr *addr, socklen_t *addrlen)
+{
+    return CMMSocketImpl::mc_accept(listener_sock, addr, addrlen);
 }

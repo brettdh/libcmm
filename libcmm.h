@@ -80,7 +80,8 @@ int cmm_getpeername(int socket, struct sockaddr *address, socklen_t *address_len
  * a piece at both ends of the connection (which we will; see also
  * cmm_listen, cmm_accept). */
 int cmm_connect(mc_socket_t sock, 
-                const struct sockaddr *serv_addr, socklen_t addrlen);
+                const struct sockaddr *serv_addr, socklen_t addrlen,
+                u_long initial_labels);
 
 /* use these in place of listen/accept to receive multi-socket connections.
  * listener_sock should itself not be a multi-socket. */
