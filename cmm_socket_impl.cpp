@@ -23,7 +23,7 @@ CMMSockHash CMMSocketImpl::cmm_sock_hash;
 
 struct csocket {
     int osfd;
-    u_long send_label;
+    struct net_interface iface;
     u_long recv_label;
     CMMSocketImpl *msock;
 
@@ -31,11 +31,16 @@ struct csocket {
     ~csocket();
 };
 
-csocket::csocket(CMMSocketImpl *msock_, int accepted_sock = -1)
-    : msock(msock_)
+csocket::csocket(CMMSocketImpl *msock_, struct net_interface iface_, 
+                 u_long recv_label_, int accepted_sock = -1)
+    : msock(msock_), iface(iface_), recv_label(recv_label_)
 {
     assert(msock);
-    osfd = socket(msock->sock_family, msock->sock_type, msock->sock_protocol);
+    if (accepted_sock == -1) {
+        osfd = socket(msock->sock_family, msock->sock_type, msock->sock_protocol);
+    } else {
+        osfd = accepted_sock;
+    }
     if (osfd < 0) {
 	/* out of file descriptors or memory at this point */
 	throw osfd;
@@ -75,22 +80,94 @@ CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label)
     /* TODO */
 }
 
-
-mc_socket_t
-CMMSocketImpl::create(int accepted_sock)
+void
+CMMSocketImpl::get_remote_listener(int bootstrap_sock,
+                                   struct interface *iface)
 {
-    return CMMSocketImpl::create(PF_INET, SOCK_STREAM, 0, accepted_sock);
+    /* TODO: this may involve multiple listeners in the future */
+    /* record the remote side's internal listener addr */
+    int rc = recv(bootstrap_sock, remote_addr, sizeof(*remote_addr), 0);
+    if (rc != sizeof(*remote_addr)) {
+        throw -1;
+    }
+}
+
+void CMMSocketImpl::send_local_listener(int bootstrap_sock,
+                                        const struct interface *iface)
+{
+    /* TODO: this may involve multiple listeners in the future */
+    /* tell the remote side about our internal listener addr */
+    int rc = send(bootstrap_sock, &listener_addr, sizeof(listener_addr), 0);
+    if (rc != sizeof(listener_addr)) {
+        throw -1;
+    }
+}
+
+int
+CMMSocketImpl::connection_bootstrap(int bootstrap_sock = -1)
+{
+    memset(&listener_addr, 0, sizeof(listener_addr));
+    internal_listener_sock = socket(PF_INET, SOCK_STREAM, 0);
+    if (internal_listener_sock < 0) {
+        return internal_listener_sock;
+    }
+
+    try {
+        int rc = bind(internal_listener_sock, 
+                      (struct sockaddr *)&listener_addr,
+                      sizeof(listener_addr));
+        if (rc < 0) {
+            throw rc;
+        }
+        rc = listen(internal_listener_sock, 5);
+        if (rc < 0) {
+            throw rc;
+        }
+        
+        if (bootstrap_sock != -1) {
+            /* we are accepting a connection */
+            addrlen = sizeof(struct sockaddr_in);
+            remote_addr = (struct sockaddr *)malloc(addrlen);
+            assert(remote_addr);
+
+            get_remote_listener(bootstrap_sock);
+            send_local_listener(bootstrap_sock);
+        } else {
+            /* we are connecting */
+            assert(remote_addr);
+            bootstrap_sock = socket(PF_INET, SOCK_STREAM, 0);
+            if (bootstrap_sock < 0) {
+                throw bootstrap_sock;
+            }
+            rc = connect(bootstrap_sock, remote_addr, addrlen);
+            if (rc < 0) {
+                close(bootstrap_sock);
+                throw rc;
+            }
+
+            try {
+                send_local_listener(bootstrap_sock);
+                get_remote_listener(bootstrap_sock);
+            } catch (int error_rc) {
+                close(bootstrap_sock);
+                throw;
+            }
+            close(bootstrap_sock);
+        }
+    } catch (int error_rc) {
+        close(internal_listener_sock);
+        return error_rc;
+    }
 }
 
 mc_socket_t
-CMMSocketImpl::create(int family, int type, int protocol,
-                      int accepted_sock = -1)
+CMMSocketImpl::create(int family, int type, int protocol)
 {
     CMMSocketImplPtr new_sk;
     mc_socket_t new_sock = -1;
     try {
 	/* automatically clean up if cmm_sock() throws */
-        CMMSocketImplPtr tmp(family, type, protocol, accepted_sock);
+        CMMSocketImplPtr tmp(new CMSocketImpl(family, type, protocol));
 	new_sock = tmp->sock;
         new_sk = tmp;
     } catch (int oserr) {
@@ -165,8 +242,7 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
 }
 
 
-CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol,
-                             int accepted_sock = -1)
+CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
 {
     /* reserve a dummy OS file descriptor for this mc_socket. */
     sock = socket(family, type, protocol);
@@ -181,21 +257,8 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol,
     sock_family = family;
     sock_type = type;
     sock_protocol = protocol;
-    addr = NULL;
+    remote_addr = NULL;
     addrlen = 0;
-
-    /* TODO: work in the accepted_sock somehow */
-
-    /* TODO: read these from /proc instead of hard-coding them. */
-    struct csocket *bg_sock = new struct csocket(family, type, protocol);
-    struct csocket *ondemand_sock = new struct csocket(family, type, protocol);
-
-    sock_color_hash[CONNMGR_LABEL_BACKGROUND] = bg_sock;
-    sock_color_hash[CONNMGR_LABEL_ONDEMAND] = ondemand_sock;
-
-    /* to illustrate how multiple labels can map to the same interface */
-    sock_color_hash[CONNMGR_LABEL_RED] = bg_sock;
-    sock_color_hash[CONNMGR_LABEL_BLUE] = ondemand_sock;
 
     non_blocking=0;
 }
@@ -208,7 +271,7 @@ CMMSocketImpl::~CMMSocketImpl()
 	delete victim;
     }
     
-    free(addr);
+    free(remote_addr);
     close(sock);
 }
 
@@ -228,7 +291,7 @@ CMMSocketImpl::mc_connect(const struct sockaddr *serv_addr,
 	    errno = EBADF;
 	    return CMM_FAILED; /* assert(0)? */
 	}
-	if (ac->second->addr != NULL) {
+	if (ac->second->remote_addr != NULL) {
 	    fprintf(stderr, 
 		    "Warning: tried to cmm_connect an "
 		    "already-connected socket %d\n", sock);
@@ -248,10 +311,10 @@ CMMSocketImpl::mc_connect(const struct sockaddr *serv_addr,
 	assert(0);
     }
     
-    if (!addr) {
+    if (!remote_addr) {
 	addrlen = addrlen_;
-	addr = (struct sockaddr *)malloc(addrlen);
-	memcpy(addr, serv_addr, addrlen_);
+	remote_addr = (struct sockaddr *)malloc(addrlen);
+	memcpy(remote_addr, serv_addr, addrlen_);
     } else {
 	assert(0);
     }
@@ -259,8 +322,10 @@ CMMSocketImpl::mc_connect(const struct sockaddr *serv_addr,
     if(non_blocking) {
         return non_blocking_connect(initial_labels);
     }
+
+    int rc = connection_bootstrap();
     
-    return 0;
+    return rc;
 }
 
 /* these are all sockopts that have succeeded in the past. 
@@ -519,7 +584,7 @@ CMMSocketImpl::preapprove(u_long labels,
             assert(0);
 	}
 	
-	if (!addr) {
+	if (!remote_addr) {
 	    errno = ENOTCONN;
 	    return CMM_FAILED;
 	}
@@ -560,7 +625,7 @@ CMMSocketImpl::get_osfd(u_long label)
 
 ssize_t 
 CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
-		       u_long labels, 
+		       u_long send_labels, u_long recv_labels,
 		       resume_handler_t resume_handler, void *arg)
 {
     int rc;
@@ -580,8 +645,8 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
 
 int 
 CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
-			 u_long labels, resume_handler_t resume_handler, 
-			 void *arg)
+			 u_long send_labels, u_long recv_labels,
+                         resume_handler_t resume_handler, void *arg)
 {
     int rc;
     
@@ -623,7 +688,7 @@ CMMSocketImpl::mc_shutdown(int how)
 }
 
 void
-CMMSocketImpl::put_label_down(u_long down_label)
+CMMSocketImpl::interface_up(struct net_interface up_iface)
 {
     /* put down the sockets connected on now-unavailable networks. */
     for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
@@ -634,8 +699,27 @@ CMMSocketImpl::put_label_down(u_long down_label)
 	}
 	CMMSocketImplPtr sk = read_ac->second;
 	assert(sk);
+        read_ac.release();
 
-	sk->teardown(down_label);
+	sk->setup(up_iface);
+    }    
+}
+
+void
+CMMSocketImpl::interface_down(struct net_interface down_iface)
+{
+    /* put down the sockets connected on now-unavailable networks. */
+    for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
+	 sk_iter != cmm_sock_hash.end(); sk_iter++) {
+	CMMSockHash::const_accessor read_ac;
+	if (!cmm_sock_hash.find(read_ac, sk_iter->first)) {
+	    assert(0);
+	}
+	CMMSocketImplPtr sk = read_ac->second;
+	assert(sk);
+        read_ac.release();
+
+	sk->teardown(down_iface);
     }
 }
 
@@ -755,9 +839,9 @@ CMMSocketImpl::mc_listen(int listener_sock, int backlog)
 
 mc_socket_t 
 CMMSocketImpl::mc_accept(int listener_sock, 
-                         struct sockaddr *addr, socklen_t *addrlen)
+                         struct sockaddr *addr, socklen_t *addrlen,
+                         u_long *remote_labels)
 {
-    /* TODO */
     ListenerSockSet::const_accessor ac;
     if (!cmm_listeners.find(ac, listener_sock)) {
         /* pass-through */
@@ -768,8 +852,20 @@ CMMSocketImpl::mc_accept(int listener_sock,
     if (sock < 0) {
         return sock;
     }
+    ac.release();
     
-    mc_socket_t mc_sock = CMMSocketImpl::create(sock);
+    mc_socket_t mc_sock = CMMSocketImpl::create(PF_INET, SOCK_STREAM, 0);
+    CMMSocketPtr sk = CMMSocketImpl::lookup(mc_sock);
+    CMMSocketImplPtr sk_impl(dynamic_cast<CMMSocketImplPtr>(sk));
+    assert(get_pointer(sk_impl));
+    int rc = sk_impl->connection_bootstrap(sock);
+    close(sock);
+        
+    if (rc < 0) {
+        mc_close(mc_sock);
+        return rc;
+    }
+    return mc_sock;
 }
 
 int 
@@ -926,7 +1022,7 @@ CMMSocketImpl::non_blocking_connect(u_long initial_labels)
                           * okay because of non-blocking stuff. */
     csock->cur_label = initial_labels;
     connected_csocks.insert(csock);
-    int rc = connect(csock->osfd, addr, addrlen);
+    int rc = connect(csock->osfd, remote_addr, addrlen);
     return rc;
 }
 
@@ -1014,6 +1110,8 @@ CMMSocketImpl::prepare(u_long up_label)
     }
 
     struct csocket *csock = NULL;
+    /*TODO: should replace this entire if/else with this line:
+      csock = csocks.lookup_by_send_label(up_label); */
     if (up_label) {
 	csock = sock_color_hash[up_label];
 	if (!csock) {
@@ -1072,7 +1170,7 @@ CMMSocketImpl::prepare(u_long up_label)
         assert(get_pointer(read_ac->second) == this);
         assert(csock == sock_color_hash[up_label]);
         
-	int rc = connect(csock->osfd, addr, addrlen);
+	int rc = connect(csock->osfd, remote_addr, addrlen);
         read_ac.release();
         if (!cmm_sock_hash.find(write_ac, sock)) {
             assert(0);
@@ -1115,7 +1213,19 @@ CMMSocketImpl::prepare(u_long up_label)
 }
 
 void
-CMMSocketImpl::teardown(u_long down_label)
+CMMSocketImpl::setup(struct net_interface iface)
+{
+    CMMSockHash::const_accessor read_ac;
+    if (!cmm_sock_hash.find(read_ac, sock)) {
+	assert(0);
+    }
+    assert(get_pointer(read_ac->second) == this);
+
+    
+}
+
+void
+CMMSocketImpl::teardown(struct net_interface iface)
 {
     CMMSockHash::const_accessor read_ac;
     if (!cmm_sock_hash.find(read_ac, sock)) {
@@ -1123,22 +1233,31 @@ CMMSocketImpl::teardown(u_long down_label)
     }
     assert(get_pointer(read_ac->second) == this);
     
-    struct csocket *csock = sock_color_hash[down_label];
-    if (csock && (csock->cur_label & down_label) && csock->connected) {
-        read_ac.release();
-	
-	CMMSockHash::accessor write_ac;
-	if (!cmm_sock_hash.find(write_ac, sock)) {
-	    assert(0);
-	}
-	assert(this == get_pointer(write_ac->second));
-        
-        close(csock->osfd);
-        csock->osfd = socket(sock_family, 
-                             sock_type,
-                             sock_protocol);
-        csock->cur_label = 0;
-        csock->connected = 0;
-        connected_csocks.erase(csock);
+    vector<struct csocket *> victims;
+    for (CSockSet::iterator it = connected_csocks.begin();
+         it != connected_csocks.end(); it++) {
+        struct csocket *csock = *it;
+        assert(csock);
+        if (csock->iface.ip_addr.s_addr == iface.ip_addr.s_addr) {
+            victims.push_back(csock);
+        }
+    }
+
+    if (victims.empty()) {
+        return;
+    }
+
+    read_ac.release();
+    CMMSockHash::accessor write_ac;
+    if (!cmm_sock_hash.find(write_ac, sock)) {
+        assert(0);
+    }
+    assert(this == get_pointer(write_ac->second));
+
+    while (!victims.empty()) {
+        struct csocket *victim = victims.back();
+        victims.pop_back();
+        connected_csocks.erase(victim);
+        delete victim; /* closes socket, cleans up */
     }
 }

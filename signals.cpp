@@ -8,7 +8,7 @@
 using tbb::concurrent_hash_map;
 
 typedef concurrent_hash_map<pthread_t, int, 
-                            MyHashCompare<pthread_t> > ThreadIdMap;
+                            IntegerHashCompare<pthread_t> > ThreadIdMap;
 static ThreadIdMap selecting_threads;
 
 static void

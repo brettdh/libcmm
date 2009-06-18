@@ -20,9 +20,15 @@ CMMSocket::mc_close(mc_socket_t sock)
 }
 
 void
-CMMSocket::put_label_down(u_long down_label)
+CMMSocket::interface_down(struct net_interface down_iface)
 {
-    CMMSocketImpl::put_label_down(down_label);
+    CMMSocketImpl::interface_down(down_iface);
+}
+
+void
+CMMSocket::interface_up(struct net_interface up_iface)
+{
+    CMMSocketImpl::interface_up(up_iface);
 }
 
 int 

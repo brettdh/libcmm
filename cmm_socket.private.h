@@ -18,7 +18,9 @@ class CSockMapping {
     struct csocket * csock_with_recv_label(u_long label);
     struct csocket * csock_with_labels(u_long send_label, u_long recv_label);
     struct csocket * new_csock_with_labels(u_long send_label, u_long recv_label);
-    void delete_csock_with_labels(u_long
+    void delete_csock_with_labels(struct csocket *csock);
+
+    struct csocket * lookup(int fd);
     
   private:
     CSockLabelMap csocks_by_send_label;
@@ -44,13 +46,20 @@ typedef boost::shared_ptr<CMMSocketImpl> CMMSocketImplPtr;
 #include "tbb/concurrent_hash_map.h"
 typedef tbb::concurrent_hash_map<mc_socket_t, 
                                  CMMSocketImplPtr, 
-                                 MyHashCompare<mc_socket_t> > CMMSockHash;
+                                 IntegerHashCompare<mc_socket_t> > CMMSockHash;
 
 typedef tbb::concurrent_hash_map<int, 
                                  void*, /* unused; keys only, no values */
-                                 MyHashCompare<int> > ListenerSockSet;
+                                 IntegerHashCompare<int> > ListenerSockSet;
 
 typedef std::vector<std::pair<mc_socket_t, int> > mcSocketOsfdPairList;
+
+struct ListenerAddr {
+    struct sockaddr_in addr;
+    u_long labels;
+};
+
+typedef std::vector<struct ListenerAddr> ListenerAddrList;
 
 class CMMSocketImpl : public CMMSocket {
   public:
@@ -58,7 +67,9 @@ class CMMSocketImpl : public CMMSocket {
     static CMMSocketPtr lookup(mc_socket_t sock);
     static int mc_close(mc_socket_t sock);
 
-    static void put_label_down(u_long down_label);
+    static void interface_down(struct net_interface down_iface);
+    static void interface_up(struct net_interface up_iface);
+
     virtual int check_label(u_long label, resume_handler_t fn, void *arg);
 
     virtual int mc_connect(const struct sockaddr *serv_addr, socklen_t addrlen,
@@ -95,6 +106,7 @@ class CMMSocketImpl : public CMMSocket {
   private:
     static CMMSockHash cmm_sock_hash;
     static ListenerSockSet cmm_listeners;
+    static IfaceList ifaces;
 
     /* check whether this label is available; if not, 
      * register the thunk or return an error if no thunk given */
@@ -122,11 +134,17 @@ class CMMSocketImpl : public CMMSocket {
 
     CMMSocketImpl(int family, int type, int protocol);
 
-    mc_socket_t sock;
-    CSockMapping csocks;
+    mc_socket_t sock; /* file-descriptor handle for this multi-socket */
+    CSockMapping csock_labelmap;
     CSockSet connected_csocks;
 
-    int non_blocking; /* 1 if non blocking, 0 otherwise*/
+    std::vector<int> listener_sockets;
+    ListenerAddrList local_ifaces;
+
+    /* these are used for connecting csockets */
+    ListenerAddrList remote_ifaces;
+
+    int non_blocking; /* 1 if non blocking, 0 otherwise */
 
     /* these are used for re-creating the socket */
     int sock_family;
@@ -134,17 +152,6 @@ class CMMSocketImpl : public CMMSocket {
     int sock_protocol;
     SockOptHash sockopts;
 
-    /* these are used for reconnecting the socket */
-    struct sockaddr *addr; 
-    socklen_t addrlen;
-
-#if 0 /*def IMPORT_RULES */
-    /* In the absence of label_up callbacks, I think this is unnecessary too. */
-    int connecting; /* true iff the cmm_socket is currently in the process
-		     * of calling any label_up callback.  Used to ensure
-		     * we don't accidentally pick a "superior" label
-		     * in this case. */
-#endif
     static int make_real_fd_set(int nfds, fd_set *fds,
                                 mcSocketOsfdPairList &osfd_list, 
                                 int *maxosfd);

@@ -4,9 +4,13 @@
 #include <signal.h>
 #include <assert.h>
 #include <math.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include <queue>
 using std::queue;
+#include <vector>
+#include <map>
 
 #include <sys/time.h>
 #include <time.h>
@@ -16,6 +20,7 @@ using std::queue;
 #include "libcmm_ipc.h"
 #include "tbb/atomic.h"
 #include "tbb/concurrent_hash_map.h"
+#include "common.h"
 
 #include "cdf_sampler.h"
 #include <memory>
@@ -28,23 +33,45 @@ struct subscriber_proc {
     mqd_t mq_fd;
 };
 
-struct Hash {
-    size_t hash(pid_t pid) const { return pid; }
-    bool equal(pid_t p1, pid_t p2) const { return (p1==p2); }
-};
 
-typedef tbb::concurrent_hash_map<pid_t, subscriber_proc, 
-				 Hash> SubscriberProcHash;
+typedef 
+tbb::concurrent_hash_map<pid_t, subscriber_proc, 
+                         IntegerHashCompare<pid_t> > SubscriberProcHash;
 static SubscriberProcHash subscriber_procs;
 
 static bool running;
-static atomic<bool> iface_up;
 static atomic<u_long> labels_available;
+
+static pthread_mutex_t ifaces_lock = PTHREAD_MUTEX_INITIALIZER;
+
+typedef std::vector<struct net_interface> IfaceList;
+typedef std::map<in_addr_t, struct net_interface> NetInterfaceMap;
+static NetInterfaceMap net_interfaces;
 
 #define UP_LABELS (CONNMGR_LABEL_BACKGROUND|CONNMGR_LABEL_ONDEMAND)
 #define DOWN_LABELS (CONNMGR_LABEL_ONDEMAND)
 
-int notify_subscriber(pid_t pid, mqd_t mq_fd);
+#define FG_IP_ADDRESS "10.0.0.42"
+#define BG_IP_ADDRESS "10.0.0.2"
+
+
+int notify_subscriber(pid_t pid, mqd_t mq_fd,
+                      const IfaceList& changed_ifaces, 
+                      const IfaceList& down_ifaces);
+
+int init_subscriber(pid_t pid, mqd_t mq_fd)
+{
+    /* tell the subscriber about all the current interfaces. */
+    IfaceList up_ifaces;
+    pthread_mutex_lock(&ifaces_lock);
+    for (NetInterfaceMap::const_iterator it = net_interfaces.begin();
+         it != net_interfaces.end(); it++) {
+        up_ifaces.push_back(it->second);
+    }
+    pthread_mutex_unlock(&ifaces_lock);
+
+    return notify_subscriber(pid, mq_fd, up_ifaces, IfaceList());
+}
 
 /* REQ: ac must be bound to the desired victim by subscriber_procs.find() */
 void remove_subscriber(SubscriberProcHash::accessor &ac)
@@ -121,7 +148,7 @@ void * IPC_Listener(void *)
 			"for process %d\n", msg.data.pid);
 		subscriber_procs.erase(ac);
 	    } else {
-		rc = notify_subscriber(msg.data.pid, mq_fd);
+		rc = init_subscriber(msg.data.pid, mq_fd);
 		if (rc < 0) {
 		    mq_close(mq_fd);
 		    subscriber_procs.erase(ac);
@@ -146,6 +173,7 @@ void * IPC_Listener(void *)
 	    }
 	    break;
 	}
+        /*
 	case CMM_MSG_UPDATE_STATUS:
 	{
 	    SubscriberProcHash::accessor ac;
@@ -160,6 +188,7 @@ void * IPC_Listener(void *)
 	    }
 	    break;
 	}
+        */
 	default:
 	    fprintf(stderr, "Received unexpected message type %d, ignoring\n",
 		    msg.opcode);
@@ -171,12 +200,13 @@ void * IPC_Listener(void *)
     return NULL;
 }
 
-int notify_subscriber(pid_t pid, mqd_t mq_fd)
+int notify_subscriber_of_event(pid_t pid, mqd_t mq_fd, 
+                               struct net_interface iface, MsgOpcode opcode)
 {
     struct timespec timeout = {1,0};
     struct cmm_msg msg;
-    msg.opcode = CMM_MSG_NET_STATUS_CHANGE;
-    msg.data.labels = labels_available;
+    msg.opcode = opcode;
+    msg.data.iface = iface;
     int rc = mq_timedsend(mq_fd, (char*)&msg, sizeof(msg), 0, &timeout);
     if (rc < 0) {
 	perror("mq_send");
@@ -188,14 +218,41 @@ int notify_subscriber(pid_t pid, mqd_t mq_fd)
     return rc;
 }
 
-void notify_all_subscribers(void)
+int notify_subscriber(pid_t pid, mqd_t mq_fd,
+                      const IfaceList& changed_ifaces, 
+                      const IfaceList& down_ifaces)
+{
+    int rc;
+    for (size_t i = 0; i < changed_ifaces.size(); i++) {
+        const struct net_interface& iface = changed_ifaces[i];
+        rc = notify_subscriber_of_event(pid, mq_fd, iface, 
+                                        CMM_MSG_IFACE_LABELS);
+        if (rc < 0) {
+            return rc;
+        }
+    }
+    for (size_t i = 0; i < down_ifaces.size(); i++) {
+        const struct net_interface& iface = down_ifaces[i];
+        rc = notify_subscriber_of_event(pid, mq_fd, iface, 
+                                        CMM_MSG_IFACE_DOWN);
+        if (rc < 0) {
+            return rc;
+        }
+    }
+
+    return 0;
+}
+
+void notify_all_subscribers(const IfaceList& changed_ifaces,
+                            const IfaceList& down_ifaces)
 {
     int rc;
     queue<pid_t> failed_procs;
     
     for (SubscriberProcHash::iterator it = subscriber_procs.begin();
 	 it != subscriber_procs.end(); it++) {
-	rc = notify_subscriber(it->first, it->second.mq_fd);
+	rc = notify_subscriber(it->first, it->second.mq_fd,
+                               changed_ifaces, down_ifaces);
 	if (rc < 0) {
 	    failed_procs.push(it->first);
 	}
@@ -300,8 +357,27 @@ int main(int argc, char *argv[])
     signal(SIGINT, handle_term);
 
     running = true;
-    iface_up = true;
     labels_available = UP_LABELS;
+
+    /* Add the interfaces on ruff, wizard-of-oz-style */
+    const size_t num_ifs = 2;
+    struct net_interface ifs[num_ifs] = {
+        {{0}, CONNMGR_LABEL_ONDEMAND},
+        {{0}, CONNMGR_LABEL_BACKGROUND}
+    };
+    const char *addrs[num_ifs] = {FG_IP_ADDRESS, BG_IP_ADDRESS};
+    
+    for (size_t i = 0; i < num_ifs; i++) {
+        int rc = inet_aton(addrs[i], &ifs[i].ip_addr);
+        assert(rc);
+        net_interfaces[ifs[i].ip_addr.s_addr] = ifs[i];
+    }
+    
+    struct net_interface bg_iface = ifs[1];
+    net_interfaces.erase(bg_iface.ip_addr.s_addr); // will be added back first iteration
+    IfaceList empty_list;
+    IfaceList bg_iface_list;
+    bg_iface_list.push_back(bg_iface);
 
     pthread_t tid;
     int rc = pthread_create(&tid, NULL, IPC_Listener, NULL);
@@ -315,22 +391,29 @@ int main(int argc, char *argv[])
 	if (sampling) {
 	    up_time = up_time_samples->sample();
 	}
-	iface_up = true;
 	labels_available = UP_LABELS;
+        
 	fprintf(stderr, "%s is up for %lf seconds\n", ifname, up_time);
-	notify_all_subscribers();
-	//if (sleep(up_time) != 0) break;
+        pthread_mutex_lock(&ifaces_lock);
+        net_interfaces[bg_iface.ip_addr.s_addr] = bg_iface;
+        pthread_mutex_unlock(&ifaces_lock);
+	notify_all_subscribers(bg_iface_list, empty_list);
+
 	thread_sleep(up_time);
 	if (!running) break;
 
 	if (sampling) {
 	    down_time = down_time_samples->sample();
 	}
-	iface_up = false;
 	labels_available = DOWN_LABELS;
 	fprintf(stderr, "%s is down for %lf seconds\n", ifname, down_time);
-	notify_all_subscribers();
-	//if (sleep(down_time) != 0) break;
+
+        pthread_mutex_lock(&ifaces_lock);
+        net_interfaces.erase(bg_iface.ip_addr.s_addr);
+        pthread_mutex_unlock(&ifaces_lock);
+
+	notify_all_subscribers(empty_list, bg_iface_list);
+
 	thread_sleep(down_time);
     }
 

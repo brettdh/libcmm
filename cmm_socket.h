@@ -4,6 +4,7 @@
 #include <boost/shared_ptr.hpp>
 
 #include "libcmm.h"
+#include "libcmm_ipc.h"
 
 class CMMSocket;
 
@@ -15,7 +16,8 @@ class CMMSocket {
     static CMMSocketPtr lookup(mc_socket_t sock);
     static int mc_close(mc_socket_t sock);
 
-    static void put_label_down(u_long down_label);
+    static void interface_down(struct net_interface down_iface);
+    static void interface_up(struct net_interface up_iface);
 
     virtual int reset() = 0;
     virtual int check_label(u_long label, resume_handler_t fn, void *arg) = 0;

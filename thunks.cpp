@@ -33,7 +33,7 @@ struct labeled_thunk_queue {
 };
 
 typedef tbb::concurrent_hash_map<u_long, struct labeled_thunk_queue *,
-				 MyHashCompare<u_long> > ThunkHash;
+				 IntegerHashCompare<u_long> > ThunkHash;
 static ThunkHash thunk_hash;
 
 void enqueue_handler(mc_socket_t sock, 
@@ -73,7 +73,7 @@ void print_thunks(void)
     }
 }
 
-void fire_thunks(u_long cur_labels)
+void fire_thunks(struct net_interface up_iface)
 {
     /* Handlers are fired:
      *  -for the same label in the order they were enqueued, and
@@ -81,7 +81,7 @@ void fire_thunks(u_long cur_labels)
     for (ThunkHash::iterator tq_iter = thunk_hash.begin();
 	 tq_iter != thunk_hash.end(); tq_iter++) {
 	struct labeled_thunk_queue *tq = tq_iter->second;
-	if (tq->label & cur_labels) {
+	if (tq->label & up_iface.labels) {
 	    while (!tq->thunk_queue.empty()) {
 		struct thunk *th = NULL;
 		tq->thunk_queue.pop(th);

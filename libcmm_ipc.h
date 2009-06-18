@@ -2,10 +2,9 @@
 #define LIBCMM_IPC_H_INCL
 
 #include <sys/types.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <netinet/in.h>
+#include <vector>
+#include <map>
 
 /* single message queue for subscribing and unsubscribing. */
 #define SCOUT_CONTROL_MQ_NAME "/scout_control_mq"
@@ -17,31 +16,36 @@ extern "C" {
 void scout_ipc_init(int wakeup_sig);
 void scout_ipc_deinit(void);
 bool scout_net_available(u_long labels);
-void scout_request_update();
+//void scout_request_update();
 
-/* only call when a message is definitely present. */
-u_long scout_receive_label_update();
-
-void scout_labels_changed(u_long *new_up_labels, u_long *new_down_labels);
+//void scout_labels_changed(u_long *new_up_labels, u_long *new_down_labels);
 
 typedef enum {
     CMM_MSG_SUBSCRIBE=1,
     CMM_MSG_UNSUBSCRIBE,
-    CMM_MSG_UPDATE_STATUS,
-    CMM_MSG_NET_STATUS_CHANGE
+    /* CMM_MSG_UPDATE_STATUS, */
+    /* CMM_MSG_NET_STATUS_CHANGE, */
+    CMM_MSG_IFACE_LABELS, /* add/update an interface */
+    CMM_MSG_IFACE_DOWN /* remove an interface */
 } MsgOpcode;
+
+struct net_interface {
+    struct in_addr ip_addr; /* contents in network byte order as usual */
+    u_long labels; /* host byte order */
+
+    bool operator<(const struct net_interface& other) const {
+        return ip_addr.s_addr < other.ip_addr.s_addr;
+    }
+};
 
 struct cmm_msg {
     MsgOpcode opcode;
     union {
 	pid_t pid;
-	u_long labels;
-	u_long available;
+	/* u_long labels; */
+	/* u_long available; */
+        struct net_interface iface;
     } data;
 };
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* LIBCMM_IPC_H_INCL */

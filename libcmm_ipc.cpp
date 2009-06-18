@@ -4,7 +4,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <assert.h>
+#include <signal.h>
 #include "libcmm_ipc.h"
+#include <set>
+using std::set;
 
 #include "tbb/spin_mutex.h"
 using tbb::spin_mutex;
@@ -86,6 +89,12 @@ static int send_control_message(const struct cmm_msg *msg)
 
 static char mq_name[MAX_PROC_MQ_NAMELEN];
 
+static struct sigaction old_action;
+static struct sigaction ignore_action;
+static struct sigaction net_status_change_action;
+
+static void net_status_change_handler(int sig);
+
 void scout_ipc_init(int cmm_signal)
 {
     int rc;
@@ -109,20 +118,23 @@ void scout_ipc_init(int cmm_signal)
 	return;
     }
 
-#if 0
-    struct sigevent sigev;
-    memset(&sigev, 0, sizeof(sigev));
-    sigev.sigev_notify = SIGEV_SIGNAL;
-    sigev.sigev_signo = cmm_signal;
-    if (mq_notify(scout_mq_fd, &sigev) < 0) {
+    memset(&ignore_action, 0, sizeof(ignore_action));
+    memset(&net_status_change_action, 0, sizeof(net_status_change_action));
+    memset(&old_action, 0, sizeof(old_action));
+
+    ignore_action.sa_handler = SIG_IGN;
+    net_status_change_action.sa_handler = net_status_change_handler;
+
+    sigaction(cmm_signal, &net_status_change_action, &old_action);
+    if (old_action.sa_handler != SIG_DFL) {
+	/* Unclear that this would ever happen, as this lib is probably
+	 * loaded before the app registers a signal handler of its own.
+	 * This places the burden on the app developer to avoid colliding
+	 * with our signal of choice. */
 	fprintf(stderr, 
-		"Failed to register signal handler for message queue, "
-		"errno=%d\n", errno);
-	mq_close(scout_mq_fd);
-	scout_mq_fd = -1;
-	return;
+		"WARNING: the application has changed the "
+		"default handler for signal %d\n", cmm_signal);
     }
-#endif
 
     msg.opcode = CMM_MSG_SUBSCRIBE;
     msg.data.pid = getpid();
@@ -164,8 +176,8 @@ bool scout_net_available(u_long labels)
     return (labels) ? (labels_available & labels) : (labels_available);
 }
 
-u_long scout_receive_label_update(void);
 
+/*
 void scout_request_update()
 {
     struct cmm_msg msg;
@@ -176,24 +188,32 @@ void scout_request_update()
 	fprintf(stderr, "Failed to send status update request\n");
     }
 }
+*/
+
+extern void process_interface_update(struct net_interface iface, bool down);
 
 /* only call when a message is definitely present. */
-u_long scout_receive_label_update()
+static void net_status_change_handler(int sig)
 {
     struct cmm_msg msg;
     memset(&msg, 0, sizeof(msg));
     scout_recv(&msg);
 
-    if (msg.opcode != CMM_MSG_NET_STATUS_CHANGE) {
+    switch (msg.opcode) {
+    case CMM_MSG_IFACE_LABELS:
+        process_interface_update(msg.data.iface, false);
+        break;
+    case CMM_MSG_IFACE_DOWN:
+        process_interface_update(msg.data.iface, true);
+        break;
+    default:
 	fprintf(stderr, "Unexpected message opcode %d from conn scout\n",
 		msg.opcode);
-	return 0;
+	return;
     }
-    prev_labels_available = labels_available;
-    labels_available = msg.data.labels;
-    return labels_available;
 }
 
+/*
 void scout_labels_changed(u_long *new_up_labels, u_long *new_down_labels)
 {
     if (new_up_labels) {
@@ -204,3 +224,4 @@ void scout_labels_changed(u_long *new_up_labels, u_long *new_down_labels)
 	*new_down_labels = (~labels_available) & prev_labels_available;
     }
 }
+*/

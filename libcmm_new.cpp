@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
+#include <netinet/in.h>
 #include <assert.h>
 #include <map>
 #include <vector>
@@ -32,10 +33,6 @@ using tbb::concurrent_hash_map;
 using tbb::concurrent_queue;
 using tbb::atomic;
 
-static struct sigaction old_action;
-static struct sigaction ignore_action;
-static struct sigaction net_status_change_action;
-
 #ifdef IMPORT_RULES
 /**The following used for providing label rules**/
 #define RULE_FILE "/tmp/cmm_rules_for_labels"
@@ -44,14 +41,12 @@ struct RuleStruct{
 	RuleQueue rule_queue;
 };
 
-typedef concurrent_hash_map<u_long, struct RuleStruct *, MyHashCompare<u_long> > RuleHash;
+typedef concurrent_hash_map<u_long, struct RuleStruct *, IntegerHashCompare<u_long> > RuleHash;
 static RuleHash rule_hash;
 
-typedef concurrent_hash_map<u_long, u_long, MyHashCompare<u_long> > SuperiorLookUp; 
+typedef concurrent_hash_map<u_long, u_long, IntegerHashCompare<u_long> > SuperiorLookUp; 
 static SuperiorLookUp sup_look_up;
 #endif
-
-static void net_status_change_handler(int sig);
 
 static void libcmm_init(void) __attribute__((constructor));
 static void libcmm_init(void)
@@ -99,25 +94,6 @@ static void libcmm_init(void)
     }
 #endif
     
-    memset(&ignore_action, 0, sizeof(ignore_action));
-    memset(&net_status_change_action, 0, sizeof(net_status_change_action));
-    memset(&old_action, 0, sizeof(old_action));
-
-    ignore_action.sa_handler = SIG_IGN;
-    net_status_change_action.sa_handler = net_status_change_handler;
-
-    //sigaction(CMM_SIGNAL, &ignore_action, &old_action);
-    sigaction(CMM_SIGNAL, &net_status_change_action, &old_action);
-    if (old_action.sa_handler != SIG_DFL) {
-	/* Unclear that this would ever happen, as this lib is probably
-	 * loaded before the app registers a signal handler of its own.
-	 * This places the burden on the app developer to avoid colliding
-	 * with our signal of choice. */
-	fprintf(stderr, 
-		"WARNING: the application has changed the "
-		"default handler for signal %d\n", CMM_SIGNAL);
-    }
-
     scout_ipc_init(CMM_SIGNAL);
 
 #ifdef CMM_TIMING
@@ -187,7 +163,7 @@ static void libcmm_deinit(void)
 
 /* Figure out how the network status changed and invoke all the 
  * queued handlers that can now be processed. */
-static void net_status_change_handler(int sig)
+void process_interface_update(struct net_interface iface, bool down)
 {
     /* 1) Read a message from the queue to determine what labels
      *    are available.
@@ -205,19 +181,12 @@ static void net_status_change_handler(int sig)
     //fprintf(stderr, "Signalled by scout\n");
     
     /* bitmask of all available bit labels ORed together */
-    u_long cur_labels = scout_receive_label_update();
-    fprintf(stderr, "Got update message from scout, labels=%lu\n",
-	    cur_labels);
-
-    u_long new_up_labels;
-    u_long new_down_labels;
-    scout_labels_changed(&new_up_labels, &new_down_labels);
-    fprintf(stderr, "New labels available: %lu\n", new_up_labels);
-    fprintf(stderr, "Labels now unavailable: %lu\n", new_down_labels);
+    fprintf(stderr, "Got update from scout: %s is %s\n",
+            inet_ntoa(iface.ip_addr), down?"down":"up");
 
 #ifdef IMPORT_RULES
     /** Rules Part 2: setup the sup_lookup map for quicker check of interface superiority**/
-    for (RuleHash::iterator rule_iter = rule_hash.begin(); 
+    for (RuleHash::iterator rule_iter = rule_hash.begin();
 	 rule_iter != rule_hash.end(); rule_iter++){
 	u_long head_label = rule_iter->first;
 	
@@ -243,12 +212,14 @@ static void net_status_change_handler(int sig)
     //fprintf(stderr, "Before:\n---\n");
     //print_thunks();
 
-    /* put down the sockets connected on now-unavailable networks. */
-    if (new_down_labels != 0) {
-        CMMSocket::put_label_down(new_down_labels);
+    if (down) {
+        /* put down the sockets connected on now-unavailable networks. */
+        CMMSocket::interface_down(iface);
+    } else {    
+        /* fire thunks thunk'd on now-available network. */
+        CMMSocket::interface_up(iface);
+        fire_thunks(iface);
     }
-
-    fire_thunks(cur_labels);
 
     //fprintf(stderr, "After:\n---\n");
     //print_thunks();
