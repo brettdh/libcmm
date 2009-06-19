@@ -50,16 +50,19 @@ typedef tbb::concurrent_hash_map<mc_socket_t,
 
 typedef tbb::concurrent_hash_map<int, 
                                  void*, /* unused; keys only, no values */
-                                 IntegerHashCompare<int> > ListenerSockSet;
+                                 IntegerHashCompare<int> > VanillaListenerSet;
 
 typedef std::vector<std::pair<mc_socket_t, int> > mcSocketOsfdPairList;
 
 struct ListenerAddr {
     struct sockaddr_in addr;
     u_long labels;
+    int listener_sock; /* only for local listeners */
 };
 
 typedef std::vector<struct ListenerAddr> ListenerAddrList;
+
+typedef std::map<in_addr_t, struct net_interface> NetInterfaceMap;
 
 class CMMSocketImpl : public CMMSocket {
   public:
@@ -105,8 +108,8 @@ class CMMSocketImpl : public CMMSocket {
     
   private:
     static CMMSockHash cmm_sock_hash;
-    static ListenerSockSet cmm_listeners;
-    static IfaceList ifaces;
+    static VanillaListenerSet cmm_listeners;
+    static NetInterfaceMap ifaces;
 
     /* check whether this label is available; if not, 
      * register the thunk or return an error if no thunk given */
@@ -138,7 +141,6 @@ class CMMSocketImpl : public CMMSocket {
     CSockMapping csock_labelmap;
     CSockSet connected_csocks;
 
-    std::vector<int> listener_sockets;
     ListenerAddrList local_ifaces;
 
     /* these are used for connecting csockets */

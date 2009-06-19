@@ -20,6 +20,8 @@ using std::map; using std::vector;
 using std::set; using std::pair;
 
 CMMSockHash CMMSocketImpl::cmm_sock_hash;
+VanillaListenerSet CMMSocketImpl::cmm_listeners;
+NetInterfaceMap CMMSocketImpl::ifaces;
 
 struct csocket {
     int osfd;
@@ -80,58 +82,90 @@ CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label)
     /* TODO */
 }
 
-void
-CMMSocketImpl::get_remote_listener(int bootstrap_sock,
-                                   struct interface *iface)
+void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
 {
-    /* TODO: this may involve multiple listeners in the future */
-    /* record the remote side's internal listener addr */
-    int rc = recv(bootstrap_sock, remote_addr, sizeof(*remote_addr), 0);
-    if (rc != sizeof(*remote_addr)) {
+    struct CMMSocketControlHdr hdr;
+    int rc = recv(bootstrap_sock, &hdr, sizeof(hdr), 0);
+    if (rc != sizeof(hdr)) {
         throw -1;
     }
+    if (hdr.type != CMM_CONTROL_MSG_NEW_INTERFACE) {
+        throw -1;
+    }
+    struct ListenerAddr new_listener;
+    memset(&new_listener.addr, 0, sizeof(new_listener.addr));
+    new_listener.addr.sin_addr.s_addr = hdr.op.new_interface.ip_addr;
+    new_listener.addr.sin_port = hdr.op.new_interface.port;
+    new_listener.labels = hdr.op.new_interface.labels;
+    new_listener.listener_sock = -1; /* only valid for local listeners */
+    remote_ifaces.push_back(new_listener);
 }
 
-void CMMSocketImpl::send_local_listener(int bootstrap_sock,
-                                        const struct interface *iface)
+void CMMSocketImpl::send_local_listeners(int bootstrap_sock)
 {
-    /* TODO: this may involve multiple listeners in the future */
-    /* tell the remote side about our internal listener addr */
-    int rc = send(bootstrap_sock, &listener_addr, sizeof(listener_addr), 0);
-    if (rc != sizeof(listener_addr)) {
+    size_t num_ifaces = htonl(local_ifaces.size());
+    int rc = send(bootstrap_sock, &num_ifaces, sizeof(num_ifaces), 0);
+    if (rc != sizeof(num_ifaces)) {
         throw -1;
+    }
+
+    for (ListenerAddrList::iterator it = local_ifaces.begin();
+         it != local_ifaces.end(); it++) {
+        struct CMMSocketControlHdr hdr;
+        hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
+        hdr.op.new_interface.ip_addr = it->addr.sin_addr.s_addr;
+        hdr.op.new_interface.port = it->addr.sin_port;
+        hdr.op.new_interface.labels = htonl(hdr.op.new_interface.labels);
+        int rc = send(bootstrap_sock, &hdr, sizeof(hdr), 0);
+        if (rc != sizeof(hdr)) {
+            throw -1;
+        }
     }
 }
 
 int
 CMMSocketImpl::connection_bootstrap(int bootstrap_sock = -1)
 {
-    memset(&listener_addr, 0, sizeof(listener_addr));
-    internal_listener_sock = socket(PF_INET, SOCK_STREAM, 0);
-    if (internal_listener_sock < 0) {
-        return internal_listener_sock;
-    }
-
+    /* TODO: start here (again).
+     *  Rework this to have multiple listeners, local and remote.
+     *  However, only one listener socket is needed, if I use
+     *  INADDR_ANY.  It's like magic!
+     *  Also, if sin_port = 0, it will be automatically assigned
+     *  to an available port, which we can then get by getsockname.
+     */
     try {
-        int rc = bind(internal_listener_sock, 
-                      (struct sockaddr *)&listener_addr,
-                      sizeof(listener_addr));
-        if (rc < 0) {
-            throw rc;
-        }
-        rc = listen(internal_listener_sock, 5);
-        if (rc < 0) {
-            throw rc;
+        for (ListenerAddrList::iterator it = ifaces.begin();
+             it != ifaces.end(); it++) {
+            
+            ListenerAddr listener_addr;
+            memset(&listener_addr, 0, sizeof(listener_addr));
+            listener_addr.addr.sin_addr.s_addr = it->second.ip_addr;
+            listener_addr.addr.sin_port = ;
+            listener_addr.labels = it->labels;
+
+            listener_addr.listener_sock = socket(PF_INET, SOCK_STREAM, 0);
+            if (listener_addr.listener_sock < 0) {
+                throw -1;
+            }
+    
+            int rc = bind(listener_addr.listener_sock, 
+                          (struct sockaddr *)&listener_addr.addr,
+                          sizeof(listener_addr.addr));
+            if (rc < 0) {
+                close(listener_addr.listener_sock);
+                throw rc;
+            }
+            rc = listen(listener_addr.listener_sock, 5);
+            if (rc < 0) {
+                close(listener_addr.listener_sock);
+                throw rc;
+            }
+            local_ifaces.push_back(listener_addr);
         }
         
         if (bootstrap_sock != -1) {
             /* we are accepting a connection */
-            addrlen = sizeof(struct sockaddr_in);
-            remote_addr = (struct sockaddr *)malloc(addrlen);
-            assert(remote_addr);
-
-            get_remote_listener(bootstrap_sock);
-            send_local_listener(bootstrap_sock);
+            send_local_listeners(bootstrap_sock);
         } else {
             /* we are connecting */
             assert(remote_addr);
@@ -147,7 +181,6 @@ CMMSocketImpl::connection_bootstrap(int bootstrap_sock = -1)
 
             try {
                 send_local_listener(bootstrap_sock);
-                get_remote_listener(bootstrap_sock);
             } catch (int error_rc) {
                 close(bootstrap_sock);
                 throw;
@@ -690,7 +723,8 @@ CMMSocketImpl::mc_shutdown(int how)
 void
 CMMSocketImpl::interface_up(struct net_interface up_iface)
 {
-    /* put down the sockets connected on now-unavailable networks. */
+    ifaces.push_back(up_iface);
+
     for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
 	 sk_iter != cmm_sock_hash.end(); sk_iter++) {
 	CMMSockHash::const_accessor read_ac;
@@ -1221,7 +1255,7 @@ CMMSocketImpl::setup(struct net_interface iface)
     }
     assert(get_pointer(read_ac->second) == this);
 
-    
+    /* TODO */
 }
 
 void

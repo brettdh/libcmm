@@ -13,7 +13,7 @@ enum ControlMsgType {
 struct begin_irob_data {
     irob_id_t id;
     int numdeps;
-    /* dep array follows header before payload */
+    /* dep array follows header */
 };
 
 struct end_irob_data {
@@ -29,13 +29,13 @@ struct irob_chunk_data {
 
 struct new_interface_data {
     in_addr_t ip_addr;
-    u_short port;
+    in_port_t port;
     u_long labels;
 };
 
 struct down_interface_data {
     in_addr_t ip_addr;
-    u_short port;
+    in_port_t port;
 };
 
 enum ACKType {
@@ -44,13 +44,13 @@ enum ACKType {
 };
 
 struct ack_data {
-    ACKType type;
+    short type;
     irob_id_t id;
     u_long seqno;
 };
 
 struct CMMSocketControlHdr {
-    ControlMsgType type;
+    short type;
     union {
         struct begin_irob_data begin_irob;
         struct end_irob_data end_irob;
