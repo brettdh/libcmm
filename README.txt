@@ -33,27 +33,32 @@ initiator as the "client" and the connection acceptor as the "server";
 this does not imply or require a strict client-server application
 design.
 
-1) Accepting connections
+1) Initiating connections
+
+After creating a socket with the socket() system call, the client
+connects to the server using the connect() system call.  Similarly,
+clients use cmm_socket to create a multi-socket and cmm_connect to 
+establish a logical connection with a remote listener.
+
+2) Accepting connections
 
 After creating a socket with the socket() system call, the server will
 assign a local address to the socket using the bind() system call.
 The server then indicates its willingness to accept connections by
 calling listen() followed by accept().
 
-THIS PART OF THE API IS NOT FINALIZED; HERE'S ONE POSSIBLE DESIGN.  
 In the case of multi-sockets, the listening socket remains a regular
-TCP socket. The server calls cmm_listen to create the connection
-backlog and register the listener socket with libcmm. Following
-cmm_listen, a cmm_accept call on the listener socket returns a
-multi-socket file descriptor, representing a logical connection with
-the client.  
+TCP socket.  As usual, the listener socket may be bound (via bind())
+to a particular physical network interface and IP address, or to all
+of them by the special sockaddr_in construct INADDR_ANY.  The server
+calls cmm_listen to create the connection backlog and register the
+listener socket with libcmm. Following cmm_listen, a cmm_accept call
+on the listener socket returns a multi-socket file descriptor,
+representing a logical connection with the client.  From this point
+forward, the multi-socket returned by cmm_accept is indistinguishable
+from a multi-socket returned by cmm_connect.
 
-2) Initiating connections
 
-After creating a socket with the socket() system call, the client
-connects to the server using the connect() system call.  Similarly,
-clients use cmm_connect for this purpose on multi-sockets; see below
-for additional details.
 
 Each of the standard functions such as cmm_connect, cmm_send,
 cmm_writev etc. take custom resume handler and argument (hereafter
@@ -63,14 +68,6 @@ handler argument (a void*) must point to global or heap-allocated
 state, and it must be freed (if necessary) by the handler.  If the
 handler is not stored, as in scenario 1 below, then the caller must
 free the argument.
-
-cmm_connect is a special case. It takes two handler functions: one to
-perform any application level teardown nessasary whenever a connection
-needs to be closed, and another to perform any application level setup
-that needs to be performed whenever a new connection is
-established. As long as the application does not specifically
-cmm_close an MC_Socket, it can assume the socket is available, even in
-the face of networks going in and out of range.
 
 Given a cmm_send (or similar) with arbitrary labels, one of two
 scenarios can happen:

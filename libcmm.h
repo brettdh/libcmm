@@ -27,10 +27,6 @@ typedef int mc_socket_t;
 #define CMM_FAILED -1
 #define CMM_DEFERRED -2
 
-/* signal, fired from connection scout, used to invoke thunks */
-#define CMM_SIGNAL SIGVTALRM
-#define CMM_SELECT_SIGNAL 42 /* I am assured this is okay in Linux. */
-
 /*** CMM socket function wrappers ***/
 
 /* For all functions:
@@ -38,12 +34,9 @@ typedef int mc_socket_t;
  *  -If arg is heap-allocated, resume_handler must save it (perhaps in
  *     another thunk) or free it before returning. (but see below EFFECT) 
  */
-
-/* REQUIREMENT: resume_handler CANNOT call any cmm_* functions with 
- * different labels than it was thunk'd with. */
 typedef void (*resume_handler_t)(void* arg);
 
-/* EFFECT: cmm_ operations may "succeed" in two different ways.
+/* EFFECT: sending operations may "succeed" in two different ways.
  *  1) The network is available, and the send can go out immediately,
  *     so it proceeds and returns with the semantics of the underlying syscall.
  *  2) The network is not available, so the thunk is enqueued for
@@ -55,11 +48,36 @@ typedef void (*resume_handler_t)(void* arg);
  *  or save its argument.
  */
 
-/* adding wrappers as needed, no sooner */
+/* sending operations.
+ *
+ * send_labels specify desired characteristics of local interfaces;
+ *  recv_labels, of remote interfaces.  In one general case,
+ *  recv_labels allow request/response applications to send responses
+ *  via the same channel on which the corresponding request was
+ *  received.  (See cmm_read below, which records the sender's
+ *  labels.)
+ *
+ * These functions create "anonymous" IROBs (see irob.h) that depend
+ *  upon all other IROBs currently in flight. Thus, a sequence of
+ *  anonymous sends will be received in the order in which they were sent.
+ * As a result, applications that do not explicitly use IROBs will
+ *  nonetheless be guaranteed an ordered bytestream.
+ * See irob.h on how to use IROBs and explicit dependencies for 
+ *  potential performance gains by reordering.
+ */
 ssize_t cmm_send(mc_socket_t sock, const void *buf, size_t len, int flags,
-		 u_long labels, resume_handler_t handler, void *arg);
+		 u_long send_labels, u_long recv_labels, 
+                 resume_handler_t handler, void *arg);
 int cmm_writev(mc_socket_t sock, const struct iovec *vector, int count,
-	       u_long labels, resume_handler_t handler, void *arg);
+               u_long send_labels, u_long recv_labels, 
+               resume_handler_t handler, void *arg);
+
+/* receiving operations.
+ *
+ * Receiving operations on multi-sockets record the labels that the
+ *  remote sender specified for this operation.
+ */
+int cmm_read(mc_socket_t sock, void *buf, size_t count, u_long *recv_labels);
 
 /* simple, no-thunk wrappers */
 int cmm_getsockopt(mc_socket_t sock, int level, int optname, 
@@ -72,7 +90,6 @@ int cmm_select(mc_socket_t nfds,
 	       fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 	       struct timeval *timeout);
 
-int cmm_read(mc_socket_t sock, void *buf, size_t count);
 int cmm_poll(struct pollfd fds[], nfds_t nfds, int timeout);
 int cmm_getpeername(int socket, struct sockaddr *address, socklen_t *address_len);
 
@@ -80,8 +97,7 @@ int cmm_getpeername(int socket, struct sockaddr *address, socklen_t *address_len
  * a piece at both ends of the connection (which we will; see also
  * cmm_listen, cmm_accept). */
 int cmm_connect(mc_socket_t sock, 
-                const struct sockaddr *serv_addr, socklen_t addrlen,
-                u_long initial_labels);
+                const struct sockaddr *serv_addr, socklen_t addrlen);
 
 /* use these in place of listen/accept to receive multi-socket connections.
  * listener_sock should itself not be a multi-socket. */
@@ -93,8 +109,10 @@ int cmm_listen(int listener_sock, int backlog);
  *   cmm_accept will return an error otherwise.
  * XXX: perhaps the addr/addrlen params should be removed, since
  *   there's no way to describe the logical address at the other end.
+ *   Even so, it's probably still somewhat useful to know at least
+ *   the physical address of the connecting host.
  * For now, it will be filled in with the remote address of the 
- *   underlying physical connection, even though this seems to be
+ *   initial underlying physical connection, even though this seems to be
  *   poking a hole through the abstraction. */
 mc_socket_t cmm_accept(int listener_sock, 
                        struct sockaddr *addr, socklen_t *addrlen);
