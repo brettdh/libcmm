@@ -15,7 +15,7 @@
 
 void scout_ipc_init(int wakeup_sig);
 void scout_ipc_deinit(void);
-bool scout_net_available(u_long labels);
+//bool scout_net_available(u_long send_labels, u_long recv_labels);
 //void scout_request_update();
 
 //void scout_labels_changed(u_long *new_up_labels, u_long *new_down_labels);
@@ -23,8 +23,6 @@ bool scout_net_available(u_long labels);
 typedef enum {
     CMM_MSG_SUBSCRIBE=1,
     CMM_MSG_UNSUBSCRIBE,
-    /* CMM_MSG_UPDATE_STATUS, */
-    /* CMM_MSG_NET_STATUS_CHANGE, */
     CMM_MSG_IFACE_LABELS, /* add/update an interface */
     CMM_MSG_IFACE_DOWN /* remove an interface */
 } MsgOpcode;
@@ -33,8 +31,6 @@ struct cmm_msg {
     MsgOpcode opcode;
     union {
 	pid_t pid;
-	/* u_long labels; */
-	/* u_long available; */
         struct net_interface iface;
     } data;
 };

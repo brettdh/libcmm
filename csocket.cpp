@@ -21,7 +21,7 @@ csocket::~csocket()
 }
 
 int
-csocket::connect(void)
+csocket::phys_connect(void)
 {
     struct sockaddr_in local_addr, remote_addr;
 
@@ -37,7 +37,7 @@ csocket::connect(void)
     if (rc < 0) {
         return rc;
     }
-    rc = connect(osfd, (struct sockaddr *)&remote_addr, sizeof(remote_addr));
+    return connect(osfd, (struct sockaddr *)&remote_addr, sizeof(remote_addr));
 }
 
 class LabelMatch {
@@ -51,14 +51,14 @@ class LabelMatch {
 class LocalLabelMatch : public LabelMatch {
   public:
     virtual bool operator()(struct csocket *csock) {
-        return csock->local_iface.labels & label;
+        return (label == 0) || (csock->local_iface.labels & label);
     }
 };
 
 class RemoteLabelMatch : public LabelMatch {
   public:
     virtual bool operator()(struct csocket *csock) {
-        return csock->remote_iface.labels & label;
+        return (label == 0) || (csock->remote_iface.labels & label);
     }
 };
 
@@ -103,48 +103,32 @@ CSockMapping::any_csock(void)
 CSockMapping::CSockMapping(CMMSocketImpl *sk_)
     : sk(sk_)
 {
-    /* nothing to see here, move along */
+    /* empty */
 }
 
 struct csocket *
 CSockMapping::csock_with_send_label(u_long label)
 {
-    if (label != 0) {
-        return find_csock(SendLabelMatch(label));
-    } else {
-        return any_csock();
-    }
+    return find_csock(SendLabelMatch(label));
 }
 
 struct csocket *
 CSockMapping::csock_with_recv_label(u_long label)
 {
-    if (label != 0) {
-        return find_csock(RecvLabelMatch(label));
-    } else {
-        return any_csock();
-    }
+    return find_csock(RecvLabelMatch(label));
 }
 
 struct csocket *
 CSockMapping::csock_with_labels(u_long send_label, u_long recv_label)
 {
-    if (send_label != 0 && recv_label != 0) {
-        return find_csock(BothLabelsMatch(send_label, recv_label));
-    } else if (send_label != 0) {
-        return csock_with_send_label(send_label);
-    } else if (recv_label != 0) {
-        return csock_with_recv_label(recv_label);
-    } else {
-        return any_csock();
-    }
+    return find_csock(BothLabelsMatch(send_label, recv_label));
 }
 
 class IfaceMatch {
   public:
     IfaceMatch(u_long label_) : label(label_) {}
     bool operator()(struct net_interface iface) {
-        return iface.labels & label;
+        return (label == 0) || (iface.labels & label);
     }
   private:
     u_long label;
@@ -177,21 +161,45 @@ CSockMapping::get_remote_iface(u_long label, struct net_interface& iface)
     return get_iface(sk->remote_ifaces, label, iface);
 }
 
-struct csocket *
-CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label)
+int
+CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label,
+                                    struct csocket *& new_csock)
 {
     struct csocket *csock = csock_with_labels(send_label, recv_label);
     if (csock) {
-        return csock;
+        new_csock = csock;
+        return 0;
     }
 
     struct net_interface local_iface, remote_iface;
     if (!(get_local_iface(send_label, local_iface) &&
           get_remote_iface(recv_label, remote_iface))) {
-        return NULL;
+        /* one of the desired labels wasn't available */
+        return CMM_DEFERRED;
     }
 
     csock = new struct csocket(sk, local_iface, remote_iface);
-    set_all_sockopts(csock->osfd);
-    int rc = csock->connect();
+    sk->set_all_sockopts(csock->osfd);
+    int rc = csock->phys_connect();
+    if (rc < 0) {
+        if (errno==EINPROGRESS || errno==EWOULDBLOCK) {
+            //is this what we want for the 'send', 
+            //i.e wait until the sock is conn'ed.
+            errno = EAGAIN;	 
+        } else {
+            perror("connect");
+            delete csock;
+            return CMM_FAILED;
+        }
+    }
+
+    sk->connected_csocks.insert(csock);
+    // to interrupt any select() in progress, adding the new osfd
+    printf("Interrupting any selects() in progress to add osfd %d "
+           "to multi-socket %d\n",
+           csock->osfd, sock);
+    signal_selecting_threads();
+    
+    new_csock = csock;
+    return 0;
 }

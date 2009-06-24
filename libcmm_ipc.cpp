@@ -165,17 +165,27 @@ void scout_ipc_deinit(void)
     }
 }
 
-static u_long prev_labels_available;
-static u_long labels_available;
+//static u_long prev_labels_available;
+//static u_long send_labels_available;
+//static u_long recv_labels_available;
 
 /* checks to see if the labels requested are available.
  * if no labels requested (i.e. labels==0), checks to see if
  * ANY labels are available. */
-bool scout_net_available(u_long labels)
+/*
+ * This has to be per-socket, because recv_labels are per-socket.
+ *
+static bool net_available(u_long available, u_long label_check)
 {
-    return (labels) ? (labels_available & labels) : (labels_available);
+    return (label_check) ? (available & label_check) : (available);
 }
 
+bool scout_net_available(u_long send_labels, u_long recv_labels)
+{
+    return (net_available(send_labels_available, send_labels) &&
+            net_available(recv_labels_available, recv_labels));
+}
+*/
 
 /*
 void scout_request_update()
@@ -212,16 +222,3 @@ static void net_status_change_handler(int sig)
 	return;
     }
 }
-
-/*
-void scout_labels_changed(u_long *new_up_labels, u_long *new_down_labels)
-{
-    if (new_up_labels) {
-	*new_up_labels = (~prev_labels_available) & labels_available;
-    }
-
-    if (new_down_labels) {
-	*new_down_labels = (~labels_available) & prev_labels_available;
-    }
-}
-*/

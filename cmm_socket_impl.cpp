@@ -252,7 +252,7 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
 
 
 CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
-    : csock_labelmap(this)
+    : csocks(this)
 {
     /* reserve a dummy OS file descriptor for this mc_socket. */
     sock = socket(family, type, protocol);
@@ -577,9 +577,17 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
     return rc;
 }
 
+int CMMSocketImpl::block_until_available(u_long send_labels, u_long recv_labels,
+                                         struct csocket *& csock)
+{
+    /* TODO: implement */
+    return CMM_FAILED;
+}
+
 int 
-CMMSocketImpl::preapprove(u_long labels, 
-			  resume_handler_t resume_handler, void *arg)
+CMMSocketImpl::preapprove(u_long send_labels, u_long recv_labels,
+			  resume_handler_t resume_handler, void *arg,
+                          struct csocket *& csock)
 {
     int rc = 0;
  
@@ -595,14 +603,14 @@ CMMSocketImpl::preapprove(u_long labels,
 	}
     }
     
-    if (scout_net_available(labels)) {
-	rc = prepare(labels);
+    if (net_available(sock, send_labels, recv_labels)) {
+	rc = prepare(send_labels, recv_labels, csock);
     } else {
 	if (resume_handler) {
-	    enqueue_handler(sock, labels, resume_handler, arg);
+	    enqueue_handler(sock, send_labels, recv_labels, resume_handler, arg);
 	    rc = CMM_DEFERRED;
 	} else {
-	    rc = CMM_FAILED;
+	    rc = block_until_available(send_labels, recv_labels, csock);
 	}
     }
     
@@ -640,12 +648,13 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
     /* TODO-IMPL: move/reference this code as necessary */
     labels = set_superior_label(sock, labels);	
 #endif
-    rc = preapprove(labels, resume_handler, arg);
+    struct csocket *csock = NULL;
+    rc = preapprove(labels, resume_handler, arg, csock);
     if (rc < 0) {
         return rc;
     }
-    printf("Sending with label %lu\n",labels);
-    return send(get_osfd(labels), buf, len, flags);
+    assert(csock);
+    return send(csock->osfd, buf, len, flags);
 }
 
 int 
@@ -660,12 +669,14 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
     /* TODO-IMPL: move/reference this code as necessary */
     labels = set_superior_label(sock, labels);	
 #endif
-    rc = preapprove(labels, resume_handler, arg);
+    struct csocket *csock = NULL;
+    rc = preapprove(labels, resume_handler, arg, csock);
     if (rc < 0) {
 	return rc;
     }
     
-    return writev(get_osfd(labels), vec, count);
+    assert(csock);
+    return writev(csock->osfd, vec, count);
 }
 
 int
@@ -730,14 +741,15 @@ CMMSocketImpl::interface_down(struct net_interface down_iface)
 }
 
 int
-CMMSocketImpl::check_label(u_long labels, resume_handler_t fn, void *arg)
+CMMSocketImpl::check_label(u_long send_labels, u_long recv_labels,
+                           resume_handler_t fn, void *arg)
 {
     int rc = -1;
-    if (scout_net_available(labels)) {
+    if (scout_net_available(sock, send_labels, recv_labels)) {
 	rc = 0;
     } else {
 	if (fn) {
-	    enqueue_handler(sock, labels, fn, arg);
+	    enqueue_handler(sock, send_labels, recv_labels, fn, arg);
 	    rc = CMM_DEFERRED;
 	} else {
 	    rc = CMM_FAILED;
@@ -1082,82 +1094,14 @@ int
 CMMSocketImpl::prepare(u_long send_label, u_long recv_label)
 {
     CMMSockHash::const_accessor read_ac;
-    CMMSockHash::accessor write_ac;
 
     if (!cmm_sock_hash.find(read_ac, sock)) {
-        // see CMMSocketPassThrough
 	assert(0);
     }
 
     struct csocket *csock = NULL;
-    csock = csocks.csock_with_labels(send_label, recv_label);
-
-    if (!csock) {//TODO: reframe under csock exists
-        /* TODO: if !csock, then create it */
-        /* TODO: csock = new_csock_with_labels(send_label, recv_label); */
-        /* TODO: etc. */
-        /* UNDER CONSTRUCTION */
-
-        read_ac.release();
-        if (!cmm_sock_hash.find(write_ac, sock)) {
-            assert(0);
-        }
-        assert(get_pointer(write_ac->second) == this);
-        assert(csock == sock_color_hash[up_label]);
-	
-	set_all_sockopts(csock->osfd);
-	
-	/* connect new socket with current label */
-	set_socket_labels(csock->osfd, up_label);
-	fprintf(stderr, "About to connect socket, label=%lu\n", up_label);
-        
-        write_ac.release();
-        if (!cmm_sock_hash.find(read_ac, sock)) {
-            assert(0);
-        }
-        assert(get_pointer(read_ac->second) == this);
-        assert(csock == sock_color_hash[up_label]);
-        
-	int rc = connect(csock->osfd, remote_addr, addrlen);
-        read_ac.release();
-        if (!cmm_sock_hash.find(write_ac, sock)) {
-            assert(0);
-        }
-        assert(get_pointer(write_ac->second) == this);
-        assert(csock == sock_color_hash[up_label]);
-        
-	if (rc < 0) {
-	    if(errno==EINPROGRESS || errno==EWOULDBLOCK)
-		//is this what we want for the 'send', 
-		//i.e wait until the sock is conn'ed.
-		errno = EAGAIN;	 
-	    else {
-		perror("connect");
-		close(csock->osfd);
-		fprintf(stderr, "libcmm: error connecting new socket\n");
-		/* we've previously checked, and the label should be
-		 * available... so this failure is something else. */
-		/* XXX: maybe check scout_label_available(up_label) again? 
-		 *      if it is not, return CMM_DEFERRED? */
-		/* XXX: this may be a race; i'm not sure. */
-
-		return CMM_FAILED;
-	    }
-	}
-	
-	csock->cur_label = up_label;
-	csock->connected = 1;
-
-        connected_csocks.insert(csock);
-
-        // to interrupt any select() in progress, adding the new osfd
-        printf("Interrupting any selects() in progress to add osfd %d "
-               "to multi-socket %d\n",
-               csock->osfd, sock);
-        signal_selecting_threads();
-    } /* if (!csock->connected) */
-    
-    return 0;
+    int rc = csocks.new_csock_with_labels(send_label, recv_label, csock);
+    return rc;
 }
 
 void
@@ -1224,31 +1168,60 @@ CMMSocketImpl::teardown(struct net_interface iface)
 
 int CMMSocketImpl::send_control_message(struct CMMSocketControlHdr hdr)
 {
-    /* make sure there's at least one connected csocket */
-    int rc = prepare(0, 0);
-    if (rc < 0) {
-        /* complete connection failure; no physical connections.
-         * This multi-socket is not long for this world. 
-         */
-        return rc;
-    }
-    int osfd;
-
     CMMSockHash::const_accessor read_ac;
     if (!cmm_sock_hash.find(read_ac, sock)) {
 	assert(0);
     }
     assert(get_pointer(read_ac->second) == this);
-    struct csocket *csock = csocks.lookup_by_send_label(0);
+
+    /* make sure there's at least one connected csocket */
+    /* new_csock_with_labels searches, creating if no match exists */
+    struct csocket *csock = csocks.new_csock_with_labels(0, 0);
     if (!csock) {
         return -1;
     }
     assert(csock->osfd > 0);
-    osfd = csock->osfd;
+    int osfd = csock->osfd;
     read_ac.release();
 
     if (send(osfd, &hdr, sizeof(hdr), 0) != sizeof(hdr)) {
         return -1;
     }
     return 0;
+}
+
+/* only called with read accessor held on this */
+bool
+CMMSocketImpl::net_available(u_long send_labels, u_long recv_labels)
+{
+    bool local_found = false;
+    for (NetInterfaceList::const_iterator it = local_ifaces.begin();
+         it != local_ifaces.end(); it++) {
+        if (send_labels == 0 || it->labels & send_labels) {
+            local_found = true;
+            break;
+        }
+    }
+    if (!local_found) {
+        return false;
+    }
+    for (NetInterfaceList::const_iterator it = remote_ifaces.begin();
+         it != remote_ifaces.end(); it++) { 
+        if (recv_labels == 0 || it->labels & recv_labels) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool 
+CMMSocketImpl::net_available(mc_socket_t sock, 
+                             u_long send_labels, u_long recv_labels)
+{
+    CMMSockHash::const_accessor read_ac;
+    if (!cmm_sock_hash.find(read_ac, sock)) {
+        return false;
+    }
+    CMMSocketImplPtr sk = read_ac->second;;
+    return sk->net_available(send_labels, recv_labels);
 }

@@ -23,7 +23,7 @@ struct csocket {
 
     csocket(CMMSocketImpl *msock_, struct net_interface local_iface_,
             struct net_interface remote_iface_);
-    int connect(void);
+    int phys_connect(void);
     ~csocket();
 };
 
@@ -112,6 +112,9 @@ class CMMSocketImpl : public CMMSocket {
                               const void *optval, socklen_t optlen);
     
     virtual ~CMMSocketImpl();
+
+    static bool net_available(mc_socket_t sock, 
+                              u_long send_labels, u_long recv_labels);
     
   private:
     friend class CSockMapping;
@@ -149,11 +152,11 @@ class CMMSocketImpl : public CMMSocket {
     mc_socket_t sock; /* file-descriptor handle for this multi-socket */
     CSockSet connected_csocks;
 
-    CSockMapping csock_labelmap;
+    CSockMapping csocks;
 
     NetInterfaceList local_ifaces;
     int internal_listener_sock; /* listening on INADDR_ANY:random_port */
-    in_port_t internal_listen_port; /* network byte order, from getsockname */
+    in_port_t internal_listener_port; /* network byte order, from getsockname */
 
     /* these are used for connecting csockets */
     NetInterfaceList remote_ifaces;
@@ -181,6 +184,7 @@ class CMMSocketImpl : public CMMSocket {
      * otherwise, pick any connection, creating one if needed. */
     void send_control_message(struct CMMSocketControlHdr hdr,
                               int osfd = -1);
+    bool net_available(u_long send_labels, u_long recv_labels);
 };
 
 class CMMSocketPassThrough : public CMMSocket {
