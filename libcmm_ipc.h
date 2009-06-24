@@ -29,15 +29,6 @@ typedef enum {
     CMM_MSG_IFACE_DOWN /* remove an interface */
 } MsgOpcode;
 
-struct net_interface {
-    struct in_addr ip_addr; /* contents in network byte order as usual */
-    u_long labels; /* host byte order */
-
-    bool operator<(const struct net_interface& other) const {
-        return ip_addr.s_addr < other.ip_addr.s_addr;
-    }
-};
-
 struct cmm_msg {
     MsgOpcode opcode;
     union {

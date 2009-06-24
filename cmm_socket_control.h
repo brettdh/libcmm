@@ -2,12 +2,18 @@
 #define cmm_socket_control_h_incl
 
 enum ControlMsgType {
+    CMM_CONTROL_MSG_HELLO,
     CMM_CONTROL_MSG_BEGIN_IROB,
     CMM_CONTROL_MSG_END_IROB,
     CMM_CONTROL_MSG_IROB_CHUNK,
     CMM_CONTROL_MSG_NEW_INTERFACE,
     CMM_CONTROL_MSG_DOWN_INTERFACE,
     CMM_CONTROL_MSG_ACK
+};
+
+struct hello_data {
+    in_port_t listen_port;
+    int num_ifaces;
 };
 
 struct begin_irob_data {
@@ -29,13 +35,11 @@ struct irob_chunk_data {
 
 struct new_interface_data {
     in_addr_t ip_addr;
-    in_port_t port;
     u_long labels;
 };
 
 struct down_interface_data {
     in_addr_t ip_addr;
-    in_port_t port;
 };
 
 enum ACKType {
@@ -52,6 +56,7 @@ struct ack_data {
 struct CMMSocketControlHdr {
     short type;
     union {
+        struct hello_data hello;
         struct begin_irob_data begin_irob;
         struct end_irob_data end_irob;
         struct irob_chunk_data irob_chunk;

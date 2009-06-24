@@ -12,6 +12,21 @@ struct csocket;
 typedef std::map<u_long, std::map<u_long, struct csocket *> > CSockLabelMap;
 typedef std::set<struct csocket *> CSockSet;
 
+class CMMSocketImpl;
+typedef boost::shared_ptr<CMMSocketImpl> CMMSocketImplPtr;
+
+struct csocket {
+    int osfd;
+    struct net_interface local_iface;
+    struct net_interface remote_iface;
+    CMMSocketImpl *msock;
+
+    csocket(CMMSocketImpl *msock_, struct net_interface local_iface_,
+            struct net_interface remote_iface_);
+    int connect(void);
+    ~csocket();
+};
+
 class CSockMapping {
   public:
     struct csocket * csock_with_send_label(u_long label);
@@ -19,12 +34,13 @@ class CSockMapping {
     struct csocket * csock_with_labels(u_long send_label, u_long recv_label);
     struct csocket * new_csock_with_labels(u_long send_label, u_long recv_label);
     void delete_csock_with_labels(struct csocket *csock);
-
     struct csocket * lookup(int fd);
     
+    CSockMapping(CMMSocketImpl *sk);
   private:
-    CSockLabelMap csocks_by_send_label;
-    CSockLabelMap csocks_by_recv_label;
+    //CSockLabelMap csocks_by_send_label;
+    //CSockLabelMap csocks_by_recv_label;
+    CMMSocketImplPtr sk;  /* XXX: janky.  Remove later. */
 };
 
 struct sockopt {
@@ -40,9 +56,6 @@ typedef std::map<int, struct sockopt> SockOptNames;
 /* < level, < optname, (optval, optlen) > > */
 typedef std::map<int, SockOptNames> SockOptHash;
 
-class CMMSocketImpl;
-typedef boost::shared_ptr<CMMSocketImpl> CMMSocketImplPtr;
-
 #include "tbb/concurrent_hash_map.h"
 typedef tbb::concurrent_hash_map<mc_socket_t, 
                                  CMMSocketImplPtr, 
@@ -54,13 +67,7 @@ typedef tbb::concurrent_hash_map<int,
 
 typedef std::vector<std::pair<mc_socket_t, int> > mcSocketOsfdPairList;
 
-struct ListenerAddr {
-    struct sockaddr_in addr;
-    u_long labels;
-    int listener_sock; /* only for local listeners */
-};
-
-typedef std::vector<struct ListenerAddr> ListenerAddrList;
+typedef std::vector<struct net_interface> NetInterfaceList;
 
 typedef std::map<in_addr_t, struct net_interface> NetInterfaceMap;
 
@@ -107,6 +114,8 @@ class CMMSocketImpl : public CMMSocket {
     virtual ~CMMSocketImpl();
     
   private:
+    friend class CSockMapping;
+
     static CMMSockHash cmm_sock_hash;
     static VanillaListenerSet cmm_listeners;
     static NetInterfaceMap ifaces;
@@ -138,13 +147,18 @@ class CMMSocketImpl : public CMMSocket {
     CMMSocketImpl(int family, int type, int protocol);
 
     mc_socket_t sock; /* file-descriptor handle for this multi-socket */
-    CSockMapping csock_labelmap;
     CSockSet connected_csocks;
 
-    ListenerAddrList local_ifaces;
+    CSockMapping csock_labelmap;
+
+    NetInterfaceList local_ifaces;
+    int internal_listener_sock; /* listening on INADDR_ANY:random_port */
+    in_port_t internal_listen_port; /* network byte order, from getsockname */
 
     /* these are used for connecting csockets */
-    ListenerAddrList remote_ifaces;
+    NetInterfaceList remote_ifaces;
+    in_port_t remote_listener_port; /* network byte order, 
+                                     * recv'd from remote host */
 
     int non_blocking; /* 1 if non blocking, 0 otherwise */
 
@@ -161,6 +175,12 @@ class CMMSocketImpl : public CMMSocket {
                               const mcSocketOsfdPairList &osfd_list);
 
     int get_osfd(u_long label);
+
+    /* send a control message.
+     * if osfd != -1, send it on that socket.
+     * otherwise, pick any connection, creating one if needed. */
+    void send_control_message(struct CMMSocketControlHdr hdr,
+                              int osfd = -1);
 };
 
 class CMMSocketPassThrough : public CMMSocket {
