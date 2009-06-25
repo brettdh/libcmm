@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "libcmm.h"
+#include "libcmm_test.h"
 #include "tbb/atomic.h"
 #include "tbb/concurrent_queue.h"
 using tbb::atomic;
@@ -27,12 +28,10 @@ void thread_sleep(int seconds)
     nanosleep(&timeout, NULL);
 }
 
-#define ARG_LINE_MAX 200
-
 struct th_arg {
-    char line[ARG_LINE_MAX];
+    struct chunk ch;
 
-    th_arg() { line[0] = '\0'; }
+    th_arg() { ch.data[0] = '\0'; }
     struct th_arg *clone() {
 	struct th_arg *new_arg = new struct th_arg;
 	memcpy(new_arg, this, sizeof(struct th_arg));
@@ -41,7 +40,6 @@ struct th_arg {
 };
 
 static const char *HOST = "141.212.110.97";
-static const u_short PORT = 4242;
 
 static atomic<bool> bg_send;
 static atomic<bool> running;
@@ -55,19 +53,30 @@ void resume_bg_sends(struct th_arg* arg)
     bg_send = true;
 }
 
+int get_reply(mc_socket_t sock)
+{
+    struct chunk ch = {""};
+    int rc = cmm_read(sock, &ch, sizeof(ch), NULL);
+    if (rc != sizeof(ch)) {
+        perror("cmm_read");
+        return rc;
+    }
+    ch.data[sizeof(ch)-1] = '\0';
+    fprintf(stderr, "Echo: %*s\n", sizeof(ch) - 1, ch.data);
+}
+
 void *BackgroundPing(struct th_arg * arg)
 {
-    char msg[1000] = "background msg ";
-    char *writeptr = msg + strlen(msg);
+    struct chunk ch = {"background msg "};
+    char *writeptr = ch.data + strlen(ch.data);
     u_short count = 1;
     bg_send = true;
     while (running) {
 	if (bg_send) {
-	    snprintf(writeptr, 500, "%d", count++);
+	    snprintf(writeptr, sizeof(ch) - strlen(ch.data) - 1, "%d", count++);
 
-	    size_t len = strlen(msg);
-	    int rc = cmm_send(shared_sock, msg, len, 0,
-			      CONNMGR_LABEL_BACKGROUND,
+	    int rc = cmm_send(shared_sock, &ch, sizeof(ch), 0,
+			      CONNMGR_LABEL_BACKGROUND, 0,
 			      (resume_handler_t)resume_bg_sends, arg);
 	    if (rc == CMM_DEFERRED) {
 		bg_send = false;
@@ -79,6 +88,10 @@ void *BackgroundPing(struct th_arg * arg)
 		return NULL;
 	    } else {
 		fprintf(stderr, "sent bg message %d\n", count - 1);
+                rc = get_reply(shared_sock);
+                if (rc < 0) {
+                    return NULL;
+                }
 	    }
 	}
 
@@ -89,11 +102,11 @@ void *BackgroundPing(struct th_arg * arg)
 
 void resume_ondemand(struct th_arg *arg)
 {
-    if (strlen(arg->line) > 0) {
+    if (strlen(arg->ch.data) > 0) {
 	fprintf(stderr, "Resumed; sending thunked ondemand message\n");
-	int rc = cmm_send(shared_sock, arg->line, strlen(arg->line), 0,
-		      CONNMGR_LABEL_ONDEMAND, 
-		      (resume_handler_t)resume_ondemand, arg);
+	int rc = cmm_send(shared_sock, arg->ch.data, sizeof(arg->ch), 0,
+                          CONNMGR_LABEL_ONDEMAND, 0, 
+                          (resume_handler_t)resume_ondemand, arg);
 	if (rc < 0) {
 	    if (rc == CMM_DEFERRED) {
 		fprintf(stderr, "Deferred ondemand send re-deferred\n");
@@ -105,6 +118,10 @@ void resume_ondemand(struct th_arg *arg)
 	} else {
 	    fprintf(stderr, "Deferred ondemand send succeeded\n");
 	    delete arg;
+            rc = get_reply(shared_sock);
+            if (rc < 0) {
+                exit(-1);
+            }
 	}
     }
 }
@@ -121,10 +138,9 @@ int srv_connect(u_long label)
     
   conn_retry:
     fprintf(stderr, "Attempting to connect to %s:%d, label %lu\n", 
-	    HOST, PORT, label);
+	    HOST, LISTEN_PORT, label);
     rc = cmm_connect(shared_sock, (struct sockaddr*)&srv_addr,
-		     (socklen_t)sizeof(srv_addr),
-		     label);
+		     (socklen_t)sizeof(srv_addr));
     if (rc < 0) {
 	if (errno == EINTR) {
 	    goto conn_retry;
@@ -151,7 +167,7 @@ int main()
     }
 
     srv_addr.sin_family = AF_INET;
-    srv_addr.sin_port = htons(PORT);
+    srv_addr.sin_port = htons(LISTEN_PORT);
     struct hostent *hp = gethostbyname(HOST);
     if (hp == NULL) {
 	fprintf(stderr, "Failed to lookup hostname %s\n", HOST);
@@ -182,7 +198,7 @@ int main()
     while (running) {
 	struct th_arg *new_args = args.clone();
 
-	if (!fgets(new_args->line, ARG_LINE_MAX, stdin)) {
+	if (!fgets(new_args->ch.data, sizeof(ch) - 1, stdin)) {
 	    if (errno == EINTR) {
 		//fprintf(stderr, "interrupted; trying again\n");
 		continue;
@@ -194,8 +210,8 @@ int main()
 	}
 
 	fprintf(stderr, "Attempting to send message\n");
-	rc = cmm_send(shared_sock, new_args->line, strlen(new_args->line), 0,
-		      CONNMGR_LABEL_ONDEMAND, 
+	rc = cmm_send(shared_sock, new_args->ch.data, sizeof(ch), 0,
+		      CONNMGR_LABEL_ONDEMAND, 0, 
 		      (resume_handler_t)resume_ondemand, new_args);
 	if (rc == CMM_DEFERRED) {
 	    fprintf(stderr, "Deferred\n");
@@ -205,6 +221,10 @@ int main()
 	} else {
 	    delete new_args;
 	    fprintf(stderr, "...message sent.\n");
+            rc = get_reply(shared_sock);
+            if (rc < 0) {
+                break;
+            }
 	}
     }
 

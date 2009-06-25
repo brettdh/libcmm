@@ -1140,24 +1140,22 @@ CMMSocketImpl::teardown(struct net_interface iface)
         }
     }
 
-    if (victims.empty()) {
-        return;
-    }
-
     read_ac.release();
-    CMMSockHash::accessor write_ac;
-    if (!cmm_sock_hash.find(write_ac, sock)) {
-        assert(0);
-    }
-    assert(this == get_pointer(write_ac->second));
 
-    while (!victims.empty()) {
-        struct csocket *victim = victims.back();
-        victims.pop_back();
-        connected_csocks.erase(victim);
-        delete victim; /* closes socket, cleans up */
+    if (!victims.empty()) {
+        CMMSockHash::accessor write_ac;
+        if (!cmm_sock_hash.find(write_ac, sock)) {
+            assert(0);
+        }
+        assert(this == get_pointer(write_ac->second));
+        
+        while (!victims.empty()) {
+            struct csocket *victim = victims.back();
+            victims.pop_back();
+            connected_csocks.erase(victim);
+            delete victim; /* closes socket, cleans up */
+        }
     }
-    write_ac.release();
 
     struct CMMSocketControlHdr hdr;
     hdr.type = htons(CMM_CONTROL_MSG_DOWN_INTERFACE);

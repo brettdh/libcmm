@@ -193,6 +193,7 @@ class CMMSocketImpl : public CMMSocket {
      * otherwise, pick any connection, creating one if needed. */
     void send_control_message(struct CMMSocketControlHdr hdr,
                               int osfd = -1);
+
     bool net_available(u_long send_labels, u_long recv_labels);
 };
 

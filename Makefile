@@ -3,14 +3,17 @@ LIBTBB:=-ltbb_debug
 LDFLAGS:=-L.  $(LIBTBB) -lrt
 
 LIBRARIES:=libcmm.so
-EXECUTABLES:=conn_scout cmm_test cdf_test
+EXECUTABLES:=conn_scout cmm_test_sender cmm_test_receiver cdf_test
 
 all: $(LIBRARIES) $(EXECUTABLES)
 
 cdf_test: cdf_test.o cdf_sampler.o
 	$(CXX) $(CFLAGS) -o $@ $^
 
-cmm_test: libcmm_test.o libcmm.so
+cmm_test_sender: libcmm_test_sender.o libcmm.so
+	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $^
+
+cmm_test_receiver: libcmm_test_receiver.o libcmm.so
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
 conn_scout: libcmm_scout.o cdf_sampler.o
@@ -20,7 +23,8 @@ libcmm.so: libcmm_new.o libcmm_ipc.o cmm_socket.o cmm_socket_impl.o \
 	   cmm_socket_passthrough.o thunks.o cmm_timing.o signals.o
 	$(CXX) $(CFLAGS) $(LDFLAGS) -shared -o $@ $^
 
-libcmm_test.o: libcmm.h
+libcmm_test_sender.o: libcmm.h
+libcmm_test_receiver.o: libcmm.h
 libcmm_scout.o: libcmm.h libcmm_ipc.h cdf_sampler.h
 libcmm.o: libcmm.h libcmm_ipc.h timeops.h cmm_timing.h
 libcmm_new.o: libcmm.h libcmm_ipc.h timeops.h cmm_timing.h
