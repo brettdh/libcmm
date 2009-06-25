@@ -3,11 +3,14 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <signal.h>
+#include <unistd.h>
+#include <netinet/in.h>
+#include "libcmm.h"
 #include "libcmm_test.h"
 
 static bool running;
 
-int handler(int sig)
+void handler(int sig)
 {
     running = false;
 }

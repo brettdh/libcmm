@@ -63,6 +63,7 @@ int get_reply(mc_socket_t sock)
     }
     ch.data[sizeof(ch)-1] = '\0';
     fprintf(stderr, "Echo: %*s\n", sizeof(ch) - 1, ch.data);
+    return rc;
 }
 
 void *BackgroundPing(struct th_arg * arg)
@@ -198,7 +199,7 @@ int main()
     while (running) {
 	struct th_arg *new_args = args.clone();
 
-	if (!fgets(new_args->ch.data, sizeof(ch) - 1, stdin)) {
+	if (!fgets(new_args->ch.data, sizeof(new_args->ch) - 1, stdin)) {
 	    if (errno == EINTR) {
 		//fprintf(stderr, "interrupted; trying again\n");
 		continue;
@@ -210,7 +211,7 @@ int main()
 	}
 
 	fprintf(stderr, "Attempting to send message\n");
-	rc = cmm_send(shared_sock, new_args->ch.data, sizeof(ch), 0,
+	rc = cmm_send(shared_sock, new_args->ch.data, sizeof(new_args->ch), 0,
 		      CONNMGR_LABEL_ONDEMAND, 0, 
 		      (resume_handler_t)resume_ondemand, new_args);
 	if (rc == CMM_DEFERRED) {
