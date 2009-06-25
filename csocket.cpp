@@ -88,10 +88,11 @@ CSockMapping::find_csock(const LabelMatch& pred)
     }    
 }
 
+/*
 struct csocket *
 CSockMapping::any_csock(void)
 {
-    /* just grab the first connected socket that exists */
+    // just grab the first connected socket that exists
     if (connected_csocks.empty()) {
         return NULL;
     } else {
@@ -99,6 +100,7 @@ CSockMapping::any_csock(void)
         return csock;
     }
 }
+*/
 
 CSockMapping::CSockMapping(CMMSocketImpl *sk_)
     : sk(sk_)
@@ -185,7 +187,7 @@ CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label,
         if (errno==EINPROGRESS || errno==EWOULDBLOCK) {
             //is this what we want for the 'send', 
             //i.e wait until the sock is conn'ed.
-            errno = EAGAIN;	 
+            errno = EAGAIN;
         } else {
             perror("connect");
             delete csock;
