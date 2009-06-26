@@ -113,7 +113,7 @@ class CMMSocketImpl : public CMMSocket {
      *        -1 if there were no connected osfds. */
     virtual int get_real_fds(mcSocketOsfdPairList &osfd_list);
 
-    struct csocket * get_readable_csock(CMMSockHash::const_accessor& ac);
+    CSocket * get_readable_csock(CMMSockHash::const_accessor& ac);
 
     CMMSocketImpl(int family, int type, int protocol);
 

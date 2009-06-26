@@ -281,7 +281,7 @@ CMMSocketImpl::~CMMSocketImpl()
 {
     for (CSockList::iterator it = connected_csocks.begin();
 	 it != connected_csocks.end(); it++) {
-	struct csocket *victim = *it;
+	CSocket *victim = *it;
 	delete victim;
     }
     
@@ -579,7 +579,7 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 }
 
 int CMMSocketImpl::block_until_available(u_long send_labels, u_long recv_labels,
-                                         struct csocket *& csock)
+                                         CSocket *& csock)
 {
     /* TODO: implement */
     return CMM_FAILED;
@@ -588,7 +588,7 @@ int CMMSocketImpl::block_until_available(u_long send_labels, u_long recv_labels,
 int 
 CMMSocketImpl::preapprove(u_long send_labels, u_long recv_labels,
 			  resume_handler_t resume_handler, void *arg,
-                          struct csocket *& csock)
+                          CSocket *& csock)
 {
     int rc = 0;
  
@@ -628,7 +628,7 @@ CMMSocketImpl::get_osfd(u_long label)
         assert(0);
     }
     if (sock_color_hash.find(label) != sock_color_hash.end()) {
-        struct csocket *csock = sock_color_hash[label];
+        CSocket *csock = sock_color_hash[label];
         assert(csock);
         return csock->osfd;
     } else {
@@ -649,7 +649,7 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
     /* TODO-IMPL: move/reference this code as necessary */
     labels = set_superior_label(sock, labels);	
 #endif
-    struct csocket *csock = NULL;
+    CSocket *csock = NULL;
     rc = preapprove(labels, resume_handler, arg, csock);
     if (rc < 0) {
         return rc;
@@ -670,7 +670,7 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
     /* TODO-IMPL: move/reference this code as necessary */
     labels = set_superior_label(sock, labels);	
 #endif
-    struct csocket *csock = NULL;
+    CSocket *csock = NULL;
     rc = preapprove(labels, resume_handler, arg, csock);
     if (rc < 0) {
 	return rc;
@@ -688,7 +688,7 @@ CMMSocketImpl::mc_shutdown(int how)
     if (cmm_sock_hash.find(ac, sock)) {
 	for (CSockList::iterator it = connected_csocks.begin();
 	     it != connected_csocks.end(); it++) {
-	    struct csocket *csock = *it;
+	    CSocket *csock = *it;
 	    assert(csock);
 	    assert(csock->osfd > 0);
             rc = shutdown(csock->osfd, how);
@@ -786,7 +786,7 @@ void set_socket_labels(int osfd, u_long labels)
 }
 
 /* MUST call with ac held */
-struct csocket *
+CSocket *
 CMMSocketImpl::get_readable_csock(CMMSockHash::const_accessor& ac)
 {
     fd_set readfds;
@@ -828,7 +828,7 @@ CMMSocketImpl::get_readable_csock(CMMSockHash::const_accessor& ac)
 
     for (CSockSet::iterator it = connected_csocks.begin();
          it != connected_csocks.end(); it++) {
-        struct csocket *csock = *it;
+        CSocket *csock = *it;
         assert(csock);
 
         /* XXX: this returns the first of potentially many ready sockets.
@@ -901,7 +901,7 @@ CMMSocketImpl::mc_read(void *buf, size_t count)
     }
 
     int osfd = -1;
-    struct csocket *csock = get_readable_csock(ac);
+    CSocket *csock = get_readable_csock(ac);
     if (!csock) {
 	//errno = ENOTCONN;
 	return -1;
@@ -937,7 +937,7 @@ CMMSocketImpl::mc_getsockopt(int level, int optname,
     }
 
     /* socket options are set on all sockets, so just pick one */
-    struct csocket *csock = *(connected_csocks.begin());
+    CSocket *csock = *(connected_csocks.begin());
     assert(csock);
     return getsockopt(csock->osfd, level, optname, optval, optlen);
 }
@@ -955,7 +955,7 @@ CMMSocketImpl::mc_setsockopt(int level, int optname,
 
     for (CSockList::iterator it = connected_csocks.begin(); 
          it != connected_csocks.end(); it++) {
-	struct csocket *csock = *it;
+	CSocket *csock = *it;
 	assert(csock);
 	assert(csock->osfd != -1);
 
@@ -1012,7 +1012,7 @@ CMMSocketImpl::reset()
     
     for (CSockSet::iterator it = connected_csocks.begin();
          it != connected_csocks.end(); it++) {
-        struct csocket *csock = *it;
+        CSocket *csock = *it;
         assert(csock);
         
         shutdown(csock->osfd, SHUT_RDWR);
@@ -1029,7 +1029,7 @@ CMMSocketImpl::reset()
 int
 CMMSocketImpl::non_blocking_connect(u_long initial_labels)
 {
-    struct csocket *csock = NULL;
+    CSocket *csock = NULL;
     if (initial_labels) {
         csock = sock_color_hash[initial_labels];
     } 
@@ -1054,7 +1054,7 @@ CMMSocketImpl::get_real_fds(mcSocketOsfdPairList &osfd_list)
 
     for (CSockSet::iterator it = connected_csocks.begin();
          it != connected_csocks.end(); it++) {
-        struct csocket *csock = *it;
+        CSocket *csock = *it;
         assert(csock && csock->connected);
 
         int osfd = csock->osfd;
@@ -1085,7 +1085,7 @@ CMMSocketImpl::mc_getpeername(struct sockaddr *address,
         return -1;
     } 
 
-    struct csocket *csock = *(connected_csocks.begin());
+    CSocket *csock = *(connected_csocks.begin());
     assert (csock && csock->connected);
 
     return getpeername(csock->osfd, address, address_len);
@@ -1100,7 +1100,7 @@ CMMSocketImpl::prepare(u_long send_label, u_long recv_label)
 	assert(0);
     }
 
-    struct csocket *csock = NULL;
+    CSocket *csock = NULL;
     int rc = csocks.new_csock_with_labels(send_label, recv_label, csock);
     return rc;
 }
@@ -1131,10 +1131,10 @@ CMMSocketImpl::teardown(struct net_interface iface)
     }
     assert(get_pointer(read_ac->second) == this);
     
-    vector<struct csocket *> victims;
+    vector<CSocket *> victims;
     for (CSockSet::iterator it = connected_csocks.begin();
          it != connected_csocks.end(); it++) {
-        struct csocket *csock = *it;
+        CSocket *csock = *it;
         assert(csock);
         if (csock->iface.ip_addr.s_addr == iface.ip_addr.s_addr) {
             victims.push_back(csock);
@@ -1151,7 +1151,7 @@ CMMSocketImpl::teardown(struct net_interface iface)
         assert(this == get_pointer(write_ac->second));
         
         while (!victims.empty()) {
-            struct csocket *victim = victims.back();
+            CSocket *victim = victims.back();
             victims.pop_back();
             connected_csocks.erase(victim);
             delete victim; /* closes socket, cleans up */
@@ -1175,7 +1175,7 @@ int CMMSocketImpl::send_control_message(struct CMMSocketControlHdr hdr)
 
     /* make sure there's at least one connected csocket */
     /* new_csock_with_labels searches, creating if no match exists */
-    struct csocket *csock = csocks.new_csock_with_labels(0, 0);
+    CSocket *csock = csocks.new_csock_with_labels(0, 0);
     if (!csock) {
         return -1;
     }

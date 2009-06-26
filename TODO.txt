@@ -8,6 +8,7 @@
 * Implement opaque send failure
    (i.e. if a send fails, automatically retry, thunking/blocking
     as appropriate)
+
 * Switch over from signal-based IPC to pure message passing
    (This involves a dedicated IPC thread in the lib.
     The thread will be responsible for waking up blocking
