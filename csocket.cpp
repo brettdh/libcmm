@@ -1,4 +1,5 @@
 #include "cmm_socket.private.h"
+#include "csocket.h"
 
 csocket::csocket(CMMSocketImpl *msock_, struct net_interface iface_, 
                  struct net_interface remote_iface_)

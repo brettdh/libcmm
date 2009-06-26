@@ -1,5 +1,6 @@
 #include "cmm_socket.h"
 #include "cmm_socket.private.h"
+#include "csocket.h"
 #include "libcmm.h"
 #include "libcmm_ipc.h"
 #include <connmgr_labels.h>

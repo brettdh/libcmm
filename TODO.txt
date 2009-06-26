@@ -4,6 +4,7 @@
   * IROB traffic decoration at sender
   * IROB header stripping, buffering, etc. at receiver
 * Implement send ops as anonymous IROBs
+
 * Implement opaque send failure
    (i.e. if a send fails, automatically retry, thunking/blocking
     as appropriate)
@@ -12,6 +13,7 @@
     The thread will be responsible for waking up blocking
     operations as networks come up and for spawning/managing
     worker threads that execute thunks.)
+
 * Implement multi-threaded receiver subsystem
   * One thread per csocket
   * One scheduler thread per multi-socket
