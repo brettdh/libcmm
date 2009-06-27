@@ -112,7 +112,7 @@ bool CSocket::dispatch(struct CMMSocketControlHdr hdr)
 
 bool CSocket::pass_header(struct CMMSocketControlHdr hdr)
 {
-    msg_queue.push(hdr);
+    sk->recvr.enqueue(hdr);
     return true;
 }
 
@@ -120,7 +120,7 @@ bool CSocket::pass_header_and_data(struct CMMSocketControlHdr hdr)
 {
     int datalen = -1;
     if (hdr.type == CMM_CONTROL_MSG_BEGIN_IROB) {
-        datalen = ntohl(hdr.op.begin_irob.numdeps) * sizeof(long);
+        datalen = ntohl(hdr.op.begin_irob.numdeps) * sizeof(irob_id_t);
     } else if (hdr.type == CMM_CONTROL_MSG_IROB_CHUNK) {
         datalen = ntohl(hdr.op.irob_chunk.datalen);
     } else {
@@ -147,8 +147,13 @@ bool CSocket::pass_header_and_data(struct CMMSocketControlHdr hdr)
         return false;
     }
 
-    msg_queue.push(hdr);
-    msg_queue.push(buf);
+    if (hdr.type == CMM_CONTROL_MSG_BEGIN_IROB) {
+        hdr.op.begin_irob.deps = (irob_id_t*)buf;
+    } else if (hdr.type == CMM_CONTROL_MSG_IROB_CHUNK) {
+        hdr.op.irob_chunk.data = buf;
+    } else assert(0);
+
+    sk->recvr.enqueue(hdr);
     
     return true;
 }

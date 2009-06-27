@@ -7,7 +7,8 @@
 
 class PendingIROB {
   public:
-    PendingIROB(
+    PendingIROB(irob_id_t id);
+
     bool is_complete(void);
     bool is_released(void);
   private:

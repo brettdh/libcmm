@@ -19,7 +19,9 @@ struct hello_data {
 struct begin_irob_data {
     irob_id_t id;
     int numdeps;
-    /* dep array follows header */
+    irob_id_t *deps; /* NULL in network messages
+                      * Allocated and used at receiver */
+    /* dep array follows header in network msg */
 };
 
 struct end_irob_data {
@@ -30,6 +32,8 @@ struct irob_chunk_data {
     irob_id_t id;
     u_long seqno;
     int datalen;
+    char *data; /* NULL in network messages
+                 * Allocaetd and used at receiver */
     /* followed by datalen bytes of application data */
 };
 
@@ -65,10 +69,5 @@ struct CMMSocketControlHdr {
         struct ack_data ack;
     } op;
 };
-
-typedef union {
-    struct CMMSocketControlHdr hdr;
-    char * data;
-} CMMSocketMessage;
 
 #endif

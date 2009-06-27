@@ -1,8 +1,6 @@
 #ifndef csocket_h_incl
 #define csocket_h_incl
 
-typedef tbb:concurrent_queue<CMMSocketMessage> MsgQueue;
-
 class CSocket {
     int osfd;
     struct net_interface local_iface;
@@ -18,7 +16,6 @@ class CSocket {
     void RunReceiver();
   private:
     pthread_t listener;
-    MsgQueue msg_queue;
 
     typedef bool (CSocket::*dispatch_fn_t)(struct CMMSocketControlHdr);
     static std::map<short, CSocket::dispatch_fn_t> dispatcher;
