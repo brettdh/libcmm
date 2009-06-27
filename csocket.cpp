@@ -1,5 +1,8 @@
 #include "cmm_socket.private.h"
 #include "csocket.h"
+#include "debug.h"
+
+static void * CSocketReceiver(void *arg);
 
 CSocket::CSocket(CMMSocketImpl *msock_, struct net_interface iface_, 
                  struct net_interface remote_iface_)
@@ -13,12 +16,18 @@ CSocket::CSocket(CMMSocketImpl *msock_, struct net_interface iface_,
     }
 
     if (dispatcher.size() == 0) {
-        dispatcher[CMM_CONTROL_MSG_BEGIN_IROB] = &CSocket::do_begin_irob;
-        dispatcher[CMM_CONTROL_MSG_END_IROB] = &CSocket::do_end_irob;
-        dispatcher[CMM_CONTROL_MSG_IROB_CHUNK] = &CSocket::do_irob_chunk;
-        dispatcher[CMM_CONTROL_MSG_NEW_INTERFACE] = &CSocket::do_new_interface;
-        dispatcher[CMM_CONTROL_MSG_DOWN_INTERFACE] = &CSocket::do_down_interface;
-        dispatcher[CMM_CONTROL_MSG_ACK] = &CSocket::do_ack;
+        dispatcher[CMM_CONTROL_MSG_BEGIN_IROB] = &CSocket::pass_header_and_data;
+        dispatcher[CMM_CONTROL_MSG_END_IROB] = &CSocket::pass_header;
+        dispatcher[CMM_CONTROL_MSG_IROB_CHUNK] = &CSocket::pass_header_and_data;
+        dispatcher[CMM_CONTROL_MSG_NEW_INTERFACE] = &CSocket::pass_header;
+        dispatcher[CMM_CONTROL_MSG_DOWN_INTERFACE] = &CSocket::pass_header;
+        dispatcher[CMM_CONTROL_MSG_ACK] = &CSocket::pass_header;
+    }
+
+    int rc = pthread_create(&listener, NULL, CSocketReceiver, this);
+    if (rc != 0) {
+        close(osfd);
+        throw rc;
     }
 }
 
@@ -101,40 +110,69 @@ bool CSocket::dispatch(struct CMMSocketControlHdr hdr)
  * Yeah, maybe this should all be in the scheduler thread, and
  * the receiver threads can just be dumb(er) producers. */
 
-bool CSocket::do_begin_irob(struct CMMSocketControlHdr hdr)
+bool CSocket::pass_header(struct CMMSocketControlHdr hdr)
 {
+    msg_queue.push(hdr);
+    return true;
 }
 
-bool CSocket::do_end_irob(struct CMMSocketControlHdr hdr)
+bool CSocket::pass_header_and_data(struct CMMSocketControlHdr hdr)
 {
-}
+    int datalen = -1;
+    if (hdr.type == CMM_CONTROL_MSG_BEGIN_IROB) {
+        datalen = ntohl(hdr.op.begin_irob.numdeps) * sizeof(long);
+    } else if (hdr.type == CMM_CONTROL_MSG_IROB_CHUNK) {
+        datalen = ntohl(hdr.op.irob_chunk.datalen);
+    } else {
+        dbgprintf("Unexpected control message type %d\n", hdr.type);
+        return false;
+    }
 
-bool CSocket::do_irob_chunk(struct CMMSocketControlHdr hdr)
-{
-}
+    if (datalen <= 0) {
+        dbgprintf("Expected data with header, got none\n");
+        return false;
+    }
+    
+    char *buf = malloc(datalen);
+    assert(buf);
 
-bool CSocket::do_new_interface(struct CMMSocketControlHdr hdr)
-{
-}
+    int rc = recv(osfd, buf, datalen, 0);
+    if (rc != datalen) {
+        if (rc < 0) {
+            dbgprintf("Error %d on socket %d\n", errno, osfd);
+        } else {
+            dbgprintf("Expected %d bytes after header, received %d\n", 
+                      datalen, rc);
+        }
+        return false;
+    }
 
-bool CSocket::do_down_interface(struct CMMSocketControlHdr hdr)
-{
-}
-
-bool CSocket::do_ack(struct CMMSocketControlHdr hdr)
-{
+    msg_queue.push(hdr);
+    msg_queue.push(buf);
+    
+    return true;
 }
 
 bool CSocket::unrecognized_control_msg(struct CMMSocketControlHdr hdr)
 {
+    dbgprintf("Unrecognized control message type %d\n", hdr.type);
     return false;
+}
+
+static void
+CSocketReceiver_cleanup(void *arg)
+{
+    CSocket *csock = (CSocket *)arg;
+    delete csock;
 }
 
 static void *
 CSocketReceiver(void *arg)
 {
+    pthread_cleanup_push(CSocketReceiver_cleanup, arg);
     CSocket *csock = (CSocket *)arg;
     csock->RunReceiver();
+    pthread_cleanup_pop(1);
     return NULL;
 }
 

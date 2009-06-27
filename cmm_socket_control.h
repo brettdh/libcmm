@@ -29,7 +29,7 @@ struct end_irob_data {
 struct irob_chunk_data {
     irob_id_t id;
     u_long seqno;
-    size_t datalen;
+    int datalen;
     /* followed by datalen bytes of application data */
 };
 
@@ -65,5 +65,10 @@ struct CMMSocketControlHdr {
         struct ack_data ack;
     } op;
 };
+
+typedef union {
+    struct CMMSocketControlHdr hdr;
+    char * data;
+} CMMSocketMessage;
 
 #endif

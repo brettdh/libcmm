@@ -1,6 +1,8 @@
 #ifndef csocket_h_incl
 #define csocket_h_incl
 
+typedef tbb:concurrent_queue<CMMSocketMessage> MsgQueue;
+
 class CSocket {
     int osfd;
     struct net_interface local_iface;
@@ -16,18 +18,15 @@ class CSocket {
     void RunReceiver();
   private:
     pthread_t listener;
+    MsgQueue msg_queue;
 
     typedef bool (CSocket::*dispatch_fn_t)(struct CMMSocketControlHdr);
     static std::map<short, CSocket::dispatch_fn_t> dispatcher;
 
     bool dispatch(struct CMMSocketControlHdr);
 
-    bool do_begin_irob(struct CMMSocketControlHdr);
-    bool do_end_irob(struct CMMSocketControlHdr);
-    bool do_irob_chunk(struct CMMSocketControlHdr);
-    bool do_new_interface(struct CMMSocketControlHdr);
-    bool do_down_interface(struct CMMSocketControlHdr);
-    bool do_ack(struct CMMSocketControlHdr);
+    bool pass_header(struct CMMSocketControlHdr);
+    bool pass_header_and_data(struct CMMSocketControlHdr);
     bool unrecognized_control_msg(struct CMMSocketControlHdr);
 };
 
