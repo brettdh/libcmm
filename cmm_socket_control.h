@@ -2,7 +2,6 @@
 #define cmm_socket_control_h_incl
 
 enum ControlMsgType {
-    CMM_CONTROL_MSG_HELLO,
     CMM_CONTROL_MSG_BEGIN_IROB,
     CMM_CONTROL_MSG_END_IROB,
     CMM_CONTROL_MSG_IROB_CHUNK,
@@ -11,13 +10,10 @@ enum ControlMsgType {
     CMM_CONTROL_MSG_ACK
 };
 
-struct hello_data {
-    in_port_t listen_port;
-    int num_ifaces;
-};
-
 struct begin_irob_data {
     irob_id_t id;
+    u_long send_labels;
+    u_long recv_labels;
     int numdeps;
     irob_id_t *deps; /* NULL in network messages
                       * Allocated and used at receiver */
@@ -38,12 +34,12 @@ struct irob_chunk_data {
 };
 
 struct new_interface_data {
-    in_addr_t ip_addr;
+    struct in_addr ip_addr;
     u_long labels;
 };
 
 struct down_interface_data {
-    in_addr_t ip_addr;
+    struct in_addr ip_addr;
 };
 
 enum ACKType {
@@ -60,7 +56,6 @@ struct ack_data {
 struct CMMSocketControlHdr {
     short type;
     union {
-        struct hello_data hello;
         struct begin_irob_data begin_irob;
         struct end_irob_data end_irob;
         struct irob_chunk_data irob_chunk;
@@ -68,6 +63,20 @@ struct CMMSocketControlHdr {
         struct down_interface_data down_interface;
         struct ack_data ack;
     } op;
+
+    std::string describe() const;
+};
+
+#include <stdexcept>
+
+/* These shouldn't ever be thrown in normal operation, when there's 
+ * a multi-socket on each end and the two are working in harmony. 
+ * When something is amiss, though, this should help to discover
+ * the problem. */
+class CMMControlException : public std::runtime_error {
+  public:
+    CMMControlException(const std::string&, struct CMMSocketControlHdr);
+    struct CMMSocketControlHdr hdr;
 };
 
 #endif
