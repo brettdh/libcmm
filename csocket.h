@@ -3,12 +3,15 @@
 
 class CSocket {
     int osfd;
+    CMMSocketReceiver *recvr;
     struct net_interface local_iface;
     struct net_interface remote_iface;
-    CMMSocketImpl *msock;
+    in_port_t remote_listener_port;
 
-    CSocket(CMMSocketImpl *msock_, struct net_interface local_iface_,
-            struct net_interface remote_iface_);
+    CSocket(CMMSocketImpl *msock_, 
+            struct net_interface local_iface_,
+            struct net_interface remote_iface_,
+            in_port_t remote_listener_port_);
     ~CSocket();
 
     int phys_connect(void);
@@ -46,7 +49,7 @@ class CSockMapping {
   private:
     //CSockLabelMap csocks_by_send_label;
     //CSockLabelMap csocks_by_recv_label;
-    CMMSocketImplPtr sk;  /* XXX: janky.  Remove later. */
+    CMMSocketImplPtr sk;  /* XXX: janky.  Remove later? */
 
     bool get_local_iface(u_long label, struct net_interface& iface);
     bool get_remote_iface(u_long label, struct net_interface& iface);

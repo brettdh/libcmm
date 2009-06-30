@@ -11,6 +11,8 @@ PendingIROB::PendingIROB(struct begin_irob_data begin_irob,
 {
     if (begin_irob.numdeps > 0) {
         assert(begin_irob.deps);
+    } else if (begin_irob.numdeps == -1) {
+        anonymous = true;
     }
     for (int i = 0; i < begin_irob.numdeps; i++) {
         deps.insert(begin_irob.deps[i]);

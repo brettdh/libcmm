@@ -34,12 +34,12 @@ void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
     if (hdr.type != CMM_CONTROL_MSG_NEW_INTERFACE) {
         throw -1;
     }
-    struct ListenerAddr new_listener;
-    memset(&new_listener.addr, 0, sizeof(new_listener.addr));
-    new_listener.addr.sin_addr.s_addr = hdr.op.new_interface.ip_addr;
+    struct net_interface new_listener;
+    memset(&new_listener.ip_addr, 0, sizeof(new_listener.addr));
+    new_listener.ip_addr.s_addr = hdr.op.new_interface.ip_addr;
     new_listener.addr.sin_port = hdr.op.new_interface.port;
     new_listener.labels = hdr.op.new_interface.labels;
-    remote_ifaces.push_back(new_listener);
+    remote_ifaces[new_listener.ip_addr.s_addr] = new_listener;
 }
 
 void CMMSocketImpl::recv_remote_listeners(int bootstrap_sock)
@@ -61,7 +61,7 @@ void CMMSocketImpl::send_local_listener(int bootstrap_sock,
 {
     struct CMMSocketControlHdr hdr;
     hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
-    hdr.op.new_interface.ip_addr = addr.sin_addr.s_addr;
+    hdr.op.new_interface.ip_addr = addr.sin_addr;
     hdr.op.new_interface.port = addr.sin_port;
     hdr.op.new_interface.labels = htonl(hdr.op.new_interface.labels);
     int rc = send(bootstrap_sock, &hdr, sizeof(hdr), 0);
@@ -80,7 +80,7 @@ void CMMSocketImpl::send_local_listeners(int bootstrap_sock)
 
     for (ListenerAddrList::iterator it = local_ifaces.begin();
          it != local_ifaces.end(); it++) {
-        send_local_listener(bootstrap_sock, it->addr);
+        send_local_listener(bootstrap_sock, it->second.addr);
     }
 }
 
@@ -131,7 +131,7 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
             listener_addr.ip_addr = it->second.ip_addr;
             listener_addr.labels = it->labels;
 
-            local_ifaces.push_back(listener_addr);
+            local_ifaces[listener_addr.ip_addr.s_addr] = listener_addr;
         }
         
         if (bootstrap_sock != -1) {
@@ -1106,24 +1106,28 @@ CMMSocketImpl::prepare(u_long send_label, u_long recv_label)
 }
 
 void
-CMMSocketImpl::setup(struct net_interface iface)
+CMMSocketImpl::setup(struct net_interface iface, bool local)
 {
     CMMSockHash::const_accessor read_ac;
     if (!cmm_sock_hash.find(read_ac, sock)) {
-	assert(0);
+        assert(0);
     }
     assert(get_pointer(read_ac->second) == this);
-
-    struct CMMSocketControlHdr hdr;
-    hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
-    hdr.op.new_interface_data.ip_addr = iface.ip_addr;
-    hdr.op.new_interface_data.labels = iface.labels;
     
-    send_control_message(hdr);
+    if (local) {
+        struct CMMSocketControlHdr hdr;
+        hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
+        hdr.op.new_interface_data.ip_addr = iface.ip_addr;
+        hdr.op.new_interface_data.labels = iface.labels;
+        
+        send_control_message(hdr);
+    } else {
+        
+    }
 }
 
 void
-CMMSocketImpl::teardown(struct net_interface iface)
+CMMSocketImpl::teardown(struct net_interface iface, bool local)
 {
     CMMSockHash::const_accessor read_ac;
     if (!cmm_sock_hash.find(read_ac, sock)) {
@@ -1136,7 +1140,14 @@ CMMSocketImpl::teardown(struct net_interface iface)
          it != connected_csocks.end(); it++) {
         CSocket *csock = *it;
         assert(csock);
-        if (csock->iface.ip_addr.s_addr == iface.ip_addr.s_addr) {
+
+        struct net_interface *candidate = NULL;
+        if (local) {
+            candidate = &csock->local_iface;
+        } else {
+            candidate = &csock->remote_iface;
+        }
+        if (candidate->ip_addr.s_addr == iface.ip_addr.s_addr) {
             victims.push_back(csock);
         }
     }
@@ -1158,11 +1169,15 @@ CMMSocketImpl::teardown(struct net_interface iface)
         }
     }
 
-    struct CMMSocketControlHdr hdr;
-    hdr.type = htons(CMM_CONTROL_MSG_DOWN_INTERFACE);
-    hdr.op.down_interface_data.ip_addr = iface.ip_addr;
     
-    send_control_message(hdr);
+
+    if (local) {
+        struct CMMSocketControlHdr hdr;
+        hdr.type = htons(CMM_CONTROL_MSG_DOWN_INTERFACE);
+        hdr.op.down_interface_data.ip_addr = iface.ip_addr;
+        
+        send_control_message(hdr);
+    }
 }
 
 int CMMSocketImpl::send_control_message(struct CMMSocketControlHdr hdr)
@@ -1196,7 +1211,7 @@ CMMSocketImpl::net_available(u_long send_labels, u_long recv_labels)
     bool local_found = false;
     for (NetInterfaceList::const_iterator it = local_ifaces.begin();
          it != local_ifaces.end(); it++) {
-        if (send_labels == 0 || it->labels & send_labels) {
+        if (send_labels == 0 || it->second.labels & send_labels) {
             local_found = true;
             break;
         }
@@ -1206,7 +1221,7 @@ CMMSocketImpl::net_available(u_long send_labels, u_long recv_labels)
     }
     for (NetInterfaceList::const_iterator it = remote_ifaces.begin();
          it != remote_ifaces.end(); it++) { 
-        if (recv_labels == 0 || it->labels & recv_labels) {
+        if (recv_labels == 0 || it->second.labels & recv_labels) {
             return true;
         }
     }

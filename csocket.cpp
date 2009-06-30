@@ -4,9 +4,12 @@
 
 static void * CSocketReceiver(void *arg);
 
-CSocket::CSocket(CMMSocketImpl *msock_, struct net_interface iface_, 
-                 struct net_interface remote_iface_)
-    : msock(msock_), local_iface(local_iface_), remote_iface(remote_iface_)
+CSocket::CSocket(CMMSocketReceiver *recvr_, 
+                 struct net_interface local_iface_, 
+                 struct net_interface remote_iface_,
+                 in_port_t remote_listener_port_)
+    : recvr(recvr_), local_iface(local_iface_), remote_iface(remote_iface_),
+      remote_listener_port(remote_listener_port_)
 {
     assert(msock);
     osfd = socket(msock->sock_family, msock->sock_type, msock->sock_protocol);
@@ -50,7 +53,7 @@ CSocket::phys_connect(void)
 
     remote_addr.sin_family = AF_INET;
     remote_addr.sin_addr = remote_iface.ip_addr;
-    remote_addr.sin_port = sk->remote_listener_port;
+    remote_addr.sin_port = remote_listener_port;
 
     int rc = bind(osfd, (struct sockaddr *)&local_addr, sizeof(local_addr));
     if (rc < 0) {
@@ -98,21 +101,9 @@ bool CSocket::dispatch(struct CMMSocketControlHdr hdr)
     }
 }
 
-/* Second thoughts: which (if not all) of these belong in
- * the scheduler thread? It seems like the individual
- * receiver threads just pass received data to the 
- * scheduler's buffer.
- *
- * On the other hand, maybe these threads should be responsible
- * for ACKing.  But maybe not, since the ACK might be sent on another
- * channel if this one fails. 
- *
- * Yeah, maybe this should all be in the scheduler thread, and
- * the receiver threads can just be dumb(er) producers. */
-
 bool CSocket::pass_header(struct CMMSocketControlHdr hdr)
 {
-    sk->recvr.enqueue(hdr);
+    recvr->enqueue(hdr);
     return true;
 }
 
@@ -153,7 +144,7 @@ bool CSocket::pass_header_and_data(struct CMMSocketControlHdr hdr)
         hdr.op.irob_chunk.data = buf;
     } else assert(0);
 
-    sk->recvr.enqueue(hdr);
+    recvr->enqueue(hdr);
     
     return true;
 }
@@ -321,7 +312,8 @@ CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label,
         return CMM_DEFERRED;
     }
 
-    csock = new CSocket(sk, local_iface, remote_iface);
+    csock = new CSocket(sk->recvr, local_iface, remote_iface, 
+                        sk->remote_listener_port);
     sk->set_all_sockopts(csock->osfd);
     int rc = csock->phys_connect();
     if (rc < 0) {
