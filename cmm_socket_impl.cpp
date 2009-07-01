@@ -160,6 +160,8 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
                 throw;
             }
             close(bootstrap_sock);
+
+            /* TODO: start listener thread for this multi-socket */
         }
     } catch (int error_rc) {
         close(internal_listener_sock);

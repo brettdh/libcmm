@@ -2,20 +2,21 @@
 
 PendingIROB::PendingIROB(struct begin_irob_data begin_irob,
                          CMMSocketReceiver *recvr_)
-    : id(begin_irob.id), 
+    : id(ntohl(begin_irob.id)), 
       send_labels(begin_irob.send_labels), 
       recv_labels(begin_irob.recv_labels),
       recvr(recvr_),
       anonymous(begin_irob.numdeps == -1),
       complete(false)
 {
-    if (begin_irob.numdeps > 0) {
+    int numdeps = ntohl(begin_irob.numdeps);
+    if (numdeps > 0) {
         assert(begin_irob.deps);
-    } else if (begin_irob.numdeps == -1) {
+    } else if (numdeps == -1) {
         anonymous = true;
     }
-    for (int i = 0; i < begin_irob.numdeps; i++) {
-        deps.insert(begin_irob.deps[i]);
+    for (int i = 0; i < numdeps; i++) {
+        deps.insert(ntohl(begin_irob.deps[i]));
     }
 
     recvr->correct_deps(this);

@@ -1,7 +1,7 @@
 #include "cmm_socket_sender.h"
 
 CMMSocketSender::CMMSocketSender(CMMSocketImpl *sk_)
-    : CMMSocketScheduler(sk_)
+    : sk(sk_)
 {
     handle(CMM_CONTROL_MSG_BEGIN_IROB, &CMMSocketSender::do_begin_irob);
     handle(CMM_CONTROL_MSG_END_IROB, &CMMSocketSender::do_end_irob);

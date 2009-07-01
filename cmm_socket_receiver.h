@@ -20,7 +20,8 @@ class CMMSocketReceiver : public CMMSocketScheduler {
   protected:
     virtual void Run();
   private:
-
+    CMMSocketImplPtr sk;
+    PendingIROBHash pending_irobs;
     IntSet committed_irobs;
 
     void do_begin_irob(struct CMMSocketControlHdr hdr);

@@ -4,34 +4,231 @@
 
 static void * CSocketReceiver(void *arg);
 
-CSocket::CSocket(CMMSocketReceiver *recvr_, 
-                 struct net_interface local_iface_, 
-                 struct net_interface remote_iface_,
-                 in_port_t remote_listener_port_)
-    : recvr(recvr_), local_iface(local_iface_), remote_iface(remote_iface_),
-      remote_listener_port(remote_listener_port_)
+class CSocketSender : public CMMSocketScheduler {
+  public:
+    explicit CSocketSender(CSocket *csock_);
+  private:
+    CSocket *csock;
+    
+    void send_header(struct CMMSocketControlHdr hdr);
+    void do_begin_irob(struct CMMSocketControlHdr hdr);
+    void do_irob_chunk(struct CMMSocketControlHdr hdr);
+};
+
+class CSocketReceiver : public CMMSocketScheduler {
+  public:
+    explicit CSocketReceiver(CSocket *csock_);
+  protected:
+    virtual void Run();
+  private:
+    CSocket *csock;
+
+    void pass_header(struct CMMSocketControlHdr hdr);
+    void do_begin_irob(struct CMMSocketControlHdr hdr);
+    void do_irob_chunk(struct CMMSocketControlHdr hdr);
+};
+
+
+CSocketSender::CSocketSender(CSocket *csock_)
+    : csock(csock_)
 {
-    assert(msock);
-    osfd = socket(msock->sock_family, msock->sock_type, msock->sock_protocol);
+    handle(CMM_CONTROL_MSG_BEGIN_IROB, &CSocketSender::do_begin_irob);
+    handle(CMM_CONTROL_MSG_END_IROB, &CSocketSender::send_header);
+    handle(CMM_CONTROL_MSG_IROB_CHUNK, &CSocketSender::do_irob_chunk);
+    handle(CMM_CONTROL_MSG_NEW_INTERFACE, &CSocketSender::send_header);
+    handle(CMM_CONTROL_MSG_DOWN_INTERFACE, &CSocketSender::send_header);
+    handle(CMM_CONTROL_MSG_ACK, &CSocketSender::send_header);
+}
+
+void
+CSocketSender::send_header(struct CMMSocketControlHdr hdr)
+{
+    int rc = send(csock->osfd, &hdr, sizeof(hdr), 0);
+    if (rc != sizeof(hdr)) {
+        /* give this request back to the send scheduler */
+        csock->sendr->enqueue(hdr);
+        throw CMMControlException("Socket error", hdr);
+    }
+}
+
+void
+CSocketSender::do_begin_irob(struct CMMSocketControlHdr hdr)
+{
+    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_BEGIN_IROB);
+    int numdeps = ntohl(hdr.op.begin_irob.numdeps);
+    if (numdeps > 0) {
+        assert(hdr.op.begin_irob.deps);
+        int datalen = numdeps * sizeof(irob_id_t);
+        irob_id_t *deps = hdr.op.begin_irob.deps;
+        hdr.op.begin_irob.deps = NULL;
+        try {
+            send_header(hdr);
+            int rc = send(csock->osfd, deps, datalen, 0);
+            if (rc != datalen) {
+                throw CMMControlException("Socket error", hdr);
+            }
+        } catch (CMMControlException& e) {
+            e.hdr.op.begin_irob.deps = deps;
+            throw;
+        }
+        /* this buffer is no longer needed, so delete it */
+        delete [] deps;
+    } else {
+        send_header(hdr);
+    }
+}
+
+void
+CSocketSender::do_irob_chunk(struct CMMSocketControlHdr hdr)
+{
+    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_IROB_CHUNK);
+    int datalen = ntohl(hdr.op.irob_chunk.datalen);
+    if (datalen <= 0) {
+        throw CMMControlException("Expected data with header, got none", hdr);
+    }
+    
+    char *buf = hdr.op.irob_chunk.data;
+    hdr.op.irob_chunk.data = NULL;
+    
+    try {
+        send_header(hdr);
+        int rc = send(csock->osfd, buf, datalen, 0);
+        if (rc != datalen) {
+            throw CMMControlException("Socket error", hdr);
+        }
+    } catch (CMMControlException& e) {
+        e.hdr.op.irob_chunk.data = buf;
+        throw;
+    }
+    /* notice that we don't delete the data buffer here, 
+     * since it is an un-ACK'd part of an IROB. 
+     * It will be cleaned up later when the ACK is received. */
+}
+
+CSocketReceiver::CSocketReceiver(CSocket *csock_)
+    : csock(csock_)
+{
+    handle(CMM_CONTROL_MSG_BEGIN_IROB, &CSocketReceiver::do_begin_irob);
+    handle(CMM_CONTROL_MSG_END_IROB, &CSocketReceiver::pass_header);
+    handle(CMM_CONTROL_MSG_IROB_CHUNK, &CSocketReceiver::do_irob_chunk);
+    handle(CMM_CONTROL_MSG_NEW_INTERFACE, &CSocketReceiver::pass_header);
+    handle(CMM_CONTROL_MSG_DOWN_INTERFACE, &CSocketReceiver::pass_header);
+    handle(CMM_CONTROL_MSG_ACK, &CSocketReceiver::pass_header);
+}
+
+void
+CSocketReceiver::Run(void)
+{
+    while (1) {
+        struct CMMSocketControlHdr hdr;
+        
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(csock->osfd, &readfds);
+        rc = select(csock->osfd + 1, &readfds, NULL, NULL, NULL, NULL);
+        if (rc < 0) {
+            if (errno == EINTR) {
+                continue;
+            } else {
+                return;
+            }
+        }
+        rc = recv(csock->osfd, &hdr, sizeof(hdr), 0);
+        if (rc != sizeof(hdr)) {
+            return;
+        }
+        
+        dispatch(hdr);
+    }
+}
+
+void CSocketReceiver::pass_header(struct CMMSocketControlHdr hdr)
+{
+    csock->recvr->enqueue(hdr);
+}
+
+void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
+{
+    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_BEGIN_IROB);
+    int numdeps = ntohl(hdr.op.begin_irob.numdeps);
+    if (numdeps > 0) {
+        irob_id_t *deps = new irob_id_t[numdeps];
+        int datalen = numdeps * sizeof(irob_id_t);
+        int rc = recv(osfd, (char*)deps, datalen, 0);
+        if (rc != datalen) {
+            if (rc < 0) {
+                dbgprintf("Error %d on socket %d\n", errno, csock->osfd);
+            } else {
+                dbgprintf("Expected %d bytes after header, received %d\n", 
+                          datalen, rc);
+            }
+            delete [] deps;
+            throw CMMControlException("Socket error", hdr);
+        }
+        hdr.op.begin_irob.deps = deps;
+    }
+
+    pass_header(hdr);    
+}
+
+void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
+{
+    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_IROB_CHUNK);
+    int datalen = ntohl(hdr.op.irob_chunk.datalen);
+    if (datalen <= 0) {
+        throw CMMControlException("Expected data with header, got none", hdr);
+    }
+    
+    char *buf = new char[datalen];
+    int rc = recv(osfd, buf, datalen, 0);
+    if (rc != datalen) {
+        if (rc < 0) {
+            dbgprintf("Error %d on socket %d\n", errno, csock->osfd);
+        } else {
+            dbgprintf("Expected %d bytes after header, received %d\n", 
+                      datalen, rc);
+        }
+        delete [] buf;
+        throw CMMControlException("Socket error", hdr);
+    }
+
+    hdr.op.irob_chunk.data = buf;
+    pass_header(hdr);
+}
+
+CSocket::CSocket(CMMSocketImpl *sk_,
+                 CMMSocketSender *sendr_, 
+                 CMMSocketReceiver *recvr_, 
+                 struct net_interface local_iface_, 
+                 struct net_interface remote_iface_)
+    : sk(sk_), sendr(sendr_), recvr(recvr_), 
+      local_iface(local_iface_), remote_iface(remote_iface_)
+{
+    assert(sk);
+    osfd = socket(sk->sock_family, sk->sock_type, sk->sock_protocol);
     if (osfd < 0) {
 	/* out of file descriptors or memory at this point */
 	throw osfd;
     }
 
-    if (dispatcher.size() == 0) {
-        dispatcher[CMM_CONTROL_MSG_BEGIN_IROB] = &CSocket::pass_header_and_data;
-        dispatcher[CMM_CONTROL_MSG_END_IROB] = &CSocket::pass_header;
-        dispatcher[CMM_CONTROL_MSG_IROB_CHUNK] = &CSocket::pass_header_and_data;
-        dispatcher[CMM_CONTROL_MSG_NEW_INTERFACE] = &CSocket::pass_header;
-        dispatcher[CMM_CONTROL_MSG_DOWN_INTERFACE] = &CSocket::pass_header;
-        dispatcher[CMM_CONTROL_MSG_ACK] = &CSocket::pass_header;
+    sk->set_all_sockopts(osfd);
+    int rc = phys_connect();
+    if (rc < 0) {
+        if (errno==EINPROGRESS || errno==EWOULDBLOCK) {
+            //is this what we want for the 'send', 
+            //i.e wait until the sock is conn'ed.
+            errno = EAGAIN;
+        } else {
+            perror("connect");
+            close(osfd);
+            throw rc;
+        }
     }
 
-    int rc = pthread_create(&listener, NULL, CSocketReceiver, this);
-    if (rc != 0) {
-        close(osfd);
-        throw rc;
-    }
+    csock_sendr = new CSocketSender(this);
+    csock_recvr = new CSocketReceiver(this);
+    csock_sendr->start();
+    csock_recvr->start();
 }
 
 CSocket::~CSocket()
@@ -40,6 +237,13 @@ CSocket::~CSocket()
 	/* if it's a real open socket */
 	close(osfd);
     }
+    /* TODO: clean up threads */
+}
+
+void 
+CSocket::send(struct CMMSocketControlHdr hdr)
+{
+    csock_sendr->enqueue(hdr);
 }
 
 int
@@ -53,7 +257,7 @@ CSocket::phys_connect(void)
 
     remote_addr.sin_family = AF_INET;
     remote_addr.sin_addr = remote_iface.ip_addr;
-    remote_addr.sin_port = remote_listener_port;
+    remote_addr.sin_port = sk->remote_listener_port;
 
     int rc = bind(osfd, (struct sockaddr *)&local_addr, sizeof(local_addr));
     if (rc < 0) {
@@ -62,115 +266,6 @@ CSocket::phys_connect(void)
     return connect(osfd, (struct sockaddr *)&remote_addr, sizeof(remote_addr));
 }
 
-void
-CSocket::RunReceiver(void)
-{
-    while (1) {
-        struct CMMSocketControlHdr hdr;
-        
-        fd_set readfds;
-        FD_ZERO(&readfds);
-        FD_SET(osfd, &readfds);
-        rc = select(osfd + 1, &readfds, NULL, NULL, NULL, NULL);
-        if (rc < 0) {
-            if (errno == EINTR) {
-                continue;
-            } else {
-                return;
-            }
-        }
-        rc = recv(osfd, &hdr, sizeof(hdr), 0);
-        if (rc != sizeof(hdr)) {
-            return;
-        }
-        bool result = dispatch(hdr);
-        if (!result) {
-            return;
-        }
-    }
-}
-
-bool CSocket::dispatch(struct CMMSocketControlHdr hdr)
-{
-    short type = ntohs(hdr.type);
-    if (dispatcher.find(type) == dispatcher.end()) {
-        return unrecognized_control_msg(hdr);
-    } else {
-        const dispatch_fn_t& fn = dispatcher[type];
-        return this->*fn(hdr);
-    }
-}
-
-bool CSocket::pass_header(struct CMMSocketControlHdr hdr)
-{
-    recvr->enqueue(hdr);
-    return true;
-}
-
-bool CSocket::pass_header_and_data(struct CMMSocketControlHdr hdr)
-{
-    int datalen = -1;
-    if (hdr.type == CMM_CONTROL_MSG_BEGIN_IROB) {
-        datalen = ntohl(hdr.op.begin_irob.numdeps) * sizeof(irob_id_t);
-    } else if (hdr.type == CMM_CONTROL_MSG_IROB_CHUNK) {
-        datalen = ntohl(hdr.op.irob_chunk.datalen);
-    } else {
-        dbgprintf("Unexpected control message type %d\n", hdr.type);
-        return false;
-    }
-
-    if (datalen <= 0) {
-        dbgprintf("Expected data with header, got none\n");
-        return false;
-    }
-    
-    char *buf = malloc(datalen);
-    assert(buf);
-
-    int rc = recv(osfd, buf, datalen, 0);
-    if (rc != datalen) {
-        if (rc < 0) {
-            dbgprintf("Error %d on socket %d\n", errno, osfd);
-        } else {
-            dbgprintf("Expected %d bytes after header, received %d\n", 
-                      datalen, rc);
-        }
-        return false;
-    }
-
-    if (hdr.type == CMM_CONTROL_MSG_BEGIN_IROB) {
-        hdr.op.begin_irob.deps = (irob_id_t*)buf;
-    } else if (hdr.type == CMM_CONTROL_MSG_IROB_CHUNK) {
-        hdr.op.irob_chunk.data = buf;
-    } else assert(0);
-
-    recvr->enqueue(hdr);
-    
-    return true;
-}
-
-bool CSocket::unrecognized_control_msg(struct CMMSocketControlHdr hdr)
-{
-    dbgprintf("Unrecognized control message type %d\n", hdr.type);
-    return false;
-}
-
-static void
-CSocketReceiver_cleanup(void *arg)
-{
-    CSocket *csock = (CSocket *)arg;
-    delete csock;
-}
-
-static void *
-CSocketReceiver(void *arg)
-{
-    pthread_cleanup_push(CSocketReceiver_cleanup, arg);
-    CSocket *csock = (CSocket *)arg;
-    csock->RunReceiver();
-    pthread_cleanup_pop(1);
-    return NULL;
-}
 
 class LabelMatch {
   public:
@@ -312,21 +407,7 @@ CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label,
         return CMM_DEFERRED;
     }
 
-    csock = new CSocket(sk->recvr, local_iface, remote_iface, 
-                        sk->remote_listener_port);
-    sk->set_all_sockopts(csock->osfd);
-    int rc = csock->phys_connect();
-    if (rc < 0) {
-        if (errno==EINPROGRESS || errno==EWOULDBLOCK) {
-            //is this what we want for the 'send', 
-            //i.e wait until the sock is conn'ed.
-            errno = EAGAIN;
-        } else {
-            perror("connect");
-            delete csock;
-            return CMM_FAILED;
-        }
-    }
+    csock = new CSocket(sk, sk->sendr, sk->recvr, local_iface, remote_iface);
 
     sk->connected_csocks.insert(csock);
     // to interrupt any select() in progress, adding the new osfd

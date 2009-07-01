@@ -19,17 +19,17 @@ typedef tbb::concurrent_queue<struct CMMSocketControlHdr> ControlMsgQueue;
 class CMMSocketScheduler {
   public:
     explicit CMMSocketScheduler(CMMSocketImpl *sk_);
-    void start();
-    void enqueue(struct CMMSocketMessageHdr hdr);
     virtual ~CMMSocketScheduler();
+
+    void start();
+    /* void stop(); TODO */
+
+    void enqueue(struct CMMSocketMessageHdr hdr);
 
   protected:
     pthread_t tid;
-    CMMSocketImplPtr sk;
 
     ControlMsgQueue msg_queue;
-
-    PendingIROBHash pending_irobs;
 
     /* Default: read messages from msg_queue and dispatch them, forever. 
      * Any std::exception raised prints e.what() and terminates the thread. 

@@ -1,33 +1,39 @@
 #ifndef csocket_h_incl
 #define csocket_h_incl
 
+#include "tbb/concurrent_queue.h"
+#include "cmm_socket_control.h"
+#include <map>
+#include <set>
+
+class CMMSocketSender;
+class CMMSocketReceiver;
+class CMMSocketImpl;
+
+class CSocketSender;
+class CSocketReceiver;
+
 class CSocket {
     int osfd;
+    CMMSocketImpl *msock;
+    CMMSocketSender *sendr;
     CMMSocketReceiver *recvr;
     struct net_interface local_iface;
     struct net_interface remote_iface;
-    in_port_t remote_listener_port;
 
     CSocket(CMMSocketImpl *msock_, 
+            CMMSocketSender *sendr_,
+            CMMSocketReceiver *recvr_,
             struct net_interface local_iface_,
             struct net_interface remote_iface_,
             in_port_t remote_listener_port_);
     ~CSocket();
-
-    int phys_connect(void);
-
-    void RunReceiver();
+    void send(struct CMMSocketControlHdr hdr);
   private:
-    pthread_t listener;
-
-    typedef bool (CSocket::*dispatch_fn_t)(struct CMMSocketControlHdr);
-    static std::map<short, CSocket::dispatch_fn_t> dispatcher;
-
-    bool dispatch(struct CMMSocketControlHdr);
-
-    bool pass_header(struct CMMSocketControlHdr);
-    bool pass_header_and_data(struct CMMSocketControlHdr);
-    bool unrecognized_control_msg(struct CMMSocketControlHdr);
+    int phys_connect(void);
+    
+    CSocketSender *csock_sendr;
+    CSocketReceiver *csock_recvr;
 };
 
 typedef std::map<u_long, std::map<u_long, CSocket *> > CSockLabelMap;

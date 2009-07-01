@@ -26,12 +26,14 @@ struct end_irob_data {
 
 struct irob_chunk_data {
     irob_id_t id;
-    u_long seqno;
+    u_long seqno; /* these start at 1.  0 is invalid; see ack_data, below. */
     int datalen;
     char *data; /* NULL in network messages
                  * Allocaetd and used at receiver */
     /* followed by datalen bytes of application data */
 };
+
+#define INVALID_IROB_SEQNO 0
 
 struct new_interface_data {
     struct in_addr ip_addr;
@@ -42,15 +44,10 @@ struct down_interface_data {
     struct in_addr ip_addr;
 };
 
-enum ACKType {
-    ACK_TYPE_IROB,
-    ACK_TYPE_CHUNK
-};
-
 struct ack_data {
-    short type;
     irob_id_t id;
-    u_long seqno;
+    u_long seqno; /* since IROB seqnos start at 1, a seqno of 0 here means
+                   * that the entire IROB is ACK'd. */
 };
 
 struct CMMSocketControlHdr {
@@ -64,6 +61,7 @@ struct CMMSocketControlHdr {
         struct ack_data ack;
     } op;
 
+    /* for use with exceptions and debug information. */
     std::string describe() const;
 };
 
