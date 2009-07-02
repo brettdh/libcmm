@@ -61,6 +61,10 @@ class CSockMapping {
     bool get_remote_iface(u_long label, struct net_interface& iface);
     bool get_iface(const NetInterfaceList& ifaces, u_long label,
                    struct net_interface& iface);
+    bool get_local_iface(struct in_addr addr, struct net_interface& iface);
+    bool get_remote_iface(struct in_addr addr, struct net_interface& iface);
+    bool get_iface(const NetInterfaceList& ifaces, struct in_addr addr,
+                   struct net_interface& iface);
     CSocket * find_csock(const LabelMatch& pred);
 };
 

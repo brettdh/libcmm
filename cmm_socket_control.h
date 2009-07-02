@@ -2,12 +2,18 @@
 #define cmm_socket_control_h_incl
 
 enum ControlMsgType {
+    CMM_CONTROL_MSG_HELLO,
     CMM_CONTROL_MSG_BEGIN_IROB,
     CMM_CONTROL_MSG_END_IROB,
     CMM_CONTROL_MSG_IROB_CHUNK,
     CMM_CONTROL_MSG_NEW_INTERFACE,
     CMM_CONTROL_MSG_DOWN_INTERFACE,
     CMM_CONTROL_MSG_ACK
+};
+
+struct hello_data {
+    in_port_t listen_port;
+    int num_ifaces;
 };
 
 struct begin_irob_data {
@@ -52,12 +58,14 @@ struct ack_data {
 
 struct CMMSocketControlHdr {
     short type;
+    short msgtype() { return type; }
     union {
+        struct hello_data hello;
         struct begin_irob_data begin_irob;
         struct end_irob_data end_irob;
         struct irob_chunk_data irob_chunk;
         struct new_interface_data new_interface;
-        struct down_interface_data down_interface;
+
         struct ack_data ack;
     } op;
 
@@ -65,16 +73,12 @@ struct CMMSocketControlHdr {
     std::string describe() const;
 };
 
-#include <stdexcept>
-
-/* These shouldn't ever be thrown in normal operation, when there's 
- * a multi-socket on each end and the two are working in harmony. 
- * When something is amiss, though, this should help to discover
- * the problem. */
-class CMMControlException : public std::runtime_error {
-  public:
-    CMMControlException(const std::string&, struct CMMSocketControlHdr);
+struct CMMSocketRequest {
+    pthread_t requester_tid;
     struct CMMSocketControlHdr hdr;
+
+    short msgtype() { return hdr.type; }
+    std::string describe() const { return hdr.describe(); }
 };
 
 #endif

@@ -9,7 +9,11 @@
 #include <map>
 #include "cmm_socket_scheduler.h"
 
-class CMMSocketSender : public CMMSocketScheduler {
+typedef tbb::concurrent_hash_map<irob_id_t, PendingIROB *,
+                                 IntegerHashCompare<irob_id_t> > 
+                                   PendingIROBHash;
+
+class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
   public:
     explicit CMMSocketSender(CMMSocketImpl *sk_);
     ssize_t send(const void *buf, size_t len, int flags);
@@ -30,8 +34,8 @@ class CMMSocketSender : public CMMSocketScheduler {
 
     /* Headers passed to these functions should have integers
      * already in network byte order. */
-    void pass_to_any_worker(struct CMMSocketControlHdr hdr);
-    void pass_to_worker_by_labels(struct CMMSocketControlHdr hdr);
+    void pass_to_any_worker(struct CMMSocketRequest req);
+    void pass_to_worker_by_labels(struct CMMSocketRequest req);
 };
 
 #endif

@@ -44,26 +44,27 @@ void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
 
 void CMMSocketImpl::recv_remote_listeners(int bootstrap_sock)
 {
-    size_t num_ifaces = 0;
-    int rc = recv(bootstrap_sock, &num_ifaces, sizeof(num_ifaces), 0);
-    if (rc != sizeof(num_ifaces)) {
+    struct CMMSocketControlHdr hdr;
+    int rc = recv(bootstrap_sock, &hdr, sizeof(hdr), 0);
+    if (rc != sizeof(hdr) || ntohs(hdr.type) != CMM_CONTROL_MSG_HELLO) {
         throw -1;
     }
 
-    num_ifaces = ntohl(num_ifaces);
+    remote_listener_port = hdr.op.hello.listener_port;
+
+    int num_ifaces = ntohl(hdr.op.hello.num_ifaces);
     for (size_t i = 0; i < num_ifaces; i++) {
         recv_remote_listener(bootstrap_sock);
     }
 }
 
 void CMMSocketImpl::send_local_listener(int bootstrap_sock, 
-                                        struct sockaddr_in addr)
+                                        struct net_interface iface)
 {
     struct CMMSocketControlHdr hdr;
     hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
-    hdr.op.new_interface.ip_addr = addr.sin_addr;
-    hdr.op.new_interface.port = addr.sin_port;
-    hdr.op.new_interface.labels = htonl(hdr.op.new_interface.labels);
+    hdr.op.new_interface.ip_addr = iface.ip_addr;
+    hdr.op.new_interface.labels = htonl(iface.labels);
     int rc = send(bootstrap_sock, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr)) {
         throw -1;
@@ -72,18 +73,105 @@ void CMMSocketImpl::send_local_listener(int bootstrap_sock,
 
 void CMMSocketImpl::send_local_listeners(int bootstrap_sock)
 {
-    size_t num_ifaces = htonl(local_ifaces.size());
-    int rc = send(bootstrap_sock, &num_ifaces, sizeof(num_ifaces), 0);
-    if (rc != sizeof(num_ifaces)) {
+    struct CMMSocketControlHdr hdr;
+    hdr.type = htons(CMM_CONTROL_MSG_HELLO);
+
+    assert(listener_thread);
+    hdr.op.hello.listen_port = listener_thread->port();
+    hdr.op.hello.num_ifaces = htonl(local_ifaces.size());
+
+    int rc = send(bootstrap_sock, &hdr, sizeof(hdr), 0);
+    if (rc != sizeof(hdr)) {
         throw -1;
     }
 
     for (ListenerAddrList::iterator it = local_ifaces.begin();
          it != local_ifaces.end(); it++) {
-        send_local_listener(bootstrap_sock, it->second.addr);
+        send_local_listener(bootstrap_sock, it->second);
     }
 }
 
+
+class ListenerThread : public CMMThread {
+  public:
+    ListenerThread(CMMSocketImpl *sk_);
+    in_port_t port() const;
+  protected:
+    virtual void Run();
+  private:
+    CMMSocketImplPtr sk;
+    int listener_sock;
+    int listen_port;
+};
+
+ListenerThread::ListenerThread(CMMSocketImpl *sk_)
+    : sk(sk_)
+{
+    struct sockaddr_in bind_addr;
+    memset(&bind_addr, 0, sizeof(bind_addr));
+    bind_addr.sin_addr = INADDR_ANY;
+    bind_addr.sin_port = 0;
+    
+    listener_sock = socket(PF_INET, SOCK_STREAM, 0);
+    if (listener_sock < 0) {
+        throw -1;
+    }
+    
+    int rc = bind(listener_sock, 
+                  (struct sockaddr *)&bind_addr,
+                  sizeof(bind_addr));
+    if (rc < 0) {
+        close(listener_sock);
+        throw rc;
+    }
+    rc = getsockname(listener_sock, 
+                     (struct sockaddr *)&bind_addr,
+                     sizeof(bind_addr));
+    if (rc < 0) {
+        perror("getsockname");
+        close(listener_sock);
+        throw rc;
+    }
+    listen_port = bind_addr.sin_port;
+    rc = listen(listener_sock, 5);
+    if (rc < 0) {
+        close(listener_sock);
+        throw rc;
+    }
+}
+
+ListenerThread::~ListenerThread()
+{
+    close(listener_sock);
+}
+
+void
+ListenerThread::Run()
+{
+    while (1) {
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(listener_sock, &readfds);
+        int rc = select(listener_sock + 1, &readfds, NULL, NULL, NULL);
+
+        struct sockaddr_in addr;
+        socklen_t addrlen = sizeof(addr);
+        int sock = accept(listener_sock, &addr, &addrlen);
+        if (sock < 0) {
+            throw std::runtime_error("Socket error");
+        }
+
+        sk->add_connection(sock, &addr);
+    }
+}
+
+void 
+CMMSocketImpl::add_connection(int sock, 
+                              struct in_addr local_addr,
+                              struct in_addr remote_addr)
+{
+    csocks.add_connection(sock, local_addr, remote_addr);
+}
 
 int
 CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr, 
@@ -91,45 +179,16 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
                                     int bootstrap_sock = -1)
 {
     try {
-        struct sockaddr_in bind_addr;
-        memset(&bind_addr, 0, sizeof(bind_addr));
-        bind_addr.sin_addr = INADDR_ANY;
-        bind_addr.sin_port = 0;
+        internal_listener_thread = new ListenerThread();
+        internal_listener_thread->start();
 
-        internal_listener_sock = socket(PF_INET, SOCK_STREAM, 0);
-        if (internal_listener_sock < 0) {
-            throw -1;
-        }
-        
-        int rc = bind(internal_listener_sock, 
-                      (struct sockaddr *)&bind_addr,
-                      sizeof(bind_addr));
-        if (rc < 0) {
-            close(internal_listener_sock);
-            throw rc;
-        }
-        rc = getsockname(internal_listener_sock, 
-                         (struct sockaddr *)&bind_addr,
-                         sizeof(bind_addr));
-        if (rc < 0) {
-            perror("getsockname");
-            close(internal_listener_sock);
-            throw rc;
-        }
-        internal_listen_port = bind_addr.sin_port;
-        rc = listen(internal_listener_sock, 5);
-        if (rc < 0) {
-            close(internal_listener_sock);
-            throw rc;
-        }
-        
         for (NetInterfaceList::iterator it = ifaces.begin();
              it != ifaces.end(); it++) {
             
             struct net_interface listener_addr;
             memset(&listener_addr, 0, sizeof(listener_addr));
             listener_addr.ip_addr = it->second.ip_addr;
-            listener_addr.labels = it->labels;
+            listener_addr.labels = it->second.labels;
 
             local_ifaces[listener_addr.ip_addr.s_addr] = listener_addr;
         }
@@ -148,7 +207,7 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
             }
 
             try {
-                rc = connect(bootstrap_sock, remote_addr, addrlen);
+                int rc = connect(bootstrap_sock, remote_addr, addrlen);
                 if (rc < 0) {
                     throw rc;
                 }
@@ -1117,14 +1176,9 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
     assert(get_pointer(read_ac->second) == this);
     
     if (local) {
-        struct CMMSocketControlHdr hdr;
-        hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
-        hdr.op.new_interface_data.ip_addr = iface.ip_addr;
-        hdr.op.new_interface_data.labels = iface.labels;
-        
-        send_control_message(hdr);
+        sendr->new_interface(iface.ip_addr, iface.labels);
     } else {
-        
+        remote_ifaces.insert(iface);
     }
 }
 
@@ -1171,39 +1225,9 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
         }
     }
 
-    
-
     if (local) {
-        struct CMMSocketControlHdr hdr;
-        hdr.type = htons(CMM_CONTROL_MSG_DOWN_INTERFACE);
-        hdr.op.down_interface_data.ip_addr = iface.ip_addr;
-        
-        send_control_message(hdr);
+        sendr->down_interface(iface.ip_addr);
     }
-}
-
-int CMMSocketImpl::send_control_message(struct CMMSocketControlHdr hdr)
-{
-    CMMSockHash::const_accessor read_ac;
-    if (!cmm_sock_hash.find(read_ac, sock)) {
-	assert(0);
-    }
-    assert(get_pointer(read_ac->second) == this);
-
-    /* make sure there's at least one connected csocket */
-    /* new_csock_with_labels searches, creating if no match exists */
-    CSocket *csock = csocks.new_csock_with_labels(0, 0);
-    if (!csock) {
-        return -1;
-    }
-    assert(csock->osfd > 0);
-    int osfd = csock->osfd;
-    read_ac.release();
-
-    if (send(osfd, &hdr, sizeof(hdr), 0) != sizeof(hdr)) {
-        return -1;
-    }
-    return 0;
 }
 
 /* only called with read accessor held on this */

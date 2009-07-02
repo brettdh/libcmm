@@ -19,8 +19,8 @@
   * One thread per csocket
   * One scheduler thread per multi-socket
 
-* Implement thread that listens for connections on internal listener socket
+* (Done) Implement thread that listens for connections on internal listener socket
   * Maybe the receiver thread can have this job?
     * But that thread is blocking on its message queue.
-  * Probably makes sense to have a dedicated thread that just selects
-    on the listener socket in a loop.
+  * (Done) Probably makes sense to have a dedicated thread that just selects
+           on the listener socket in a loop.

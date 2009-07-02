@@ -39,6 +39,8 @@ typedef std::vector<struct net_interface> NetInterfaceList;
 
 typedef std::map<in_addr_t, struct net_interface> NetInterfaceMap;
 
+class ListenerThread;
+
 class CMMSocketImpl : public CMMSocket {
   public:
     static mc_socket_t create(int family, int type, int protocol);
@@ -84,6 +86,10 @@ class CMMSocketImpl : public CMMSocket {
     static bool net_available(mc_socket_t sock, 
                               u_long send_labels, u_long recv_labels);
     
+    void add_connection(int sock, 
+                        struct in_addr local_addr,
+                        struct in_addr remote_addr);
+    
   private:
     friend class CSockMapping;
 
@@ -123,8 +129,11 @@ class CMMSocketImpl : public CMMSocket {
     CSockMapping csocks;
 
     NetInterfaceList local_ifaces;
-    int internal_listener_sock; /* listening on INADDR_ANY:random_port */
+    //int internal_listener_sock; /* listening on INADDR_ANY:random_port */
+    ListenerThread *listener_thread;
     in_port_t internal_listener_port; /* network byte order, from getsockname */
+
+    
 
     /* these are used for connecting csockets */
     NetInterfaceList remote_ifaces;

@@ -2,20 +2,18 @@
 #include "csocket.h"
 #include "debug.h"
 
-static void * CSocketReceiver(void *arg);
-
-class CSocketSender : public CMMSocketScheduler {
+class CSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
   public:
     explicit CSocketSender(CSocket *csock_);
   private:
     CSocket *csock;
     
-    void send_header(struct CMMSocketControlHdr hdr);
-    void do_begin_irob(struct CMMSocketControlHdr hdr);
-    void do_irob_chunk(struct CMMSocketControlHdr hdr);
+    void send_header(struct CMMSocketRequest req);
+    void do_begin_irob(struct CMMSocketRequest req);
+    void do_irob_chunk(struct CMMSocketRequest req);
 };
 
-class CSocketReceiver : public CMMSocketScheduler {
+class CSocketReceiver : public CMMSocketScheduler<struct CMMSocketControlHdr> {
   public:
     explicit CSocketReceiver(CSocket *csock_);
   protected:
@@ -41,31 +39,34 @@ CSocketSender::CSocketSender(CSocket *csock_)
 }
 
 void
-CSocketSender::send_header(struct CMMSocketControlHdr hdr)
+CSocketSender::send_header(struct CMMSocketRequest req)
 {
+    struct CMMSocketControlHdr& hdr = req.hdr;
     int rc = send(csock->osfd, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr)) {
         /* give this request back to the send scheduler */
-        csock->sendr->enqueue(hdr);
-        throw CMMControlException("Socket error", hdr);
+        csock->sendr->enqueue(req);
+        throw CMMControlException("Socket error", req);
     }
 }
 
 void
-CSocketSender::do_begin_irob(struct CMMSocketControlHdr hdr)
+CSocketSender::do_begin_irob(struct CMMSocketRequest req)
 {
+    struct CMMSocketControlHdr& hdr = req.hdr;
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_BEGIN_IROB);
     int numdeps = ntohl(hdr.op.begin_irob.numdeps);
     if (numdeps > 0) {
         assert(hdr.op.begin_irob.deps);
         int datalen = numdeps * sizeof(irob_id_t);
         irob_id_t *deps = hdr.op.begin_irob.deps;
-        hdr.op.begin_irob.deps = NULL;
+        hdr.op.begin_irob.deps = NULL; 
         try {
             send_header(hdr);
             int rc = send(csock->osfd, deps, datalen, 0);
             if (rc != datalen) {
-                throw CMMControlException("Socket error", hdr);
+                csock->sendr->enqueue(req);
+                throw CMMControlException("Socket error", req);
             }
         } catch (CMMControlException& e) {
             e.hdr.op.begin_irob.deps = deps;
@@ -79,8 +80,9 @@ CSocketSender::do_begin_irob(struct CMMSocketControlHdr hdr)
 }
 
 void
-CSocketSender::do_irob_chunk(struct CMMSocketControlHdr hdr)
+CSocketSender::do_irob_chunk(struct CMMSocketRequest req)
 {
+    struct CMMSocketControlHdr& hdr = req.hdr;
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_IROB_CHUNK);
     int datalen = ntohl(hdr.op.irob_chunk.datalen);
     if (datalen <= 0) {
@@ -94,6 +96,7 @@ CSocketSender::do_irob_chunk(struct CMMSocketControlHdr hdr)
         send_header(hdr);
         int rc = send(csock->osfd, buf, datalen, 0);
         if (rc != datalen) {
+            csock->sendr->enqueue(req);
             throw CMMControlException("Socket error", hdr);
         }
     } catch (CMMControlException& e) {
@@ -103,6 +106,8 @@ CSocketSender::do_irob_chunk(struct CMMSocketControlHdr hdr)
     /* notice that we don't delete the data buffer here, 
      * since it is an un-ACK'd part of an IROB. 
      * It will be cleaned up later when the ACK is received. */
+
+    /* TODO: wake up app thread */
 }
 
 CSocketReceiver::CSocketReceiver(CSocket *csock_)
@@ -200,29 +205,34 @@ CSocket::CSocket(CMMSocketImpl *sk_,
                  CMMSocketSender *sendr_, 
                  CMMSocketReceiver *recvr_, 
                  struct net_interface local_iface_, 
-                 struct net_interface remote_iface_)
+                 struct net_interface remote_iface_,
+                 int accepted_sock = -1)
     : sk(sk_), sendr(sendr_), recvr(recvr_), 
       local_iface(local_iface_), remote_iface(remote_iface_)
 {
     assert(sk);
-    osfd = socket(sk->sock_family, sk->sock_type, sk->sock_protocol);
-    if (osfd < 0) {
-	/* out of file descriptors or memory at this point */
-	throw osfd;
-    }
-
-    sk->set_all_sockopts(osfd);
-    int rc = phys_connect();
-    if (rc < 0) {
-        if (errno==EINPROGRESS || errno==EWOULDBLOCK) {
-            //is this what we want for the 'send', 
-            //i.e wait until the sock is conn'ed.
-            errno = EAGAIN;
-        } else {
-            perror("connect");
-            close(osfd);
-            throw rc;
+    if (accepted_sock == -1) {
+        osfd = socket(sk->sock_family, sk->sock_type, sk->sock_protocol);
+        if (osfd < 0) {
+            /* out of file descriptors or memory at this point */
+            throw osfd;
         }
+        
+        sk->set_all_sockopts(osfd);
+        int rc = phys_connect();
+        if (rc < 0) {
+            if (errno==EINPROGRESS || errno==EWOULDBLOCK) {
+                //is this what we want for the 'send', 
+                //i.e wait until the sock is conn'ed.
+                errno = EAGAIN;
+            } else {
+                perror("connect");
+                close(osfd);
+                throw rc;
+            }
+        }
+    } else {
+        osfd = accepted_sock;
     }
 
     csock_sendr = new CSocketSender(this);
@@ -420,3 +430,59 @@ CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label,
     return 0;
 }
 
+class AddrMatch {
+  public:
+    AddrMatch(struct in_addr addr_) : addr(addr_) {}
+    bool operator()(struct net_interface iface) {
+        return addr.s_addr == iface.ip_addr.s_addr;
+    }
+  private:
+    struct in_addr addr;
+};
+
+bool
+CSockMapping::get_iface(const NetInterfaceList& ifaces, struct in_addr addr,
+                        struct net_interface& iface)
+{
+    NetInterfaceList::const_iterator it = find_if(ifaces.begin(), 
+                                                  ifaces.end(), 
+                                                  AddrMatch(addr));
+    if (it != ifaces.end()) {
+        iface = *it;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool
+CSockMapping::get_local_iface(struct in_addr addr, struct net_interface& iface)
+{
+    return get_iface(sk->local_ifaces, addr, iface);
+}
+
+bool
+CSockMapping::get_remote_iface(struct in_addr addr, 
+                               struct net_interface& iface)
+{
+    return get_iface(sk->remote_ifaces, addr, iface);
+}
+
+void
+CSockMapping::add_connection(int sock, 
+                             struct in_addr local_addr, 
+                             struct in_addr remote_addr)
+{
+    struct net_interface local_iface, remote_iface;
+    if (!get_local_iface(local_addr, local_iface) ||
+        !get_remote_iface(remote_addr, remote_iface)) {
+        assert(0); /* XXX: valid? only creating a CSocket here
+                    * if a connection has arrived on this iface pair */
+    }
+    
+    CSocket *new_csock = new CSocket(sk, sk->sendr, sk->recvr, 
+                                     local_iface, remote_iface, 
+                                     sock);
+    sk->connected_csocks.insert(new_csock);
+    signal_selecting_threads();
+}

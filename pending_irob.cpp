@@ -1,7 +1,7 @@
 #include "pending_irob.h"
 
 PendingIROB::PendingIROB(struct begin_irob_data begin_irob,
-                         CMMSocketReceiver *recvr_)
+                         CMMSocketReceiver *recvr_ = NULL)
     : id(ntohl(begin_irob.id)), 
       send_labels(begin_irob.send_labels), 
       recv_labels(begin_irob.recv_labels),
@@ -19,7 +19,9 @@ PendingIROB::PendingIROB(struct begin_irob_data begin_irob,
         deps.insert(ntohl(begin_irob.deps[i]));
     }
 
-    recvr->correct_deps(this);
+    if (recvr) {
+        recvr->correct_deps(this);
+    }
 }
 
 bool

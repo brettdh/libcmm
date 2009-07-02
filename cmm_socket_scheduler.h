@@ -1,7 +1,7 @@
 #ifndef cmm_socket_scheduler_h_incl
 #define cmm_socket_scheduler_h_incl
 
-#include <pthread.h>
+#include "cmm_thread.h"
 #include <sys/types.h>
 #include "cmm_socket.private.h"
 #include "cmm_socket_control.h"
@@ -10,25 +10,21 @@
 #include "tbb/concurrent_hash_map.h"
 #include "tbb/concurrent_queue.h"
 
-typedef tbb::concurrent_hash_map<irob_id_t, PendingIROB *,
-                                 IntegerHashCompare<irob_id_t> > 
-                                   PendingIROBHash;
-
-typedef tbb::concurrent_queue<struct CMMSocketControlHdr> ControlMsgQueue;
-
-class CMMSocketScheduler {
+/* CMMSocketScheduler
+ *
+ * A thread that reads from a concurrent_queue of messages
+ * and acts on each one by dispatching member functions based
+ * on msg.type() for each message.
+ */
+template <typename MsgClass>
+class CMMSocketScheduler<MsgClass> : public CMMThread {
   public:
-    explicit CMMSocketScheduler(CMMSocketImpl *sk_);
-    virtual ~CMMSocketScheduler();
-
-    void start();
-    /* void stop(); TODO */
-
-    void enqueue(struct CMMSocketMessageHdr hdr);
+    virtual ~CMMSocketScheduler() {}
+    
+    void enqueue(MsgClass msg);
 
   protected:
-    pthread_t tid;
-
+    typedef tbb::concurrent_queue<MsgClass> ControlMsgQueue;
     ControlMsgQueue msg_queue;
 
     /* Default: read messages from msg_queue and dispatch them, forever. 
@@ -37,14 +33,34 @@ class CMMSocketScheduler {
      * dispatch on different message types (see cmm_socket_control.h). */
     virtual void Run(void);
 
-    void dispatch(struct CMMSocketControlHdr hdr);
+    void dispatch(MsgClass msg);
 
-    typedef void (CMMSocketScheduler::*dispatch_fn_t)(struct CMMSocketControlHdr);
-    void handle(short hdr_type, dispatch_fn_t handler);
-    virtual void unrecognized_control_msg(struct CMMSocketControlHdr hdr);
+    typedef void (CMMSocketScheduler::*dispatch_fn_t)(MsgClass);
+    void handle(short type, dispatch_fn_t handler);
+    virtual void unrecognized_control_msg(MsgClass msg);
 
   private:
     std::map<short, CMMSocketReceiver::dispatch_fn_t> dispatcher;
 };
+
+#include <stdexcept>
+
+/* These shouldn't ever be thrown in normal operation, when there's 
+ * a multi-socket on each end and the two are working in harmony. 
+ * When something is amiss, though, this should help to discover
+ * the problem. 
+ *
+ * Classes to be used with this exception type should implement
+ * describe(), a method that returns a std::string with any relevant
+ * debugging information for its object.
+ */
+template <typename MsgClass>
+class CMMControlException<MsgClass> : public std::runtime_error {
+  public:
+    CMMControlException(const std::string&, MsgClass);
+    MsgClass msg;
+};
+
+#include "cmm_socket_scheduler.cpp"
 
 #endif

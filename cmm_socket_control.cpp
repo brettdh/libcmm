@@ -1,19 +1,16 @@
 #include "cmm_socket_control.h"
 #include <stdexcept>
 
-CMMControlException::CMMControlException(const std::string& str, 
-                                         struct CMMSocketControlHdr hdr_)
-  : std::runtime_error(str + hdr_.describe()), hdr(hdr_)
-{
-    /* empty */
-}
-
 std::string
 CMMSocketControlHdr::describe() const
 {
     std::ostringstream stream;
     stream << std:: endl << "Type: " << type << " ";
     switch (type) {
+    case CMM_CONTROL_MSG_HELLO:
+      stream << "listen port: " << ntohs(op.hello.listen_port) << " ";
+      stream << "num_ifaces: " << ntohl(op.hello.num_ifaces);
+      break;
     case CMM_CONTROL_MSG_BEGIN_IROB:
         stream << "IROB: " << op.begin_irob.id << " ";
         stream << "send_labels: " << op.begin_irob.send_labels << " ";

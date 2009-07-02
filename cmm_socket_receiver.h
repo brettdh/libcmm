@@ -8,7 +8,11 @@
 #include "intset.h"
 #include <map>
 
-class CMMSocketReceiver : public CMMSocketScheduler {
+typedef tbb::concurrent_hash_map<irob_id_t, PendingIROB *,
+                                 IntegerHashCompare<irob_id_t> > 
+                                   PendingIROBHash;
+
+class CMMSocketReceiver : public CMMSocketScheduler<struct CMMSocketControlHdr> {
   public:
     explicit CMMSocketReceiver(CMMSocketImpl *sk_);
     ssize_t recv(void *buf, size_t len, int flags);
