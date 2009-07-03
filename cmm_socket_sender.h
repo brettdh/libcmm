@@ -26,6 +26,7 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
     void down_interface(struct in_addr ip_addr);
     void ack(irob_id_t id, u_long seqno = INVALID_IROB_SEQNO);
 
+    void ack_received(irob_id_t id, u_long seqno);
   protected:
     virtual void Run();
   private:
@@ -36,6 +37,16 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
      * already in network byte order. */
     void pass_to_any_worker(struct CMMSocketRequest req);
     void pass_to_worker_by_labels(struct CMMSocketRequest req);
+
+    /* the wait_for_completion functions will atomically enqueue 
+     * the request and begin waiting for the result. */
+
+    /* throws CMMException on error */
+    void enqueue_and_wait_for_completion(CMMSocketRequest req);
+    /* returns result of underlying send, or -1 on error */
+    ssize_t enqueue_and_wait_for_completion(CMMSocketRequest req);
+
+    void signal_completion(pthread_t requester_tid);
 };
 
 #endif

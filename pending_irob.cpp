@@ -7,7 +7,9 @@ PendingIROB::PendingIROB(struct begin_irob_data begin_irob,
       recv_labels(begin_irob.recv_labels),
       recvr(recvr_),
       anonymous(begin_irob.numdeps == -1),
-      complete(false)
+      complete(false),
+      acked(false),
+      next_seqno(INVALID_IROB_SEQNO + 1)
 {
     int numdeps = ntohl(begin_irob.numdeps);
     if (numdeps > 0) {
@@ -24,14 +26,48 @@ PendingIROB::PendingIROB(struct begin_irob_data begin_irob,
     }
 }
 
+PendingIROB::~PendingIROB()
+{
+    while (!chunks.empty()) {
+        struct irob_chunk_data chunk;
+        chunks.pop(chunk);
+        delete [] chunk.data;
+    }
+}
+
 bool
-PendingIROB::add_chunk(struct irob_chunk_data irob_chunk)
+PendingIROB::add_chunk(struct irob_chunk_data& irob_chunk)
 {
     if (is_complete() || is_released()) {
         return false;
     }
+    irob_chunk.seqno = next_seqno++;
     chunks.push(irob_chunk);
     return true;
+}
+
+void
+PendingIROB::ack(u_long seqno)
+{
+    if (seqno >= next_seqno) {
+        dbgprintf("Invalid seqno %lu for ack in IROB %lu\n", seqno, id);
+        throw CMMException();
+    }
+
+    if (seqno == INVALID_IROB_SEQNO) {
+        acked = true;
+    } else {
+        acked_chunks.insert(seqno);
+        if (is_complete() && acked_chunks.size() == chunks.size()) {
+            acked = true;
+        }
+    }
+}
+
+bool
+PendingIROB::is_acked(void)
+{
+    return acked;
 }
 
 bool

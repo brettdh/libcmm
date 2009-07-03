@@ -10,6 +10,10 @@ class IntSet {
     void insert(u_long num);
     bool contains(u_long num);
     void print(void);
+
+    /* returns the number of unique ints insert()ed. */
+    size_t size(void);
   private:
     std::vector<bool> vec;
+    size_t size_;
 };

@@ -33,7 +33,7 @@ struct end_irob_data {
 struct irob_chunk_data {
     irob_id_t id;
     u_long seqno; /* these start at 1.  0 is invalid; see ack_data, below. */
-    int datalen;
+    size_t datalen;
     char *data; /* NULL in network messages
                  * Allocaetd and used at receiver */
     /* followed by datalen bytes of application data */
@@ -78,7 +78,7 @@ struct CMMSocketRequest {
     struct CMMSocketControlHdr hdr;
 
     short msgtype() { return hdr.type; }
-    std::string describe() const { return hdr.describe(); }
+    std::string describe() const;
 };
 
 #endif

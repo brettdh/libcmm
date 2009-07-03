@@ -53,3 +53,11 @@ CMMSocketControlHdr::describe() const
     stream << std::endl;
     return stream.str();
 }
+
+std::string
+CMMSocketRequest::describe const
+{
+    std::ostringstream stream;
+    stream << std::endl << "Requester thread: " << requester_tid;
+    return stream.str() + hdr.describe();
+}

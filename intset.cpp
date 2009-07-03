@@ -1,5 +1,10 @@
 #include "intset.h"
 
+IntSet::IntSet()
+    : size_(0)
+{
+}
+
 void IntSet::insert(u_long num)
 {
     if (num >= vec.size()) {
@@ -28,4 +33,10 @@ IntSet::print(void)
         printf(vec[i]?"1":"0");
     }
     printf("], size = %lu\n", vec.size());
+}
+
+size_t
+IntSet::size(void)
+{
+    return size_;
 }

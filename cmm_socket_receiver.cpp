@@ -118,8 +118,8 @@ CMMSocketReceiver::do_down_interface(struct CMMSocketControlHdr hdr)
 void
 CMMSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
 {
-    /* TODO: come back to do this after solidifying the 
-     * sender data structures */
+    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_ACK);
+    sk->sendr->ack_received(ntohl(hdr.op.ack.id), ntohl(hdr.op.ack.seqno));
 }
 
 
