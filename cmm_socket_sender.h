@@ -18,7 +18,8 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
     explicit CMMSocketSender(CMMSocketImpl *sk_);
     ssize_t send(const void *buf, size_t len, int flags);
 
-    irob_id_t begin_irob(u_long send_labels, u_long recv_labels,
+    irob_id_t begin_irob(mc_socket_t sock, 
+                         u_long send_labels, u_long recv_labels,
                          int numdeps, irob_id_t *deps);
     void end_irob(irob_id_t id);
     void irob_chunk(irob_id_t, const void *buf, size_t len, int flags);
@@ -33,6 +34,8 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
     CMMSocketImplPtr sk;
     PendingIROBHash pending_irobs;
 
+    irob_id_t next_irob;
+
     /* Headers passed to these functions should have integers
      * already in network byte order. */
     void pass_to_any_worker(struct CMMSocketRequest req);
@@ -46,7 +49,7 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
     /* returns result of underlying send, or -1 on error */
     ssize_t enqueue_and_wait_for_completion(CMMSocketRequest req);
 
-    void signal_completion(pthread_t requester_tid);
+    void signal_completion(pthread_t requester_tid, ssize_t result);
 };
 
 #endif

@@ -32,7 +32,7 @@
 /* Identifer for an IROB, assigned by begin_irob[_label] 
  * and released by end_irob 
  */
-typedef u_long irob_id_t;
+typedef long irob_id_t;
 
 /* Begin an IROB and return the new IROB id.
  * If deps is non-NULL, it should point to a depnum-sized array of

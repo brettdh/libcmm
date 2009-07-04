@@ -5,7 +5,18 @@ IntSet::IntSet()
 {
 }
 
-void IntSet::insert(u_long num)
+void IntSet::insert(long num)
+{
+    if (!contains(num)) {
+        ++size_;
+    }
+    if (num >= 0) {
+        insert_vec(pos_vec, num);
+    } else {
+        insert_vec(neg_vec, -num);
+    }
+}
+void IntSet::insert_vec(std::vector<bool>& vec, long num)
 {
     if (num >= vec.size()) {
         vec.insert(vec.end(), num - vec.size(), false);
@@ -17,6 +28,15 @@ void IntSet::insert(u_long num)
 }
 
 bool IntSet::contains(u_long num)
+{
+    if (num >= 0) {
+        return contains_vec(pos_vec, num);
+    } else {
+        return contains_vec(neg_vec, -num);
+    }
+}
+
+bool IntSet::contains_vec(const std::vector<bool>& vec, long num)
 {
     if (num >= vec.size()) {
         return false;

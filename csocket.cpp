@@ -10,6 +10,7 @@ class CSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
     
     void send_header(struct CMMSocketRequest req);
     void do_begin_irob(struct CMMSocketRequest req);
+    void do_end_irob(struct CMMSocketRequest req);
     void do_irob_chunk(struct CMMSocketRequest req);
 };
 
@@ -31,7 +32,7 @@ CSocketSender::CSocketSender(CSocket *csock_)
     : csock(csock_)
 {
     handle(CMM_CONTROL_MSG_BEGIN_IROB, &CSocketSender::do_begin_irob);
-    handle(CMM_CONTROL_MSG_END_IROB, &CSocketSender::send_header);
+    handle(CMM_CONTROL_MSG_END_IROB, &CSocketSender::do_end_irob);
     handle(CMM_CONTROL_MSG_IROB_CHUNK, &CSocketSender::do_irob_chunk);
     handle(CMM_CONTROL_MSG_NEW_INTERFACE, &CSocketSender::send_header);
     handle(CMM_CONTROL_MSG_DOWN_INTERFACE, &CSocketSender::send_header);
@@ -77,6 +78,13 @@ CSocketSender::do_begin_irob(struct CMMSocketRequest req)
     } else {
         send_header(hdr);
     }
+    csock_sendr->signal_completion(req.requester_tid, 0);
+}
+
+void CSocketSender::do_end_irob(struct CMMSocketRequest req)
+{
+    send_header(req.hdr);
+    csock_sendr->signal_completion(req.requester_tid, 0);
 }
 
 void
@@ -107,7 +115,7 @@ CSocketSender::do_irob_chunk(struct CMMSocketRequest req)
      * since it is an un-ACK'd part of an IROB. 
      * It will be cleaned up later when the ACK is received. */
 
-    /* TODO: wake up app thread */
+    csock_sendr->signal_completion(req.requester_tid, datalen);
 }
 
 CSocketReceiver::CSocketReceiver(CSocket *csock_)

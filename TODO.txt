@@ -5,22 +5,21 @@
   * IROB header stripping, buffering, etc. at receiver
 * Implement send ops as anonymous IROBs
 
-* Implement opaque send failure
+* (DONE) Implement opaque send failure
    (i.e. if a send fails, automatically retry, thunking/blocking
     as appropriate)
 
 * Switch over from signal-based IPC to pure message passing
    (This involves a dedicated IPC thread in the lib.
-    The thread will be responsible for waking up blocking
-    operations as networks come up and for spawning/managing
+    The thread will be responsible for spawning/managing
     worker threads that execute thunks.)
 
-* Implement multi-threaded receiver subsystem
-  * One thread per csocket
-  * One scheduler thread per multi-socket
+* (DONE) Implement multi-threaded receiver subsystem
+  * (DONE) One thread per csocket
+  * (DONE) One scheduler thread per multi-socket
 
-* (Done) Implement thread that listens for connections on internal listener socket
+* (DONE) Implement thread that listens for connections on internal listener socket
   * Maybe the receiver thread can have this job?
     * But that thread is blocking on its message queue.
-  * (Done) Probably makes sense to have a dedicated thread that just selects
+  * (DONE) Probably makes sense to have a dedicated thread that just selects
            on the listener socket in a loop.

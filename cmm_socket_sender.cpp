@@ -3,26 +3,29 @@
 #include "pending_irob.h"
 
 CMMSocketSender::CMMSocketSender(CMMSocketImpl *sk_)
-    : sk(sk_)
+  : sk(sk_), next_irob(0)
 {
     handle(CMM_CONTROL_MSG_BEGIN_IROB, &CMMSocketSender::pass_to_worker_by_labels);
-    handle(CMM_CONTROL_MSG_END_IROB, &CMMSocketSender::pass_to_worker_by_labels);
+    handle(CMM_CONTROL_MSG_END_IROB, 
+           &CMMSocketSender::pass_to_any_worker_prefer_labels);
     handle(CMM_CONTROL_MSG_IROB_CHUNK, &CMMSocketSender::pass_to_worker_by_labels);
     handle(CMM_CONTROL_MSG_NEW_INTERFACE, 
            &CMMSocketSender::pass_to_any_worker);
     handle(CMM_CONTROL_MSG_DOWN_INTERFACE, 
            &CMMSocketSender::pass_to_any_worker);
-    handle(CMM_CONTROL_MSG_ACK, &CMMSocketSender::pass_to_worker_by_labels);
+    handle(CMM_CONTROL_MSG_ACK, 
+           &CMMSocketSender::pass_to_any_worker_prefer_labels);
 }
 
 /* This function blocks until the data has been sent.
  * If the socket is non-blocking, we need to implement that here.
  */
-irob_id_t 
-CMMSocketSender::begin_irob(u_long send_labels, u_long recv_labels,
+int
+CMMSocketSender::begin_irob(irob_id_t *new_irob, mc_socket_t sock, 
+                            u_long send_labels, u_long recv_labels,
                             int numdeps, irob_id_t *deps)
 {
-    irob_id_t id = sk->next_irob++;
+    irob_id_t id = next_irob++;
 
     struct CMMSocketRequest req;
     req.requester_tid = pthread_self();
@@ -39,16 +42,17 @@ CMMSocketSender::begin_irob(u_long send_labels, u_long recv_labels,
         }
     }
 
-    {
+    long rc = enqueue_and_wait_for_completion(req);
+    if (rc == 0) {
         PendingIROBHash::accessor ac;
         bool success = pending_irobs.insert(ac, id);
         assert(success);
         ac->second = new PendingIROB(req.hdr.op.begin_irob);
+
+        *new_irob = id;
     }
     
-    enqueue_and_wait_for_completion(req);
-    
-    return id;
+    return rc;
 }
 
 /* This function blocks until the data has been sent.
@@ -78,13 +82,17 @@ CMMSocketSender::end_irob(irob_id_t id)
     req.hdr.type = htons(CMM_CONTROL_MSG_END_IROB);
     req.hdr.op.end_irob.id = htonl(id);
     
-    enqueue_and_wait_for_completion(req);
+    long rc = enqueue_and_wait_for_completion(req);
+    if (rc != 0) {
+        dbgprintf("end irob %d failed entirely; connection must be gone\n", id);
+        throw CMMException();
+    }
 }
 
 /* This function blocks until the data has been sent.
  * If the socket is non-blocking, we need to implement that here.
  */
-ssize_t
+long
 CMMSocketSender::irob_chunk(irob_id_t id, const void *buf, size_t len, int flags)
 {
     struct irob_chunk chunk;
@@ -119,7 +127,7 @@ CMMSocketSender::irob_chunk(irob_id_t id, const void *buf, size_t len, int flags
     chunk.datalen = htonl(chunk.datalen);
     req.hdr.op.irob_chunk = chunk;
 
-    ssize_t rc = enqueue_and_wait_for_completion(req);
+    long rc = enqueue_and_wait_for_completion(req);
     return rc;
 }
 
@@ -184,7 +192,7 @@ CMMSocketSender::ack_received(irob_id_t id, u_long seqno)
 void 
 CMMSocketSender::pass_to_any_worker(struct CMMSocketRequest req)
 {
-    CSocket *csock = csocks.new_csock_with_labels(0, 0);
+    CSocket *csock = sk->csocks.new_csock_with_labels(0, 0);
     if (!csock) {
         throw CMMControlException("No connection available!", req);
     }
@@ -192,24 +200,122 @@ CMMSocketSender::pass_to_any_worker(struct CMMSocketRequest req)
 }
 
 void
-CMMSocketSender::pass_to_worker_by_labels(struct CMMSocketRequest req)
+CMMSocketSender::pass_to_any_worker_prefer_labels(struct CMMSocketRequest req)
 {
-    /* If this action fails at the worker, it will be re-enqueued.
-     * We need a way to have it fall back on another worker if the
-     * labeled one fails.
-     *
-     * Since the "is a suitable network available?" question has been 
-     * answered well before this point, the only failure scenario here
-     * is that in which the connection fails after the network availability
-     * has been checked but before the packet gets to the socket.
-     * 
-     * Maybe the request structure needs a flag that tells whether
-     * this operation has failed once before.
-     */
+    PendingIROBHash::const_accessor ac;
+    irob_id_t id;
+    if (req.hdr.type == htons(CMM_CONTROL_MSG_END_IROB)) {
+        id = ntohl(hdr.op.end_irob.id);
+    } else if (req.hdr.type == htons(CMM_CONTROL_MSG_ACK)) {
+        id = ntohl(hdr.op.ack.id);
+    } else assert(0);
+
+    if (!pending_irobs.find(ac, id)) {
+        dbgprintf("Sending message for non-existent IROB %d\n", id);
+        throw CMMException();        
+    }
+    PendingIROB *pirob = ac->second;
+    assert(pirob);
+    CSocket *csock = sk->csocks.new_csock_with_labels(pirob->send_labels,
+                                                      pirob->recv_labels);
+    ac.release();
+
+    if (csock) {
+        csock->csock_sendr->enqueue(req);
+    } else {
+        pass_to_any_worker(req);        
+    }
 }
 
-CSocket *
-CMMSocketSender::preapprove(irob_id_t id)
+struct BlockingRequest {
+    CMMSocketSender *sendr;
+    struct CMMSocketRequest req;
+
+    BlockingRequest(CMMSocketSender *sendr_, struct CMMSocketRequest req_)
+        : sendr(sendr_), req(req_) {}
+};
+
+static void resume_request(struct blocking_request *breq)
 {
-    
+    breq->sendr->enqueue(breq->req);
+    delete breq;
+}
+
+void
+CMMSocketSender::pass_to_worker_by_labels(struct CMMSocketRequest req)
+{
+    PendingIROBHash::const_accessor ac;
+    irob_id_t id;
+    if (req.hdr.type == htons(CMM_CONTROL_MSG_BEGIN_IROB)) {
+        id = ntohl(req.hdr.op.begin_irob.id);
+    } else if (req.hdr.type == htons(CMM_CONTROL_MSG_IROB_CHUNK)) {
+        id = ntohl(req.hdr.op.irob_chunk.id);
+    } else assert(0);
+
+    if (!pending_irobs.find(ac, id)) {
+        dbgprintf("Sending message for non-existent IROB %d\n", id);
+        throw CMMException();
+    }
+    PendingIROB *pirob = ac->second;
+    assert(pirob);
+    CSocket *csock = sk->csocks.new_csock_with_labels(pirob->send_labels, 
+                                                      pirob->recv_labels);
+    if (csock) {
+        csock->csock_sendr->enqueue(req);
+    } else {
+        if (pirob->resume_handler) {
+            enqueue_handler(sk->sock, pirob->send_labels, pirob->recv_labels,
+                            pirob->resume_handler, pirob->rh_arg);
+            signal_completion(req.requester_tid, CMM_DEFERRED);
+        } else {
+            /* no resume handler, so just wait until a suitable network
+             * becomes available and try the request again. */
+            enqueue_handler(sk->sock, pirob->send_labels, pirob->recv_labels,
+                            (resume_handler_t)resume_request, 
+                            new BlockingRequest(this, req));
+        }
+    }
+}
+
+struct AppThread {
+    pthread_mutex_t mutex;
+    pthread_cond_t cv;
+    long rc;
+
+    AppThread() , rc(-1) {
+        pthread_mutex_init(&mutex, NULL);
+        pthread_cond_init(&cv, NULL);
+    }
+};
+
+#define CMM_INVALID_RC -10
+
+/* returns result of underlying send, or -1 on error */
+long enqueue_and_wait_for_completion(CMMSocketRequest req)
+{
+    long rc;
+    pthread_t self = pthread_self();
+    struct AppThread& thread = app_threads[self];
+
+    pthread_mutex_lock(thread.mutex);
+    thread.rc = CMM_INVALID_RC;
+    enqueue(req);
+    while (thread.rc == CMM_INVALID_RC) {
+        pthread_cond_wait(&thread.cv, &thread.mutex);
+    }
+    rc = thread.rc;
+    pthread_mutex_unlock(thread.mutex);
+
+    return rc;
+}
+
+void signal_completion(pthread_t requester_tid, long rc)
+{
+    assert(app_threads.find(requester_tid) != app_threads.end());
+    struct AppThread& thread = app_threads[requester_tid];
+
+    pthread_mutex_lock(&thread.mutex);
+    thread.rc = rc;
+    pthread_cond_signal(&thread.cv);
+    pthread_mutex_unlock(&thread.mutex);
 }

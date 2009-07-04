@@ -3,6 +3,7 @@
 
 #include <queue>
 #include <set>
+#include "libcmm.h"
 #include "cmm_socket_control.h"
 #include "cmm_socket.private.h"
 #include "intset.h"
@@ -21,7 +22,7 @@ typedef std::unary_function<irob_id_t, bool> Predicate;
 
 class PendingIROB {
   public:
-    PendingIROB(struct begin_irob_data, CMMSocketReceiver *);
+    PendingIROB(mc_socket_t, struct begin_irob_data, CMMSocketReceiver *);
     
     /* return true on success; false if action is invalid */
     bool add_chunk(struct irob_chunk_data&);
@@ -48,11 +49,16 @@ class PendingIROB {
      * have all the chunks been acked, or has the IROB been acked? */
     bool is_acked(void);
   private:
+    friend class CMMSocketSender;
+    friend class CMMSocketReceiver;
+    
     /* all integers here are in host byte order */
     irob_id_t id;
     u_long next_seqno;
     u_long send_labels;
     u_long recv_labels;
+    resume_handler_t resume_handler;
+    void *rh_arg;
     CMMSocketReceiver *recvr;
 
     std::set<irob_id_t> deps;

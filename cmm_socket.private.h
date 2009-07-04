@@ -92,6 +92,8 @@ class CMMSocketImpl : public CMMSocket {
     
   private:
     friend class CSockMapping;
+    friend class CMMSocketSender;
+    friend class CMMSocketReceiver;
 
     static CMMSockHash cmm_sock_hash;
     static VanillaListenerSet cmm_listeners;
@@ -129,11 +131,10 @@ class CMMSocketImpl : public CMMSocket {
     CSockMapping csocks;
 
     NetInterfaceList local_ifaces;
-    //int internal_listener_sock; /* listening on INADDR_ANY:random_port */
     ListenerThread *listener_thread;
-    in_port_t internal_listener_port; /* network byte order, from getsockname */
 
-    
+    CMMSocketSender *sendr;
+    CMMSocketReceiver *recvr;
 
     /* these are used for connecting csockets */
     NetInterfaceList remote_ifaces;
