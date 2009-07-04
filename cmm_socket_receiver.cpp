@@ -52,7 +52,7 @@ CMMSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
         throw CMMControlException("Tried to begin IROB that already exists", 
                                   hdr);
     }
-    ac->second = new PendingIROB(hdr.op.begin_irob, this);
+    ac->second = new PendingReceiverIROB(hdr.op.begin_irob, this);
     if (hdr.op.begin_irob.numdeps > 0) {
         delete [] hdr.op.begin_irob.deps;
     }
@@ -98,7 +98,7 @@ CMMSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     if (!pirob->add_chunk(hdr.op.irob_chunk)) {
         throw CMMControlException("Tried to add to completed IROB", hdr);
     }
-    delete [] hdr.op.irob_chunk.data;
+    /* TODO: signal threads waiting for incoming data? */
 }
 
 void

@@ -20,41 +20,26 @@
 
 typedef std::unary_function<irob_id_t, bool> Predicate;
 
-class PendingIROB {
+class PendingSenderIROB : public PendingIROB {
   public:
-    PendingIROB(struct begin_irob_data data, 
-                resume_handler_t resume_handler = NULL, void *rh_arg = NULL, 
-                CMMSocketReceiver *recvr_ = NULL);
+    PendingSenderIROB(struct begin_irob_data data, 
+                      resume_handler_t resume_handler, void *rh_arg)
     
     /* return true on success; false if action is invalid */
     bool add_chunk(struct irob_chunk_data&);
     bool finish(void);
     
-    void add_dep(irob_id_t id);
-    void dep_satisfied(irob_id_t id);
-
     void ack(u_long seqno = INVALID_IROB_SEQNO);
 
-    void remove_deps_if(Predicate pred);
-
-    /* is this IROB "anonymous", depending on all in-flight IROBs? */
-    bool is_anonymous(void);
-    
     /* has all the data arrived? */
     bool is_complete(void);
-
-    /* have all the deps been satisfied? 
-     * (only meaningful on the receiver side) */
-    bool is_released(void);
 
     /* is it complete, and 
      * have all the chunks been acked, or has the IROB been acked? */
     bool is_acked(void);
 
-    
   private:
     friend class CMMSocketSender;
-    friend class CMMSocketReceiver;
     
     /* all integers here are in host byte order */
     irob_id_t id;
@@ -63,7 +48,6 @@ class PendingIROB {
     u_long recv_labels;
     resume_handler_t resume_handler;
     void *rh_arg;
-    CMMSocketReceiver *recvr;
 
     std::set<irob_id_t> deps;
     std::queue<struct irob_chunk_data> chunks;

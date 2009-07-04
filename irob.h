@@ -44,7 +44,7 @@ typedef long irob_id_t;
 /* Begin an IROB on a multi-socket.  
  * Such IROBs have sender labels, receiver labels, and a thunk
  * associated, just as traditional multi-socket send operations do. */
-irob_id_t begin_irob_label(mc_socket_t sock, const irob_id_t *deps, int depnum,
+irob_id_t begin_irob_label(mc_socket_t sock, int numdeps, const irob_id_t *deps, 
                            u_long send_labels, u_long recv_labels, 
                            resume_handler_t fn, void *arg);
 

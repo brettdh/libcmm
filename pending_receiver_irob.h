@@ -8,23 +8,12 @@
 #include "cmm_socket.private.h"
 #include "intset.h"
 
-/* Terminology:
- *  An IROB is _pending_ if the application has not yet received all of its
- *    bytes.
- *  An IROB is _complete_ if all of the data has arrived in our library.
- *  An IROB is _released_ if it is _complete_ AND all of its
- *    dependencies have been satisfied.
- *  Once an IROB has been received in its entirety by the application,
- *    it is no longer pending and this data structure is destroyed.
- */
-
 typedef std::unary_function<irob_id_t, bool> Predicate;
 
-class PendingIROB {
+class PendingReceiverIROB : public PendingIROB {
   public:
     PendingIROB(struct begin_irob_data data, 
-                resume_handler_t resume_handler = NULL, void *rh_arg = NULL, 
-                CMMSocketReceiver *recvr_ = NULL);
+                CMMSocketReceiver *recvr_);
     
     /* return true on success; false if action is invalid */
     bool add_chunk(struct irob_chunk_data&);
@@ -32,8 +21,6 @@ class PendingIROB {
     
     void add_dep(irob_id_t id);
     void dep_satisfied(irob_id_t id);
-
-    void ack(u_long seqno = INVALID_IROB_SEQNO);
 
     void remove_deps_if(Predicate pred);
 
@@ -47,33 +34,22 @@ class PendingIROB {
      * (only meaningful on the receiver side) */
     bool is_released(void);
 
-    /* is it complete, and 
-     * have all the chunks been acked, or has the IROB been acked? */
-    bool is_acked(void);
-
-    
   private:
     friend class CMMSocketSender;
     friend class CMMSocketReceiver;
     
     /* all integers here are in host byte order */
     irob_id_t id;
-    u_long next_seqno;
     u_long send_labels;
     u_long recv_labels;
-    resume_handler_t resume_handler;
-    void *rh_arg;
     CMMSocketReceiver *recvr;
 
     std::set<irob_id_t> deps;
     std::queue<struct irob_chunk_data> chunks;
     ssize_t bytes_read;
 
-    IntSet acked_chunks;
-    
     bool anonymous;
     bool complete;
-    bool acked;
 };
 
 #endif

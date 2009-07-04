@@ -22,8 +22,9 @@ CMMSocketSender::CMMSocketSender(CMMSocketImpl *sk_)
  */
 int
 CMMSocketSender::begin_irob(irob_id_t *new_irob, mc_socket_t sock, 
+                            int numdeps, irob_id_t *deps,
                             u_long send_labels, u_long recv_labels,
-                            int numdeps, irob_id_t *deps)
+                            resume_handler_t resume_handler, void *rh_arg)
 {
     irob_id_t id = next_irob++;
 
@@ -47,7 +48,8 @@ CMMSocketSender::begin_irob(irob_id_t *new_irob, mc_socket_t sock,
         PendingIROBHash::accessor ac;
         bool success = pending_irobs.insert(ac, id);
         assert(success);
-        ac->second = new PendingIROB(req.hdr.op.begin_irob);
+        ac->second = new PendingSenderIROB(req.hdr.op.begin_irob, 
+                                           resume_handler, rh_arg);
 
         *new_irob = id;
     }

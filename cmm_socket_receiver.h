@@ -8,10 +8,6 @@
 #include "intset.h"
 #include <map>
 
-typedef tbb::concurrent_hash_map<irob_id_t, PendingIROB *,
-                                 IntegerHashCompare<irob_id_t> > 
-                                   PendingIROBHash;
-
 class CMMSocketReceiver : public CMMSocketScheduler<struct CMMSocketControlHdr> {
   public:
     explicit CMMSocketReceiver(CMMSocketImpl *sk_);
@@ -20,11 +16,16 @@ class CMMSocketReceiver : public CMMSocketScheduler<struct CMMSocketControlHdr> 
     /* 1) If pirob is anonymous, add deps on all pending IROBs.
      * 2) Otherwise, add deps on all pending anonymous IROBs.
      * 3) Remove already-satisfied deps. */
-    void correct_deps(PendingIROB *pi);
+    void correct_deps(PendingReceiverIROB *pi);
   protected:
     virtual void Run();
   private:
     CMMSocketImplPtr sk;
+
+    typedef tbb::concurrent_hash_map
+        <irob_id_t, PendingReceiverIROB *,
+         IntegerHashCompare<irob_id_t> > PendingIROBHash;
+
     PendingIROBHash pending_irobs;
     IntSet committed_irobs;
 

@@ -9,10 +9,6 @@
 #include <map>
 #include "cmm_socket_scheduler.h"
 
-typedef tbb::concurrent_hash_map<irob_id_t, PendingIROB *,
-                                 IntegerHashCompare<irob_id_t> > 
-                                   PendingIROBHash;
-
 class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
   public:
     explicit CMMSocketSender(CMMSocketImpl *sk_);
@@ -32,6 +28,11 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
     virtual void Run();
   private:
     CMMSocketImplPtr sk;
+
+    typedef tbb::concurrent_hash_map
+        <irob_id_t, PendingSenderIROB *,
+         IntegerHashCompare<irob_id_t> > PendingIROBHash;
+    
     PendingIROBHash pending_irobs;
 
     irob_id_t next_irob;
