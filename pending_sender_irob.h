@@ -18,8 +18,6 @@
  *    it is no longer pending and this data structure is destroyed.
  */
 
-typedef std::unary_function<irob_id_t, bool> Predicate;
-
 class PendingSenderIROB : public PendingIROB {
   public:
     PendingSenderIROB(struct begin_irob_data data, 
@@ -51,7 +49,6 @@ class PendingSenderIROB : public PendingIROB {
 
     std::set<irob_id_t> deps;
     std::queue<struct irob_chunk_data> chunks;
-    ssize_t bytes_read;
 
     IntSet acked_chunks;
     

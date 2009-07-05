@@ -19,10 +19,11 @@ class PendingReceiverIROB : public PendingIROB {
     bool add_chunk(struct irob_chunk_data&);
     bool finish(void);
     
-    void add_dep(irob_id_t id);
     void dep_satisfied(irob_id_t id);
-
     void remove_deps_if(Predicate pred);
+
+    void add_dependent(irob_id_t id);
+    void release_dependents();
 
     /* is this IROB "anonymous", depending on all in-flight IROBs? */
     bool is_anonymous(void);
