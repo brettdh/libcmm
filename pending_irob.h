@@ -18,24 +18,23 @@
  *    it is no longer pending and this data structure is destroyed.
  */
 
-typedef std::unary_function<irob_id_t, bool> Predicate;
-
 class PendingIROB {
   public:
-    PendingIROB(struct begin_irob_data data, 
-                resume_handler_t resume_handler = NULL, void *rh_arg = NULL, 
-                CMMSocketReceiver *recvr_ = NULL);
+    PendingIROB(struct begin_irob_data data);
     
     /* return true on success; false if action is invalid */
     bool add_chunk(struct irob_chunk_data&);
     bool finish(void);
+
+    void add_dependency(PendingIROB *dep);
+
+    std::set<PendingIROB *> get_dep_ptrs();
     
-    void add_dep(irob_id_t id);
-    void dep_satisfied(irob_id_t id);
+    void add_dependent(irob_id_t id);
 
-    void ack(u_long seqno = INVALID_IROB_SEQNO);
-
-    void remove_deps_if(Predicate pred);
+    /* returns true if this IROB directly or transitively 
+     * depends on that IROB. */
+    bool depends_on(irob_id_t id);
 
     /* is this IROB "anonymous", depending on all in-flight IROBs? */
     bool is_anonymous(void);
@@ -43,37 +42,56 @@ class PendingIROB {
     /* has all the data arrived? */
     bool is_complete(void);
 
-    /* have all the deps been satisfied? 
-     * (only meaningful on the receiver side) */
-    bool is_released(void);
-
-    /* is it complete, and 
-     * have all the chunks been acked, or has the IROB been acked? */
-    bool is_acked(void);
-
-    
-  private:
-    friend class CMMSocketSender;
-    friend class CMMSocketReceiver;
-    
+  protected:
     /* all integers here are in host byte order */
     irob_id_t id;
-    u_long next_seqno;
     u_long send_labels;
     u_long recv_labels;
-    resume_handler_t resume_handler;
-    void *rh_arg;
-    CMMSocketReceiver *recvr;
 
     std::set<irob_id_t> deps;
     std::queue<struct irob_chunk_data> chunks;
-    ssize_t bytes_read;
 
-    IntSet acked_chunks;
-    
     bool anonymous;
     bool complete;
-    bool acked;
+private:
+    friend class PendingIROBLattice;
+
+    /* if not NULL, points to the lattice that this IROB belongs to. 
+     * Used for keeping track of the domset of IROBs, which is needed
+     * for figuring out which IROBs anonymous IROBs directly depend on. */
+    PendingIROBLattice *lattice;
+};
+
+
+/* IROBs are related by the depends-on relation.
+ * This relation forms a partial-ordering on all IROBs.
+ * We think here of the relation pointing upwards, where the 
+ * IROBs with no dependencies are at the top of a lattice
+ */
+class PendingIROBLattice {
+  public:
+    void add(PendingIROB *);
+    void remove(PendingIROB *);
+    
+    /* returns true if first depends on second. */
+    bool depends_on(PendingIROB *first, PendingIROB *second);
+
+    /* iter_fns are member functions of PendingIROB.  
+     * the argument is a given dependent IROB ptr. */
+    typedef void (PendingIROB::*iter_fn_t)(PendingIROB *);
+    void for_each_dep(PendingIROB *dependent, iter_fn_t fn);
+  private:
+    PendingIROBHash pending_irobs;
+
+    std::map<irob_id_t, struct node *> nodes;
+    struct node {
+        PendingIROB *pirob;
+        irob_id_t id;
+        std::set<struct node *> up;
+        std::set<struct node *> down;
+    };
+    struct node bottom;
+    struct node top;
 };
 
 #endif

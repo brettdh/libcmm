@@ -1,10 +1,9 @@
 #include "pending_irob.h"
+#include "pending_sender_irob.h"
 
-PendingIROB::PendingIROB(struct begin_irob_data begin_irob,
+PendingSenderIROB::PendingSenderIROB(struct begin_irob_data begin_irob,
                          resume_handler_t resume_handler_, void *rh_arg_)
-    : id(ntohl(begin_irob.id)), 
-      send_labels(begin_irob.send_labels), 
-      recv_labels(begin_irob.recv_labels),
+    : PendingIROB(begin_irob),
       resume_handler(resume_handler_), rh_arg(rh_arg_),
       complete(false),
       acked(false),
@@ -21,7 +20,7 @@ PendingIROB::PendingIROB(struct begin_irob_data begin_irob,
     }
 }
 
-PendingIROB::~PendingIROB()
+PendingSenderIROB::~PendingSenderIROB()
 {
     while (!chunks.empty()) {
         struct irob_chunk_data chunk;
@@ -31,18 +30,17 @@ PendingIROB::~PendingIROB()
 }
 
 bool
-PendingIROB::add_chunk(struct irob_chunk_data& irob_chunk)
+PendingSenderIROB::add_chunk(struct irob_chunk_data& irob_chunk)
 {
-    if (is_complete() || is_released()) {
+    if (!PendingIROB::add_chunk(irob_chunk)) {
         return false;
     }
     irob_chunk.seqno = next_seqno++;
-    chunks.push(irob_chunk);
     return true;
 }
 
 void
-PendingIROB::ack(u_long seqno)
+PendingSenderIROB::ack(u_long seqno)
 {
     if (seqno >= next_seqno) {
         dbgprintf("Invalid seqno %lu for ack in IROB %lu\n", seqno, id);
@@ -60,13 +58,13 @@ PendingIROB::ack(u_long seqno)
 }
 
 bool
-PendingIROB::is_acked(void)
+PendingSenderIROB::is_acked(void)
 {
     return acked;
 }
 
 bool
-PendingIROB::finish(void)
+PendingSenderIROB::finish(void)
 {
     if (is_complete()) {
         return false;
@@ -75,32 +73,8 @@ PendingIROB::finish(void)
     return true;
 }
 
-void 
-PendingIROB::dep_satisfied(irob_id_t id)
-{
-    deps.erase(id);
-}
-
-void
-PendingIROB::add_dependent(PendingIROB *dependent)
-{
-    
-}
-
-void
-PendingIROB::release_dependents()
-{
-    
-}
-
 bool 
-PendingIROB::is_complete(void)
+PendingSenderIROB::is_complete(void)
 {
     return complete;
-}
-
-bool 
-PendingIROB::is_released(void)
-{
-    return deps.empty();
 }

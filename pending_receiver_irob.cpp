@@ -3,15 +3,9 @@
 PendingIROB::PendingIROB(struct begin_irob_data begin_irob,
                          resume_handler_t resume_handler_, void *rh_arg_,
                          CMMSocketReceiver *recvr_)
-    : id(ntohl(begin_irob.id)), 
-      send_labels(begin_irob.send_labels), 
-      recv_labels(begin_irob.recv_labels),
-      resume_handler(resume_handler_), rh_arg(rh_arg_),
+    : PendingIROB(begin_irob),
       recvr(recvr_),
-      anonymous(begin_irob.numdeps == -1),
-      complete(false),
-      acked(false),
-      next_seqno(INVALID_IROB_SEQNO + 1)
+      anonymous(begin_irob.numdeps == -1)
 {
     int numdeps = ntohl(begin_irob.numdeps);
     if (numdeps > 0) {
@@ -35,17 +29,6 @@ PendingIROB::~PendingIROB()
         chunks.pop(chunk);
         delete [] chunk.data;
     }
-}
-
-bool
-PendingIROB::add_chunk(struct irob_chunk_data& irob_chunk)
-{
-    if (is_complete() || is_released()) {
-        return false;
-    }
-    irob_chunk.seqno = next_seqno++;
-    chunks.push(irob_chunk);
-    return true;
 }
 
 void

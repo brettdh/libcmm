@@ -7,6 +7,7 @@
 #include "cmm_socket_control.h"
 #include "cmm_socket.private.h"
 #include "intset.h"
+#include "pending_irob.h"
 
 /* Terminology:
  *  An IROB is _pending_ if the application has not yet received all of its
@@ -23,14 +24,9 @@ class PendingSenderIROB : public PendingIROB {
     PendingSenderIROB(struct begin_irob_data data, 
                       resume_handler_t resume_handler, void *rh_arg)
     
-    /* return true on success; false if action is invalid */
     bool add_chunk(struct irob_chunk_data&);
-    bool finish(void);
     
     void ack(u_long seqno = INVALID_IROB_SEQNO);
-
-    /* has all the data arrived? */
-    bool is_complete(void);
 
     /* is it complete, and 
      * have all the chunks been acked, or has the IROB been acked? */
@@ -40,20 +36,13 @@ class PendingSenderIROB : public PendingIROB {
     friend class CMMSocketSender;
     
     /* all integers here are in host byte order */
-    irob_id_t id;
     u_long next_seqno;
-    u_long send_labels;
-    u_long recv_labels;
+
     resume_handler_t resume_handler;
     void *rh_arg;
 
-    std::set<irob_id_t> deps;
-    std::queue<struct irob_chunk_data> chunks;
-
     IntSet acked_chunks;
     
-    bool anonymous;
-    bool complete;
     bool acked;
 };
 
