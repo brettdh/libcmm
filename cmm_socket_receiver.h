@@ -12,12 +12,7 @@ class CMMSocketReceiver : public CMMSocketScheduler<struct CMMSocketControlHdr> 
   public:
     explicit CMMSocketReceiver(CMMSocketImpl *sk_);
     ssize_t recv(void *buf, size_t len, int flags);
-    
-    /* 1) If pirob is anonymous, add deps on all pending IROBs.
-     * 2) Otherwise, add deps on all pending anonymous IROBs.
-     * 3) Remove already-satisfied deps. */
-    void correct_deps(PendingReceiverIROB *pi);
-  protected:
+ protected:
     virtual void Run();
   private:
     CMMSocketImplPtr sk;
@@ -27,7 +22,6 @@ class CMMSocketReceiver : public CMMSocketScheduler<struct CMMSocketControlHdr> 
          IntegerHashCompare<irob_id_t> > PendingIROBHash;
 
     PendingIROBHash pending_irobs;
-    IntSet committed_irobs;
 
     void do_begin_irob(struct CMMSocketControlHdr hdr);
     void do_end_irob(struct CMMSocketControlHdr hdr);

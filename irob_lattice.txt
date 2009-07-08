@@ -1,0 +1,15 @@
+* Anonymous IROBs depend on the domset of in-flight IROBs.
+* All IROBs depend on all anonymous IROBs that happened-before them.
+  * It's sufficient to just depend on the most recent anonymous IROB, since it
+     transitively depends on everything that happened-before it.
+* All of this is enforced at the receiver.  However,
+* The sender-side needs to have the same info for scheduling decisions.
+   * An IntSet of past IROBs should be at the sender too.
+
+From the lattice, I need:
+  * A way to add IROBs and have their deps automatically added. (correct_deps)
+  * A way to pick released IROBs to pass to the application (this can be simple for now)
+  * A way to change scheduling/labeling based on dependency information (can come later)
+
+None of these require a pointerful lattice structure for functionality 
+(but maybe for performance).

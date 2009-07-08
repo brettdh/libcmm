@@ -54,12 +54,12 @@ class PendingIROB {
     bool anonymous;
     bool complete;
 private:
-    friend class PendingIROBLattice;
+    //friend class PendingIROBLattice;
 
     /* if not NULL, points to the lattice that this IROB belongs to. 
      * Used for keeping track of the domset of IROBs, which is needed
      * for figuring out which IROBs anonymous IROBs directly depend on. */
-    PendingIROBLattice *lattice;
+    //PendingIROBLattice *lattice;
 };
 
 
@@ -68,21 +68,23 @@ private:
  * We think here of the relation pointing upwards, where the 
  * IROBs with no dependencies are at the top of a lattice
  */
+#if 0
 class PendingIROBLattice {
   public:
     void add(PendingIROB *);
     void remove(PendingIROB *);
     
     /* returns true if first depends on second. */
-    bool depends_on(PendingIROB *first, PendingIROB *second);
+    //bool depends_on(PendingIROB *first, PendingIROB *second);
 
     /* iter_fns are member functions of PendingIROB.  
      * the argument is a given dependent IROB ptr. */
-    typedef void (PendingIROB::*iter_fn_t)(PendingIROB *);
-    void for_each_dep(PendingIROB *dependent, iter_fn_t fn);
+    //typedef void (PendingIROB::*iter_fn_t)(PendingIROB *);
+    //void for_each_dep(PendingIROB *dependent, iter_fn_t fn);
   private:
     PendingIROBHash pending_irobs;
 
+#if 0
     std::map<irob_id_t, struct node *> nodes;
     struct node {
         PendingIROB *pirob;
@@ -92,6 +94,8 @@ class PendingIROBLattice {
     };
     struct node bottom;
     struct node top;
+#endif
 };
+#endif
 
 #endif

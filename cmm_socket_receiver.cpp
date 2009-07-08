@@ -30,7 +30,7 @@ CMMSocketReceiver::correct_deps(PendingIROB *pirob)
     }
     /* 3) Remove already-satisfied deps. */
     pirob->remove_deps_if(bind1st(mem_fun_ref(&IntSet::contains), 
-                                  committed_irobs));
+                                  past_irobs));
 }
 
 void
@@ -42,7 +42,7 @@ CMMSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     }
 
     irob_id_t id = ntohl(hdr.op.begin_irob.id);
-    if (committed_irobs.contains(id)) {
+    if (past_irobs.contains(id)) {
         throw CMMControlException("Tried to begin IROB that's been committed",
                                   hdr);
     }
@@ -65,7 +65,7 @@ CMMSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
     PendingIROBHash::accessor ac;
     irob_id_t id = ntohl(hdr.op.end_irob.id);
     if (!pending_irobs.find(ac, id)) {
-        if (committed_irobs.contains(id)) {
+        if (past_irobs.contains(id)) {
             throw CMMControlException("Tried to end committed IROB", hdr);
         } else {
             throw CMMControlException("Tried to end nonexistent IROB", hdr);
@@ -87,7 +87,7 @@ CMMSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     PendingIROBHash::accessor ac;
     irob_id_t id = ntohl(hdr.op.irob_chunk.id);
     if (!pending_irobs.find(ac, id)) {
-        if (committed_irobs.contains(id)) {
+        if (past_irobs.contains(id)) {
             throw CMMControlException("Tried to add to committed IROB", hdr);
         } else {
             throw CMMControlException("Tried to add to nonexistent IROB", hdr);
@@ -135,7 +135,7 @@ CMMSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
  *   This thread definitely needs to read from the pending_irobs
  *   data structure, to figure out what data to pass to the
  *   application.  It also needs to update this data structure
- *   and the committed_irobs set as IROBs are committed.
+ *   and the past_irobs set as IROBs are committed.
  * Thought: we could make this function read-only by using the
  *   msg_queue to cause the Receiver thread to do any needed updates.
  */

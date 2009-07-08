@@ -48,11 +48,13 @@ PendingIROB::finish(void)
     return true;
 }
 
+#if 0
 void
 PendingIROB::add_dependent(PendingIROB *dependent)
 {
     
 }
+#endif
 
 bool 
 PendingIROB::is_complete(void)
@@ -61,6 +63,7 @@ PendingIROB::is_complete(void)
 }
 
 
+#if 0
 void 
 PendingIROBLattice::add(irob_id_t id, PendingIROB *pirob)
 {
@@ -113,3 +116,4 @@ PendingIROBLattice::for_each_dep(PendingIROB *dependent, iter_fn_t fn)
 {
     
 }
+#endif
