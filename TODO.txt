@@ -33,4 +33,17 @@
 * Implement recv, blocking and ordering incoming bytes according to
   dependency information.
 
+* Look through and make sure all the error-handling looks right; i.e.
+  when connectivity with the remote host is lost, all the data structures
+  and threads associated with the multi-socket are cleaned up
+  and an error is returned to the caller.  Similarly, when physical 
+  connections break, their CSockets and associated threads should be
+  cleaned up.
+  * Question: would it still make sense to keep a multi-socket around
+    if there are no interfaces to connect on?  Presumably, if the other
+    side keeps my listener port info, it could reconnect and THEN tell me
+    about its interfaces.
+    * Need to make sure that my code doesn't make any unnecessary
+      assumptions that would make this difficult.
+
 * Make it all compile!
