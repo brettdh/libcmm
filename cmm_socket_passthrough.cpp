@@ -76,3 +76,35 @@ CMMSocketPassThrough::check_label(u_long label, resume_handler_t fn, void *arg)
     /* not meaningful on regular sockets */
     return 0;
 }
+
+irob_id_t
+CMMSocketPassThrough::mc_begin_irob(int numdeps, irob_id_t *deps, 
+                                    u_long send_labels, u_long recv_labels,
+                                    resume_handler_t rh, void *rh_arg)
+{
+    errno = EBADF;
+    return -1;
+}
+
+int
+CMMSocketPassThrough::mc_end_irob(irob_id_t id)
+{
+    errno = EBADF;
+    return -1;
+}
+
+ssize_t 
+CMMSocketPassThroughmc_irob_send(irob_id_t id, 
+                                 const void *buf, size_t len, int flags)
+{
+    errno = EBADF;
+    return -1;
+}
+
+int 
+CMMSocketPassThrough::mc_irob_writev(irob_id_t id, 
+                                     const struct iovec *vector, int count)
+{
+    errno = EBADF;
+    return -1;
+}

@@ -29,6 +29,9 @@ typedef tbb::concurrent_hash_map<mc_socket_t,
                                  CMMSocketImplPtr, 
                                  IntegerHashCompare<mc_socket_t> > CMMSockHash;
 
+typedef tbb::concurrent_hash_map<irob_id_t, mc_socket_t, 
+                                 IntegerHashCompare<irob_id_t> > IROBSockHash;
+
 typedef tbb::concurrent_hash_map<int, 
                                  void*, /* unused; keys only, no values */
                                  IntegerHashCompare<int> > VanillaListenerSet;
@@ -45,6 +48,7 @@ class CMMSocketImpl : public CMMSocket {
   public:
     static mc_socket_t create(int family, int type, int protocol);
     static CMMSocketPtr lookup(mc_socket_t sock);
+    static CMMSocketPtr lookup_by_irob(irob_id_t id);
     static int mc_close(mc_socket_t sock);
 
     static void interface_down(struct net_interface down_iface);
@@ -61,6 +65,15 @@ class CMMSocketImpl : public CMMSocket {
                           u_long labels, resume_handler_t resume_handler, 
                           void *arg);    
     virtual int mc_shutdown(int how);
+
+    virtual irob_id_t mc_begin_irob(int numdeps, irob_id_t *deps, 
+                                    u_long send_labels, u_long recv_labels,
+                                    resume_handler_t rh, void *rh_arg);
+    virtual int mc_end_irob(irob_id_t id);
+    virtual ssize_t mc_irob_send(irob_id_t id, 
+                                 const void *buf, size_t len, int flags);
+    virtual int mc_irob_writev(irob_id_t id, 
+                               const struct iovec *vector, int count);
 
     static int mc_select(mc_socket_t nfds, 
 			 fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
@@ -96,6 +109,7 @@ class CMMSocketImpl : public CMMSocket {
     friend class CMMSocketReceiver;
 
     static CMMSockHash cmm_sock_hash;
+    static IROBSockHash irob_sock_hash;
     static VanillaListenerSet cmm_listeners;
     static NetInterfaceMap ifaces;
 
@@ -149,6 +163,8 @@ class CMMSocketImpl : public CMMSocket {
     int sock_protocol;
     SockOptHash sockopts;
 
+    irob_id_t next_irob;
+
     static int make_real_fd_set(int nfds, fd_set *fds,
                                 mcSocketOsfdPairList &osfd_list, 
                                 int *maxosfd);
@@ -164,6 +180,13 @@ class CMMSocketImpl : public CMMSocket {
                               int osfd = -1);
 
     bool net_available(u_long send_labels, u_long recv_labels);
+
+    /* shortcut utility functions for hashtable-based rwlocking.  */
+
+    /* grab a readlock on this socket with the accessor. */
+    void lock(CMMSockHash::const_accessor ac);
+    /* grab a writelock on this socket with the accessor. */
+    void lock(CMMSockHash::accessor ac);
 };
 
 class CMMSocketPassThrough : public CMMSocket {

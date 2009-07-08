@@ -13,6 +13,12 @@ CMMSocket::lookup(mc_socket_t sock)
     return CMMSocketImpl::lookup(sock);
 }
 
+CMMSocketPtr
+CMMSocket::lookup_by_irob(irob_id_t id)
+{
+    return CMMSocketImpl::lookup_by_irob(id);
+}
+
 int
 CMMSocket::mc_close(mc_socket_t sock)
 {

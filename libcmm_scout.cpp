@@ -213,7 +213,7 @@ int notify_subscriber_of_event(pid_t pid, mqd_t mq_fd,
 	fprintf(stderr, "Failed to notify subscriber proc %d\n", pid);
     } else {
 	fprintf(stderr, "Sent notification to process %d\n", pid);
-	kill(pid, CMM_SIGNAL);
+	//kill(pid, CMM_SIGNAL);
     }
     return rc;
 }

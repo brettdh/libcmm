@@ -224,6 +224,19 @@ CMMSocketImpl::lookup(mc_socket_t sock)
     }
 }
 
+CMMSocketPtr
+CMMSocketImpl::lookup_by_irob(irob_id_t id)
+{
+    IROBSockHash::const_accessor read_ac;
+    if (!irob_sock_hash.find(read_ac, id)) {
+        return CMMSocketPtr(new CMMSocketPassThrough(-1));
+    } else {
+        mc_socket_t sock = read_ac->second;
+        read_ac.release();
+        return lookup(read_ac->second);
+    }
+}
+
 int
 CMMSocketImpl::mc_close(mc_socket_t sock)
 {
@@ -243,7 +256,7 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
 
 
 CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
-    : csocks(this)
+    : csocks(this), next_irob(0)
 {
     /* reserve a dummy OS file descriptor for this mc_socket. */
     sock = socket(family, type, protocol);
@@ -639,13 +652,23 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
     /* TODO-IMPL: move/reference this code as necessary */
     labels = set_superior_label(sock, labels);	
 #endif
-    CSocket *csock = NULL;
-    rc = preapprove(labels, resume_handler, arg, csock);
+    
+    irob_id_t id = mc_begin_irob(-1, NULL, send_labels, recv_labels, 
+                                 resume_handler, arg);
+    if (id < 0) {
+        return id;
+    }
+    
+    ssize_t bytes = mc_irob_send(id, buf, len, flags);
+    if (bytes < 0) {
+        return bytes;
+    }
+
+    rc = mc_end_irob(id);
     if (rc < 0) {
         return rc;
     }
-    assert(csock);
-    return send(csock->osfd, buf, len, flags);
+    return bytes;
 }
 
 int 
@@ -660,14 +683,23 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
     /* TODO-IMPL: move/reference this code as necessary */
     labels = set_superior_label(sock, labels);	
 #endif
-    CSocket *csock = NULL;
-    rc = preapprove(labels, resume_handler, arg, csock);
-    if (rc < 0) {
-	return rc;
+
+    irob_id_t id = mc_begin_irob(-1, NULL, send_labels, recv_labels, 
+                                 resume_handler, arg);
+    if (id < 0) {
+        return id;
     }
     
-    assert(csock);
-    return writev(csock->osfd, vec, count);
+    int bytes = mc_irob_writev(id, vec, count);
+    if (bytes < 0) {
+        return bytes;
+    }
+
+    rc = mc_end_irob(id);
+    if (rc < 0) {
+        return rc;
+    }
+    return bytes;
 }
 
 int
@@ -693,6 +725,69 @@ CMMSocketImpl::mc_shutdown(int how)
 
     return rc;
 }
+
+irob_id_t 
+CMMSocketImpl::mc_begin_irob(int numdeps, irob_id_t *deps, 
+                             u_long send_labels, u_long recv_labels,
+                             resume_handler_t rh, void *rh_arg)
+{
+    irob_id_t id;
+    {
+        CMMSockHash::accessor write_ac;
+        lock(write_ac);
+        id = next_irob++;
+    }
+    CMMSockHash::const_accessor read_ac;
+    lock(read_ac);
+    return sendr->begin_irob(numdeps, deps, 
+                             send_labels, recv_labels,
+                             rh, rh_arg);
+}
+
+int
+CMMSocketImpl::mc_end_irob(irob_id_t id)
+{
+    CMMSockHash::const_accessor read_ac;
+    lock(read_ac);
+    return sendr->end_irob(id);
+}
+
+ssize_t
+CMMSocketImpl::mc_irob_send(irob_id_t id, 
+                            const void *buf, size_t len, int flags)
+{
+    CMMSockHash::const_accessor read_ac;
+    lock(read_ac);
+    return sendr->irob_chunk(id, buf, len, flags);
+}
+
+int
+CMMSocketImpl::mc_irob_writev(irob_id_t id, 
+                              const struct iovec *vector, int count)
+{
+    if (!vec || count <= 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    int buflen = 0;
+    for (int i = 0; i < count; i++) {
+        if (vec[i].iov_len <= 0) {
+            errno = EINVAL;
+            return -1;
+        }
+        buflen += vec[i].iov_len;
+    }
+    char *buf = new char[buflen];
+    for (int i = 0; i < count; i++) {
+        memcpy(buf + i, vec[i].iov_base, vec[i].iov_len);
+    }
+
+    long rc = mc_irob_chunk(id, buf, buflen, 0);
+    delete [] buf;
+    return rc;
+}
+
 
 void
 CMMSocketImpl::interface_up(struct net_interface up_iface)
@@ -1107,6 +1202,13 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
     if (local) {
         sendr->new_interface(iface.ip_addr, iface.labels);
     } else {
+        read_ac.release();
+        CMMSockHash::accessor write_ac;
+        if (!cmm_sock_hash.find(write_c, sock)) {
+            assert(0);
+        }
+        assert(get_pointer(write_ac->second) == this);
+
         remote_ifaces.insert(iface);
     }
 }
@@ -1114,7 +1216,7 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
 void
 CMMSocketImpl::teardown(struct net_interface iface, bool local)
 {
-    CMMSockHash::const_accessor read_ac;
+    CMMSockHash::accessor read_ac;
     if (!cmm_sock_hash.find(read_ac, sock)) {
 	assert(0);
     }
@@ -1193,4 +1295,25 @@ CMMSocketImpl::net_available(mc_socket_t sock,
     }
     CMMSocketImplPtr sk = read_ac->second;;
     return sk->net_available(send_labels, recv_labels);
+}
+
+/* grab a readlock on this socket with the accessor. */
+void 
+CMMSocketImpl::lock(CMMSockHash::const_accessor ac)
+{
+    if (!cmm_sock_hash.find(ac, sock)) {
+        assert(0);
+    }
+    assert(get_pointer(ac->second) == this);
+}
+
+
+/* grab a writelock on this socket with the accessor. */
+void 
+CMMSocketImpl::lock(CMMSockHash::accessor ac)
+{
+    if (!cmm_sock_hash.find(ac, sock)) {
+        assert(0);
+    }
+    assert(get_pointer(ac->second) == this);
 }

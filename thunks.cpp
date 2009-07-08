@@ -116,8 +116,12 @@ void fire_thunks(void)
 		struct thunk *th = NULL;
 		tq->thunk_queue.pop(th);
 		assert(th);
-		if (th->fn) {
-		    th->fn(th->arg);
+                resume_handler_t fn = th->fn;
+                /* No worries if the app cancels the thunk after 
+                 * it is fired; this can happen even if we 
+                 * mutex'd the thunk here */
+		if (fn) {
+		    fn(th->arg);
 		    /* application was required to free() or save th->arg */
 		}
 		/* clean up finished/cancelled thunks */

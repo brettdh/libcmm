@@ -14,6 +14,7 @@ class CMMSocket {
   public:
     static mc_socket_t create(int family, int type, int protocol);
     static CMMSocketPtr lookup(mc_socket_t sock);
+    static CMMSocketPtr lookup_by_irob(irob_id_t id);
     static int mc_close(mc_socket_t sock);
 
     static void interface_down(struct net_interface down_iface);
@@ -52,6 +53,15 @@ class CMMSocket {
                           void *arg) = 0;
 
     virtual int mc_shutdown(int how) = 0;
+    
+    virtual irob_id_t mc_begin_irob(int numdeps, irob_id_t *deps, 
+                                    u_long send_labels, u_long recv_labels,
+                                    resume_handler_t rh, void *rh_arg) = 0;
+    virtual int mc_end_irob(irob_id_t id) = 0;
+    virtual ssize_t mc_irob_send(irob_id_t id, 
+                                 const void *buf, size_t len, int flags) = 0;
+    virtual int mc_irob_writev(irob_id_t id, 
+                               const struct iovec *vector, int count) = 0;
 
     virtual ~CMMSocket() {}
 };

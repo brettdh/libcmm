@@ -19,6 +19,8 @@ static MsgMutexType msg_lock;
 /* per-process message queue with the scout. */
 static mqd_t scout_mq_fd;
 
+static pthread_t ipc_thread_id;
+
 static int send_control_message(const struct cmm_msg *msg);
 static int scout_recv(struct cmm_msg *msg);
 
@@ -89,11 +91,14 @@ static int send_control_message(const struct cmm_msg *msg)
 
 static char mq_name[MAX_PROC_MQ_NAMELEN];
 
+#if 0
 static struct sigaction old_action;
 static struct sigaction ignore_action;
 static struct sigaction net_status_change_action;
+#endif
 
 static void net_status_change_handler(int sig);
+static void *IPCThread(void*);
 
 void scout_ipc_init(int cmm_signal)
 {
@@ -118,6 +123,7 @@ void scout_ipc_init(int cmm_signal)
 	return;
     }
 
+#if 0
     memset(&ignore_action, 0, sizeof(ignore_action));
     memset(&net_status_change_action, 0, sizeof(net_status_change_action));
     memset(&old_action, 0, sizeof(old_action));
@@ -135,6 +141,9 @@ void scout_ipc_init(int cmm_signal)
 		"WARNING: the application has changed the "
 		"default handler for signal %d\n", cmm_signal);
     }
+#endif
+    
+    rc = pthread_create(&ipc_thread_id, NULL, IPCThread, NULL);
 
     msg.opcode = CMM_MSG_SUBSCRIBE;
     msg.data.pid = getpid();
@@ -203,7 +212,7 @@ void scout_request_update()
 extern void process_interface_update(struct net_interface iface, bool down);
 
 /* only call when a message is definitely present. */
-static void net_status_change_handler(int sig)
+static void net_status_change_handler(void)
 {
     struct cmm_msg msg;
     memset(&msg, 0, sizeof(msg));
@@ -221,4 +230,25 @@ static void net_status_change_handler(int sig)
 		msg.opcode);
 	return;
     }
+}
+
+static void *IPCThread(void *arg)
+{
+    while (1) {
+        fd_set *readfds;
+        FD_ZERO(&readfds);
+        FD_SET(scout_mq_fd, &readfds);
+
+        int rc = select(scout_mq_fd + 1, &readfds, NULL, NULL, NULL);
+        if (rc < 0) {
+            if (errno == EINTR) {
+                continue;
+            } else {
+                break;
+            }
+        } else {
+            net_status_change_handler();
+        }
+    }
+    return NULL;
 }

@@ -3,7 +3,7 @@
 #include "pending_irob.h"
 
 CMMSocketSender::CMMSocketSender(CMMSocketImpl *sk_)
-  : sk(sk_), next_irob(0)
+  : sk(sk_)
 {
     handle(CMM_CONTROL_MSG_BEGIN_IROB, &CMMSocketSender::pass_to_worker_by_labels);
     handle(CMM_CONTROL_MSG_END_IROB, 
@@ -21,12 +21,11 @@ CMMSocketSender::CMMSocketSender(CMMSocketImpl *sk_)
  * If the socket is non-blocking, we need to implement that here.
  */
 int
-CMMSocketSender::begin_irob(irob_id_t *new_irob, mc_socket_t sock, 
-                            int numdeps, irob_id_t *deps,
+CMMSocketSender::begin_irob(irob_id_t next_irob, int numdeps, irob_id_t *deps,
                             u_long send_labels, u_long recv_labels,
                             resume_handler_t resume_handler, void *rh_arg)
 {
-    irob_id_t id = next_irob++;
+    irob_id_t id = next_irob;
 
     struct CMMSocketRequest req;
     req.requester_tid = pthread_self();
@@ -42,16 +41,18 @@ CMMSocketSender::begin_irob(irob_id_t *new_irob, mc_socket_t sock,
             req.hdr.op.begin_irob.deps[i] = htonl(deps[i]);
         }
     }
-
-    long rc = enqueue_and_wait_for_completion(req);
-    if (rc == 0) {
+    
+    {
         PendingIROB *pirob = new PendingSenderIROB(req.hdr.op.begin_irob,
                                                    resume_handler, rh_arg);
         PendingIROBHash::accessor ac;
         bool success = pending_irobs.insert(ac, pirob);
         assert(success);
-
-        *new_irob = id;
+    }
+    
+    long rc = enqueue_and_wait_for_completion(req);
+    if (rc < 0) {
+        pending_irobs.erase(id);
     }
     
     return rc;
