@@ -9,6 +9,7 @@
 #include <map>
 #include "tbb/concurrent_hash_map.h"
 #include "tbb/concurrent_queue.h"
+#include "pending_irob.h"
 
 /* CMMSocketScheduler
  *
@@ -23,16 +24,9 @@ class CMMSocketScheduler<MsgClass> : public CMMThread {
     
     void enqueue(MsgClass msg);
 
-    /* 1) If pirob is anonymous, add deps on all pending IROBs.
-     * 2) Otherwise, add deps on all pending anonymous IROBs.
-     * 3) Remove already-satisfied deps. */
-    void correct_deps(PendingReceiverIROB *pi);
-
   protected:
-    /* In a sender, this means IROBs that have been sent and ACK'd.
-     * In a receiver, this means IROBs that have been received by the app. */
-    IntSet past_irobs;
-
+    PendingIROBLattice pending_irobs;
+    
     typedef tbb::concurrent_queue<MsgClass> ControlMsgQueue;
     ControlMsgQueue msg_queue;
 

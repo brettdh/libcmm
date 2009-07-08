@@ -1,3 +1,5 @@
+#include "cmm_socket_scheduler.h"
+
 template <typename MsgClass>
 void
 CMMSocketScheduler::handle(short hdr_type, dispatch_fn_t handler)

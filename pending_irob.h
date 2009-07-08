@@ -21,17 +21,21 @@
 class PendingIROB {
   public:
     PendingIROB(struct begin_irob_data data);
-    
+
     /* return true on success; false if action is invalid */
     bool add_chunk(struct irob_chunk_data&);
     bool finish(void);
 
-    void add_dependency(PendingIROB *dep);
+    void add_dep(irob_id_t id);
+    //void add_dependency(PendingIROB *dep);
 
-    std::set<PendingIROB *> get_dep_ptrs();
+    void dep_satisfied(irob_id_t id);
+    void remove_deps_if(Predicate pred);
+
+    //std::set<PendingIROB *> get_dep_ptrs();
     
-    void add_dependent(irob_id_t id);
-
+    //void add_dependent(irob_id_t id);
+    
     /* returns true if this IROB directly or transitively 
      * depends on that IROB. */
     bool depends_on(irob_id_t id);
@@ -53,7 +57,7 @@ class PendingIROB {
 
     bool anonymous;
     bool complete;
-private:
+  private:
     //friend class PendingIROBLattice;
 
     /* if not NULL, points to the lattice that this IROB belongs to. 
@@ -63,16 +67,24 @@ private:
 };
 
 
+typedef tbb::concurrent_hash_map
+    <irob_id_t, PendingIROB *,
+     IntegerHashCompare<irob_id_t> > PendingIROBHash;
+    
 /* IROBs are related by the depends-on relation.
  * This relation forms a partial-ordering on all IROBs.
  * We think here of the relation pointing upwards, where the 
  * IROBs with no dependencies are at the top of a lattice
  */
-#if 0
 class PendingIROBLattice {
   public:
-    void add(PendingIROB *);
-    void remove(PendingIROB *);
+    bool insert(PendingIROBHash::accessor &ac, PendingIROB *pirob);
+    bool find(PendingIROBHash::const_accessor &ac, irob_id_t id);
+    bool find(PendingIROBHash::accessor &ac, irob_id_t id);
+    bool erase(irob_id_t id);
+    bool erase(PendingIROBHash::accessor &ac);
+
+    bool past_irob_exists(irob_id_t id) const;
     
     /* returns true if first depends on second. */
     //bool depends_on(PendingIROB *first, PendingIROB *second);
@@ -83,6 +95,15 @@ class PendingIROBLattice {
     //void for_each_dep(PendingIROB *dependent, iter_fn_t fn);
   private:
     PendingIROBHash pending_irobs;
+
+    /* In a sender, this means IROBs that have been sent and ACK'd.
+     * In a receiver, this means IROBs that have been received by the app. */
+    IntSet past_irobs;
+
+    /* 1) If pirob is anonymous, add deps on all pending IROBs.
+     * 2) Otherwise, add deps on all pending anonymous IROBs.
+     * 3) Remove already-satisfied deps. */
+    void correct_deps(PendingIROB *pirob);
 
 #if 0
     std::map<irob_id_t, struct node *> nodes;
@@ -96,6 +117,5 @@ class PendingIROBLattice {
     struct node top;
 #endif
 };
-#endif
 
 #endif

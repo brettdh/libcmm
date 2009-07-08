@@ -8,8 +8,10 @@
 
 From the lattice, I need:
   * A way to add IROBs and have their deps automatically added. (correct_deps)
-  * A way to pick released IROBs to pass to the application (this can be simple for now)
-  * A way to change scheduling/labeling based on dependency information (can come later)
+  * A way to pick released IROBs to pass to the application 
+     (this can be simple for now)
+  * A way to change scheduling/labeling based on dependency information 
+     (can come later)
 
 None of these require a pointerful lattice structure for functionality 
 (but maybe for performance).

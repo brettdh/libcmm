@@ -2,9 +2,9 @@
 
 PendingIROB::PendingIROB(struct begin_irob_data begin_irob)
     : id(ntohl(begin_irob.id)), 
-      send_labels(begin_irob.send_labels), 
-      recv_labels(begin_irob.recv_labels),
-      anonymous(begin_irob.numdeps == -1),
+      send_labels(ntohl(begin_irob.send_labels)), 
+      recv_labels(ntohl(begin_irob.recv_labels)),
+      anonymous(false), 
       complete(false)
 {
     int numdeps = ntohl(begin_irob.numdeps);
@@ -33,7 +33,7 @@ PendingIROB::add_chunk(struct irob_chunk_data& irob_chunk)
     if (is_complete() || is_released()) {
         return false;
     }
-    //irob_chunk.seqno = next_seqno++;
+
     chunks.push(irob_chunk);
     return true;
 }
@@ -46,6 +46,34 @@ PendingIROB::finish(void)
     }
     complete = true;
     return true;
+}
+
+void PendingIROB::add_dep(irob_id_t id)
+{
+    deps.insert(id);
+}
+
+void 
+PendingReceiverIROB::dep_satisfied(irob_id_t id)
+{
+    deps.erase(id);
+}
+
+void 
+PendingIROB::remove_deps_if(Predicate pred)
+{
+    std::set<irob_id_t>::iterator iter = deps.begin();
+    while (iter != deps.end()) {
+        if (pred(*iter)) {
+            /* subtle; erases, but doesn't invalidate the 
+             * post-advanced iterator
+             * see http://stackoverflow.com/questions/800955/
+             */
+            deps.erase(iter++);
+        } else {
+            ++iter;
+        }
+    }
 }
 
 #if 0
@@ -62,29 +90,80 @@ PendingIROB::is_complete(void)
     return complete;
 }
 
-
-#if 0
-void 
-PendingIROBLattice::add(irob_id_t id, PendingIROB *pirob)
+bool
+PendingIROBLattice::insert(PendingIROBHash::accessor& ac, PendingIROB *pirob)
 {
-    struct node *pos = NULL;
-
     assert(pirob);
-    if (nodes.find(pirob->id) != nodes.end()) {
-        pos = nodes[pirob->id];
-    } else {
-        pos = new struct node;
-        pos->id = id;
-        pos->pirob = NULL;
-        nodes[id] = pos;
-        bottom.up.insert(pos);
+    if (past_irobs.contains(pirob->id)) {
+        dbgprintf("E: Tried to add irob %d, which I've seen in the past\n", 
+                  pirob->id);
+        return false;
     }
-    assert(pos->irob == NULL);
-    pos->pirob = pirob;
+    if (!pending_irobs.insert(ac, pirob->id)) {
+        ac.release();
+        dbgprintf("E: Tried to add irob %d, which I've already added\n",
+                  pirob->id);
+        return false;
+    }
+    ac->second = pirob;
 
-    add_deps(pos);
+    correct_deps(pirob);
+    return true;
 }
 
+void
+PendingIROBLattice::correct_deps(PendingIROB *pirob)
+{
+    /* 1) If pirob is anonymous, add deps on all pending IROBs. */
+    /* 2) Otherwise, add deps on all pending anonymous IROBs. */
+    for (PendingIROBHash::iterator it = pending_irobs.begin();
+         it != pending_irobs.end(); it++) {
+        if (it->second == pirob) continue;
+
+        if (pirob->is_anonymous() || it->second->is_anonymous()) {
+            pirob->add_dep(it->first);
+        }
+    }
+    /* 3) Remove already-satisfied deps. */
+    pirob->remove_deps_if(bind1st(mem_fun_ref(&IntSet::contains), 
+                                  past_irobs));
+}
+
+bool
+PendingIROBLattice::find(PendingIROBHash::const_accessor& ac, 
+                         PendingIROB *pirob)
+{
+    assert(pirob);
+    return pending_irobs.find(ac, pirob->id);
+}
+
+bool
+PendingIROBLattice::find(PendingIROBHash::accessor& ac, PendingIROB *pirob)
+{
+    assert(pirob);
+    return pending_irobs.find(ac, pirob->id);
+}
+
+
+bool
+PendingIROBLattice::erase(irob_id_t id)
+{
+    return pending_irobs.erase(id);
+}
+
+bool
+PendingIROBLattice::erase(PendingIROBHash::accessor& ac)
+{
+    return pending_irobs.erase(ac);
+}
+
+bool 
+PendingIROBLattice::past_irob_exists(irob_id_t id)
+{
+    return past_irobs.contains(id);
+}
+
+#if 0
 void
 PendingIROBLattice::add_deps(struct node *pos)
 {
@@ -96,12 +175,6 @@ PendingIROBLattice::add_deps(struct node *pos)
             
         }
     }
-}
-
-void 
-PendingIROBLattice::remove(PendingIROB *pirob)
-{
-
 }
 
 /* returns true if first depends on second. */

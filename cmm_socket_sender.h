@@ -15,8 +15,9 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
     ssize_t send(const void *buf, size_t len, int flags);
 
     irob_id_t begin_irob(mc_socket_t sock, 
+                         int numdeps, irob_id_t *deps,
                          u_long send_labels, u_long recv_labels,
-                         int numdeps, irob_id_t *deps);
+                         resume_handler_t resume_handler, void *rh_arg);
     void end_irob(irob_id_t id);
     void irob_chunk(irob_id_t, const void *buf, size_t len, int flags);
     void new_interface(struct in_addr ip_addr, u_long labels);
@@ -29,11 +30,7 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
   private:
     CMMSocketImplPtr sk;
 
-    typedef tbb::concurrent_hash_map
-        <irob_id_t, PendingSenderIROB *,
-         IntegerHashCompare<irob_id_t> > PendingIROBHash;
-    
-    PendingIROBHash pending_irobs;
+    PendingIROBLattice pending_irobs;
 
     irob_id_t next_irob;
 
@@ -45,12 +42,10 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
     /* the wait_for_completion functions will atomically enqueue 
      * the request and begin waiting for the result. */
 
-    /* throws CMMException on error */
-    void enqueue_and_wait_for_completion(CMMSocketRequest req);
     /* returns result of underlying send, or -1 on error */
-    ssize_t enqueue_and_wait_for_completion(CMMSocketRequest req);
+    long enqueue_and_wait_for_completion(CMMSocketRequest req);
 
-    void signal_completion(pthread_t requester_tid, ssize_t result);
+    void signal_completion(pthread_t requester_tid, long result);
 };
 
 #endif

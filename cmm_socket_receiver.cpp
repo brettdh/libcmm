@@ -18,22 +18,6 @@ CMMSocketReceiver::CMMSocketReceiver(CMMSocketImpl *sk_)
 }
 
 void
-CMMSocketReceiver::correct_deps(PendingIROB *pirob)
-{
-    /* 1) If pirob is anonymous, add deps on all pending IROBs. */
-    /* 2) Otherwise, add deps on all pending anonymous IROBs. */
-    for (PendingIROBHash::iterator it = pending_irobs.begin();
-         it != pending_irobs.end(); it++) {
-        if (pirob->is_anonymous() || it->second->is_anonymous()) {
-            pirob->add_dep(it->first);
-        }
-    }
-    /* 3) Remove already-satisfied deps. */
-    pirob->remove_deps_if(bind1st(mem_fun_ref(&IntSet::contains), 
-                                  past_irobs));
-}
-
-void
 CMMSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
 {
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_BEGIN_IROB);
@@ -41,18 +25,14 @@ CMMSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
         assert(hdr.op.begin_irob.deps);
     }
 
-    irob_id_t id = ntohl(hdr.op.begin_irob.id);
-    if (past_irobs.contains(id)) {
-        throw CMMControlException("Tried to begin IROB that's been committed",
-                                  hdr);
-    }
-
+    PendingIROB *pirob = new PendingReceiverIROB(hdr.op.begin_irob);
     PendingIROBHash::accessor ac;
-    if (!pending_irobs.insert(ac, id)) {
+    if (!pending_irobs.insert(ac, pirob)) {
+        delete pirob;
         throw CMMControlException("Tried to begin IROB that already exists", 
                                   hdr);
     }
-    ac->second = new PendingReceiverIROB(hdr.op.begin_irob, this);
+
     if (hdr.op.begin_irob.numdeps > 0) {
         delete [] hdr.op.begin_irob.deps;
     }
@@ -65,7 +45,7 @@ CMMSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
     PendingIROBHash::accessor ac;
     irob_id_t id = ntohl(hdr.op.end_irob.id);
     if (!pending_irobs.find(ac, id)) {
-        if (past_irobs.contains(id)) {
+        if (pending_irobs.past_irob_exists(id)) {
             throw CMMControlException("Tried to end committed IROB", hdr);
         } else {
             throw CMMControlException("Tried to end nonexistent IROB", hdr);
@@ -87,7 +67,7 @@ CMMSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     PendingIROBHash::accessor ac;
     irob_id_t id = ntohl(hdr.op.irob_chunk.id);
     if (!pending_irobs.find(ac, id)) {
-        if (past_irobs.contains(id)) {
+        if (pending_irobs.past_irob_exists(id)) {
             throw CMMControlException("Tried to add to committed IROB", hdr);
         } else {
             throw CMMControlException("Tried to add to nonexistent IROB", hdr);
@@ -142,5 +122,5 @@ CMMSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
 ssize_t
 CMMSocketReceiver::recv(void *buf, size_t len, int flags)
 {
-
+    
 }

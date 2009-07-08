@@ -13,12 +13,8 @@ typedef std::unary_function<irob_id_t, bool> Predicate;
 
 class PendingReceiverIROB : public PendingIROB {
   public:
-    PendingReceiverIROB(struct begin_irob_data data, 
-                        CMMSocketReceiver *recvr_);
+    PendingReceiverIROB(struct begin_irob_data data);
     
-    void dep_satisfied(irob_id_t id);
-    void remove_deps_if(Predicate pred);
-
     void release_dependents();
 
     /* have all the deps been satisfied? 
@@ -27,8 +23,6 @@ class PendingReceiverIROB : public PendingIROB {
 
   private:
     friend class CMMSocketReceiver;
-    
-    CMMSocketReceiver *recvr;
 
     ssize_t bytes_read;
 };

@@ -21,7 +21,7 @@ class CMMSocketReceiver : public CMMSocketScheduler<struct CMMSocketControlHdr> 
         <irob_id_t, PendingReceiverIROB *,
          IntegerHashCompare<irob_id_t> > PendingIROBHash;
 
-    PendingIROBHash pending_irobs;
+    PendingIROBLattice pending_irobs;
 
     void do_begin_irob(struct CMMSocketControlHdr hdr);
     void do_end_irob(struct CMMSocketControlHdr hdr);

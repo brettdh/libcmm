@@ -45,11 +45,11 @@ CMMSocketSender::begin_irob(irob_id_t *new_irob, mc_socket_t sock,
 
     long rc = enqueue_and_wait_for_completion(req);
     if (rc == 0) {
+        PendingIROB *pirob = new PendingSenderIROB(req.hdr.op.begin_irob,
+                                                   resume_handler, rh_arg);
         PendingIROBHash::accessor ac;
-        bool success = pending_irobs.insert(ac, id);
+        bool success = pending_irobs.insert(ac, pirob);
         assert(success);
-        ac->second = new PendingSenderIROB(req.hdr.op.begin_irob, 
-                                           resume_handler, rh_arg);
 
         *new_irob = id;
     }
@@ -178,8 +178,11 @@ CMMSocketSender::ack_received(irob_id_t id, u_long seqno)
     }
     PendingIROB *pirob = ac->second;
     assert(pirob);
-    pirob->ack(seqno);
-    if (pirob->is_acked()) {
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    assert(psirob);
+
+    psirob->ack(seqno);
+    if (psirob->is_acked()) {
         pending_irobs.erase(ac);
         delete pirob;
     }
@@ -265,9 +268,11 @@ CMMSocketSender::pass_to_worker_by_labels(struct CMMSocketRequest req)
     if (csock) {
         csock->csock_sendr->enqueue(req);
     } else {
-        if (pirob->resume_handler) {
+        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+        assert(psirob);
+        if (psirob->resume_handler) {
             enqueue_handler(sk->sock, pirob->send_labels, pirob->recv_labels,
-                            pirob->resume_handler, pirob->rh_arg);
+                            psirob->resume_handler, psirob->rh_arg);
             signal_completion(req.requester_tid, CMM_DEFERRED);
         } else {
             /* no resume handler, so just wait until a suitable network
