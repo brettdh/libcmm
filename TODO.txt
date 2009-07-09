@@ -31,7 +31,8 @@
 
 
 * Implement recv, blocking and ordering incoming bytes according to
-  dependency information.
+  dependency information. (DONE, I think.)
+  * Also, sanity-check the locking discipline.
 
 * Look through and make sure all the error-handling looks right; i.e.
   when connectivity with the remote host is lost, all the data structures
@@ -47,3 +48,5 @@
       assumptions that would make this difficult.
 
 * Make it all compile!
+
+* Try out the simple test app!

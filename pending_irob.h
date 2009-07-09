@@ -23,18 +23,22 @@ class PendingIROB {
     PendingIROB(struct begin_irob_data data);
 
     /* return true on success; false if action is invalid */
-    bool add_chunk(struct irob_chunk_data&);
+    bool add_chunk(struct irob_chunk_data&); /* host byte order */
     bool finish(void);
 
     void add_dep(irob_id_t id);
     //void add_dependency(PendingIROB *dep);
 
     void dep_satisfied(irob_id_t id);
+
+    typedef std::unary_function<irob_id_t, bool> Predicate;
     void remove_deps_if(Predicate pred);
+
+    ssize_t copy_data(void *buf, size_t len);
 
     //std::set<PendingIROB *> get_dep_ptrs();
     
-    //void add_dependent(irob_id_t id);
+    void add_dependent(irob_id_t id);
     
     /* returns true if this IROB directly or transitively 
      * depends on that IROB. */
@@ -52,8 +56,15 @@ class PendingIROB {
     u_long send_labels;
     u_long recv_labels;
 
-    std::set<irob_id_t> deps;
-    std::queue<struct irob_chunk_data> chunks;
+    typedef std::set<irob_id_t> irob_id_set;
+
+    /* same here; host byte order */
+    irob_id_set deps;
+
+    /* IROBs that depend on me */
+    irob_id_set dependents;
+
+    tbb::concurrent_queue<struct irob_chunk_data> chunks;
 
     bool anonymous;
     bool complete;
@@ -85,6 +96,9 @@ class PendingIROBLattice {
     bool erase(PendingIROBHash::accessor &ac);
 
     bool past_irob_exists(irob_id_t id) const;
+
+    typedef std::unary_function<PendingIROB*, bool> Predicate;
+    bool find(PendingIROBHash::accessor &ac, Predicate pred);
     
     /* returns true if first depends on second. */
     //bool depends_on(PendingIROB *first, PendingIROB *second);
@@ -93,7 +107,7 @@ class PendingIROBLattice {
      * the argument is a given dependent IROB ptr. */
     //typedef void (PendingIROB::*iter_fn_t)(PendingIROB *);
     //void for_each_dep(PendingIROB *dependent, iter_fn_t fn);
-  private:
+  protected:
     PendingIROBHash pending_irobs;
 
     /* In a sender, this means IROBs that have been sent and ACK'd.

@@ -8,9 +8,15 @@
 #include "intset.h"
 #include <map>
 
+#include "pending_receiver_irob.h"
+
 class CMMSocketReceiver : public CMMSocketScheduler<struct CMMSocketControlHdr> {
   public:
     explicit CMMSocketReceiver(CMMSocketImpl *sk_);
+
+    /* This function is not thread-safe, meaning (just like for
+     * regular sockets) concurrent read/recv/etc. on a multi-socket
+     * is not safe either. */
     ssize_t recv(void *buf, size_t len, int flags);
  protected:
     virtual void Run();
@@ -21,7 +27,7 @@ class CMMSocketReceiver : public CMMSocketScheduler<struct CMMSocketControlHdr> 
         <irob_id_t, PendingReceiverIROB *,
          IntegerHashCompare<irob_id_t> > PendingIROBHash;
 
-    PendingIROBLattice pending_irobs;
+    PendingReceiverIROBLattice pending_irobs;
 
     void do_begin_irob(struct CMMSocketControlHdr hdr);
     void do_end_irob(struct CMMSocketControlHdr hdr);

@@ -35,7 +35,7 @@ struct irob_chunk_data {
     u_long seqno; /* these start at 1.  0 is invalid; see ack_data, below. */
     size_t datalen;
     char *data; /* NULL in network messages
-                 * Allocaetd and used at receiver */
+                 * Allocated and used at receiver */
     /* followed by datalen bytes of application data */
 };
 

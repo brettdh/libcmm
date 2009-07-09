@@ -32,6 +32,8 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
 
     PendingIROBLattice pending_irobs;
 
+    std::map<pthread_t, AppThread> app_threads;
+
     /* Headers passed to these functions should have integers
      * already in network byte order. */
     void pass_to_any_worker(struct CMMSocketRequest req);

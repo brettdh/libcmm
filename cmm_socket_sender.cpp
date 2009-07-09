@@ -285,19 +285,6 @@ CMMSocketSender::pass_to_worker_by_labels(struct CMMSocketRequest req)
     }
 }
 
-struct AppThread {
-    pthread_mutex_t mutex;
-    pthread_cond_t cv;
-    long rc;
-
-    AppThread() , rc(-1) {
-        pthread_mutex_init(&mutex, NULL);
-        pthread_cond_init(&cv, NULL);
-    }
-};
-
-#define CMM_INVALID_RC -10
-
 /* returns result of underlying send, or -1 on error */
 long enqueue_and_wait_for_completion(CMMSocketRequest req)
 {

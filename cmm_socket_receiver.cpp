@@ -4,8 +4,18 @@
 
 #include <stdexcept>
 
+class ReadyIROB : public PendingIROBLattice::Predicate {
+  public:
+    bool operator()(PendingIROB *pi) {
+        assert(pi);
+        PendingReceiverIROB *pirob = dynamic_cast<PendingReceiverIROB*>(pi);
+        assert(pirob);
+        return (pirob->is_complete() && pirob->is_released());
+    }
+};
+
 CMMSocketReceiver::CMMSocketReceiver(CMMSocketImpl *sk_)
-    : sk(sk_)
+    : sk(sk_), pending_irobs(ReadyIROB())
 {
     handle(CMM_CONTROL_MSG_BEGIN_IROB, &CMMSocketReceiver::do_begin_irob);
     handle(CMM_CONTROL_MSG_END_IROB, &CMMSocketReceiver::do_end_irob);
@@ -56,8 +66,8 @@ CMMSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
     if (!pirob->finish()) {
         throw CMMControlException("Tried to end already-done IROB", hdr);
     }
-    /* TODO: signal threads waiting for incoming data? */
 
+    wake_up_readers();
 }
 
 void
@@ -78,7 +88,6 @@ CMMSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     if (!pirob->add_chunk(hdr.op.irob_chunk)) {
         throw CMMControlException("Tried to add to completed IROB", hdr);
     }
-    /* TODO: signal threads waiting for incoming data? */
 }
 
 void
@@ -119,8 +128,59 @@ CMMSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
  * Thought: we could make this function read-only by using the
  *   msg_queue to cause the Receiver thread to do any needed updates.
  */
+/* TODO: nonblocking mode */
 ssize_t
 CMMSocketReceiver::recv(void *buf, size_t len, int flags)
 {
+    PendingReceiverIROB *pirob = get_next_irob();
+    assert(pirob); /* nonblocking version would return NULL */
+    assert(pirob->is_released());
+    assert(pirob->is_complete()); /* XXX: see get_next_irob */
+
+    vector<PendingReceiverIROB *pirob> pirobs;
     
+    ssize_t bytes_ready = pirob->numbytes();
+    assert(bytes_ready > 0);
+    while (bytes_ready < len) {
+        pirobs.push_back(pirob);
+
+        pirob = get_next_irob();
+        assert(pirob->is_released());
+        assert(pirob->is_complete()); /* XXX: see get_next_irob */
+
+        ssize_t bytes = pirob->numbytes();
+        assert(bytes > 0);
+        bytes_ready += bytes;
+    }
+    pirobs.push_back(pirob);
+
+    ssize_t bytes_passed = 0;
+    for (size_t i = 0; i < pirobs.size(); i++) {
+        PendingIROBHash::accessor ac;
+        if (!pending_irobs.find(ac, pirob->id)) {
+            assert(0);
+        }
+        assert(pirob == ac->second);
+
+        bytes_passed += pirob->read_data(buf + bytes_passed,
+                                         len - bytes_passed);
+        if (pirob->is_complete() && pirob->numbytes() == 0) {
+            pending_irobs.erase(ac);
+            pending_irobs.release_dependents(pirob);
+            delete pirob;
+        } else {
+            /* this should be true for at most the last IROB
+             * in the vector */
+            pending_irobs.partially_read(pirob);
+        }
+    }
+}
+
+/* First take: this won't ever return an incomplete IROB. 
+ *  (we may want to loosen this restriction in the future) */
+/* Hard rule: this won't ever return an unreleased IROB. */
+PendingReceiverIROB *
+CMMSocketReceiver::get_next_irob()
+{
+    return pending_irobs.get_ready_irob();
 }

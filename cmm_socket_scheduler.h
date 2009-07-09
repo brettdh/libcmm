@@ -64,6 +64,19 @@ class CMMControlException<MsgClass> : public std::runtime_error {
     MsgClass msg;
 };
 
+#define CMM_INVALID_RC -10
+
+struct AppThread {
+    pthread_mutex_t mutex;
+    pthread_cond_t cv;
+    long rc;
+
+    AppThread() , rc(CMM_INVALID_RC) {
+        pthread_mutex_init(&mutex, NULL);
+        pthread_cond_init(&cv, NULL);
+    }
+};
+
 #include "cmm_socket_scheduler.cpp"
 
 #endif

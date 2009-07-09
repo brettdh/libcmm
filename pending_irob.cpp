@@ -76,13 +76,11 @@ PendingIROB::remove_deps_if(Predicate pred)
     }
 }
 
-#if 0
 void
-PendingIROB::add_dependent(PendingIROB *dependent)
+PendingIROB::add_dependent(irob_id_t id)
 {
-    
+    dependents.insert(id);
 }
-#endif
 
 bool 
 PendingIROB::is_complete(void)
@@ -144,6 +142,43 @@ PendingIROBLattice::find(PendingIROBHash::accessor& ac, PendingIROB *pirob)
     return pending_irobs.find(ac, pirob->id);
 }
 
+bool
+PendingIROBLattice::find(PendingIROBHash::const_accessor& ac, Predicate pred)
+{
+    for (PendingIROBHash::iterator it = pending_irobs.begin();
+         it != pending_irobs.end(); it++) {
+        if (!pending_irobs.find(ac, it->first)) {
+            assert(0);
+        }
+        assert(ac->second == it->second);
+        if (pred(it->second)) {
+            return true;
+        }
+        ac.release();
+    }
+    return false;
+}
+
+bool
+PendingIROBLattice::find(PendingIROBHash::accessor& ac, Predicate pred)
+{
+    for (PendingIROBHash::iterator it = pending_irobs.begin();
+         it != pending_irobs.end(); it++) {
+        PendingIROBHash::const_accessor read_ac;
+        if (!pending_irobs.find(read_ac, it->first)) {
+            assert(0);
+        }
+        assert(read_ac->second == it->second);
+        if (pred(it->second)) {
+            read_ac.release();
+            if (!pending_irobs.find(ac, it->first)) {
+                assert(0);
+            }
+            return true;
+        }
+    }
+    return false;
+}
 
 bool
 PendingIROBLattice::erase(irob_id_t id)
