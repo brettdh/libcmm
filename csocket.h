@@ -6,29 +6,32 @@
 #include <map>
 #include <set>
 
+#include "cmm_socket.private.h"
+
 class CMMSocketSender;
 class CMMSocketReceiver;
-class CMMSocketImpl;
+//class CMMSocketImpl;
 
 class CSocketSender;
 class CSocketReceiver;
 
 class CSocket {
+  public:
     int osfd;
-    CMMSocketImpl *msock;
+    CMMSocketImpl *sk;
     CMMSocketSender *sendr;
     CMMSocketReceiver *recvr;
     struct net_interface local_iface;
     struct net_interface remote_iface;
 
-    CSocket(CMMSocketImpl *msock_, 
+    CSocket(CMMSocketImpl *sk_, 
             CMMSocketSender *sendr_,
             CMMSocketReceiver *recvr_,
             struct net_interface local_iface_,
             struct net_interface remote_iface_,
-            in_port_t remote_listener_port_);
+            int accepted_sock = -1);
     ~CSocket();
-    void send(struct CMMSocketControlHdr hdr);
+    void send(CMMSocketRequest req);
   private:
     int phys_connect(void);
     
@@ -36,36 +39,5 @@ class CSocket {
     CSocketReceiver *csock_recvr;
 };
 
-typedef std::map<u_long, std::map<u_long, CSocket *> > CSockLabelMap;
-typedef std::set<CSocket *> CSockSet;
-
-class LabelMatch;
-
-class CSockMapping {
-  public:
-    CSocket * csock_with_send_label(u_long label);
-    CSocket * csock_with_recv_label(u_long label);
-    CSocket * csock_with_labels(u_long send_label, u_long recv_label);
-    CSocket * new_csock_with_labels(u_long send_label, u_long recv_label);
-
-    void delete_csock_with_labels(CSocket *csock);
-    CSocket * lookup(int fd);
-    
-    CSockMapping(CMMSocketImpl *sk);
-  private:
-    //CSockLabelMap csocks_by_send_label;
-    //CSockLabelMap csocks_by_recv_label;
-    CMMSocketImplPtr sk;  /* XXX: janky.  Remove later? */
-
-    bool get_local_iface(u_long label, struct net_interface& iface);
-    bool get_remote_iface(u_long label, struct net_interface& iface);
-    bool get_iface(const NetInterfaceList& ifaces, u_long label,
-                   struct net_interface& iface);
-    bool get_local_iface(struct in_addr addr, struct net_interface& iface);
-    bool get_remote_iface(struct in_addr addr, struct net_interface& iface);
-    bool get_iface(const NetInterfaceList& ifaces, struct in_addr addr,
-                   struct net_interface& iface);
-    CSocket * find_csock(const LabelMatch& pred);
-};
 
 #endif

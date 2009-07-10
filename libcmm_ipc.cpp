@@ -97,10 +97,10 @@ static struct sigaction ignore_action;
 static struct sigaction net_status_change_action;
 #endif
 
-static void net_status_change_handler(int sig);
+static void net_status_change_handler();
 static void *IPCThread(void*);
 
-void scout_ipc_init(int cmm_signal)
+void scout_ipc_init()
 {
     int rc;
     struct cmm_msg msg;
@@ -235,7 +235,7 @@ static void net_status_change_handler(void)
 static void *IPCThread(void *arg)
 {
     while (1) {
-        fd_set *readfds;
+        fd_set readfds;
         FD_ZERO(&readfds);
         FD_SET(scout_mq_fd, &readfds);
 

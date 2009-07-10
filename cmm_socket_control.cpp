@@ -1,6 +1,16 @@
 #include "cmm_socket_control.h"
 #include <stdexcept>
 
+void 
+CMMSocketControlHdr::cleanup()
+{
+    if (type == CMM_CONTROL_MSG_BEGIN_IROB) {
+        delete [] op.begin_irob.deps;
+    } else if (type == CMM_CONTROL_MSG_IROB_CHUNK) {
+        delete [] op.irob_chunk.data;
+    }
+}
+
 std::string
 CMMSocketControlHdr::describe() const
 {

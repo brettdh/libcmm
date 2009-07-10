@@ -7,6 +7,7 @@ class CMMThread {
   public:
     void start();
     /* void stop(); TODO */
+    virtual ~CMMThread();
   protected:
     pthread_t tid;
 

@@ -1,5 +1,5 @@
-#ifndef pending_irob_h_incl
-#define pending_irob_h_incl
+#ifndef pending_sender_irob_h_incl
+#define pending_sender_irob_h_incl
 
 #include <queue>
 #include <set>

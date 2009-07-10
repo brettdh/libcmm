@@ -16,11 +16,15 @@
  * A thread that reads from a concurrent_queue of messages
  * and acts on each one by dispatching member functions based
  * on msg.type() for each message.
+ * MsgType classes should also define cleanup() to free any
+ * dynamically allocated resources.  It will be called
+ * on any messages remaining in the queue when the thread
+ * terminates.
  */
 template <typename MsgClass>
-class CMMSocketScheduler<MsgClass> : public CMMThread {
+class CMMSocketScheduler : public CMMThread {
   public:
-    virtual ~CMMSocketScheduler() {}
+    virtual ~CMMSocketScheduler();
     
     void enqueue(MsgClass msg);
 
@@ -38,12 +42,32 @@ class CMMSocketScheduler<MsgClass> : public CMMThread {
 
     void dispatch(MsgClass msg);
 
-    typedef void (CMMSocketScheduler::*dispatch_fn_t)(MsgClass);
-    void handle(short type, dispatch_fn_t handler);
     virtual void unrecognized_control_msg(MsgClass msg);
 
   private:
-    std::map<short, CMMSocketReceiver::dispatch_fn_t> dispatcher;
+    class Handler {
+      public:
+        virtual void operator()(MsgClass) = 0;
+    };
+    
+    template <typename T> 
+    class HandlerImpl : public Handler {
+      public:
+        typedef void (T::*Function)(MsgClass);
+        HandlerImpl(T *obj_, Function fn_) : obj(obj_), fn(fn_) {}
+        virtual void operator()(MsgClass msg) {
+            (obj->*fn)(msg);
+        }
+      private:
+        T *obj;
+        Function fn;
+    };
+
+    std::map<short, Handler*> dispatcher;
+
+  public:
+    template <typename T>
+    void handle(short type, T *obj, void (T::*fn)(MsgClass));
 };
 
 #include <stdexcept>
@@ -58,7 +82,7 @@ class CMMSocketScheduler<MsgClass> : public CMMThread {
  * debugging information for its object.
  */
 template <typename MsgClass>
-class CMMControlException<MsgClass> : public std::runtime_error {
+class CMMControlException : public std::runtime_error {
   public:
     CMMControlException(const std::string&, MsgClass);
     MsgClass msg;
@@ -71,9 +95,17 @@ struct AppThread {
     pthread_cond_t cv;
     long rc;
 
-    AppThread() , rc(CMM_INVALID_RC) {
+    AppThread() : rc(CMM_INVALID_RC) {
         pthread_mutex_init(&mutex, NULL);
         pthread_cond_init(&cv, NULL);
+    }
+};
+
+class Exception {
+  public:
+    template <typename T>
+    static CMMControlException<T> make(const std::string& str, T obj) {
+        return CMMControlException<T>(str, obj);
     }
 };
 

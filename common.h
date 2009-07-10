@@ -1,6 +1,9 @@
 #ifndef common_h
 #define common_h
 
+#include <set>
+#include <netinet/in.h>
+
 template <typename IntegerType>
 struct IntegerHashCompare {
     size_t hash(IntegerType i) const { return (size_t)i; }
@@ -15,5 +18,11 @@ struct net_interface {
         return ip_addr.s_addr < other.ip_addr.s_addr;
     }
 };
+
+typedef std::set<struct net_interface> NetInterfaceSet;
+
+#include <stdexcept>
+
+class CMMException : public std::exception { };
 
 #endif

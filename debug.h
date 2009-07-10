@@ -9,7 +9,7 @@
 
 #define CMM_DEBUG
 #ifdef CMM_DEBUG
-CDECL void dbgprintf(char *format, ...);
+CDECL void dbgprintf(const char *format, ...);
 #else
 #define dbgprintf(...)
 #endif

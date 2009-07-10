@@ -1,15 +1,19 @@
 #ifndef cmm_socket_control_h_incl
 #define cmm_socket_control_h_incl
 
-enum ControlMsgType {
-    CMM_CONTROL_MSG_HELLO,
-    CMM_CONTROL_MSG_BEGIN_IROB,
-    CMM_CONTROL_MSG_END_IROB,
-    CMM_CONTROL_MSG_IROB_CHUNK,
-    CMM_CONTROL_MSG_NEW_INTERFACE,
-    CMM_CONTROL_MSG_DOWN_INTERFACE,
-    CMM_CONTROL_MSG_ACK
-};
+#include "libcmm_irob.h"
+#include "common.h"
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <string>
+
+#define CMM_CONTROL_MSG_HELLO          0
+#define CMM_CONTROL_MSG_BEGIN_IROB     1
+#define CMM_CONTROL_MSG_END_IROB       2
+#define CMM_CONTROL_MSG_IROB_CHUNK     3
+#define CMM_CONTROL_MSG_NEW_INTERFACE  4
+#define CMM_CONTROL_MSG_DOWN_INTERFACE 5
+#define CMM_CONTROL_MSG_ACK            6
 
 struct hello_data {
     in_port_t listen_port;
@@ -65,12 +69,14 @@ struct CMMSocketControlHdr {
         struct end_irob_data end_irob;
         struct irob_chunk_data irob_chunk;
         struct new_interface_data new_interface;
-
+        struct down_interface_data down_interface;
         struct ack_data ack;
     } op;
 
     /* for use with exceptions and debug information. */
     std::string describe() const;
+
+    void cleanup();
 };
 
 struct CMMSocketRequest {
@@ -79,6 +85,7 @@ struct CMMSocketRequest {
 
     short msgtype() { return hdr.type; }
     std::string describe() const;
+    void cleanup() { hdr.cleanup(); }
 };
 
 #endif

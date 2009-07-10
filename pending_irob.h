@@ -1,7 +1,7 @@
 #ifndef pending_irob_h_incl
 #define pending_irob_h_incl
 
-#include <queue>
+#include "tbb/concurrent_queue.h"
 #include <set>
 #include "libcmm.h"
 #include "cmm_socket_control.h"
@@ -51,6 +51,8 @@ class PendingIROB {
     bool is_complete(void);
 
   protected:
+    friend class CMMSocketSender;
+
     /* all integers here are in host byte order */
     irob_id_t id;
     u_long send_labels;
@@ -130,6 +132,13 @@ class PendingIROBLattice {
     struct node bottom;
     struct node top;
 #endif
+};
+
+class TruePred : public PendingIROBLattice::Predicate {
+  public:
+    bool operator()(PendingIROB *pirob) {
+        return true;
+    }
 };
 
 #endif

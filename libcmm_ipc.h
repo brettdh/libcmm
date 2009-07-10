@@ -5,6 +5,7 @@
 #include <netinet/in.h>
 #include <vector>
 #include <map>
+#include "common.h"
 
 /* single message queue for subscribing and unsubscribing. */
 #define SCOUT_CONTROL_MQ_NAME "/scout_control_mq"
@@ -13,7 +14,7 @@
 #define SCOUT_PROC_MQ_NAME_FMT "/scout_mq_proc_%d"
 #define MAX_PROC_MQ_NAMELEN 101
 
-void scout_ipc_init(int wakeup_sig);
+void scout_ipc_init(void);
 void scout_ipc_deinit(void);
 //bool scout_net_available(u_long send_labels, u_long recv_labels);
 //void scout_request_update();

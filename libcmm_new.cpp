@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <assert.h>
 #include <map>
 #include <vector>
@@ -94,7 +95,7 @@ static void libcmm_init(void)
     }
 #endif
     
-    scout_ipc_init(CMM_SIGNAL);
+    scout_ipc_init();
 
 #ifdef CMM_TIMING
     tbb::mutex::scoped_lock(timing_mutex);
@@ -260,17 +261,21 @@ static u_long set_superior_label(mc_socket_t sock, u_long label)
 /*** CMM socket function wrappers ***/
 
 ssize_t cmm_send(mc_socket_t sock, const void *buf, size_t len, int flags,
-		 u_long labels, void (*resume_handler)(void*), void *arg)
+		 u_long send_labels, u_long recv_labels, 
+                 void (*resume_handler)(void*), void *arg)
 {
     return CMMSocket::lookup(sock)->mc_send(buf, len, flags,
-					    labels, resume_handler, arg);
+					    send_labels, recv_labels,
+                                            resume_handler, arg);
 }
 
 int cmm_writev(mc_socket_t sock, const struct iovec *vec, int count,
-	       u_long labels, void (*resume_handler)(void*), void *arg)
+               u_long send_labels, u_long recv_labels, 
+               void (*resume_handler)(void*), void *arg)
 {
     return CMMSocket::lookup(sock)->mc_writev(vec, count,
-					      labels, resume_handler, arg);
+                                              send_labels, recv_labels,
+                                              resume_handler, arg);
 }
 
 int cmm_select(mc_socket_t nfds, 
@@ -312,9 +317,9 @@ mc_socket_t cmm_accept(int listener_sock,
     return CMMSocket::mc_accept(listener_sock, addr, addrlen);
 }
 
-int cmm_read(mc_socket_t sock, void *buf, size_t count)
+int cmm_read(mc_socket_t sock, void *buf, size_t count, u_long *recv_labels)
 {
-    return CMMSocket::lookup(sock)->mc_read(buf, count);
+    return CMMSocket::lookup(sock)->mc_read(buf, count, recv_labels);
 }
 
 int cmm_getsockopt(mc_socket_t sock, int level, int optname, 
@@ -332,10 +337,9 @@ int cmm_setsockopt(mc_socket_t sock, int level, int optname,
 }
 
 int cmm_connect(mc_socket_t sock, 
-		const struct sockaddr *serv_addr, socklen_t addrlen, 
-		u_long labels)
+		const struct sockaddr *serv_addr, socklen_t addrlen)
 {
-    return CMMSocket::lookup(sock)->mc_connect(serv_addr, addrlen, labels);
+    return CMMSocket::lookup(sock)->mc_connect(serv_addr, addrlen);
 }
 
 mc_socket_t cmm_socket(int family, int type, int protocol)
@@ -365,9 +369,9 @@ int cmm_close(mc_socket_t sock)
 }
 
 /* if deleter is non-NULL, it will be called on the handler's arg. */
-int cmm_thunk_cancel(u_long label, 
+int cmm_thunk_cancel(mc_socket_t sock, u_long send_labels, u_long recv_labels, 
 		     void (*handler)(void*), void *arg,
 		     void (*deleter)(void*))
 {
-    return cancel_thunk(label, handler, arg, deleter);
+    return cancel_thunk(sock, send_labels, recv_labels, handler, arg, deleter);
 }

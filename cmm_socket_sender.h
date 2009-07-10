@@ -12,14 +12,16 @@
 class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
   public:
     explicit CMMSocketSender(CMMSocketImpl *sk_);
+    virtual ~CMMSocketSender();
+
     ssize_t send(const void *buf, size_t len, int flags);
 
-    irob_id_t begin_irob(mc_socket_t sock, 
-                         int numdeps, irob_id_t *deps,
-                         u_long send_labels, u_long recv_labels,
-                         resume_handler_t resume_handler, void *rh_arg);
-    void end_irob(irob_id_t id);
-    void irob_chunk(irob_id_t, const void *buf, size_t len, int flags);
+    int begin_irob(irob_id_t next_irob, 
+                   int numdeps, irob_id_t *deps,
+                   u_long send_labels, u_long recv_labels,
+                   resume_handler_t resume_handler, void *rh_arg);
+    int end_irob(irob_id_t id);
+    long irob_chunk(irob_id_t, const void *buf, size_t len, int flags);
     void new_interface(struct in_addr ip_addr, u_long labels);
     void down_interface(struct in_addr ip_addr);
     void ack(irob_id_t id, u_long seqno = INVALID_IROB_SEQNO);
@@ -38,6 +40,7 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
      * already in network byte order. */
     void pass_to_any_worker(struct CMMSocketRequest req);
     void pass_to_worker_by_labels(struct CMMSocketRequest req);
+    void pass_to_any_worker_prefer_labels(struct CMMSocketRequest req);
 
     /* the wait_for_completion functions will atomically enqueue 
      * the request and begin waiting for the result. */
@@ -46,6 +49,8 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
     long enqueue_and_wait_for_completion(CMMSocketRequest req);
 
     void signal_completion(pthread_t requester_tid, long result);
+
+    friend class CSocketSender;
 };
 
 #endif

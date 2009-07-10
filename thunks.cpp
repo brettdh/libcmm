@@ -49,11 +49,11 @@ struct tq_key {
 };
 
 struct TQHashCompare {
-    size_t hash(struct tq_key key) {
+    size_t hash(struct tq_key key) const {
         /* collision-prone, but hey, the key-space is small */
         return key.sock ^ key.send_label ^ key.recv_label;
     }
-    bool equal(struct tq_key this_one, struct tq_key that_one) {
+    bool equal(struct tq_key this_one, struct tq_key that_one) const {
         return memcmp(&this_one, &that_one, sizeof(struct tq_key)) == 0;
     }
 };

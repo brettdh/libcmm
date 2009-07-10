@@ -8,16 +8,16 @@ CMMSocketPassThrough::CMMSocketPassThrough(mc_socket_t sock_)
 
 ssize_t 
 CMMSocketPassThrough::mc_send(const void *buf, size_t len, int flags,
-                              u_long labels, void (*resume_handler)(void*), 
-                              void *arg)
+                              u_long send_labels, u_long recv_labels,
+                              resume_handler_t rh, void *arg)
 {
     return send(sock, buf, len, flags);
 }
 
 int 
 CMMSocketPassThrough::mc_writev(const struct iovec *vec, int count,
-                                u_long labels, void (*resume_handler)(void*), 
-                                void *arg)
+                                u_long send_labels, u_long recv_labels,
+                                resume_handler_t rh, void *arg)
 {
     return writev(sock, vec, count);
 }
@@ -30,15 +30,14 @@ CMMSocketPassThrough::mc_getpeername(struct sockaddr *address,
 }
 
 int 
-CMMSocketPassThrough::mc_read(void *buf, size_t count)
+CMMSocketPassThrough::mc_read(void *buf, size_t count, u_long *recv_labels)
 {
     return read(sock, buf, count);
 }
 
 int 
 CMMSocketPassThrough::mc_connect(const struct sockaddr *serv_addr, 
-                                 socklen_t addrlen_, 
-                                 u_long initial_labels)
+                                 socklen_t addrlen_)
 {
     return connect(sock, serv_addr, addrlen_);
 }

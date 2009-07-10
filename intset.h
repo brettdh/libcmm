@@ -21,3 +21,5 @@ class IntSet {
     void insert_vec(std::vector<bool>& vec, long num);
     bool contains_vec(const std::vector<bool>& vec, long num) const;
 };
+
+#endif

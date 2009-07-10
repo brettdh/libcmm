@@ -21,3 +21,9 @@ CMMThread::start()
     return pthread_create(&tid, NULL, ThreadFn, this);
 }
 
+CMMThread::~CMMThread()
+{
+    if (pthread_cancel(tid) == 0) {
+        pthread_join(tid, NULL);
+    }
+}

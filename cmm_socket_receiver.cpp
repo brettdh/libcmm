@@ -2,13 +2,11 @@
 #include <pthread.h>
 #include "debug.h"
 
-#include <stdexcept>
-
 class ReadyIROB : public PendingIROBLattice::Predicate {
   public:
     bool operator()(PendingIROB *pi) {
         assert(pi);
-        PendingReceiverIROB *pirob = dynamic_cast<PendingReceiverIROB*>(pi);
+        PendingReceiverIROB *pirob = static_cast<PendingReceiverIROB*>(pi);
         assert(pirob);
         return (pirob->is_complete() && pirob->is_released());
     }
@@ -17,14 +15,26 @@ class ReadyIROB : public PendingIROBLattice::Predicate {
 CMMSocketReceiver::CMMSocketReceiver(CMMSocketImpl *sk_)
     : sk(sk_), pending_irobs(ReadyIROB())
 {
-    handle(CMM_CONTROL_MSG_BEGIN_IROB, &CMMSocketReceiver::do_begin_irob);
-    handle(CMM_CONTROL_MSG_END_IROB, &CMMSocketReceiver::do_end_irob);
-    handle(CMM_CONTROL_MSG_IROB_CHUNK, &CMMSocketReceiver::do_irob_chunk);
-    handle(CMM_CONTROL_MSG_NEW_INTERFACE, 
+    handle(CMM_CONTROL_MSG_BEGIN_IROB, this, 
+           &CMMSocketReceiver::do_begin_irob);
+    handle(CMM_CONTROL_MSG_END_IROB, this, &CMMSocketReceiver::do_end_irob);
+    handle(CMM_CONTROL_MSG_IROB_CHUNK, this,
+           &CMMSocketReceiver::do_irob_chunk);
+    handle(CMM_CONTROL_MSG_NEW_INTERFACE, this, 
            &CMMSocketReceiver::do_new_interface);
-    handle(CMM_CONTROL_MSG_DOWN_INTERFACE, 
+    handle(CMM_CONTROL_MSG_DOWN_INTERFACE, this, 
            &CMMSocketReceiver::do_down_interface);
-    handle(CMM_CONTROL_MSG_ACK, &CMMSocketReceiver::do_ack);
+    handle(CMM_CONTROL_MSG_ACK, this, &CMMSocketReceiver::do_ack);
+}
+
+CMMSocketReceiver::~CMMSocketReceiver()
+{
+    PendingIROBHash::accessor ac;
+    while (pending_irobs.find(ac, TruePred())) {
+        PendingIROB *victim = ac->second;
+        pending_irobs.erase(ac);
+        delete victim;
+    }
 }
 
 void
@@ -130,7 +140,7 @@ CMMSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
  */
 /* TODO: nonblocking mode */
 ssize_t
-CMMSocketReceiver::recv(void *buf, size_t len, int flags)
+CMMSocketReceiver::recv(void *buf, size_t len, int flags, u_long *recv_labels)
 {
     PendingReceiverIROB *pirob = get_next_irob();
     assert(pirob); /* nonblocking version would return NULL */
@@ -174,6 +184,8 @@ CMMSocketReceiver::recv(void *buf, size_t len, int flags)
             pending_irobs.partially_read(pirob);
         }
     }
+    /* TODO: pass recv_labels */
+    return bytes_passed;
 }
 
 /* First take: this won't ever return an incomplete IROB. 

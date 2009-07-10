@@ -1,20 +1,39 @@
 #include "cmm_socket_sender.h"
-#include "irob.h"
+#include "libcmm_irob.h"
 #include "pending_irob.h"
+#include "pending_sender_irob.h"
+#include "debug.h"
+#include "cmm_socket_control.h"
+#include "common.h"
+#include "csocket_mapping.h"
+#include "csocket.h"
+#include "thunks.h"
 
 CMMSocketSender::CMMSocketSender(CMMSocketImpl *sk_)
   : sk(sk_)
 {
-    handle(CMM_CONTROL_MSG_BEGIN_IROB, &CMMSocketSender::pass_to_worker_by_labels);
-    handle(CMM_CONTROL_MSG_END_IROB, 
+    handle(CMM_CONTROL_MSG_BEGIN_IROB, this,
+           &CMMSocketSender::pass_to_worker_by_labels);
+    handle(CMM_CONTROL_MSG_END_IROB, this, 
            &CMMSocketSender::pass_to_any_worker_prefer_labels);
-    handle(CMM_CONTROL_MSG_IROB_CHUNK, &CMMSocketSender::pass_to_worker_by_labels);
-    handle(CMM_CONTROL_MSG_NEW_INTERFACE, 
+    handle(CMM_CONTROL_MSG_IROB_CHUNK, this,
+           &CMMSocketSender::pass_to_worker_by_labels);
+    handle(CMM_CONTROL_MSG_NEW_INTERFACE, this, 
            &CMMSocketSender::pass_to_any_worker);
-    handle(CMM_CONTROL_MSG_DOWN_INTERFACE, 
+    handle(CMM_CONTROL_MSG_DOWN_INTERFACE, this, 
            &CMMSocketSender::pass_to_any_worker);
-    handle(CMM_CONTROL_MSG_ACK, 
+    handle(CMM_CONTROL_MSG_ACK, this, 
            &CMMSocketSender::pass_to_any_worker_prefer_labels);
+}
+
+CMMSocketSender::~CMMSocketSender()
+{
+    PendingIROBHash::accessor ac;
+    while (pending_irobs.find(ac, TruePred())) {
+        PendingIROB *victim = ac->second;
+        pending_irobs.erase(ac);
+        delete victim;
+    }
 }
 
 /* This function blocks until the data has been sent.
@@ -61,7 +80,7 @@ CMMSocketSender::begin_irob(irob_id_t next_irob, int numdeps, irob_id_t *deps,
 /* This function blocks until the data has been sent.
  * If the socket is non-blocking, we need to implement that here.
  */
-void
+int
 CMMSocketSender::end_irob(irob_id_t id)
 {
     {
@@ -75,7 +94,7 @@ CMMSocketSender::end_irob(irob_id_t id)
         if (pirob->is_complete()) {
             dbgprintf("Trying to complete IROB %lu, "
                       "which is already complete\n", id);
-            throw CMMException();
+            return -1;
         }
         pirob->finish();
     }
@@ -88,17 +107,19 @@ CMMSocketSender::end_irob(irob_id_t id)
     long rc = enqueue_and_wait_for_completion(req);
     if (rc != 0) {
         dbgprintf("end irob %d failed entirely; connection must be gone\n", id);
-        throw CMMException();
+        return -1;
     }
+    return rc;
 }
 
 /* This function blocks until the data has been sent.
  * If the socket is non-blocking, we need to implement that here.
  */
 long
-CMMSocketSender::irob_chunk(irob_id_t id, const void *buf, size_t len, int flags)
+CMMSocketSender::irob_chunk(irob_id_t id, const void *buf, size_t len, 
+                            int flags)
 {
-    struct irob_chunk chunk;
+    struct irob_chunk_data chunk;
     {
         PendingIROBHash::accessor ac;
         if (!pending_irobs.find(ac, id)) {
@@ -158,7 +179,7 @@ CMMSocketSender::down_interface(struct in_addr ip_addr)
 }
 
 void 
-CMMSocketSender::ack(irob_id_t id, u_long seqno = INVALID_IROB_SEQNO)
+CMMSocketSender::ack(irob_id_t id, u_long seqno)
 {
     struct CMMSocketRequest req;
     req.requester_tid = 0;
@@ -179,7 +200,7 @@ CMMSocketSender::ack_received(irob_id_t id, u_long seqno)
     }
     PendingIROB *pirob = ac->second;
     assert(pirob);
-    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    PendingSenderIROB *psirob = static_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
 
     psirob->ack(seqno);
@@ -198,11 +219,11 @@ CMMSocketSender::ack_received(irob_id_t id, u_long seqno)
 void 
 CMMSocketSender::pass_to_any_worker(struct CMMSocketRequest req)
 {
-    CSocket *csock = sk->csocks.new_csock_with_labels(0, 0);
+    CSocket *csock = sk->csock_map.new_csock_with_labels(0, 0);
     if (!csock) {
-        throw CMMControlException("No connection available!", req);
+        throw Exception::make("No connection available!", req);
     }
-    csock->csock_sendr->enqueue(req);
+    csock->send(req);
 }
 
 void
@@ -210,6 +231,7 @@ CMMSocketSender::pass_to_any_worker_prefer_labels(struct CMMSocketRequest req)
 {
     PendingIROBHash::const_accessor ac;
     irob_id_t id;
+    struct CMMSocketControlHdr& hdr = req.hdr;
     if (req.hdr.type == htons(CMM_CONTROL_MSG_END_IROB)) {
         id = ntohl(hdr.op.end_irob.id);
     } else if (req.hdr.type == htons(CMM_CONTROL_MSG_ACK)) {
@@ -222,12 +244,12 @@ CMMSocketSender::pass_to_any_worker_prefer_labels(struct CMMSocketRequest req)
     }
     PendingIROB *pirob = ac->second;
     assert(pirob);
-    CSocket *csock = sk->csocks.new_csock_with_labels(pirob->send_labels,
-                                                      pirob->recv_labels);
+    CSocket *csock = sk->csock_map.new_csock_with_labels(pirob->send_labels,
+                                                         pirob->recv_labels);
     ac.release();
 
     if (csock) {
-        csock->csock_sendr->enqueue(req);
+        csock->send(req);
     } else {
         pass_to_any_worker(req);        
     }
@@ -241,7 +263,7 @@ struct BlockingRequest {
         : sendr(sendr_), req(req_) {}
 };
 
-static void resume_request(struct blocking_request *breq)
+static void resume_request(BlockingRequest *breq)
 {
     breq->sendr->enqueue(breq->req);
     delete breq;
@@ -264,12 +286,12 @@ CMMSocketSender::pass_to_worker_by_labels(struct CMMSocketRequest req)
     }
     PendingIROB *pirob = ac->second;
     assert(pirob);
-    CSocket *csock = sk->csocks.new_csock_with_labels(pirob->send_labels, 
-                                                      pirob->recv_labels);
+    CSocket *csock = sk->csock_map.new_csock_with_labels(pirob->send_labels, 
+                                                         pirob->recv_labels);
     if (csock) {
-        csock->csock_sendr->enqueue(req);
+        csock->send(req);
     } else {
-        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+        PendingSenderIROB *psirob = static_cast<PendingSenderIROB*>(pirob);
         assert(psirob);
         if (psirob->resume_handler) {
             enqueue_handler(sk->sock, pirob->send_labels, pirob->recv_labels,
@@ -286,25 +308,27 @@ CMMSocketSender::pass_to_worker_by_labels(struct CMMSocketRequest req)
 }
 
 /* returns result of underlying send, or -1 on error */
-long enqueue_and_wait_for_completion(CMMSocketRequest req)
+long 
+CMMSocketSender::enqueue_and_wait_for_completion(CMMSocketRequest req)
 {
     long rc;
     pthread_t self = pthread_self();
     struct AppThread& thread = app_threads[self];
 
-    pthread_mutex_lock(thread.mutex);
+    pthread_mutex_lock(&thread.mutex);
     thread.rc = CMM_INVALID_RC;
     enqueue(req);
     while (thread.rc == CMM_INVALID_RC) {
         pthread_cond_wait(&thread.cv, &thread.mutex);
     }
     rc = thread.rc;
-    pthread_mutex_unlock(thread.mutex);
+    pthread_mutex_unlock(&thread.mutex);
 
     return rc;
 }
 
-void signal_completion(pthread_t requester_tid, long rc)
+void 
+CMMSocketSender::signal_completion(pthread_t requester_tid, long rc)
 {
     assert(app_threads.find(requester_tid) != app_threads.end());
     struct AppThread& thread = app_threads[requester_tid];

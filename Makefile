@@ -20,23 +20,23 @@ conn_scout: libcmm_scout.o cdf_sampler.o
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
 libcmm.so: libcmm_new.o libcmm_ipc.o cmm_socket.o cmm_socket_impl.o \
-	   cmm_socket_passthrough.o thunks.o cmm_timing.o signals.o
+	   cmm_socket_passthrough.o thunks.o cmm_timing.o signals.o csocket.o \
+           csocket_mapping.o cmm_socket_sender.o cmm_socket_receiver.o \
+           pending_irob.o pending_sender_irob.o pending_receiver_irob.o \
+           cmm_thread.o cmm_internal_listener.o libcmm_irob.o debug.o \
+           intset.o cmm_socket_control.o
 	$(CXX) $(CFLAGS) $(LDFLAGS) -shared -o $@ $^
 
-libcmm_test_sender.o: libcmm.h
-libcmm_test_receiver.o: libcmm.h
-libcmm_scout.o: libcmm.h libcmm_ipc.h cdf_sampler.h
-libcmm.o: libcmm.h libcmm_ipc.h timeops.h cmm_timing.h
-libcmm_new.o: libcmm.h libcmm_ipc.h timeops.h cmm_timing.h
-libcmm_ipc.o: libcmm_ipc.h
-cdf_sampler.o: cdf_sampler.h
-cdf_test.o: cdf_sampler.h
-cmm_socket.o: cmm_socket.h cmm_socket.private.h thunks.h common.h
-cmm_socket_impl.o: cmm_socket.h cmm_socket.private.h thunks.h common.h cmm_socket.private.h
-cmm_socket_passthrough.o: cmm_socket.h cmm_socket.private.h thunks.h common.h cmm_socket.private.h
-thunks.o: thunks.h
-cmm_timing.o: cmm_timing.h
-signals.o: signals.h
+# Generate header dependency rules
+#   see http://stackoverflow.com/questions/204823/
+# ---
+SRCS=$(wildcard *.cpp)
+
+depend: $(SRCS)
+	g++ -MM $(CXXFLAGS) $(SRCS) >depend
+
+include depend
+# ---
 
 clean:
 	rm -f *~ *.o $(LIBRARIES) $(EXECUTABLES) .tbbinstall .libinstall .hdrinstall .bininstall

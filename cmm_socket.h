@@ -5,6 +5,7 @@
 
 #include "libcmm.h"
 #include "libcmm_ipc.h"
+#include "libcmm_irob.h"
 
 class CMMSocket;
 
@@ -24,8 +25,7 @@ class CMMSocket {
     virtual int check_label(u_long label, resume_handler_t fn, void *arg) = 0;
 
     virtual int mc_connect(const struct sockaddr *serv_addr, 
-                           socklen_t addrlen, 
-                           u_long initial_labels) = 0;
+                           socklen_t addrlen) = 0;
     
     static int mc_select(mc_socket_t nfds, 
 			 fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
@@ -36,7 +36,7 @@ class CMMSocket {
     static mc_socket_t mc_accept(int listener_sock, 
                                  struct sockaddr *addr, socklen_t *addrlen);
 
-    virtual int mc_read(void *buf, size_t count) = 0;
+    virtual int mc_read(void *buf, size_t count, u_long *recv_labels) = 0;
 
     virtual int mc_getpeername(struct sockaddr *address, 
 			       socklen_t *address_len) = 0;
@@ -46,11 +46,11 @@ class CMMSocket {
                               const void *optval, socklen_t optlen) = 0;
 
     virtual ssize_t mc_send(const void *buf, size_t len, int flags,
-                            u_long labels, resume_handler_t resume_handler, 
-                            void *arg) = 0;
+                            u_long send_labels, u_long recv_labels, 
+                            resume_handler_t resume_handler, void *arg) = 0;
     virtual int mc_writev(const struct iovec *vec, int count,
-                          u_long labels, resume_handler_t resume_handler, 
-                          void *arg) = 0;
+                          u_long send_labels, u_long recv_labels, 
+                          resume_handler_t resume_handler, void *arg) = 0;
 
     virtual int mc_shutdown(int how) = 0;
     

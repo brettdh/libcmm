@@ -28,6 +28,7 @@
  */
 
 #include <sys/types.h>
+#include <libcmm.h>
 
 /* Identifer for an IROB, assigned by begin_irob[_label] 
  * and released by end_irob 

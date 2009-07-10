@@ -7,9 +7,13 @@
 #include <map>
 #include <vector>
 #include <set>
+#include <boost/shared_ptr.hpp>
 
 class CMMSocketImpl;
 typedef boost::shared_ptr<CMMSocketImpl> CMMSocketImplPtr;
+
+class CSocket;
+#include "csocket_mapping.h"
 
 struct sockopt {
     void *optval;
@@ -38,11 +42,11 @@ typedef tbb::concurrent_hash_map<int,
 
 typedef std::vector<std::pair<mc_socket_t, int> > mcSocketOsfdPairList;
 
-typedef std::vector<struct net_interface> NetInterfaceList;
-
 typedef std::map<in_addr_t, struct net_interface> NetInterfaceMap;
 
 class ListenerThread;
+class CMMSocketSender;
+class CMMSocketReceiver;
 
 class CMMSocketImpl : public CMMSocket {
   public:
@@ -56,14 +60,14 @@ class CMMSocketImpl : public CMMSocket {
 
     virtual int check_label(u_long label, resume_handler_t fn, void *arg);
 
-    virtual int mc_connect(const struct sockaddr *serv_addr, socklen_t addrlen,
-                           u_long initial_labels);
+    virtual int mc_connect(const struct sockaddr *serv_addr,
+                           socklen_t addrlen);
     virtual ssize_t mc_send(const void *buf, size_t len, int flags,
-                            u_long labels, resume_handler_t resume_handler, 
-                            void *arg);
+                            u_long send_labels, u_long recv_labels, 
+                            resume_handler_t resume_handler, void *arg);
     virtual int mc_writev(const struct iovec *vec, int count,
-                          u_long labels, resume_handler_t resume_handler, 
-                          void *arg);    
+                          u_long send_labels, u_long recv_labels, 
+                          resume_handler_t resume_handler, void *arg);
     virtual int mc_shutdown(int how);
 
     virtual irob_id_t mc_begin_irob(int numdeps, irob_id_t *deps, 
@@ -84,7 +88,7 @@ class CMMSocketImpl : public CMMSocket {
     static mc_socket_t mc_accept(int listener_sock, 
                                  struct sockaddr *addr, socklen_t *addrlen);
 
-    virtual int mc_read(void *buf, size_t count);
+    virtual int mc_read(void *buf, size_t count, u_long *recv_labels);
 
     virtual int mc_getpeername(struct sockaddr *address, 
                                socklen_t *address_len);
@@ -104,6 +108,7 @@ class CMMSocketImpl : public CMMSocket {
                         struct in_addr remote_addr);
     
   private:
+    friend class CSocket;
     friend class CSockMapping;
     friend class CMMSocketSender;
     friend class CMMSocketReceiver;
@@ -111,23 +116,23 @@ class CMMSocketImpl : public CMMSocket {
     static CMMSockHash cmm_sock_hash;
     static IROBSockHash irob_sock_hash;
     static VanillaListenerSet cmm_listeners;
-    static NetInterfaceMap ifaces;
+    static NetInterfaceSet ifaces;
 
-    /* check whether this label is available; if not, 
-     * register the thunk or return an error if no thunk given */
-    int preapprove(u_long labels, 
-                   resume_handler_t resume_handler, void *arg);
+    virtual int non_blocking_connect(/*u_long initial_labels*/);
 
-
-    virtual int non_blocking_connect(u_long initial_labels);
-
-    /* make sure that the socket is ready to send data with up_label. */
-    virtual int prepare(u_long up_label);
-
-    //virtual int setup(u_long up_label) = 0;
-    virtual void teardown(u_long down_label);
+    virtual void setup(struct net_interface iface, bool local);
+    virtual void teardown(struct net_interface iface, bool local);
     
     int set_all_sockopts(int osfd);
+
+    void recv_remote_listener(int bootstrap_sock);
+    void recv_remote_listeners(int bootstrap_sock);
+    void send_local_listener(int bootstrap_sock, struct net_interface iface);
+    void send_local_listeners(int bootstrap_sock);
+
+    int connection_bootstrap(const struct sockaddr *remote_addr, 
+                             socklen_t addrlen,
+                             int bootstrap_sock = -1);
 
     /* append <mc_socket_t,osfd> pairs to this vector for each 
      * such mapping in this mc_socket. 
@@ -140,18 +145,17 @@ class CMMSocketImpl : public CMMSocket {
     CMMSocketImpl(int family, int type, int protocol);
 
     mc_socket_t sock; /* file-descriptor handle for this multi-socket */
-    CSockSet connected_csocks;
 
-    CSockMapping csocks;
+    CSockMapping csock_map;
 
-    NetInterfaceList local_ifaces;
+    NetInterfaceSet local_ifaces;
     ListenerThread *listener_thread;
 
     CMMSocketSender *sendr;
     CMMSocketReceiver *recvr;
 
     /* these are used for connecting csockets */
-    NetInterfaceList remote_ifaces;
+    NetInterfaceSet remote_ifaces;
     in_port_t remote_listener_port; /* network byte order, 
                                      * recv'd from remote host */
 
@@ -184,9 +188,9 @@ class CMMSocketImpl : public CMMSocket {
     /* shortcut utility functions for hashtable-based rwlocking.  */
 
     /* grab a readlock on this socket with the accessor. */
-    void lock(CMMSockHash::const_accessor ac);
+    void lock(CMMSockHash::const_accessor& ac);
     /* grab a writelock on this socket with the accessor. */
-    void lock(CMMSockHash::accessor ac);
+    void lock(CMMSockHash::accessor& ac);
 };
 
 class CMMSocketPassThrough : public CMMSocket {
@@ -197,27 +201,36 @@ class CMMSocketPassThrough : public CMMSocket {
                                socklen_t *address_len);
     virtual int reset();
     virtual int check_label(u_long label, resume_handler_t fn, void *arg);
-    virtual int mc_read(void *buf, size_t count);
+    virtual int mc_read(void *buf, size_t count, u_long *recv_labels);
     virtual int mc_getsockopt(int level, int optname, 
                               void *optval, socklen_t *optlen);
     virtual int mc_setsockopt(int level, int optname, 
                               const void *optval, socklen_t optlen);
 
-    virtual int mc_connect(const struct sockaddr *serv_addr, socklen_t addrlen,
-                           u_long initial_labels);
+    virtual int mc_connect(const struct sockaddr *serv_addr,
+                           socklen_t addrlen);
     virtual ssize_t mc_send(const void *buf, size_t len, int flags,
-                            u_long labels, resume_handler_t resume_handler, 
-                            void *arg);
+                            u_long send_labels, u_long recv_labels, 
+                            resume_handler_t resume_handler, void *arg);
     virtual int mc_writev(const struct iovec *vec, int count,
-                          u_long labels, resume_handler_t resume_handler, 
-                          void *arg);
+                          u_long send_labels, u_long recv_labels, 
+                          resume_handler_t resume_handler, void *arg);
     virtual int mc_shutdown(int how);
+
+    virtual irob_id_t mc_begin_irob(int numdeps, irob_id_t *deps, 
+                                    u_long send_labels, u_long recv_labels,
+                                    resume_handler_t rh, void *rh_arg);
+    virtual int mc_end_irob(irob_id_t id);
+    virtual ssize_t mc_irob_send(irob_id_t id, 
+                                 const void *buf, size_t len, int flags);
+    virtual int mc_irob_writev(irob_id_t id, 
+                               const struct iovec *vector, int count);
   private:
     mc_socket_t sock;
 };
 
-#define FAKE_SOCKET_MAGIC_LABELS 0xDECAFBAD
+//#define FAKE_SOCKET_MAGIC_LABELS 0xDECAFBAD
 
-void set_socket_labels(int osfd, u_long labels);
+//void set_socket_labels(int osfd, u_long labels);
 
 #endif /* include guard */
