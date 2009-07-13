@@ -1,4 +1,7 @@
+#include "pending_irob.h"
 #include "pending_receiver_irob.h"
+#include <algorithm>
+using std::min;
 
 PendingReceiverIROB::PendingReceiverIROB(struct begin_irob_data begin_irob)
     : PendingIROB(begin_irob), offset(0), num_bytes(0)
@@ -7,8 +10,8 @@ PendingReceiverIROB::PendingReceiverIROB(struct begin_irob_data begin_irob)
     partial_chunk.datalen = 0;
 }
 
-void
-PendingReceiverIROB::add_chunk(struct irob_chunk& chunk)
+bool
+PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
 {
     bool result = PendingIROB::add_chunk(chunk);
     if (result) {
@@ -46,11 +49,11 @@ PendingReceiverIROB::read_data(void *buf, size_t len)
 
     /* if len == 0 here, we'll skip the loop */
     while (len > 0 && !chunks.empty()) {
-        struct irob_chunk chunk;
+        struct irob_chunk_data chunk;
         chunks.pop(chunk);
 
         ssize_t bytes = min(len, chunk.datalen);
-        memcpy(buf + bytes_copied, chunk.data, bytes);
+        memcpy((char*)buf + bytes_copied, chunk.data, bytes);
         bytes_copied += bytes;
         if (chunk.datalen > len) {
             offset = chunk.datalen - len;
@@ -70,13 +73,6 @@ PendingReceiverIROB::numbytes()
     return num_bytes;
 }
 
-PendingReceiverIROBLattice::
-PendingReceiverIROBLattice(PendingIROBLattice::Predicate p)
-    : pred(p)
-{
-}
-
-
 /* There's a race on partially_read_irob between get_ready_irob and 
  * partially_read below, but they are only called sequentially. */
 PendingReceiverIROB *
@@ -84,6 +80,9 @@ PendingReceiverIROBLattice::get_ready_irob()
 {
     PendingReceiverIROB *pirob = NULL;
     if (partially_read_irob) {
+        if (!partially_read_irob->is_complete()) {
+            /* TODO: block until more bytes are available */
+        }
         pirob = partially_read_irob;
         partially_read_irob = NULL;
     } else {
@@ -98,27 +97,4 @@ PendingReceiverIROBLattice::partially_read(PendingReceiverIROB *pirob)
 {
     assert(partially_read_irob == NULL);
     partially_read_irob = pirob;
-}
-
-void
-PendingReceiverIROBLattice::mark_ready(PendingReceiverIROB *pirob)
-{
-    if (pred(pirob)) {
-        ready_irobs.push(pirob);
-    }
-}
-
-void 
-PendingReceiverIROBLattice::release_dependents(PendingReceiverIROB *pirob)
-{
-    for (irob_id_set::iterator it = dependents.begin();
-         it != dependents.end(); it++) {
-        PendingIROBHash::accessor ac;
-        if (!pending_irobs.find(ac, *it)) {
-            continue;
-        }
-        PendingIROB *pirob = ac->second;
-        assert(pirob);
-        pirob->dep_satisfied(pirob->id);
-    }
 }

@@ -1,4 +1,5 @@
 #include "debug.h"
+#include <stdio.h>
 #include <stdarg.h>
 
 #ifdef CMM_DEBUG

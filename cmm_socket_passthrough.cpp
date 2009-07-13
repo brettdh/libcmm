@@ -62,6 +62,7 @@ CMMSocketPassThrough::mc_shutdown(int how)
     return shutdown(sock, how);
 }
 
+#if 0
 int 
 CMMSocketPassThrough::reset()
 {
@@ -75,9 +76,10 @@ CMMSocketPassThrough::check_label(u_long label, resume_handler_t fn, void *arg)
     /* not meaningful on regular sockets */
     return 0;
 }
+#endif
 
 irob_id_t
-CMMSocketPassThrough::mc_begin_irob(int numdeps, irob_id_t *deps, 
+CMMSocketPassThrough::mc_begin_irob(int numdeps, const irob_id_t *deps, 
                                     u_long send_labels, u_long recv_labels,
                                     resume_handler_t rh, void *rh_arg)
 {
@@ -93,8 +95,8 @@ CMMSocketPassThrough::mc_end_irob(irob_id_t id)
 }
 
 ssize_t 
-CMMSocketPassThroughmc_irob_send(irob_id_t id, 
-                                 const void *buf, size_t len, int flags)
+CMMSocketPassThrough::mc_irob_send(irob_id_t id, 
+                                   const void *buf, size_t len, int flags)
 {
     errno = EBADF;
     return -1;

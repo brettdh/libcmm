@@ -14,6 +14,8 @@ class PendingReceiverIROB : public PendingIROB {
   public:
     PendingReceiverIROB(struct begin_irob_data data);
     
+    bool add_chunk(struct irob_chunk_data&); /* host byte order */
+
     /* have all the deps been satisfied? 
      * (only meaningful on the receiver side) */
     bool is_released(void);
@@ -23,27 +25,73 @@ class PendingReceiverIROB : public PendingIROB {
     ssize_t read_data(void *buf, size_t len);
 
     ssize_t numbytes();
+  protected:
+    friend class CMMSocketReceiver;
+    friend class PendingReceiverIROBLattice;
   private:
     /* If this IROB is in the middle of being read, 
      * the reader might have stopped in the middle of a
      * chunk.  If so, this is the offset into the first chunk. */
     ssize_t offset;
 
+    struct irob_chunk_data partial_chunk;
+
     /* the number of bytes left in this IROB. */
     ssize_t num_bytes;
 };
 
+typedef tbb::concurrent_hash_map
+    <irob_id_t, PendingReceiverIROB *,
+     IntegerHashCompare<irob_id_t> > PendingReceiverIROBHash;
+
 class PendingReceiverIROBLattice : public PendingIROBLattice {
   public:
-    PendingReceiverIROBLattice(PendingIROBLattice::Predicate p);
-    PendingReceiverIROB *next_ready_irob();
-    void mark_ready(PendingReceiverIROB *pirob);
+    /* First take: this won't ever return an incomplete IROB. 
+     *  (we may want to loosen this restriction in the future) */
+    /* Hard rule: this won't ever return an unreleased IROB. */
+    PendingReceiverIROB *get_ready_irob();
+
+    template <typename Predicate>
+    void release_if_ready(PendingReceiverIROB *pirob, Predicate is_ready);
+
+    template <typename Predicate>
+    void release_dependents(PendingReceiverIROB *pirob, Predicate is_ready);
+
     void partially_read(PendingReceiverIROB *pirob);
-    void release_dependents(PendingReceiverIROB *pirob);
   private:
-    PendingIROBLattice::Predicate pred;
+    PendingReceiverIROBHash pending_irobs;
+
     tbb::concurrent_queue<PendingReceiverIROB*> ready_irobs;
     PendingReceiverIROB *partially_read_irob;
 };
+
+template <typename Predicate>
+void
+PendingReceiverIROBLattice::release_if_ready(PendingReceiverIROB *pirob,
+                                             Predicate is_ready)
+{
+    if (is_ready(pirob)) {
+        ready_irobs.push(pirob);
+    }
+}
+
+template <typename Predicate>
+void 
+PendingReceiverIROBLattice::release_dependents(PendingReceiverIROB *pirob,
+                                               Predicate is_ready)
+{
+    assert(pirob);
+    for (PendingIROB::irob_id_set::iterator it = pirob->dependents.begin();
+         it != pirob->dependents.end(); it++) {
+        PendingReceiverIROBHash::accessor ac;
+        if (!pending_irobs.find(ac, *it)) {
+            continue;
+        }
+        PendingReceiverIROB *dependent = ac->second;
+        assert(dependent);
+        dependent->dep_satisfied(pirob->id);
+        release_if_ready(dependent, is_ready);
+    }
+}
 
 #endif

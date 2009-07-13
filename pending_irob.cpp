@@ -1,4 +1,8 @@
 #include "pending_irob.h"
+#include "debug.h"
+#include <functional>
+using std::mem_fun_ref;
+using std::bind1st;
 
 PendingIROB::PendingIROB(struct begin_irob_data begin_irob)
     : id(ntohl(begin_irob.id)), 
@@ -30,7 +34,7 @@ PendingIROB::~PendingIROB()
 bool
 PendingIROB::add_chunk(struct irob_chunk_data& irob_chunk)
 {
-    if (is_complete() || is_released()) {
+    if (is_complete()) {
         return false;
     }
 
@@ -48,32 +52,16 @@ PendingIROB::finish(void)
     return true;
 }
 
-void PendingIROB::add_dep(irob_id_t id)
+void 
+PendingIROB::add_dep(irob_id_t id)
 {
     deps.insert(id);
 }
 
 void 
-PendingReceiverIROB::dep_satisfied(irob_id_t id)
+PendingIROB::dep_satisfied(irob_id_t id)
 {
     deps.erase(id);
-}
-
-void 
-PendingIROB::remove_deps_if(Predicate pred)
-{
-    std::set<irob_id_t>::iterator iter = deps.begin();
-    while (iter != deps.end()) {
-        if (pred(*iter)) {
-            /* subtle; erases, but doesn't invalidate the 
-             * post-advanced iterator
-             * see http://stackoverflow.com/questions/800955/
-             */
-            deps.erase(iter++);
-        } else {
-            ++iter;
-        }
-    }
 }
 
 void
@@ -86,6 +74,12 @@ bool
 PendingIROB::is_complete(void)
 {
     return complete;
+}
+
+bool
+PendingIROB::is_anonymous(void)
+{
+    return anonymous;
 }
 
 bool
@@ -129,6 +123,20 @@ PendingIROBLattice::correct_deps(PendingIROB *pirob)
 
 bool
 PendingIROBLattice::find(PendingIROBHash::const_accessor& ac, 
+                         irob_id_t id)
+{
+    return pending_irobs.find(ac, id);
+}
+
+bool
+PendingIROBLattice::find(PendingIROBHash::accessor& ac, 
+                         irob_id_t id)
+{
+    return pending_irobs.find(ac, id);
+}
+
+bool
+PendingIROBLattice::find(PendingIROBHash::const_accessor& ac, 
                          PendingIROB *pirob)
 {
     assert(pirob);
@@ -142,42 +150,14 @@ PendingIROBLattice::find(PendingIROBHash::accessor& ac, PendingIROB *pirob)
     return pending_irobs.find(ac, pirob->id);
 }
 
-bool
-PendingIROBLattice::find(PendingIROBHash::const_accessor& ac, Predicate pred)
+bool 
+PendingIROBLattice::any(PendingIROBHash::accessor &ac)
 {
-    for (PendingIROBHash::iterator it = pending_irobs.begin();
-         it != pending_irobs.end(); it++) {
-        if (!pending_irobs.find(ac, it->first)) {
-            assert(0);
-        }
-        assert(ac->second == it->second);
-        if (pred(it->second)) {
-            return true;
-        }
-        ac.release();
+    if (pending_irobs.empty()) {
+        return false;
+    } else {
+        return pending_irobs.find(ac, pending_irobs.begin()->first);
     }
-    return false;
-}
-
-bool
-PendingIROBLattice::find(PendingIROBHash::accessor& ac, Predicate pred)
-{
-    for (PendingIROBHash::iterator it = pending_irobs.begin();
-         it != pending_irobs.end(); it++) {
-        PendingIROBHash::const_accessor read_ac;
-        if (!pending_irobs.find(read_ac, it->first)) {
-            assert(0);
-        }
-        assert(read_ac->second == it->second);
-        if (pred(it->second)) {
-            read_ac.release();
-            if (!pending_irobs.find(ac, it->first)) {
-                assert(0);
-            }
-            return true;
-        }
-    }
-    return false;
 }
 
 bool
@@ -193,7 +173,7 @@ PendingIROBLattice::erase(PendingIROBHash::accessor& ac)
 }
 
 bool 
-PendingIROBLattice::past_irob_exists(irob_id_t id)
+PendingIROBLattice::past_irob_exists(irob_id_t id) const
 {
     return past_irobs.contains(id);
 }

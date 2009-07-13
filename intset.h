@@ -7,9 +7,10 @@
 /* (more) space-efficient set of unsigned long integers. */
 class IntSet {
   public:
-    void insert(u_long num);
-    bool contains(u_long num) const;
-    void print(void) const;
+    IntSet();
+    void insert(long num);
+    bool contains(long num) const;
+    //void print(void) const;
 
     /* returns the number of unique ints insert()ed. */
     size_t size(void) const;

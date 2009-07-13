@@ -7,6 +7,7 @@
 #include "cmm_socket_control.h"
 #include "cmm_socket.private.h"
 #include "intset.h"
+#include <functional>
 
 /* Terminology:
  *  An IROB is _pending_ if the application has not yet received all of its
@@ -21,6 +22,7 @@
 class PendingIROB {
   public:
     PendingIROB(struct begin_irob_data data);
+    virtual ~PendingIROB();
 
     /* return true on success; false if action is invalid */
     bool add_chunk(struct irob_chunk_data&); /* host byte order */
@@ -31,7 +33,7 @@ class PendingIROB {
 
     void dep_satisfied(irob_id_t id);
 
-    typedef std::unary_function<irob_id_t, bool> Predicate;
+    template <typename Predicate>
     void remove_deps_if(Predicate pred);
 
     ssize_t copy_data(void *buf, size_t len);
@@ -70,8 +72,8 @@ class PendingIROB {
 
     bool anonymous;
     bool complete;
-  private:
-    //friend class PendingIROBLattice;
+
+    friend class PendingIROBLattice;
 
     /* if not NULL, points to the lattice that this IROB belongs to. 
      * Used for keeping track of the domset of IROBs, which is needed
@@ -79,6 +81,24 @@ class PendingIROB {
     //PendingIROBLattice *lattice;
 };
 
+template <typename Predicate>
+void 
+PendingIROB::remove_deps_if(Predicate pred)
+{
+    std::set<irob_id_t>::iterator iter = deps.begin();
+    while (iter != deps.end()) {
+        irob_id_t id = *iter;
+        if (pred(id)) {
+            /* subtle; erases, but doesn't invalidate the 
+             * post-advanced iterator
+             * see http://stackoverflow.com/questions/800955/
+             */
+            deps.erase(iter++);
+        } else {
+            ++iter;
+        }
+    }
+}
 
 typedef tbb::concurrent_hash_map
     <irob_id_t, PendingIROB *,
@@ -94,13 +114,14 @@ class PendingIROBLattice {
     bool insert(PendingIROBHash::accessor &ac, PendingIROB *pirob);
     bool find(PendingIROBHash::const_accessor &ac, irob_id_t id);
     bool find(PendingIROBHash::accessor &ac, irob_id_t id);
+    bool find(PendingIROBHash::const_accessor &ac, PendingIROB *pirob);
+    bool find(PendingIROBHash::accessor &ac, PendingIROB *pirob);
     bool erase(irob_id_t id);
     bool erase(PendingIROBHash::accessor &ac);
 
     bool past_irob_exists(irob_id_t id) const;
 
-    typedef std::unary_function<PendingIROB*, bool> Predicate;
-    bool find(PendingIROBHash::accessor &ac, Predicate pred);
+    bool any(PendingIROBHash::accessor &ac);
     
     /* returns true if first depends on second. */
     //bool depends_on(PendingIROB *first, PendingIROB *second);
@@ -132,13 +153,6 @@ class PendingIROBLattice {
     struct node bottom;
     struct node top;
 #endif
-};
-
-class TruePred : public PendingIROBLattice::Predicate {
-  public:
-    bool operator()(PendingIROB *pirob) {
-        return true;
-    }
 };
 
 #endif

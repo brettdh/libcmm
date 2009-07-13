@@ -17,7 +17,7 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
     ssize_t send(const void *buf, size_t len, int flags);
 
     int begin_irob(irob_id_t next_irob, 
-                   int numdeps, irob_id_t *deps,
+                   int numdeps, const irob_id_t *deps,
                    u_long send_labels, u_long recv_labels,
                    resume_handler_t resume_handler, void *rh_arg);
     int end_irob(irob_id_t id);
@@ -27,8 +27,6 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
     void ack(irob_id_t id, u_long seqno = INVALID_IROB_SEQNO);
 
     void ack_received(irob_id_t id, u_long seqno);
-  protected:
-    virtual void Run();
   private:
     CMMSocketImplPtr sk;
 

@@ -1,4 +1,5 @@
 #include "intset.h"
+#include <assert.h>
 
 IntSet::IntSet()
     : size_(0)
@@ -18,16 +19,17 @@ void IntSet::insert(long num)
 }
 void IntSet::insert_vec(std::vector<bool>& vec, long num)
 {
-    if (num >= vec.size()) {
+    assert(num >= 0);
+    if ((size_t)num >= vec.size()) {
         vec.insert(vec.end(), num - vec.size(), false);
         vec.push_back(true);
-        assert(vec.size() == (num + 1));
+        assert(vec.size() == ((size_t)num + 1));
     } else {
         vec[num] = true;
     }
 }
 
-bool IntSet::contains(u_long num)
+bool IntSet::contains(long num) const
 {
     if (num >= 0) {
         return contains_vec(pos_vec, num);
@@ -36,17 +38,19 @@ bool IntSet::contains(u_long num)
     }
 }
 
-bool IntSet::contains_vec(const std::vector<bool>& vec, long num)
+bool IntSet::contains_vec(const std::vector<bool>& vec, long num) const
 {
-    if (num >= vec.size()) {
+    assert(num >= 0);
+    if ((size_t)num >= vec.size()) {
         return false;
     } else {
         return vec[num];
     }
 }
 
+#if 0
 void
-IntSet::print(void)
+IntSet::print(void) const
 {
     printf("vec = [");
     for (size_t i = 0; i < vec.size(); i++) {
@@ -54,9 +58,10 @@ IntSet::print(void)
     }
     printf("], size = %lu\n", vec.size());
 }
+#endif
 
 size_t
-IntSet::size(void)
+IntSet::size(void) const
 {
     return size_;
 }

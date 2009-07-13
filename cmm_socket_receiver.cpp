@@ -1,8 +1,11 @@
 #include "cmm_socket_receiver.h"
+#include "cmm_socket_sender.h"
 #include <pthread.h>
 #include "debug.h"
+#include <vector>
+using std::vector;
 
-class ReadyIROB : public PendingIROBLattice::Predicate {
+class ReadyIROB {
   public:
     bool operator()(PendingIROB *pi) {
         assert(pi);
@@ -13,7 +16,7 @@ class ReadyIROB : public PendingIROBLattice::Predicate {
 };
 
 CMMSocketReceiver::CMMSocketReceiver(CMMSocketImpl *sk_)
-    : sk(sk_), pending_irobs(ReadyIROB())
+    : sk(sk_)
 {
     handle(CMM_CONTROL_MSG_BEGIN_IROB, this, 
            &CMMSocketReceiver::do_begin_irob);
@@ -30,10 +33,11 @@ CMMSocketReceiver::CMMSocketReceiver(CMMSocketImpl *sk_)
 CMMSocketReceiver::~CMMSocketReceiver()
 {
     PendingIROBHash::accessor ac;
-    while (pending_irobs.find(ac, TruePred())) {
+    while (pending_irobs.any(ac)) {
         PendingIROB *victim = ac->second;
         pending_irobs.erase(ac);
         delete victim;
+        ac.release();
     }
 }
 
@@ -49,7 +53,7 @@ CMMSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     PendingIROBHash::accessor ac;
     if (!pending_irobs.insert(ac, pirob)) {
         delete pirob;
-        throw CMMControlException("Tried to begin IROB that already exists", 
+        throw Exception::make("Tried to begin IROB that already exists", 
                                   hdr);
     }
 
@@ -66,18 +70,19 @@ CMMSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
     irob_id_t id = ntohl(hdr.op.end_irob.id);
     if (!pending_irobs.find(ac, id)) {
         if (pending_irobs.past_irob_exists(id)) {
-            throw CMMControlException("Tried to end committed IROB", hdr);
+            throw Exception::make("Tried to end committed IROB", hdr);
         } else {
-            throw CMMControlException("Tried to end nonexistent IROB", hdr);
+            throw Exception::make("Tried to end nonexistent IROB", hdr);
         }
     }
     PendingIROB *pirob = ac->second;
     assert(pirob);
     if (!pirob->finish()) {
-        throw CMMControlException("Tried to end already-done IROB", hdr);
+        throw Exception::make("Tried to end already-done IROB", hdr);
     }
 
-    wake_up_readers();
+    PendingReceiverIROB *prirob = static_cast<PendingReceiverIROB*>(pirob);
+    pending_irobs.release_if_ready(prirob, ReadyIROB());
 }
 
 void
@@ -88,15 +93,15 @@ CMMSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     irob_id_t id = ntohl(hdr.op.irob_chunk.id);
     if (!pending_irobs.find(ac, id)) {
         if (pending_irobs.past_irob_exists(id)) {
-            throw CMMControlException("Tried to add to committed IROB", hdr);
+            throw Exception::make("Tried to add to committed IROB", hdr);
         } else {
-            throw CMMControlException("Tried to add to nonexistent IROB", hdr);
+            throw Exception::make("Tried to add to nonexistent IROB", hdr);
         }
     }
     PendingIROB *pirob = ac->second;
     assert(pirob);
     if (!pirob->add_chunk(hdr.op.irob_chunk)) {
-        throw CMMControlException("Tried to add to completed IROB", hdr);
+        throw Exception::make("Tried to add to completed IROB", hdr);
     }
 }
 
@@ -104,14 +109,17 @@ void
 CMMSocketReceiver::do_new_interface(struct CMMSocketControlHdr hdr)
 {
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_NEW_INTERFACE);
-    sk->setup(hdr.op.new_interface, false);
+    struct net_interface iface = {hdr.op.new_interface.ip_addr,
+                                  hdr.op.new_interface.labels};
+    sk->setup(iface, false);
 }
 
 void
 CMMSocketReceiver::do_down_interface(struct CMMSocketControlHdr hdr)
 {
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_DOWN_INTERFACE);
-    sk->teardown(hdr.op.down_interface, false);
+    struct net_interface iface = {hdr.op.down_interface.ip_addr};
+    sk->teardown(iface, false);
 }
 
 void
@@ -140,59 +148,70 @@ CMMSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
  */
 /* TODO: nonblocking mode */
 ssize_t
-CMMSocketReceiver::recv(void *buf, size_t len, int flags, u_long *recv_labels)
+CMMSocketReceiver::recv(void *bufp, size_t len, int flags, u_long *recv_labels)
 {
-    PendingReceiverIROB *pirob = get_next_irob();
-    assert(pirob); /* nonblocking version would return NULL */
-    assert(pirob->is_released());
-    assert(pirob->is_complete()); /* XXX: see get_next_irob */
-
-    vector<PendingReceiverIROB *pirob> pirobs;
+    vector<PendingReceiverIROB *> pirobs;
+    char *buf = (char*)bufp;
     
-    ssize_t bytes_ready = pirob->numbytes();
-    assert(bytes_ready > 0);
-    while (bytes_ready < len) {
-        pirobs.push_back(pirob);
+    ssize_t bytes_ready = 0;
+    while ((size_t)bytes_ready < len) {
+        PendingReceiverIROB *pirob = pending_irobs.get_ready_irob();
+        assert(pirob); /* XXX: nonblocking version could return NULL */
 
-        pirob = get_next_irob();
+        /* after the IROB is returned here, no other thread will
+         * unsafely modify it.
+         * XXX: this will not be true if we allow get_next_irob
+         * to return released, incomplete IROBs.
+         * We could fix that by simply having a sentinel chunk
+         * on the concurrent_queue of chunks. */
+
         assert(pirob->is_released());
         assert(pirob->is_complete()); /* XXX: see get_next_irob */
 
         ssize_t bytes = pirob->numbytes();
         assert(bytes > 0);
         bytes_ready += bytes;
+
+        pirobs.push_back(pirob);
+
+        if (!pirob->is_complete()) {
+            break;
+        }
     }
-    pirobs.push_back(pirob);
 
     ssize_t bytes_passed = 0;
+    bool partial_irob = false;
     for (size_t i = 0; i < pirobs.size(); i++) {
         PendingIROBHash::accessor ac;
+        PendingReceiverIROB *pirob = pirobs[i];
         if (!pending_irobs.find(ac, pirob->id)) {
             assert(0);
         }
         assert(pirob == ac->second);
+        if (i == 0) {
+            if (recv_labels) {
+                *recv_labels = pirob->send_labels;
+            }
+        }
 
         bytes_passed += pirob->read_data(buf + bytes_passed,
                                          len - bytes_passed);
         if (pirob->is_complete() && pirob->numbytes() == 0) {
             pending_irobs.erase(ac);
-            pending_irobs.release_dependents(pirob);
+            pending_irobs.release_dependents(pirob, ReadyIROB());
             delete pirob;
         } else {
+            if (!pirob->is_complete()) {
+                /* This should still be the last one in the list,
+                 * since it MUST finish before any IROB can be
+                 * passed to the application. */
+            }
             /* this should be true for at most the last IROB
              * in the vector */
+            assert(!partial_irob);
+            partial_irob = true;
             pending_irobs.partially_read(pirob);
         }
     }
-    /* TODO: pass recv_labels */
     return bytes_passed;
-}
-
-/* First take: this won't ever return an incomplete IROB. 
- *  (we may want to loosen this restriction in the future) */
-/* Hard rule: this won't ever return an unreleased IROB. */
-PendingReceiverIROB *
-CMMSocketReceiver::get_next_irob()
-{
-    return pending_irobs.get_ready_irob();
 }

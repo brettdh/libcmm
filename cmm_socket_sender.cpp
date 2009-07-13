@@ -29,10 +29,11 @@ CMMSocketSender::CMMSocketSender(CMMSocketImpl *sk_)
 CMMSocketSender::~CMMSocketSender()
 {
     PendingIROBHash::accessor ac;
-    while (pending_irobs.find(ac, TruePred())) {
+    while (pending_irobs.any(ac)) {
         PendingIROB *victim = ac->second;
         pending_irobs.erase(ac);
         delete victim;
+        ac.release();
     }
 }
 
@@ -40,7 +41,8 @@ CMMSocketSender::~CMMSocketSender()
  * If the socket is non-blocking, we need to implement that here.
  */
 int
-CMMSocketSender::begin_irob(irob_id_t next_irob, int numdeps, irob_id_t *deps,
+CMMSocketSender::begin_irob(irob_id_t next_irob, 
+                            int numdeps, const irob_id_t *deps,
                             u_long send_labels, u_long recv_labels,
                             resume_handler_t resume_handler, void *rh_arg)
 {

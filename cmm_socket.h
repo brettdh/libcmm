@@ -21,8 +21,9 @@ class CMMSocket {
     static void interface_down(struct net_interface down_iface);
     static void interface_up(struct net_interface up_iface);
 
-    virtual int reset() = 0;
-    virtual int check_label(u_long label, resume_handler_t fn, void *arg) = 0;
+    //virtual int reset() = 0;
+    //virtual int check_label(u_long label, resume_handler_t fn, 
+    //                        void *arg) = 0;
 
     virtual int mc_connect(const struct sockaddr *serv_addr, 
                            socklen_t addrlen) = 0;
@@ -54,7 +55,7 @@ class CMMSocket {
 
     virtual int mc_shutdown(int how) = 0;
     
-    virtual irob_id_t mc_begin_irob(int numdeps, irob_id_t *deps, 
+    virtual irob_id_t mc_begin_irob(int numdeps, const irob_id_t *deps, 
                                     u_long send_labels, u_long recv_labels,
                                     resume_handler_t rh, void *rh_arg) = 0;
     virtual int mc_end_irob(irob_id_t id) = 0;

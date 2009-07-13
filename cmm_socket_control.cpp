@@ -1,5 +1,9 @@
 #include "cmm_socket_control.h"
 #include <stdexcept>
+#include <iostream>
+#include <sstream>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 void 
 CMMSocketControlHdr::cleanup()
@@ -26,10 +30,10 @@ CMMSocketControlHdr::describe() const
         stream << "send_labels: " << op.begin_irob.send_labels << " ";
         stream << "recv_labels: " << op.begin_irob.recv_labels << " ";
         stream << "numdeps: " << op.begin_irob.numdeps;
-        if (deps) {
+        if (op.begin_irob.deps) {
             stream << " [ ";
-            for (int i = 0; i < numdeps; i++) {
-                stream << deps[i] << " ";
+            for (int i = 0; i < op.begin_irob.numdeps; i++) {
+                stream << op.begin_irob.deps[i] << " ";
             }
             stream << "]";
         }
@@ -50,9 +54,8 @@ CMMSocketControlHdr::describe() const
         stream << "IP: " << inet_ntoa(op.down_interface.ip_addr);        
         break;
     case CMM_CONTROL_MSG_ACK:
-        stream << "Acktype: " << op.ack.type << " ";
         stream << "IROB: " << op.ack.id;
-        if (op.ack.type == ACK_TYPE_CHUNK) {
+        if (op.ack.seqno == INVALID_IROB_SEQNO) {
             stream << " seqno: " << op.ack.seqno;
         }
         break;
@@ -65,7 +68,7 @@ CMMSocketControlHdr::describe() const
 }
 
 std::string
-CMMSocketRequest::describe const
+CMMSocketRequest::describe() const
 {
     std::ostringstream stream;
     stream << std::endl << "Requester thread: " << requester_tid;

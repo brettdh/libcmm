@@ -1,13 +1,14 @@
 #include "pending_irob.h"
 #include "pending_sender_irob.h"
+#include "debug.h"
 
 PendingSenderIROB::PendingSenderIROB(struct begin_irob_data begin_irob,
                                      resume_handler_t resume_handler_, 
                                      void *rh_arg_)
     : PendingIROB(begin_irob),
+      next_seqno(INVALID_IROB_SEQNO + 1),
       resume_handler(resume_handler_), rh_arg(rh_arg_),
-      acked(false),
-      next_seqno(INVALID_IROB_SEQNO + 1)
+      acked(false)
 {
 }
 
@@ -34,7 +35,7 @@ PendingSenderIROB::ack(u_long seqno)
         acked = true;
     } else {
         acked_chunks.insert(seqno);
-        if (is_complete() && acked_chunks.size() == chunks.size()) {
+        if (is_complete() && acked_chunks.size() == (size_t)chunks.size()) {
             acked = true;
         }
     }

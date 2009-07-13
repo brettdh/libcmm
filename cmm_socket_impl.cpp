@@ -26,6 +26,7 @@ using std::set; using std::pair;
 CMMSockHash CMMSocketImpl::cmm_sock_hash;
 VanillaListenerSet CMMSocketImpl::cmm_listeners;
 NetInterfaceSet CMMSocketImpl::ifaces;
+IROBSockHash CMMSocketImpl::irob_sock_hash;
 
 void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
 {
@@ -675,7 +676,7 @@ CMMSocketImpl::mc_shutdown(int how)
 }
 
 irob_id_t 
-CMMSocketImpl::mc_begin_irob(int numdeps, irob_id_t *deps, 
+CMMSocketImpl::mc_begin_irob(int numdeps, const irob_id_t *deps, 
                              u_long send_labels, u_long recv_labels,
                              resume_handler_t rh, void *rh_arg)
 {

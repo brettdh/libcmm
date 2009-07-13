@@ -1,4 +1,5 @@
 #include "libcmm_irob.h"
+#include "cmm_socket.h"
 
 /* Begin an IROB on a multi-socket.  
  * Such IROBs have sender labels, receiver labels, and a thunk
@@ -24,12 +25,12 @@ int end_irob(irob_id_t id)
  * received in their original order (see receiver API below). */
 ssize_t irob_send(irob_id_t irob_id, const void *buf, size_t len, int flags)
 {
-    return CMMSocket::lookup_by_irob(irob_id)->mc_irob_send(irob_id_,
+    return CMMSocket::lookup_by_irob(irob_id)->mc_irob_send(irob_id,
                                                             buf, len, flags);
 }
 
 int irob_writev(irob_id_t irob_id, const struct iovec *vector, int count)
 {
-    return CMMSocket::lookup_by_irob(irob_id)->mc_irob_writev(irob_id_,
+    return CMMSocket::lookup_by_irob(irob_id)->mc_irob_writev(irob_id,
                                                               vector, count);
 }

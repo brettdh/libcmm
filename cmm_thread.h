@@ -5,13 +5,12 @@
 
 class CMMThread {
   public:
-    void start();
+    int start();
     /* void stop(); TODO */
     virtual ~CMMThread();
+    virtual void Run(void) = 0;
   protected:
     pthread_t tid;
-
-    virtual void Run(void) = 0;
 };
 
 #endif

@@ -7,7 +7,7 @@ ListenerThread::ListenerThread(CMMSocketImpl *sk_)
 {
     struct sockaddr_in bind_addr;
     memset(&bind_addr, 0, sizeof(bind_addr));
-    bind_addr.sin_addr = INADDR_ANY;
+    bind_addr.sin_addr.s_addr = INADDR_ANY;
     bind_addr.sin_port = 0;
     
     listener_sock = socket(PF_INET, SOCK_STREAM, 0);
@@ -22,9 +22,9 @@ ListenerThread::ListenerThread(CMMSocketImpl *sk_)
         close(listener_sock);
         throw rc;
     }
+    socklen_t addrlen = sizeof(bind_addr);
     rc = getsockname(listener_sock, 
-                     (struct sockaddr *)&bind_addr,
-                     sizeof(bind_addr));
+                     (struct sockaddr *)&bind_addr, &addrlen);
     if (rc < 0) {
         perror("getsockname");
         close(listener_sock);
@@ -43,6 +43,12 @@ ListenerThread::~ListenerThread()
     close(listener_sock);
 }
 
+in_port_t
+ListenerThread::port() const
+{
+    return listen_port;
+}
+
 void
 ListenerThread::Run()
 {
@@ -52,13 +58,23 @@ ListenerThread::Run()
         FD_SET(listener_sock, &readfds);
         int rc = select(listener_sock + 1, &readfds, NULL, NULL, NULL);
 
-        struct sockaddr_in addr;
-        socklen_t addrlen = sizeof(addr);
-        int sock = accept(listener_sock, &addr, &addrlen);
+        struct sockaddr_in remote_addr;
+        socklen_t addrlen = sizeof(remote_addr);
+        int sock = accept(listener_sock,
+                          (struct sockaddr *)&remote_addr, &addrlen);
         if (sock < 0) {
             throw std::runtime_error("Socket error");
         }
 
-        sk->add_connection(sock, &addr);
+        struct sockaddr_in local_addr;
+        rc = getsockname(listener_sock, 
+                         (struct sockaddr *)&local_addr, &addrlen);
+        if (rc < 0) {
+            perror("getsockname");
+            close(listener_sock);
+            throw std::runtime_error("Socket error");
+        }
+
+        sk->add_connection(sock, local_addr.sin_addr, remote_addr.sin_addr);
     }
 }
