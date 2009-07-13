@@ -284,7 +284,7 @@ void usage(char *argv[])
     fprintf(stderr, 
 	    "\nUsage 2: %s <BG iface> cdf <encounter duration cdf file>\n"
 	    "                                  <disconnect duration cdf file>\n"
-	    "                          [ ap2 ... apN ]", argv[0]);
+	    "                          [ ap2 ... apN ]\n", argv[0]);
     exit(-1);
 }
 
