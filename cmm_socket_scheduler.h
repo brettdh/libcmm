@@ -48,6 +48,7 @@ class CMMSocketScheduler : public CMMThread {
     class Handler {
       public:
         virtual void operator()(MsgClass) = 0;
+	virtual ~Handler() {}
     };
     
     template <typename T> 

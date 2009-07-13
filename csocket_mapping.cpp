@@ -6,6 +6,7 @@ class LabelMatch {
   public:
     LabelMatch(u_long label_) : label(label_) {}
     virtual bool operator()(CSocket *csock) { return label == 0; };
+    virtual ~LabelMatch() {}
   protected:
     u_long label;
 };
