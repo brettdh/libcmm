@@ -6,6 +6,8 @@
 #include <math.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <net/if.h>
+#include <sys/ioctl.h>
 
 #include <queue>
 using std::queue;
@@ -51,8 +53,8 @@ static NetInterfaceMap net_interfaces;
 #define UP_LABELS (CONNMGR_LABEL_BACKGROUND|CONNMGR_LABEL_ONDEMAND)
 #define DOWN_LABELS (CONNMGR_LABEL_ONDEMAND)
 
-#define FG_IP_ADDRESS "10.0.0.42"
-#define BG_IP_ADDRESS "10.0.0.2"
+// #define FG_IP_ADDRESS "10.0.0.42"
+// #define BG_IP_ADDRESS "10.0.0.2"
 
 
 int notify_subscriber(pid_t pid, mqd_t mq_fd,
@@ -104,16 +106,17 @@ void * IPC_Listener(void *)
 	fprintf(stderr, "Failed to open message queue\n");
 	raise(SIGINT); /* easy way to bail out */
     }
-    struct timespec timeout = {1, 0}; /* 1-second timeout */
+    //struct timespec timeout = {1, 0}; /* 1-second timeout */
 
     while (running) {
 	/* listen for IPCs */
 	struct cmm_msg msg;
 	errno = 0;
-	rc = mq_timedreceive(scout_control_mq_fd, (char*)&msg, sizeof(msg), 
-			     NULL, &timeout);
+	// rc = mq_timedreceive(scout_control_mq_fd, (char*)&msg, sizeof(msg), 
+	//                      NULL, &timeout);
+	rc = mq_receive(scout_control_mq_fd, (char*)&msg, sizeof(msg), NULL);
 	if (rc < 0) {
-	    if (errno == EINTR || errno == ETIMEDOUT) {
+	    if (errno == EINTR) { // || errno == ETIMEDOUT) {
 		continue;
 	    } else {
 		perror("mq_receive");
@@ -276,10 +279,12 @@ void handle_term(int)
 
 void usage(char *argv[])
 {
-    fprintf(stderr, "Usage: %s <ap> [uptime downtime]\n", argv[0]);
+    fprintf(stderr, "Usage: %s <BG iface> [uptime downtime] [ ap2 ... apN ]\n", argv[0]);
     fprintf(stderr, "Usage:    uptime,downtime are in seconds.\n");
-    fprintf(stderr, "\nUsage 2: %s <encounter duration cdf file> "
-	    "\n                       <disconnect duration cdf file>\n", argv[0]);
+    fprintf(stderr, 
+	    "\nUsage 2: %s <BG iface> cdf <encounter duration cdf file>\n"
+	    "                                  <disconnect duration cdf file>\n"
+	    "                          [ ap2 ... apN ]", argv[0]);
     exit(-1);
 }
 
@@ -312,11 +317,40 @@ void thread_sleep(double fseconds)
 
 }
 
+int get_ip_address(const char *ifname, struct in_addr *ip_addr)
+{
+    if (strlen(ifname) > IF_NAMESIZE) {
+	fprintf(stderr, "Error: ifname too long (longer than %d)\n", IF_NAMESIZE);
+	return -1;
+    }
+
+    struct ifreq ifr;
+    strcpy(ifr.ifr_name, ifname);
+    ifr.ifr_addr.sa_family = AF_INET;
+
+    int sock = socket(PF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) {
+	perror("socket");
+	return sock;
+    }
+    int rc = ioctl(sock, SIOCGIFADDR, &ifr);
+    if (rc < 0) {
+	close(sock);
+	return rc;
+    }
+
+    struct sockaddr_in *inaddr = (struct sockaddr_in*)&ifr.ifr_addr;
+    memcpy(ip_addr, &inaddr->sin_addr, sizeof(ip_addr));
+
+    close(sock);
+    return rc;
+}
+
 #define MIN_TIME 1
 
 int main(int argc, char *argv[])
 {
-    if (argc != 3 && argc != 4) {
+    if (argc < 2) {
 	usage(argv);
     }
 
@@ -324,60 +358,81 @@ int main(int argc, char *argv[])
     CDFSampler *up_time_samples = NULL;
     CDFSampler *down_time_samples = NULL;
     double presample_duration = 3600.0;
-    const char *ifname = "background";
+
+    const char *fg_iface_name = argv[1];
+    char *bg_iface_name = NULL;
 
     double up_time = 30.0;
     double down_time = 5.0;
-    if (argc == 4) {
-	//ifname = argv[1];
-	up_time = atof(argv[2]);
-	down_time = atof(argv[3]);
-	if (up_time < MIN_TIME || down_time < MIN_TIME) {
-	    fprintf(stderr, 
-		    "Error: uptime and downtime must be greater than "
-		    "%u second.\n", MIN_TIME);
-	    exit(-1);
-	}
-    } else if (argc == 3) {
-        sampling = true;
-	try {
-	    auto_ptr<CDFSampler> up_ptr(new CDFSampler(argv[1], 
-						       presample_duration));
-	    auto_ptr<CDFSampler> down_ptr(new CDFSampler(argv[2],
-							 presample_duration));
+    if (argc > 2) {
+	bg_iface_name = argv[2];
+
+	if (!strcmp(argv[3], "cdf")) {
+	    if (argc < 6) {
+		usage(argv);
+	    }
 	    
-	    up_time_samples = up_ptr.release();
-	    down_time_samples = down_ptr.release();
-	} catch (CDFErr &e) {
-	    fprintf(stderr, "CDF Error: %s\n", e.str.c_str());
-	    exit(1);
+	    sampling = true;
+	    try {
+		auto_ptr<CDFSampler> up_ptr(new CDFSampler(argv[4], 
+							   presample_duration));
+		auto_ptr<CDFSampler> down_ptr(new CDFSampler(argv[5],
+							     presample_duration));
+		
+		up_time_samples = up_ptr.release();
+		down_time_samples = down_ptr.release();
+	    } catch (CDFErr &e) {
+		fprintf(stderr, "CDF Error: %s\n", e.str.c_str());
+		exit(1);
+	    }
+	} else {
+	    up_time = atof(argv[3]);
+	    down_time = atof(argv[4]);
+	    if (up_time < MIN_TIME || down_time < MIN_TIME) {
+		fprintf(stderr, 
+			"Error: uptime and downtime must be greater than "
+			"%u second.\n", MIN_TIME);
+		exit(-1);
+	    }
 	}
     }
     
     signal(SIGINT, handle_term);
 
-    running = true;
     labels_available = UP_LABELS;
 
-    /* Add the interfaces on ruff, wizard-of-oz-style */
-    const size_t num_ifs = 2;
-    struct net_interface ifs[num_ifs] = {
+    /* Add the interfaces, wizard-of-oz-style */
+    struct net_interface ifs[2] = {
         {{0}, CONNMGR_LABEL_ONDEMAND},
         {{0}, CONNMGR_LABEL_BACKGROUND}
     };
-    const char *addrs[num_ifs] = {FG_IP_ADDRESS, BG_IP_ADDRESS};
-    
+    const char *ifnames[2] = {fg_iface_name, bg_iface_name};
+
+    size_t num_ifs = 2;
+    if (!bg_iface_name) {
+	num_ifs = 1;
+    }
+
     for (size_t i = 0; i < num_ifs; i++) {
-        int rc = inet_aton(addrs[i], &ifs[i].ip_addr);
-        assert(rc);
+        int rc = get_ip_address(ifnames[i], &ifs[i].ip_addr);
+	if (rc < 0) {
+	    fprintf(stderr, "blah, couldn't get IP address for %s\n", ifnames[i]);
+	    exit(-1);
+	}
         net_interfaces[ifs[i].ip_addr.s_addr] = ifs[i];
     }
     
-    struct net_interface bg_iface = ifs[1];
-    net_interfaces.erase(bg_iface.ip_addr.s_addr); // will be added back first iteration
-    IfaceList empty_list;
+    struct net_interface bg_iface;
     IfaceList bg_iface_list;
-    bg_iface_list.push_back(bg_iface);
+    IfaceList empty_list;
+    
+    if (bg_iface_name) {
+	bg_iface = ifs[1];
+	net_interfaces.erase(bg_iface.ip_addr.s_addr); // will be added back first iteration
+	bg_iface_list.push_back(bg_iface);
+    }
+
+    running = true;
 
     pthread_t tid;
     int rc = pthread_create(&tid, NULL, IPC_Listener, NULL);
@@ -387,13 +442,20 @@ int main(int argc, char *argv[])
 	exit(-1);
     }
 
+    if (!bg_iface_name) {
+	/* no background interface; 
+	 * just sleep until SIGINT, then exit */
+	(void)select(0, NULL, NULL, NULL, NULL);
+	running = false;
+    }
+
     while (running) {
 	if (sampling) {
 	    up_time = up_time_samples->sample();
 	}
 	labels_available = UP_LABELS;
         
-	fprintf(stderr, "%s is up for %lf seconds\n", ifname, up_time);
+	fprintf(stderr, "%s is up for %lf seconds\n", bg_iface_name, up_time);
         pthread_mutex_lock(&ifaces_lock);
         net_interfaces[bg_iface.ip_addr.s_addr] = bg_iface;
         pthread_mutex_unlock(&ifaces_lock);
@@ -406,7 +468,7 @@ int main(int argc, char *argv[])
 	    down_time = down_time_samples->sample();
 	}
 	labels_available = DOWN_LABELS;
-	fprintf(stderr, "%s is down for %lf seconds\n", ifname, down_time);
+	fprintf(stderr, "%s is down for %lf seconds\n", bg_iface_name, down_time);
 
         pthread_mutex_lock(&ifaces_lock);
         net_interfaces.erase(bg_iface.ip_addr.s_addr);
