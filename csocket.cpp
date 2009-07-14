@@ -212,6 +212,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         delete [] buf;
         throw Exception::make("Socket error", hdr);
     }
+    dbgprintf("Successfully got %d data bytes\n", datalen);
 
     hdr.op.irob_chunk.data = buf;
     pass_header(hdr);
