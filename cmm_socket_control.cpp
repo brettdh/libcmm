@@ -75,7 +75,7 @@ CMMSocketControlHdr::describe() const
         break;
     case CMM_CONTROL_MSG_ACK:
         stream << "IROB: " << ntohl(op.ack.id);
-        if (ntohl(op.ack.seqno)== INVALID_IROB_SEQNO) {
+        if (ntohl(op.ack.seqno) != INVALID_IROB_SEQNO) {
             stream << " seqno: " << ntohl(op.ack.seqno);
         }
         break;
