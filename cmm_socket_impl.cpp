@@ -12,6 +12,8 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <string.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include <signal.h>
 #include "signals.h"
@@ -51,6 +53,8 @@ void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
     new_listener.ip_addr = hdr.op.new_interface.ip_addr;
     new_listener.labels = ntohl(hdr.op.new_interface.labels);
     remote_ifaces.insert(new_listener);
+    dbgprintf("Got new remote interface %s with labels %lu\n",
+	      inet_ntoa(new_listener.ip_addr), new_listener.labels);
 }
 
 void CMMSocketImpl::recv_remote_listeners(int bootstrap_sock)
@@ -78,6 +82,8 @@ void CMMSocketImpl::send_local_listener(int bootstrap_sock,
     hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
     hdr.op.new_interface.ip_addr = iface.ip_addr;
     hdr.op.new_interface.labels = htonl(iface.labels);
+    dbgprintf("Sending local interface info: %s with labels %lu\n",
+	      inet_ntoa(iface.ip_addr), iface.labels);
     int rc = send(bootstrap_sock, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr)) {
 	perror("send");

@@ -114,6 +114,7 @@ CSocketSender::do_irob_chunk(struct CMMSocketRequest req)
     send_header(req);
     int rc = send(csock->osfd, buf, datalen, 0);
     if (rc != datalen) {
+	hdr.op.irob_chunk.data = buf;
         csock->sendr->enqueue(req);
         throw Exception::make("Socket error", req);
     }
