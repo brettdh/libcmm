@@ -106,17 +106,16 @@ void * IPC_Listener(void *)
 	fprintf(stderr, "Failed to open message queue\n");
 	raise(SIGINT); /* easy way to bail out */
     }
-    //struct timespec timeout = {1, 0}; /* 1-second timeout */
+    struct timespec timeout = {1, 0}; /* 1-second timeout */
 
     while (running) {
 	/* listen for IPCs */
 	struct cmm_msg msg;
 	errno = 0;
-	// rc = mq_timedreceive(scout_control_mq_fd, (char*)&msg, sizeof(msg), 
-	//                      NULL, &timeout);
-	rc = mq_receive(scout_control_mq_fd, (char*)&msg, sizeof(msg), NULL);
+	rc = mq_timedreceive(scout_control_mq_fd, (char*)&msg, sizeof(msg), 
+	                     NULL, &timeout);
 	if (rc < 0) {
-	    if (errno == EINTR) { // || errno == ETIMEDOUT) {
+	    if (errno == EINTR || errno == ETIMEDOUT) {
 		continue;
 	    } else {
 		perror("mq_receive");
@@ -420,6 +419,8 @@ int main(int argc, char *argv[])
 	    exit(-1);
 	}
         net_interfaces[ifs[i].ip_addr.s_addr] = ifs[i];
+	printf("Got interface: %s, %s\n", ifnames[i], 
+	       inet_ntoa(ifs[i].ip_addr));
     }
     
     struct net_interface bg_iface;
@@ -428,7 +429,9 @@ int main(int argc, char *argv[])
     
     if (bg_iface_name) {
 	bg_iface = ifs[1];
-	net_interfaces.erase(bg_iface.ip_addr.s_addr); // will be added back first iteration
+
+	// will be added back first iteration
+	net_interfaces.erase(bg_iface.ip_addr.s_addr);
 	bg_iface_list.push_back(bg_iface);
     }
 
