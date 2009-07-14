@@ -277,6 +277,10 @@ CSocket::phys_connect(void)
                   ntohs(local_addr.sin_port));
         return rc;
     }
+    dbgprintf("Successfully bound osfd %d to %s:%d\n",
+              osfd, inet_ntoa(local_addr.sin_addr), 
+              ntohs(local_addr.sin_port));
+
     rc = connect(osfd, (struct sockaddr *)&remote_addr, sizeof(remote_addr));
     if (rc < 0) {
         perror("connect");

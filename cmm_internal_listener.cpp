@@ -1,7 +1,10 @@
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include "cmm_internal_listener.h"
 #include "debug.h"
+
+#define INTERNAL_LISTEN_PORT 42424
 
 ListenerThread::ListenerThread(CMMSocketImpl *sk_)
     : sk(sk_)
@@ -9,16 +12,22 @@ ListenerThread::ListenerThread(CMMSocketImpl *sk_)
     struct sockaddr_in bind_addr;
     memset(&bind_addr, 0, sizeof(bind_addr));
     bind_addr.sin_addr.s_addr = INADDR_ANY;
-    bind_addr.sin_port = 0;
+    bind_addr.sin_port = INTERNAL_LISTEN_PORT;
     
     listener_sock = socket(PF_INET, SOCK_STREAM, 0);
     if (listener_sock < 0) {
         throw -1;
     }
+
+    int on = 1;
+    int rc = setsockopt(listener_sock, SOL_SOCKET, SO_REUSEADDR,
+                        (char *) &on, sizeof(on));
+    if (rc < 0) {
+        dbgprintf("Cannot reuse socket address");
+    }
     
-    int rc = bind(listener_sock, 
-                  (struct sockaddr *)&bind_addr,
-                  sizeof(bind_addr));
+    rc = bind(listener_sock, 
+              (struct sockaddr *)&bind_addr, sizeof(bind_addr));
     if (rc < 0) {
         close(listener_sock);
         throw rc;
