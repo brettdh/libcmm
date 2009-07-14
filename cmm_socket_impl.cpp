@@ -1168,7 +1168,9 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
     assert(get_pointer(read_ac->second) == this);
     
     if (local) {
-        sendr->new_interface(iface.ip_addr, iface.labels);
+        if (sendr) {
+            sendr->new_interface(iface.ip_addr, iface.labels);
+        }
     } else {
         read_ac.release();
         CMMSockHash::accessor write_ac;

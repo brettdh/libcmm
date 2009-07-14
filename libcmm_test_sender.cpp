@@ -156,10 +156,20 @@ int srv_connect(u_long label)
     return rc;
 }
 
-int main()
+int main(int argc, char *argv[])
 {
     int rc;
 
+    srv_addr.sin_family = AF_INET;
+    srv_addr.sin_port = htons(LISTEN_PORT);
+    const char *hostname = (argc > 1) ? argv[1] : HOST;
+    struct hostent *hp = gethostbyname(hostname);
+    if (hp == NULL) {
+	fprintf(stderr, "Failed to lookup hostname %s\n", HOST);
+	exit(-1);
+    }
+    memcpy(&srv_addr.sin_addr, hp->h_addr, hp->h_length);
+    
     struct th_arg args;
     shared_sock = cmm_socket(PF_INET, SOCK_STREAM, 0);
     if (shared_sock < 0) {
@@ -167,15 +177,6 @@ int main()
 	exit(-1);
     }
 
-    srv_addr.sin_family = AF_INET;
-    srv_addr.sin_port = htons(LISTEN_PORT);
-    struct hostent *hp = gethostbyname(HOST);
-    if (hp == NULL) {
-	fprintf(stderr, "Failed to lookup hostname %s\n", HOST);
-	exit(-1);
-    }
-    memcpy(&srv_addr.sin_addr, hp->h_addr, hp->h_length);
-    
     rc = srv_connect(CONNMGR_LABEL_ONDEMAND);
     if (rc < 0) {
 	if (rc == CMM_DEFERRED) {

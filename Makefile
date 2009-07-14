@@ -10,11 +10,11 @@ all: $(LIBRARIES) $(EXECUTABLES)
 cdf_test: cdf_test.o cdf_sampler.o
 	$(CXX) $(CFLAGS) -o $@ $^
 
-cmm_test_sender: libcmm_test_sender.o
-	$(CXX) $(CFLAGS) $(LDFLAGS)  -lcmm -o $@ $^
+cmm_test_sender: libcmm_test_sender.o libcmm.so
+	$(CXX) $(CFLAGS) $(LDFLAGS)  -lcmm -o $@ $<
 
-cmm_test_receiver: libcmm_test_receiver.o
-	$(CXX) $(CFLAGS) $(LDFLAGS)  -lcmm -o $@ $^
+cmm_test_receiver: libcmm_test_receiver.o libcmm.so
+	$(CXX) $(CFLAGS) $(LDFLAGS)  -lcmm -o $@ $<
 
 conn_scout: libcmm_scout.o cdf_sampler.o
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $^
