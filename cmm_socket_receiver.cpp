@@ -105,10 +105,19 @@ CMMSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
             throw Exception::make("Tried to add to nonexistent IROB", hdr);
         }
     }
+    struct irob_chunk_data chunk;
+    chunk.id = id;
+    chunk.seqno = ntohl(hdr.op.irob_chunk.seqno);
+    chunk.datalen = ntohl(hdr.op.irob_chunk.datalen);
+    chunk.data = hdr.op.irob_chunk.data;
+
     PendingIROB *pirob = ac->second;
     assert(pirob);
-    if (!pirob->add_chunk(hdr.op.irob_chunk)) {
+    if (!pirob->add_chunk(chunk)) {
         throw Exception::make("Tried to add to completed IROB", hdr);
+    } else {
+	dbgprintf("Successfully added chunk %d to IROB %d\n",
+		  chunk.seqno, id);
     }
 }
 
