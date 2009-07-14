@@ -80,11 +80,12 @@ ListenerThread::Run()
         }
 
         struct sockaddr_in local_addr;
-        rc = getsockname(listener_sock, 
+        rc = getsockname(sock, 
                          (struct sockaddr *)&local_addr, &addrlen);
         if (rc < 0) {
             perror("getsockname");
-            close(listener_sock);
+            close(sock);
+	    close(listener_sock);
             throw std::runtime_error("Socket error");
         }
 
