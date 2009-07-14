@@ -716,9 +716,13 @@ CMMSocketImpl::mc_begin_irob(int numdeps, const irob_id_t *deps,
         errno = ENOTCONN;
         return CMM_FAILED;
     }
-    return sendr->begin_irob(next_irob, numdeps, deps, 
-                             send_labels, recv_labels,
-                             rh, rh_arg);
+    int rc = sendr->begin_irob(next_irob, numdeps, deps, 
+                               send_labels, recv_labels,
+                               rh, rh_arg);
+    if (rc < 0) {
+        return rc;
+    }
+    return id;
 }
 
 int
