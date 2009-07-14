@@ -12,7 +12,7 @@ ListenerThread::ListenerThread(CMMSocketImpl *sk_)
     struct sockaddr_in bind_addr;
     memset(&bind_addr, 0, sizeof(bind_addr));
     bind_addr.sin_addr.s_addr = INADDR_ANY;
-    bind_addr.sin_port = INTERNAL_LISTEN_PORT;
+    bind_addr.sin_port = htons(INTERNAL_LISTEN_PORT);
     
     listener_sock = socket(PF_INET, SOCK_STREAM, 0);
     if (listener_sock < 0) {
