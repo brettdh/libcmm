@@ -63,6 +63,7 @@ ListenerThread::Run()
         int sock = accept(listener_sock,
                           (struct sockaddr *)&remote_addr, &addrlen);
         if (sock < 0) {
+	    perror("accept");
             throw std::runtime_error("Socket error");
         }
 

@@ -28,7 +28,7 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
 
     void ack_received(irob_id_t id, u_long seqno);
   private:
-    CMMSocketImplPtr sk;
+    CMMSocketImpl *sk;
 
     PendingIROBLattice pending_irobs;
 

@@ -23,7 +23,7 @@ class CMMSocketReceiver : public CMMSocketScheduler<struct CMMSocketControlHdr> 
      * is not safe either. */
     ssize_t recv(void *buf, size_t len, int flags, u_long *recv_labels);
   private:
-    CMMSocketImplPtr sk;
+    CMMSocketImpl *sk;
 
     PendingReceiverIROBLattice pending_irobs;
 

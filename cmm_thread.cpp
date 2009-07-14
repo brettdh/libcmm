@@ -10,7 +10,7 @@ ThreadFn(void * arg)
         CMMThread *thread = (CMMThread *)arg;
         thread->Run();
     } catch(const std::exception& e) {
-        dbgprintf("%s\n", e.what());
+	dbgprintf("Thread %d exited: %s\n", pthread_self(), e.what());
     }
     return NULL;
 }

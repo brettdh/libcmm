@@ -39,14 +39,15 @@ void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
 	dbgprintf("Error receiving remote listener\n");
         throw -1;
     }
-    if (hdr.type != CMM_CONTROL_MSG_NEW_INTERFACE) {
-	dbgprintf("Expected NEW_INTERFACE msg, got %d\n", hdr.type);
+    short type = ntohs(hdr.type);
+    if (type != CMM_CONTROL_MSG_NEW_INTERFACE) {
+	dbgprintf("Expected NEW_INTERFACE msg, got %d\n", type);
         throw -1;
     }
     struct net_interface new_listener;
     memset(&new_listener.ip_addr, 0, sizeof(new_listener.ip_addr));
     new_listener.ip_addr = hdr.op.new_interface.ip_addr;
-    new_listener.labels = hdr.op.new_interface.labels;
+    new_listener.labels = ntohl(hdr.op.new_interface.labels);
     remote_ifaces.insert(new_listener);
 }
 
