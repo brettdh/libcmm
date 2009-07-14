@@ -37,6 +37,8 @@ ListenerThread::ListenerThread(CMMSocketImpl *sk_)
         close(listener_sock);
         throw rc;
     }
+    dbgprintf("Internal socket listener listening up on port %d\n",
+              ntohs(listen_port));
 }
 
 ListenerThread::~ListenerThread()

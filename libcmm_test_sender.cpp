@@ -133,13 +133,13 @@ void handle_term(int)
     exit(0);
 }
 
-int srv_connect(u_long label)
+int srv_connect(const char *host, u_long label)
 {
     int rc;
     
   conn_retry:
     fprintf(stderr, "Attempting to connect to %s:%d, label %lu\n", 
-	    HOST, LISTEN_PORT, label);
+	    host, LISTEN_PORT, label);
     rc = cmm_connect(shared_sock, (struct sockaddr*)&srv_addr,
 		     (socklen_t)sizeof(srv_addr));
     if (rc < 0) {
@@ -177,7 +177,7 @@ int main(int argc, char *argv[])
 	exit(-1);
     }
 
-    rc = srv_connect(CONNMGR_LABEL_ONDEMAND);
+    rc = srv_connect(hostname, CONNMGR_LABEL_ONDEMAND);
     if (rc < 0) {
 	if (rc == CMM_DEFERRED) {
 	    fprintf(stderr, "Initial connection deferred\n");

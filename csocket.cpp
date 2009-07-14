@@ -5,6 +5,8 @@
 #include "cmm_socket_control.h"
 #include "cmm_socket_sender.h"
 #include "cmm_socket_receiver.h"
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 class CSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
   public:
@@ -229,7 +231,6 @@ CSocket::CSocket(CMMSocketImpl *sk_,
                 //i.e wait until the sock is conn'ed.
                 errno = EAGAIN;
             } else {
-                perror("connect");
                 close(osfd);
                 throw std::runtime_error("Failed to connect new csocket");
             }
@@ -270,9 +271,20 @@ CSocket::phys_connect(void)
 
     int rc = bind(osfd, (struct sockaddr *)&local_addr, sizeof(local_addr));
     if (rc < 0) {
+        perror("bind");
+        dbgprintf("Failed to bind osfd %d to %s:%d\n",
+                  osfd, inet_ntoa(local_addr.sin_addr), 
+                  ntohs(local_addr.sin_port));
         return rc;
     }
-    return connect(osfd, (struct sockaddr *)&remote_addr, sizeof(remote_addr));
+    rc = connect(osfd, (struct sockaddr *)&remote_addr, sizeof(remote_addr));
+    if (rc < 0) {
+        perror("connect");
+        dbgprintf("Failed to connect osfd %d to %s:%d\n",
+                  osfd, inet_ntoa(remote_addr.sin_addr), 
+                  ntohs(remote_addr.sin_port));
+    }
+    return rc;
 }
 
 void 

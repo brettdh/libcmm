@@ -7,12 +7,12 @@
 class ListenerThread : public CMMThread {
   public:
     ListenerThread(CMMSocketImpl *sk_);
-    ~ListenerThread();
+    virtual ~ListenerThread();
     in_port_t port() const;
   protected:
     virtual void Run();
   private:
-    CMMSocketImplPtr sk;
+    CMMSocketImpl *sk;
     int listener_sock;
     in_port_t listen_port;
 };
