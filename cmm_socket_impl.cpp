@@ -17,6 +17,8 @@
 #include "thunks.h"
 #include "cmm_timing.h"
 
+#include "debug.h"
+
 #include <map>
 #include <vector>
 #include <set>
@@ -33,9 +35,12 @@ void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
     struct CMMSocketControlHdr hdr;
     int rc = recv(bootstrap_sock, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr)) {
+	perror("recv");
+	dbgprintf("Error receiving remote listener\n");
         throw -1;
     }
     if (hdr.type != CMM_CONTROL_MSG_NEW_INTERFACE) {
+	dbgprintf("Expected NEW_INTERFACE msg, got %d\n", hdr.type);
         throw -1;
     }
     struct net_interface new_listener;
@@ -50,6 +55,8 @@ void CMMSocketImpl::recv_remote_listeners(int bootstrap_sock)
     struct CMMSocketControlHdr hdr;
     int rc = recv(bootstrap_sock, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr) || ntohs(hdr.type) != CMM_CONTROL_MSG_HELLO) {
+	perror("recv");
+	dbgprintf("Error receiving remote listeners\n");
         throw -1;
     }
 
@@ -70,6 +77,8 @@ void CMMSocketImpl::send_local_listener(int bootstrap_sock,
     hdr.op.new_interface.labels = htonl(iface.labels);
     int rc = send(bootstrap_sock, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr)) {
+	perror("send");
+	dbgprintf("Error sending local listener\n");
         throw -1;
     }
 }
@@ -85,6 +94,8 @@ void CMMSocketImpl::send_local_listeners(int bootstrap_sock)
 
     int rc = send(bootstrap_sock, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr)) {
+	perror("send");
+	dbgprintf("Error sending local listeners\n");
         throw -1;
     }
 
@@ -109,8 +120,10 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
     try {
         sendr = new CMMSocketSender(this);
         recvr = new CMMSocketReceiver(this);
-        
         listener_thread = new ListenerThread(this);
+
+	sendr->start();
+	recvr->start();
         listener_thread->start();
 
         for (NetInterfaceSet::iterator it = ifaces.begin();
@@ -141,6 +154,8 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
             try {
                 int rc = connect(bootstrap_sock, remote_addr, addrlen);
                 if (rc < 0) {
+		    perror("connect");
+		    dbgprintf("Error connecting bootstrap socket\n");
                     throw rc;
                 }
                 
@@ -260,7 +275,9 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
 
 
 CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
-    : csock_map(this), next_irob(0)
+    : csock_map(this),
+      listener_thread(NULL), sendr(NULL), recvr(NULL),
+      next_irob(0)
 {
     /* reserve a dummy OS file descriptor for this mc_socket. */
     sock = socket(family, type, protocol);
@@ -928,8 +945,8 @@ CMMSocketImpl::mc_accept(int listener_sock,
     
     mc_socket_t mc_sock = CMMSocketImpl::create(PF_INET, SOCK_STREAM, 0);
     CMMSocketPtr sk = CMMSocketImpl::lookup(mc_sock);
-    CMMSocketImplPtr sk_impl(dynamic_cast<CMMSocketImpl*>(get_pointer(sk)));
-    assert(get_pointer(sk_impl));
+    CMMSocketImpl *sk_impl = dynamic_cast<CMMSocketImpl*>(get_pointer(sk));
+    assert(sk_impl);
     int rc = sk_impl->connection_bootstrap(addr, *addrlen, sock);
     close(sock);
         
