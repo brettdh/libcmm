@@ -141,7 +141,9 @@ CMMSocketSender::irob_chunk(irob_id_t id, const void *buf, size_t len,
         chunk.datalen = len;
         chunk.data = new char[len];
         memcpy(chunk.data, buf, len);
-        pirob->add_chunk(chunk); /* writes correct seqno into struct */
+	PendingSenderIROB *psirob = static_cast<PendingSenderIROB*>(pirob);
+	assert(psirob);
+        psirob->add_chunk(chunk); /* writes correct seqno into struct */
     }
 
     struct CMMSocketRequest req;
