@@ -1,6 +1,10 @@
 #include "csocket_mapping.h"
 #include "csocket.h"
 #include "signals.h"
+#include "debug.h"
+#include <memory>
+using std::auto_ptr;
+
 
 class LabelMatch {
   public:
@@ -130,7 +134,16 @@ CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label)
         return NULL;
     }
 
-    csock = new CSocket(sk, sk->sendr, sk->recvr, local_iface, remote_iface);
+    try {
+        auto_ptr<CSocket> csock_ptr(new CSocket(sk, sk->sendr, sk->recvr, 
+                                                local_iface, remote_iface));
+
+        csock = csock_ptr.release();
+    } catch (int err) {
+        dbgprintf("Error creating new connection\n");
+        /* XXX: might want to pass this as a different error? */
+        return NULL;
+    }
 
     connected_csocks.insert(csock);
     // to interrupt any select() in progress, adding the new osfd

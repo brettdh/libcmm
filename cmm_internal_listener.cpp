@@ -1,6 +1,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include "cmm_internal_listener.h"
+#include "debug.h"
 
 ListenerThread::ListenerThread(CMMSocketImpl *sk_)
     : sk(sk_)
@@ -76,6 +77,11 @@ ListenerThread::Run()
             throw std::runtime_error("Socket error");
         }
 
-        sk->add_connection(sock, local_addr.sin_addr, remote_addr.sin_addr);
+        try {
+            sk->add_connection(sock, 
+                               local_addr.sin_addr, remote_addr.sin_addr);
+        } catch (std::runtime_error& e) {
+            dbgprintf("Failed to add connection: %s\n", e.what());
+        }
     }
 }

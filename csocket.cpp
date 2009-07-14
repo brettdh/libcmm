@@ -218,7 +218,7 @@ CSocket::CSocket(CMMSocketImpl *sk_,
         osfd = socket(sk->sock_family, sk->sock_type, sk->sock_protocol);
         if (osfd < 0) {
             /* out of file descriptors or memory at this point */
-            throw osfd;
+            throw std::runtime_error("Out of FDs or memory!");
         }
         
         sk->set_all_sockopts(osfd);
@@ -231,7 +231,7 @@ CSocket::CSocket(CMMSocketImpl *sk_,
             } else {
                 perror("connect");
                 close(osfd);
-                throw rc;
+                throw std::runtime_error("Failed to connect new csocket");
             }
         }
     } else {
