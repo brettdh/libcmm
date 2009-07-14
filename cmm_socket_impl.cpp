@@ -29,6 +29,7 @@ CMMSockHash CMMSocketImpl::cmm_sock_hash;
 VanillaListenerSet CMMSocketImpl::cmm_listeners;
 NetInterfaceSet CMMSocketImpl::ifaces;
 IROBSockHash CMMSocketImpl::irob_sock_hash;
+pthread_mutex_t CMMSocketImpl::hashmaps_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
 {
@@ -127,6 +128,7 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
 	recvr->start();
         listener_thread->start();
 
+        pthread_mutex_lock(&hashmaps_mutex);
         for (NetInterfaceSet::iterator it = ifaces.begin();
              it != ifaces.end(); it++) {
             
@@ -138,6 +140,7 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
 
             local_ifaces.insert(listener_addr);
         }
+        pthread_mutex_unlock(&hashmaps_mutex);
         
         if (bootstrap_sock != -1) {
             /* we are accepting a connection */
@@ -260,13 +263,16 @@ CMMSocketImpl::lookup_by_irob(irob_id_t id)
 int
 CMMSocketImpl::mc_close(mc_socket_t sock)
 {
+    pthread_mutex_lock(&hashmaps_mutex);
     CMMSockHash::accessor ac;
     if (cmm_sock_hash.find(ac, sock)) {
 	cmm_sock_hash.erase(ac);
         /* the CMMSocket object gets destroyed by the shared_ptr. */
         /* moved the rest of the cleanup to the destructor */
+        pthread_mutex_unlock(&hashmaps_mutex);
 	return 0;
     } else {
+        pthread_mutex_unlock(&hashmaps_mutex);
 	fprintf(stderr, "Warning: cmm_close()ing a socket that's not "
 		"in my hash\n");
 	errno = EBADF;
@@ -771,25 +777,28 @@ CMMSocketImpl::mc_irob_writev(irob_id_t id,
 void
 CMMSocketImpl::interface_up(struct net_interface up_iface)
 {
+    pthread_mutex_lock(&hashmaps_mutex);
     ifaces.insert(up_iface);
 
     for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
 	 sk_iter != cmm_sock_hash.end(); sk_iter++) {
 	CMMSockHash::const_accessor read_ac;
 	if (!cmm_sock_hash.find(read_ac, sk_iter->first)) {
-	    assert(0);
+            assert(0);
 	}
 	CMMSocketImplPtr sk = read_ac->second;
 	assert(sk);
         read_ac.release();
 
 	sk->setup(up_iface, true);
-    }    
+    }
+    pthread_mutex_unlock(&hashmaps_mutex);
 }
 
 void
 CMMSocketImpl::interface_down(struct net_interface down_iface)
 {
+    pthread_mutex_lock(&hashmaps_mutex);
     ifaces.erase(down_iface);
 
     /* put down the sockets connected on now-unavailable networks. */
@@ -797,7 +806,7 @@ CMMSocketImpl::interface_down(struct net_interface down_iface)
 	 sk_iter != cmm_sock_hash.end(); sk_iter++) {
 	CMMSockHash::const_accessor read_ac;
 	if (!cmm_sock_hash.find(read_ac, sk_iter->first)) {
-	    assert(0);
+            assert(0);
 	}
 	CMMSocketImplPtr sk = read_ac->second;
 	assert(sk);
@@ -805,6 +814,7 @@ CMMSocketImpl::interface_down(struct net_interface down_iface)
 
 	sk->teardown(down_iface, true);
     }
+    pthread_mutex_unlock(&hashmaps_mutex);
 }
 
 #if 0
@@ -923,8 +933,12 @@ CMMSocketImpl::mc_listen(int listener_sock, int backlog)
     if (rc < 0) {
         return rc;
     }
-    VanillaListenerSet::const_accessor ac;
-    (void)cmm_listeners.insert(ac, listener_sock);
+    pthread_mutex_lock(&hashmaps_mutex);
+    {
+        VanillaListenerSet::const_accessor ac;
+        (void)cmm_listeners.insert(ac, listener_sock);
+    }
+    pthread_mutex_unlock(&hashmaps_mutex);
     return 0;
 }
 

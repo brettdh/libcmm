@@ -113,6 +113,7 @@ class CMMSocketImpl : public CMMSocket {
     friend class CMMSocketSender;
     friend class CMMSocketReceiver;
 
+    static pthread_mutex_t hashmaps_mutex;
     static CMMSockHash cmm_sock_hash;
     static IROBSockHash irob_sock_hash;
     static VanillaListenerSet cmm_listeners;
