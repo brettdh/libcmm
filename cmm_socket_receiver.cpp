@@ -115,7 +115,7 @@ CMMSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     assert(pirob);
     PendingReceiverIROB *prirob = static_cast<PendingReceiverIROB*>(pirob);
     assert(prirob);
-    if (!pirob->add_chunk(chunk)) {
+    if (!prirob->add_chunk(chunk)) {
         throw Exception::make("Tried to add to completed IROB", hdr);
     } else {
 	dbgprintf("Successfully added chunk %d to IROB %d\n",
