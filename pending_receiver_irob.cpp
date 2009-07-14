@@ -1,5 +1,6 @@
 #include "pending_irob.h"
 #include "pending_receiver_irob.h"
+#include "debug.h"
 #include <algorithm>
 using std::min;
 
@@ -16,6 +17,11 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
     bool result = PendingIROB::add_chunk(chunk);
     if (result) {
         num_bytes += chunk.datalen;
+	dbgprintf("Added chunk %d (%d bytes) to IROB %d\n", 
+		  chunk.seqno, chunk.datalen, id);
+    } else {
+	dbgprintf("Adding chunk %d (%d bytes) on IROB %d failed!\n",
+		  chunk.seqno, chunk.datalen, id);
     }
     return result;
 }
