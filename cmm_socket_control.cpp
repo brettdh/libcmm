@@ -46,9 +46,9 @@ CMMSocketControlHdr::describe() const
       stream << "num_ifaces: " << ntohl(op.hello.num_ifaces);
       break;
     case CMM_CONTROL_MSG_BEGIN_IROB:
-        stream << "IROB: " << ntohl(op.begin_irob.id)<< " ";
-        stream << "send_labels: " << ntohl(op.begin_irob.send_labels)<< " ";
-        stream << "recv_labels: " << ntohl(op.begin_irob.recv_labels)<< " ";
+        stream << "IROB: " << ntohl(op.begin_irob.id) << " ";
+        stream << "send_labels: " << ntohl(op.begin_irob.send_labels) << " ";
+        stream << "recv_labels: " << ntohl(op.begin_irob.recv_labels) << " ";
         stream << "numdeps: " << op.begin_irob.numdeps;
         if (op.begin_irob.deps) {
             stream << " [ ";
@@ -59,24 +59,24 @@ CMMSocketControlHdr::describe() const
         }
         break;
     case CMM_CONTROL_MSG_END_IROB:
-        stream << "IROB: " << op.end_irob.id;
+        stream << "IROB: " << ntohl(op.end_irob.id);
         break;
     case CMM_CONTROL_MSG_IROB_CHUNK:
-        stream << "IROB: " << ntohl(op.irob_chunk.id)<< " ";
-        stream << "seqno: " << ntohl(op.irob_chunk.seqno)<< " ";
-        stream << "datalen: " << op.irob_chunk.datalen;
+        stream << "IROB: " << ntohl(op.irob_chunk.id) << " ";
+        stream << "seqno: " << ntohl(op.irob_chunk.seqno) << " ";
+        stream << "datalen: " << ntohl(op.irob_chunk.datalen);
         break;
     case CMM_CONTROL_MSG_NEW_INTERFACE:
         stream << "IP: " << inet_ntoa(op.new_interface.ip_addr) << " ";
-        stream << "labels: " << op.new_interface.labels;
+        stream << "labels: " << ntohl(op.new_interface.labels);
         break;
     case CMM_CONTROL_MSG_DOWN_INTERFACE:
         stream << "IP: " << inet_ntoa(op.down_interface.ip_addr);        
         break;
     case CMM_CONTROL_MSG_ACK:
-        stream << "IROB: " << op.ack.id;
+        stream << "IROB: " << ntohl(op.ack.id);
         if (ntohl(op.ack.seqno)== INVALID_IROB_SEQNO) {
-            stream << " seqno: " << op.ack.seqno;
+            stream << " seqno: " << ntohl(op.ack.seqno);
         }
         break;
     default:
