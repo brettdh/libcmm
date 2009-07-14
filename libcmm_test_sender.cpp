@@ -62,7 +62,7 @@ int get_reply(mc_socket_t sock)
         return rc;
     }
     ch.data[sizeof(ch)-1] = '\0';
-    fprintf(stderr, "Echo: %*s\n", sizeof(ch) - 1, ch.data);
+    fprintf(stderr, "Echo: %*s\n", (int)(sizeof(ch) - 1), ch.data);
     return rc;
 }
 

@@ -1,6 +1,6 @@
-CXXFLAGS:=-Wall -Werror -g -I.
+CXXFLAGS:=-Wall -Werror -g -I. -fpic -m32
 LIBTBB:=-ltbb_debug
-LDFLAGS:=-L.  $(LIBTBB) -lrt
+LDFLAGS:=-L.  $(LIBTBB) -lrt -m32
 
 LIBRARIES:=libcmm.so
 EXECUTABLES:=conn_scout cmm_test_sender cmm_test_receiver cdf_test
@@ -8,7 +8,7 @@ EXECUTABLES:=conn_scout cmm_test_sender cmm_test_receiver cdf_test
 all: $(LIBRARIES) $(EXECUTABLES)
 
 cdf_test: cdf_test.o cdf_sampler.o
-	$(CXX) $(CFLAGS) -o $@ $^
+	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
 cmm_test_sender: libcmm_test_sender.o libcmm.so
 	$(CXX) $(CFLAGS) $(LDFLAGS)  -lcmm -o $@ $<

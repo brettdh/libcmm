@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <string.h>
 
 #include <signal.h>
 #include "signals.h"
@@ -716,7 +717,7 @@ CMMSocketImpl::mc_begin_irob(int numdeps, const irob_id_t *deps,
         errno = ENOTCONN;
         return CMM_FAILED;
     }
-    int rc = sendr->begin_irob(next_irob, numdeps, deps, 
+    int rc = sendr->begin_irob(id, numdeps, deps, 
                                send_labels, recv_labels,
                                rh, rh_arg);
     if (rc < 0) {

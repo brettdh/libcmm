@@ -11,6 +11,9 @@
 class CSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
   public:
     explicit CSocketSender(CSocket *csock_);
+  protected:    
+    virtual void dispatch(struct CMMSocketRequest);
+
   private:
     CSocket *csock;
     
@@ -19,6 +22,13 @@ class CSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
     void do_end_irob(struct CMMSocketRequest req);
     void do_irob_chunk(struct CMMSocketRequest req);
 };
+
+void
+CSocketSender::dispatch(struct CMMSocketRequest req)
+{
+    dbgprintf("Sending request\n%s\n", req.describe().c_str());
+    CMMSocketScheduler<struct CMMSocketRequest>::dispatch(req);
+}
 
 class CSocketReceiver : public CMMSocketScheduler<struct CMMSocketControlHdr> {
   public:

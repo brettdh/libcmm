@@ -77,6 +77,8 @@ struct CMMSocketControlHdr {
     std::string describe() const;
 
     void cleanup();
+  private:
+    const char *type_str() const;
 };
 
 struct CMMSocketRequest {

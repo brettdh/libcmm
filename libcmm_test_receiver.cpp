@@ -30,7 +30,7 @@ void str_reverse(char *str)
 
 void * Worker(void * arg)
 {
-    mc_socket_t sock = (mc_socket_t)arg;
+    mc_socket_t sock = *((mc_socket_t*)arg);
     printf("Starting up on connection %d\n", sock);
     while (1) {
         struct chunk ch;
@@ -41,7 +41,7 @@ void * Worker(void * arg)
             break;
         }
         ch.data[sizeof(ch)-1] = '\0';
-        printf("Msg: %*s\n", sizeof(ch) - 1, ch.data);
+        printf("Msg: %*s\n", (int)(sizeof(ch) - 1), ch.data);
         str_reverse(ch.data);
         rc = cmm_send(sock, &ch, sizeof(ch), 0, 
                       0, sender_labels, NULL, NULL);
@@ -100,8 +100,8 @@ int main()
             continue;
         }
         //pthread_t tid;
-        //(void)pthread_create(&tid, NULL, Worker, (void*)connecting_sock);
-        (void)Worker((void*)connecting_sock);
+        //(void)pthread_create(&tid, NULL, Worker, (void*)&connecting_sock);
+        (void)Worker((void*)&connecting_sock);
     }
 
     return 0;

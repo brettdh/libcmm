@@ -8,6 +8,8 @@
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
+#include <string.h>
+#include <stdlib.h>
 
 #include <queue>
 using std::queue;

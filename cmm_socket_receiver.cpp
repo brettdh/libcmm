@@ -42,6 +42,13 @@ CMMSocketReceiver::~CMMSocketReceiver()
 }
 
 void
+CMMSocketReceiver::dispatch(struct CMMSocketControlHdr hdr)
+{
+    dbgprintf("Got request\n%s\n", hdr.describe().c_str());
+    CMMSocketScheduler<struct CMMSocketControlHdr>::dispatch(hdr);
+}
+
+void
 CMMSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
 {
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_BEGIN_IROB);

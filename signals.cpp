@@ -1,5 +1,6 @@
 #include <pthread.h>
 #include <signal.h>
+#include <string.h>
 #include "libcmm.h"
 #include "common.h"
 #include "signals.h"

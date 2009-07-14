@@ -8,6 +8,7 @@
 #include "cmm_socket.private.h"
 #include "intset.h"
 #include <functional>
+#include <string.h>
 
 /* Terminology:
  *  An IROB is _pending_ if the application has not yet received all of its

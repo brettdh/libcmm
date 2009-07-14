@@ -10,7 +10,7 @@
 #include <map>
 #include <vector>
 #include <memory>
-#include <stropts.h>
+//#include <stropts.h>
 #include <sys/ioctl.h>
 #include <sys/poll.h>
 #include <fcntl.h>

@@ -4,6 +4,7 @@
 #include <cassert>
 #include "tbb/concurrent_hash_map.h"
 #include "tbb/concurrent_queue.h"
+#include <string.h>
 
 struct thunk {
     resume_handler_t fn;
@@ -91,7 +92,7 @@ void print_thunks(void)
 	 tq_iter != thunk_hash.end(); tq_iter++) {
 	struct labeled_thunk_queue *tq = tq_iter->second;
 	fprintf(stderr, "Send labels %lu, Recv labels %lu, %d thunks\n",
-		tq->send_labels, tq->recv_labels, tq->thunk_queue.size());
+		tq->send_labels, tq->recv_labels, (int)tq->thunk_queue.size());
 	for (ThunkQueue::const_iterator th_iter = tq->thunk_queue.begin();
 	     th_iter != tq->thunk_queue.end(); th_iter++) {
 	    struct thunk *th = *th_iter;

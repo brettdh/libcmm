@@ -40,7 +40,7 @@ class CMMSocketScheduler : public CMMThread {
      * dispatch on different message types (see cmm_socket_control.h). */
     virtual void Run(void);
 
-    void dispatch(MsgClass msg);
+    virtual void dispatch(MsgClass msg);
 
     virtual void unrecognized_control_msg(MsgClass msg);
 

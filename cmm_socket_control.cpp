@@ -15,25 +15,45 @@ CMMSocketControlHdr::cleanup()
     }
 }
 
+const char *
+CMMSocketControlHdr::type_str() const
+{
+    static const char *strs[] = {
+	"Hello",
+	"Begin IROB",
+	"End IROB",
+	"IROB chunk",
+	"New Interface",
+	"Down Interface",
+	"Ack",
+	"(unknown)"
+    };
+    short my_type = ntohs(type);
+    if (my_type > CMM_CONTROL_MSG_ACK || my_type < CMM_CONTROL_MSG_HELLO) {
+	my_type = CMM_CONTROL_MSG_ACK + 1;
+    }
+    return strs[my_type];
+}
+
 std::string
 CMMSocketControlHdr::describe() const
 {
     std::ostringstream stream;
-    stream << std:: endl << "Type: " << type << " ";
-    switch (type) {
+    stream << std:: endl << "Type: " << type_str() << " ";
+    switch (ntohs(type)) {
     case CMM_CONTROL_MSG_HELLO:
       stream << "listen port: " << ntohs(op.hello.listen_port) << " ";
       stream << "num_ifaces: " << ntohl(op.hello.num_ifaces);
       break;
     case CMM_CONTROL_MSG_BEGIN_IROB:
-        stream << "IROB: " << op.begin_irob.id << " ";
-        stream << "send_labels: " << op.begin_irob.send_labels << " ";
-        stream << "recv_labels: " << op.begin_irob.recv_labels << " ";
+        stream << "IROB: " << ntohl(op.begin_irob.id)<< " ";
+        stream << "send_labels: " << ntohl(op.begin_irob.send_labels)<< " ";
+        stream << "recv_labels: " << ntohl(op.begin_irob.recv_labels)<< " ";
         stream << "numdeps: " << op.begin_irob.numdeps;
         if (op.begin_irob.deps) {
             stream << " [ ";
             for (int i = 0; i < op.begin_irob.numdeps; i++) {
-                stream << op.begin_irob.deps[i] << " ";
+		stream << ntohl(op.begin_irob.deps[i]) << " ";
             }
             stream << "]";
         }
@@ -42,8 +62,8 @@ CMMSocketControlHdr::describe() const
         stream << "IROB: " << op.end_irob.id;
         break;
     case CMM_CONTROL_MSG_IROB_CHUNK:
-        stream << "IROB: " << op.irob_chunk.id << " ";
-        stream << "seqno: " << op.irob_chunk.seqno << " ";
+        stream << "IROB: " << ntohl(op.irob_chunk.id)<< " ";
+        stream << "seqno: " << ntohl(op.irob_chunk.seqno)<< " ";
         stream << "datalen: " << op.irob_chunk.datalen;
         break;
     case CMM_CONTROL_MSG_NEW_INTERFACE:
@@ -55,7 +75,7 @@ CMMSocketControlHdr::describe() const
         break;
     case CMM_CONTROL_MSG_ACK:
         stream << "IROB: " << op.ack.id;
-        if (op.ack.seqno == INVALID_IROB_SEQNO) {
+        if (ntohl(op.ack.seqno)== INVALID_IROB_SEQNO) {
             stream << " seqno: " << op.ack.seqno;
         }
         break;
