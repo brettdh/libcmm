@@ -134,16 +134,11 @@ CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label)
         return NULL;
     }
 
-    try {
-        auto_ptr<CSocket> csock_ptr(new CSocket(sk, sk->sendr, sk->recvr, 
-                                                local_iface, remote_iface));
+    auto_ptr<CSocket> csock_ptr(new CSocket(sk, sk->sendr, sk->recvr, 
+                                            local_iface, remote_iface));
+    /* cleanup if constructor throws */
 
-        csock = csock_ptr.release();
-    } catch (int err) {
-        dbgprintf("Error creating new connection\n");
-        /* XXX: might want to pass this as a different error? */
-        return NULL;
-    }
+    csock = csock_ptr.release();
 
     connected_csocks.insert(csock);
     // to interrupt any select() in progress, adding the new osfd
@@ -207,9 +202,13 @@ CSockMapping::add_connection(int sock,
                     * if a connection has arrived on this iface pair */
     }
     
-    CSocket *new_csock = new CSocket(sk, sk->sendr, sk->recvr, 
-                                     local_iface, remote_iface, 
-                                     sock);
+    
+    CSocket *new_csock = NULL;
+    auto_ptr<CSocket> ptr(new CSocket(sk, sk->sendr, sk->recvr, 
+                                      local_iface, remote_iface, 
+                                      sock));
+    new_csock = ptr.release();
+
     connected_csocks.insert(new_csock);
     signal_selecting_threads();
 }
