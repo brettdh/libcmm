@@ -191,11 +191,11 @@ int main(int argc, char *argv[])
     signal(SIGINT, handle_term);
     signal(SIGPIPE, SIG_IGN);
 
-    pthread_t tid;
-    rc = pthread_create(&tid, NULL, (void *(*)(void*)) BackgroundPing, &args);
-    if (rc < 0) {
-	fprintf(stderr, "Failed to start background thread\n");
-    }
+//     pthread_t tid;
+//     rc = pthread_create(&tid, NULL, (void *(*)(void*)) BackgroundPing, &args);
+//     if (rc < 0) {
+// 	fprintf(stderr, "Failed to start background thread\n");
+//     }
 
     while (running) {
 	struct th_arg *new_args = args.clone();
@@ -230,7 +230,7 @@ int main(int argc, char *argv[])
 	}
     }
 
-    pthread_join(tid, NULL);
+    //pthread_join(tid, NULL);
 
     return 0;
 }
