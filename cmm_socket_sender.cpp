@@ -221,7 +221,15 @@ CMMSocketSender::ack_received(irob_id_t id, u_long seqno)
 void 
 CMMSocketSender::pass_to_any_worker(struct CMMSocketRequest req)
 {
-    CSocket *csock = sk->csock_map.new_csock_with_labels(0, 0);
+    CSocket *csock = NULL;
+    try {
+        csock = sk->csock_map.new_csock_with_labels(0, 0);
+    } catch (std::runtime_error& e) {
+        dbgprintf("Error passing message to worker: %s\n", e.what());
+        signal_completion(req.requester_tid, CMM_FAILED);
+        return;
+    }
+
     if (!csock) {
         throw Exception::make("No connection available!", req);
     }
@@ -246,9 +254,16 @@ CMMSocketSender::pass_to_any_worker_prefer_labels(struct CMMSocketRequest req)
     }
     PendingIROB *pirob = ac->second;
     assert(pirob);
-    CSocket *csock = sk->csock_map.new_csock_with_labels(pirob->send_labels,
-                                                         pirob->recv_labels);
-    ac.release();
+    CSocket *csock = NULL;
+    try {
+        csock = sk->csock_map.new_csock_with_labels(pirob->send_labels,
+                                                    pirob->recv_labels);
+        ac.release();
+    } catch (std::runtime_error& e) {
+        dbgprintf("Error passing message to worker pref lbls: %s\n", e.what());
+        signal_completion(req.requester_tid, CMM_FAILED);
+        return;
+    }
 
     if (csock) {
         csock->send(req);
@@ -288,9 +303,18 @@ CMMSocketSender::pass_to_worker_by_labels(struct CMMSocketRequest req)
     }
     PendingIROB *pirob = ac->second;
     assert(pirob);
-    CSocket *csock = sk->csock_map.new_csock_with_labels(pirob->send_labels, 
-                                                         pirob->recv_labels);
+    CSocket *csock = NULL;
+    try {
+        csock = sk->csock_map.new_csock_with_labels(pirob->send_labels, 
+                                                    pirob->recv_labels);
+    } catch (std::runtime_error& e) {
+        dbgprintf("Error passing message to worker by labels: %s\n", e.what());
+        signal_completion(req.requester_tid, CMM_FAILED);
+        return;
+    }
+
     if (csock) {
+        ac.release();
         csock->send(req);
     } else {
         PendingSenderIROB *psirob = static_cast<PendingSenderIROB*>(pirob);
