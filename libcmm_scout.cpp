@@ -366,7 +366,7 @@ int main(int argc, char *argv[])
     if (argc > 2) {
 	bg_iface_name = argv[2];
 
-	if (!strcmp(argv[3], "cdf")) {
+	if (argc > 3 && !strcmp(argv[3], "cdf")) {
 	    if (argc < 6) {
 		usage(argv);
 	    }
@@ -385,6 +385,9 @@ int main(int argc, char *argv[])
 		exit(1);
 	    }
 	} else {
+            if (argc < 5) {
+                usage(argv);
+            }
 	    up_time = atof(argv[3]);
 	    down_time = atof(argv[4]);
 	    if (up_time < MIN_TIME || down_time < MIN_TIME) {
