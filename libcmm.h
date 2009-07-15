@@ -57,12 +57,14 @@ typedef void (*resume_handler_t)(void* arg);
  *  received.  (See cmm_read below, which records the sender's
  *  labels.)
  *
- * These functions create "anonymous" IROBs (see irob.h) that depend
- *  upon all other IROBs currently in flight. Thus, a sequence of
- *  anonymous sends will be received in the order in which they were sent.
+ * These functions create "anonymous" IROBs (see libcmm_irob.h) that depend
+ *  upon all other IROBs currently in flight. Additionally, all IROBs 
+ *  implicitly depend on the most recent anonymous IROB, if any are in flight. 
+ *  Thus, a sequence of anonymous sends will be received in the order in which 
+ *  they were sent.
  * As a result, applications that do not explicitly use IROBs will
  *  nonetheless be guaranteed an ordered bytestream.
- * See irob.h on how to use IROBs and explicit dependencies for 
+ * See libcmm_irob.h on how to use IROBs and explicit dependencies for 
  *  potential performance gains by reordering.
  */
 ssize_t cmm_send(mc_socket_t sock, const void *buf, size_t len, int flags,

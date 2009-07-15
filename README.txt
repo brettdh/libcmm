@@ -99,6 +99,9 @@ expected operation as needed on the underlying OS sockets (one or
 more).  Examples include cmm_select, cmm_setsockopt, cmm_getpeername,
 cmm_read, etc.
 
+/* THE FUNCTIONS DESCRIBED IN THIS SECTION ARE AND ARE NOT IMPLEMENTED
+ * IN THE CURRENT VERSION, AND ARE PROBABLY NO LONGER NEEDED,
+ * SINCE THE ERROR-HANDLING IS NOW DONE IN THE LIBRARY. */
 We provide two functions to help applications deal with failed network
 operations.  Firstly, the cmm_check_label function returns 0 if the
 given label is available; if the label is unavailable, it returns
