@@ -58,3 +58,5 @@
   * where all physical connections are broken, but interfaces
     are still available to connect on
   * where all physical connections are broken and no connections are possible
+
+* Make a more interesting test app with actual reordering and constraints.
