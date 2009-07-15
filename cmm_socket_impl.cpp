@@ -713,7 +713,7 @@ CMMSocketImpl::mc_begin_irob(int numdeps, const irob_id_t *deps,
                              u_long send_labels, u_long recv_labels,
                              resume_handler_t rh, void *rh_arg)
 {
-    irob_id_t id;
+    irob_id_t id = -1;
     {
         CMMSockHash::accessor write_ac;
         lock(write_ac);
@@ -763,6 +763,8 @@ int
 CMMSocketImpl::mc_irob_writev(irob_id_t id, 
                               const struct iovec *vec, int count)
 {
+    /* XXX: gratuitous copying of bytes. */
+
     if (!vec || count <= 0) {
         errno = EINVAL;
         return -1;
@@ -879,6 +881,8 @@ void set_socket_labels(int osfd, u_long labels)
 }
 #endif
 
+#if 0
+/* XXX: I guess I'm not using this function anymore?? */
 /* MUST call with ac held */
 CSocket *
 CMMSocketImpl::get_readable_csock(CMMSockHash::const_accessor& ac)
@@ -938,6 +942,7 @@ CMMSocketImpl::get_readable_csock(CMMSockHash::const_accessor& ac)
      * of them must have been set. */
     assert(0);
 }
+#endif
 
 int 
 CMMSocketImpl::mc_listen(int listener_sock, int backlog)
@@ -1215,10 +1220,7 @@ void
 CMMSocketImpl::teardown(struct net_interface iface, bool local)
 {
     CMMSockHash::accessor read_ac;
-    if (!cmm_sock_hash.find(read_ac, sock)) {
-	assert(0);
-    }
-    assert(get_pointer(read_ac->second) == this);
+    lock(read_ac);
     
     vector<CSocket *> victims;
     for (CSockSet::iterator it = csock_map.connected_csocks.begin();
@@ -1237,14 +1239,11 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
         }
     }
 
-    read_ac.release();
-
     if (!victims.empty()) {
+	read_ac.release();
+
         CMMSockHash::accessor write_ac;
-        if (!cmm_sock_hash.find(write_ac, sock)) {
-            assert(0);
-        }
-        assert(this == get_pointer(write_ac->second));
+	lock(write_ac);
         
         while (!victims.empty()) {
             CSocket *victim = victims.back();
@@ -1252,6 +1251,9 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
             csock_map.connected_csocks.erase(victim);
             delete victim; /* closes socket, cleans up */
         }
+
+	write_ac.release();
+	lock(read_ac);
     }
 
     if (local) {

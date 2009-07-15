@@ -28,12 +28,22 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
     void goodbye(void);
 
     void ack_received(irob_id_t id, u_long seqno);
+    void goodbye_acked(void);
+
+    bool is_shutting_down(void);
   private:
     CMMSocketImpl *sk;
 
     PendingIROBLattice pending_irobs;
 
     std::map<pthread_t, AppThread> app_threads;
+
+    /* true iff the socket has begun shutting down 
+     * via shutdown() or close(). */
+    bool shutting_down;
+    bool remote_shutdown; /* true if remote has ack'd the shutdown */
+    pthread_mutex_t shutdown_mutex;
+    pthread_cond_t shutdown_cv;
 
     /* Headers passed to these functions should have integers
      * already in network byte order. */

@@ -123,6 +123,8 @@ class PendingIROBLattice {
     bool past_irob_exists(irob_id_t id) const;
 
     bool any(PendingIROBHash::accessor &ac);
+
+    bool empty() { return pending_irobs.empty(); }
     
     /* returns true if first depends on second. */
     //bool depends_on(PendingIROB *first, PendingIROB *second);

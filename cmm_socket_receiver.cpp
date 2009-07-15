@@ -152,7 +152,17 @@ void
 CMMSocketReceiver::do_goodbye(struct CMMSocketControlHdr hdr)
 {
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_GOODBYE);
-    /* TODO */
+    if (sk->sendr->is_shutting_down()) {
+	/* I initiated the shutdown; this is the "FIN/ACK" */
+	/* at this point, both sides have stopped sending. */
+	sk->sendr->goodbye_acked();
+    } else {
+	/* The other side initiated the shutdown; this is the "FIN" */
+	/* Send the "FIN/ACK" */
+	sk->sendr->goodbye();
+    }
+    /* Note: the senders will still wait for all IROB chunks
+     * to be ACK'd before finalizing the shutdown. */
 }
 
 /* This is where all the scheduling logic happens. 
@@ -181,7 +191,13 @@ CMMSocketReceiver::recv(void *bufp, size_t len, int flags, u_long *recv_labels)
     ssize_t bytes_ready = 0;
     while ((size_t)bytes_ready < len) {
         PendingReceiverIROB *pirob = pending_irobs.get_ready_irob();
-        assert(pirob); /* XXX: nonblocking version could return NULL */
+	if (!pirob) {
+	    if (sk->sendr->is_shutting_down()) {
+		return 0;
+	    } else {
+		assert(0); /* XXX: nonblocking case may return NULL */
+	    }
+	}
 
         /* after the IROB is returned here, no other thread will
          * unsafely modify it.

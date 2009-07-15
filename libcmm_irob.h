@@ -55,7 +55,7 @@ int end_irob(irob_id_t id);
 /* Sending operations for IROBs.  Since an irob_id implies a socket,
  * the socket argument is not required. 
  * Recall that send operations within an IROB are guaranteed to be 
- * received in their original order (see receiver API below). */
+ * received in their original order. */
 ssize_t irob_send(irob_id_t irob_id, const void *buf, size_t len, int flags);
 int irob_writev(irob_id_t irob_id, const struct iovec *vector, int count);
 /* ...etc. */

@@ -88,6 +88,7 @@ PendingReceiverIROBLattice::get_ready_irob()
     if (partially_read_irob) {
         if (!partially_read_irob->is_complete()) {
             /* TODO: block until more bytes are available */
+	    assert(0);
         }
         pirob = partially_read_irob;
         partially_read_irob = NULL;

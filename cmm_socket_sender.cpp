@@ -10,8 +10,13 @@
 #include "thunks.h"
 
 CMMSocketSender::CMMSocketSender(CMMSocketImpl *sk_)
-  : sk(sk_)
+    : sk(sk_), shutting_down(false), remote_shutdown(false)
 {
+    if (pthread_mutex_init(&shutdown_mutex, NULL) != 0 ||
+	pthread_cond_init(&shutdown_cv, NULL) != 0) {
+	assert(0);
+    }
+
     handle(CMM_CONTROL_MSG_BEGIN_IROB, this,
            &CMMSocketSender::pass_to_worker_by_labels);
     handle(CMM_CONTROL_MSG_END_IROB, this, 
@@ -39,6 +44,15 @@ CMMSocketSender::~CMMSocketSender()
     }
 }
 
+bool
+CMMSocketSender::is_shutting_down()
+{
+    pthread_mutex_lock(&shutdown_mutex);
+    bool shdwn = shutting_down;
+    pthread_mutex_unlock(&shutdown_mutex);
+    return shdwn;
+}
+
 /* This function blocks until the data has been sent.
  * If the socket is non-blocking, we need to implement that here.
  */
@@ -48,6 +62,11 @@ CMMSocketSender::begin_irob(irob_id_t next_irob,
                             u_long send_labels, u_long recv_labels,
                             resume_handler_t resume_handler, void *rh_arg)
 {
+    if (is_shutting_down()) {
+	errno = EPIPE;
+	return CMM_FAILED;
+    }
+
     irob_id_t id = next_irob;
 
     struct CMMSocketRequest req;
@@ -87,6 +106,11 @@ CMMSocketSender::begin_irob(irob_id_t next_irob,
 int
 CMMSocketSender::end_irob(irob_id_t id)
 {
+    if (is_shutting_down()) {
+	errno = EPIPE;
+	return CMM_FAILED;
+    }
+
     {
         PendingIROBHash::accessor ac;
         if (!pending_irobs.find(ac, id)) {
@@ -123,6 +147,11 @@ long
 CMMSocketSender::irob_chunk(irob_id_t id, const void *buf, size_t len, 
                             int flags)
 {
+    if (is_shutting_down()) {
+	errno = EPIPE;
+	return CMM_FAILED;
+    }
+
     struct irob_chunk_data chunk;
     {
         PendingIROBHash::accessor ac;
@@ -164,6 +193,10 @@ CMMSocketSender::irob_chunk(irob_id_t id, const void *buf, size_t len,
 void 
 CMMSocketSender::new_interface(struct in_addr ip_addr, u_long labels)
 {
+    if (is_shutting_down()) {
+	return;
+    }
+
     struct CMMSocketRequest req;
     req.requester_tid = 0; /* signifying that we won't wait for the result */
     req.hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
@@ -176,6 +209,10 @@ CMMSocketSender::new_interface(struct in_addr ip_addr, u_long labels)
 void 
 CMMSocketSender::down_interface(struct in_addr ip_addr)
 {
+    if (is_shutting_down()) {
+	return;
+    }
+
     struct CMMSocketRequest req;
     req.requester_tid = 0; /* signifying that we won't wait for the result */
     req.hdr.type = htons(CMM_CONTROL_MSG_DOWN_INTERFACE);
@@ -213,6 +250,15 @@ CMMSocketSender::ack_received(irob_id_t id, u_long seqno)
     if (psirob->is_acked()) {
         pending_irobs.erase(ac);
         delete pirob;
+	ac.release();
+
+	if (pending_irobs.empty()) {
+	    pthread_mutex_lock(&shutdown_mutex);
+	    if (shutting_down) {
+		pthread_cond_signal(&shutdown_cv);
+	    }
+	    pthread_mutex_unlock(&shutdown_mutex);
+	}
     }
 }
 
@@ -223,7 +269,23 @@ CMMSocketSender::goodbye(void)
     req.requester_tid = 0;
     req.hdr.type = htons(CMM_CONTROL_MSG_GOODBYE);
 
+    pthread_mutex_lock(&shutdown_mutex);
+    shutting_down = true;
+    while (!(pending_irobs.empty() && remote_shutdown)) {
+	pthread_cond_wait(&shutdown_cv, &shutdown_mutex);
+    }
+    pthread_mutex_unlock(&shutdown_mutex);
     enqueue(req);
+}
+
+void 
+CMMSocketSender::goodbye_acked(void)
+{
+    pthread_mutex_lock(&shutdown_mutex);
+    assert(shutting_down);
+    remote_shutdown = true;
+    pthread_cond_signal(&shutdown_cv);
+    pthread_mutex_unlock(&shutdown_mutex);
 }
 
 
