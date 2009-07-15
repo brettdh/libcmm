@@ -20,17 +20,18 @@ CMMSocketControlHdr::type_str() const
 {
     static const char *strs[] = {
 	"Hello",
-	"Begin IROB",
-	"End IROB",
-	"IROB chunk",
-	"New Interface",
-	"Down Interface",
+	"Begin_IROB",
+	"End_IROB",
+	"IROB_chunk",
+	"New_Interface",
+	"Down_Interface",
 	"Ack",
+	"Goodbye",
 	"(unknown)"
     };
     short my_type = ntohs(type);
-    if (my_type > CMM_CONTROL_MSG_ACK || my_type < CMM_CONTROL_MSG_HELLO) {
-	my_type = CMM_CONTROL_MSG_ACK + 1;
+    if (my_type > CMM_CONTROL_MSG_GOODBYE || my_type < CMM_CONTROL_MSG_HELLO) {
+	my_type = CMM_CONTROL_MSG_GOODBYE + 1;
     }
     return strs[my_type];
 }
@@ -79,8 +80,9 @@ CMMSocketControlHdr::describe() const
             stream << " seqno: " << ntohl(op.ack.seqno);
         }
         break;
+    case CMM_CONTROL_MSG_GOODBYE:
+	break;
     default:
-        stream << " (unknown type)";
         break;
     };
     stream << std::endl;

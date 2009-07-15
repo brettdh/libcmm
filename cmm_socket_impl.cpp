@@ -277,6 +277,7 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
         /* the CMMSocket object gets destroyed by the shared_ptr. */
         /* moved the rest of the cleanup to the destructor */
         pthread_mutex_unlock(&hashmaps_mutex);
+	/* TODO: sendr->goodbye(); */
 	return 0;
     } else {
         pthread_mutex_unlock(&hashmaps_mutex);
@@ -697,6 +698,7 @@ CMMSocketImpl::mc_shutdown(int how)
             if (rc < 0) {
                 return rc;
             }
+	    /* TODO: sendr->goodbye(); */
 	}
     } else {
 	errno = EBADF;

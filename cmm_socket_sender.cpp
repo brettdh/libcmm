@@ -24,6 +24,8 @@ CMMSocketSender::CMMSocketSender(CMMSocketImpl *sk_)
            &CMMSocketSender::pass_to_any_worker);
     handle(CMM_CONTROL_MSG_ACK, this, 
            &CMMSocketSender::pass_to_any_worker_prefer_labels);
+    handle(CMM_CONTROL_MSG_GOODBYE, this, 
+           &CMMSocketSender::pass_to_any_worker);
 }
 
 CMMSocketSender::~CMMSocketSender()
@@ -164,7 +166,7 @@ CMMSocketSender::new_interface(struct in_addr ip_addr, u_long labels)
 {
     struct CMMSocketRequest req;
     req.requester_tid = 0; /* signifying that we won't wait for the result */
-    req.hdr.type = CMM_CONTROL_MSG_NEW_INTERFACE;
+    req.hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
     req.hdr.op.new_interface.ip_addr = ip_addr;
     req.hdr.op.new_interface.labels = htonl(labels);
 
@@ -176,7 +178,7 @@ CMMSocketSender::down_interface(struct in_addr ip_addr)
 {
     struct CMMSocketRequest req;
     req.requester_tid = 0; /* signifying that we won't wait for the result */
-    req.hdr.type = CMM_CONTROL_MSG_DOWN_INTERFACE;
+    req.hdr.type = htons(CMM_CONTROL_MSG_DOWN_INTERFACE);
     req.hdr.op.down_interface.ip_addr = ip_addr;
 
     enqueue(req);
@@ -187,7 +189,7 @@ CMMSocketSender::ack(irob_id_t id, u_long seqno)
 {
     struct CMMSocketRequest req;
     req.requester_tid = 0;
-    req.hdr.type = CMM_CONTROL_MSG_ACK;
+    req.hdr.type = htons(CMM_CONTROL_MSG_ACK);
     req.hdr.op.ack.id = htonl(id);
     req.hdr.op.ack.seqno = htonl(seqno);
 
@@ -212,6 +214,16 @@ CMMSocketSender::ack_received(irob_id_t id, u_long seqno)
         pending_irobs.erase(ac);
         delete pirob;
     }
+}
+
+void
+CMMSocketSender::goodbye(void)
+{
+    struct CMMSocketRequest req;
+    req.requester_tid = 0;
+    req.hdr.type = htons(CMM_CONTROL_MSG_GOODBYE);
+
+    enqueue(req);
 }
 
 

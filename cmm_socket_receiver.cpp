@@ -28,6 +28,7 @@ CMMSocketReceiver::CMMSocketReceiver(CMMSocketImpl *sk_)
     handle(CMM_CONTROL_MSG_DOWN_INTERFACE, this, 
            &CMMSocketReceiver::do_down_interface);
     handle(CMM_CONTROL_MSG_ACK, this, &CMMSocketReceiver::do_ack);
+    handle(CMM_CONTROL_MSG_GOODBYE, this, &CMMSocketReceiver::do_goodbye);
 }
 
 CMMSocketReceiver::~CMMSocketReceiver()
@@ -147,6 +148,12 @@ CMMSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
     sk->sendr->ack_received(ntohl(hdr.op.ack.id), ntohl(hdr.op.ack.seqno));
 }
 
+void
+CMMSocketReceiver::do_goodbye(struct CMMSocketControlHdr hdr)
+{
+    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_GOODBYE);
+    /* TODO */
+}
 
 /* This is where all the scheduling logic happens. 
  * This function decides how to pass IROB data to the application. 

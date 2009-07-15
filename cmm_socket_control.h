@@ -14,6 +14,7 @@
 #define CMM_CONTROL_MSG_NEW_INTERFACE  4
 #define CMM_CONTROL_MSG_DOWN_INTERFACE 5
 #define CMM_CONTROL_MSG_ACK            6
+#define CMM_CONTROL_MSG_GOODBYE        7
 
 struct hello_data {
     in_port_t listen_port;

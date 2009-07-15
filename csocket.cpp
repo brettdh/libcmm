@@ -53,6 +53,7 @@ CSocketSender::CSocketSender(CSocket *csock_)
     handle(CMM_CONTROL_MSG_NEW_INTERFACE, this, &CSocketSender::send_header);
     handle(CMM_CONTROL_MSG_DOWN_INTERFACE, this, &CSocketSender::send_header);
     handle(CMM_CONTROL_MSG_ACK, this, &CSocketSender::send_header);
+    handle(CMM_CONTROL_MSG_GOODBYE, this, &CSocketSender::send_header);
 }
 
 void
@@ -135,6 +136,7 @@ CSocketReceiver::CSocketReceiver(CSocket *csock_)
     handle(CMM_CONTROL_MSG_DOWN_INTERFACE, this, 
            &CSocketReceiver::pass_header);
     handle(CMM_CONTROL_MSG_ACK, this, &CSocketReceiver::pass_header);
+    handle(CMM_CONTROL_MSG_GOODBYE, this, &CSocketReceiver::pass_header);
 }
 
 void
