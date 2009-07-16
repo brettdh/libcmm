@@ -34,6 +34,10 @@
   dependency information. (DONE, I think.)
   * (DONE, I think.) Also, sanity-check the locking discipline.
 
+* (DONE) Make it all compile!
+
+* (DONE) Try out the simple test app!
+
 * Look through and make sure all the error-handling looks right; i.e.
   when connectivity with the remote host is lost, all the data structures
   and threads associated with the multi-socket are cleaned up
@@ -46,10 +50,6 @@
     about its interfaces.
     * Need to make sure that my code doesn't make any unnecessary
       assumptions that would make this difficult.
-
-* (DONE) Make it all compile!
-
-* (DONE) Try out the simple test app!
 
 * Ensure that connections are gracefully cleaned up upon 
   close() or shutdown().
