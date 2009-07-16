@@ -56,16 +56,18 @@ CSockMapping::CSockMapping(CMMSocketImpl *sk_)
     /* empty */
 }
 
-struct deleter {
-    int operator()(CSocket *csock) {
-	delete csock;
-	return 0;
-    }
-};
-
 CSockMapping::~CSockMapping()
 {
-    (void)for_each(deleter());
+    scoped_rwlock lock(sockset_mutex, true);
+    CSockSet victims = connected_csocks;
+    connected_csocks.clear();
+    lock.release();
+    
+    for (CSockSet::iterator it = victims.begin();
+	 it != victims.end(); it++) {
+	CSocket *victim = *it;
+	delete victim;
+    }
 }
 
 struct push_osfd {

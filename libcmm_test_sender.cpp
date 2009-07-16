@@ -130,7 +130,6 @@ void resume_ondemand(struct th_arg *arg)
 void handle_term(int)
 {
     running = false;
-    exit(0);
 }
 
 int srv_connect(const char *host, u_long label)
@@ -183,6 +182,7 @@ int main(int argc, char *argv[])
 	    fprintf(stderr, "Initial connection deferred\n");
 	} else {
 	    fprintf(stderr, "Initial connection failed!\n");
+	    cmm_close(shared_sock);
 	    exit(-1);
 	}
     }
@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
 	    fprintf(stderr, "Deferred\n");
 	} else if (rc < 0) {
 	    perror("send");
-	    exit(-1);
+	    break;
 	} else {
 	    delete new_args;
 	    fprintf(stderr, "...message sent.\n");
@@ -230,6 +230,7 @@ int main(int argc, char *argv[])
 	}
     }
 
+    cmm_close(shared_sock);
     //pthread_join(tid, NULL);
 
     return 0;
