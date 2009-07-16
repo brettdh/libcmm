@@ -225,6 +225,7 @@ CSockMapping::delete_csock(CSocket *victim)
     assert(victim);
     scoped_rwlock lock(sockset_mutex, true);
     if (connected_csocks.erase(victim) == 1) {
+	lock.release();
 	delete victim;
     }
 }

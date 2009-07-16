@@ -32,6 +32,7 @@ class CSocket {
             int accepted_sock = -1);
     ~CSocket();
     void send(CMMSocketRequest req);
+    void remove(void);
   private:
     int phys_connect(void);
     

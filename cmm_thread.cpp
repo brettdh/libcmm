@@ -10,9 +10,10 @@ ThreadCleanup(void * arg)
     CMMThread *thread = (CMMThread *)arg;
     assert(thread);
     thread->running = false;
+    thread->Finish();
 }
 
-static void *
+void *
 ThreadFn(void * arg)
 {
     pthread_cleanup_push(ThreadCleanup, arg);
@@ -37,11 +38,12 @@ CMMThread::start()
 }
 
 CMMThread::CMMThread()
-    : running(false), tid(0)
+    : tid(0), running(false)
 {
 }
 
-CMMThread::~CMMThread()
+void
+CMMThread::stop()
 {
     if (running) {
         if (pthread_cancel(tid) == 0) {

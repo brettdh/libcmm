@@ -25,7 +25,7 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
     void new_interface(struct in_addr ip_addr, u_long labels);
     void down_interface(struct in_addr ip_addr);
     void ack(irob_id_t id, u_long seqno = INVALID_IROB_SEQNO);
-    void goodbye(void);
+    void goodbye(bool remote_initiated);
 
     void ack_received(irob_id_t id, u_long seqno);
     void goodbye_acked(void);

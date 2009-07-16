@@ -13,7 +13,7 @@ class CSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
     explicit CSocketSender(CSocket *csock_);
   protected:    
     virtual void dispatch(struct CMMSocketRequest);
-
+    virtual void Finish();
   private:
     CSocket *csock;
     
@@ -35,6 +35,7 @@ class CSocketReceiver : public CMMSocketScheduler<struct CMMSocketControlHdr> {
     explicit CSocketReceiver(CSocket *csock_);
   protected:
     virtual void Run();
+    virtual void Finish();
   private:
     CSocket *csock;
 
@@ -54,6 +55,12 @@ CSocketSender::CSocketSender(CSocket *csock_)
     handle(CMM_CONTROL_MSG_DOWN_INTERFACE, this, &CSocketSender::send_header);
     handle(CMM_CONTROL_MSG_ACK, this, &CSocketSender::send_header);
     handle(CMM_CONTROL_MSG_GOODBYE, this, &CSocketSender::send_header);
+}
+
+void
+CSocketSender::Finish(void)
+{
+    csock->remove();
 }
 
 void
@@ -165,6 +172,16 @@ CSocketReceiver::Run(void)
     }
 }
 
+void
+CSocketReceiver::Finish(void)
+{
+    /* Whether CSocketSender or CSocketReceiver gets here 
+     * first, the result should be correct.
+     * Everything should only get deleted once, and the
+     * thread-stopping functions are idempotent. */
+    csock->remove();
+}
+
 void CSocketReceiver::pass_header(struct CMMSocketControlHdr hdr)
 {
     csock->recvr->enqueue(hdr);
@@ -265,7 +282,13 @@ CSocket::~CSocket()
 	/* if it's a real open socket */
 	close(osfd);
     }
-
+    
+    if (csock_sendr) {
+	csock_sendr->stop();
+    }
+    if (csock_recvr) {
+	csock_recvr->stop();
+    }
     delete csock_sendr;
     delete csock_recvr;
 }
@@ -309,4 +332,10 @@ void
 CSocket::send(CMMSocketRequest req)
 {
     csock_sendr->enqueue(req);
+}
+
+void
+CSocket::remove()
+{
+    sk->csock_map.delete_csock(this);
 }

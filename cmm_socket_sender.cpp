@@ -263,19 +263,29 @@ CMMSocketSender::ack_received(irob_id_t id, u_long seqno)
 }
 
 void
-CMMSocketSender::goodbye(void)
+CMMSocketSender::goodbye(bool remote_initiated)
 {
     struct CMMSocketRequest req;
     req.requester_tid = 0;
     req.hdr.type = htons(CMM_CONTROL_MSG_GOODBYE);
 
+    if (is_shutting_down()) {
+	return;
+    }
+
     pthread_mutex_lock(&shutdown_mutex);
     shutting_down = true;
-    while (!(pending_irobs.empty() && remote_shutdown)) {
+    if (remote_initiated) {
+	remote_shutdown = true;
+    }
+    while (!pending_irobs.empty()) {
+	pthread_cond_wait(&shutdown_cv, &shutdown_mutex);
+    }
+    enqueue(req);
+    while (!remote_shutdown) {
 	pthread_cond_wait(&shutdown_cv, &shutdown_mutex);
     }
     pthread_mutex_unlock(&shutdown_mutex);
-    enqueue(req);
 }
 
 void 

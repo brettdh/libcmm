@@ -159,7 +159,7 @@ CMMSocketReceiver::do_goodbye(struct CMMSocketControlHdr hdr)
     } else {
 	/* The other side initiated the shutdown; this is the "FIN" */
 	/* Send the "FIN/ACK" */
-	sk->sendr->goodbye();
+	sk->sendr->goodbye(true);
     }
     /* Note: the senders will still wait for all IROB chunks
      * to be ACK'd before finalizing the shutdown. */

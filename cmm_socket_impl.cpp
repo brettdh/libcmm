@@ -274,11 +274,12 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
     pthread_mutex_lock(&hashmaps_mutex);
     CMMSockHash::accessor ac;
     if (cmm_sock_hash.find(ac, sock)) {
+	CMMSocketImplPtr sk(ac->second);
+	sk->sendr->goodbye(false);
 	cmm_sock_hash.erase(ac);
         /* the CMMSocket object gets destroyed by the shared_ptr. */
         /* moved the rest of the cleanup to the destructor */
         pthread_mutex_unlock(&hashmaps_mutex);
-	/* TODO: sendr->goodbye(); */
 	return 0;
     } else {
         pthread_mutex_unlock(&hashmaps_mutex);
@@ -319,6 +320,15 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
 
 CMMSocketImpl::~CMMSocketImpl()
 {
+    if (listener_thread) {
+	listener_thread->stop();
+    }
+    if (sendr) {
+	sendr->stop();
+    }
+    if (recvr) {
+	recvr->stop();
+    }
     delete listener_thread;
     delete sendr;
     delete recvr;
@@ -697,7 +707,7 @@ CMMSocketImpl::mc_shutdown(int how)
     CMMSockHash::accessor ac;
     if (cmm_sock_hash.find(ac, sock)) {
 	rc = csock_map.for_each(shutdown_each(how));
-	/* TODO: sendr->goodbye(); */
+	sendr->goodbye(false);
     } else {
 	errno = EBADF;
 	rc = -1;

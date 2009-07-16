@@ -46,8 +46,6 @@ class CSockMapping {
     template <typename Functor>
     int for_each(Functor f);
   private:
-    friend class CMMSocketImpl;
-
     //CSockLabelMap csocks_by_send_label;
     //CSockLabelMap csocks_by_recv_label;
     CMMSocketImpl *sk;  /* XXX: janky.  Remove later? */
