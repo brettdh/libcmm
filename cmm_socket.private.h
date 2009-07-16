@@ -40,8 +40,6 @@ typedef tbb::concurrent_hash_map<int,
                                  void*, /* unused; keys only, no values */
                                  IntegerHashCompare<int> > VanillaListenerSet;
 
-typedef std::vector<std::pair<mc_socket_t, int> > mcSocketOsfdPairList;
-
 typedef std::map<in_addr_t, struct net_interface> NetInterfaceMap;
 
 class ListenerThread;
@@ -119,8 +117,6 @@ class CMMSocketImpl : public CMMSocket {
     static VanillaListenerSet cmm_listeners;
     static NetInterfaceSet ifaces;
 
-    virtual int non_blocking_connect(/*u_long initial_labels*/);
-
     virtual void setup(struct net_interface iface, bool local);
     virtual void teardown(struct net_interface iface, bool local);
     
@@ -134,12 +130,6 @@ class CMMSocketImpl : public CMMSocket {
     int connection_bootstrap(const struct sockaddr *remote_addr, 
                              socklen_t addrlen,
                              int bootstrap_sock = -1);
-
-    /* append <mc_socket_t,osfd> pairs to this vector for each 
-     * such mapping in this mc_socket. 
-     * Returns 0 if all the mappings were appended, 
-     *        -1 if there were no connected osfds. */
-    virtual int get_real_fds(mcSocketOsfdPairList &osfd_list);
 
     //CSocket * get_readable_csock(CMMSockHash::const_accessor& ac);
 

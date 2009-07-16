@@ -1,8 +1,11 @@
 #ifndef common_h
 #define common_h
 
+#include <vector>
 #include <set>
+#include <map>
 #include <netinet/in.h>
+#include "libcmm.h"
 
 template <typename IntegerType>
 struct IntegerHashCompare {
@@ -20,6 +23,8 @@ struct net_interface {
 };
 
 typedef std::set<struct net_interface> NetInterfaceSet;
+
+typedef std::vector<std::pair<mc_socket_t, int> > mcSocketOsfdPairList;
 
 #include <stdexcept>
 

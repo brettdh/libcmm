@@ -3,8 +3,14 @@
 #include "signals.h"
 #include "debug.h"
 #include <memory>
-using std::auto_ptr;
+#include <map>
+#include <vector>
 
+using std::auto_ptr;
+using std::pair;
+using std::vector;
+
+#include "tbb/spin_rw_mutex.h"
 
 class LabelMatch {
   public:
@@ -44,24 +50,84 @@ class BothLabelsMatch : public LabelMatch {
     RemoteLabelMatch remote_match;
 };
     
-/*
-CSocket *
-CSockMapping::any_csock(void)
-{
-    // just grab the first connected socket that exists
-    if (connected_csocks.empty()) {
-        return NULL;
-    } else {
-        CSocket *csock = *(connected_csocks.begin());
-        return csock;
-    }
-}
-*/
-
 CSockMapping::CSockMapping(CMMSocketImpl *sk_)
     : sk(sk_)
 {
     /* empty */
+}
+
+struct deleter {
+    int operator()(CSocket *csock) {
+	delete csock;
+	return 0;
+    }
+};
+
+CSockMapping::~CSockMapping()
+{
+    (void)for_each(deleter());
+}
+
+struct push_osfd {
+    mc_socket_t mc_sock;
+    mcSocketOsfdPairList &osfd_list;
+    push_osfd(mc_socket_t mcs, mcSocketOsfdPairList& list) 
+	: mc_sock(mcs), osfd_list(list) {}
+    int operator()(CSocket *csock) {
+	assert(csock);
+        int osfd = csock->osfd;
+        assert(osfd > 0);
+
+        osfd_list.push_back(pair<mc_socket_t,int>(mc_sock,osfd));
+	return 0;
+    }
+};
+
+void
+CSockMapping::get_real_fds(mcSocketOsfdPairList &osfd_list)
+{
+    (void)for_each(push_osfd(sk->sock, osfd_list));
+}
+
+struct get_victim_csocks {
+    const struct net_interface& iface;
+    vector<CSocket *>& victims;
+    bool local;
+    get_victim_csocks(const struct net_interface& iface_,
+		   vector<CSocket *>& victims_, bool local_)
+	: iface(iface_), victims(victims_), local(local_) {}
+
+    int operator()(CSocket *csock) {
+        assert(csock);
+
+        struct net_interface *candidate = NULL;
+        if (local) {
+            candidate = &csock->local_iface;
+        } else {
+            candidate = &csock->remote_iface;
+        }
+        if (candidate->ip_addr.s_addr == iface.ip_addr.s_addr) {
+            victims.push_back(csock);
+        }
+	return 0;
+    }
+};
+
+void
+CSockMapping::teardown(struct net_interface iface, bool local)
+{
+    vector<CSocket *> victims;
+    (void)for_each(get_victim_csocks(iface, victims, local));
+
+    scoped_rwlock lock(sockset_mutex, true);
+    if (!victims.empty()) {
+        while (!victims.empty()) {
+            CSocket *victim = victims.back();
+            victims.pop_back();
+            connected_csocks.erase(victim);
+            delete victim; /* closes socket, cleans up */
+        }
+    }
 }
 
 CSocket *
@@ -140,7 +206,10 @@ CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label)
 
     csock = csock_ptr.release();
 
-    connected_csocks.insert(csock);
+    {
+	scoped_rwlock lock(sockset_mutex, true);
+	connected_csocks.insert(csock);
+    }
     // to interrupt any select() in progress, adding the new osfd
     printf("Interrupting any selects() in progress to add osfd %d "
            "to multi-socket %d\n",
@@ -149,6 +218,18 @@ CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label)
     
     return csock;
 }
+
+void 
+CSockMapping::delete_csock(CSocket *victim)
+{
+    assert(victim);
+    scoped_rwlock lock(sockset_mutex, true);
+    if (connected_csocks.erase(victim) == 1) {
+	delete victim;
+    }
+}
+
+//CSocket * CSockMapping::lookup(int fd) { }
 
 class AddrMatch {
   public:
@@ -209,6 +290,9 @@ CSockMapping::add_connection(int sock,
                                       sock));
     new_csock = ptr.release();
 
-    connected_csocks.insert(new_csock);
+    {
+	scoped_rwlock lock(sockset_mutex, true);
+	connected_csocks.insert(new_csock);
+    }
     signal_selecting_threads();
 }
