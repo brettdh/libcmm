@@ -255,25 +255,10 @@ CSocket::CSocket(CMMSocketImpl *sk_,
         }
         
         sk->set_all_sockopts(osfd);
-        int rc = phys_connect();
-        if (rc < 0) {
-            if (errno==EINPROGRESS || errno==EWOULDBLOCK) {
-                //is this what we want for the 'send', 
-                //i.e wait until the sock is conn'ed.
-                errno = EAGAIN;
-            } else {
-                close(osfd);
-                throw std::runtime_error("Failed to connect new csocket");
-            }
-        }
     } else {
         osfd = accepted_sock;
+	startup_workers();
     }
-
-    csock_sendr = new CSocketSender(this);
-    csock_recvr = new CSocketReceiver(this);
-    csock_sendr->start();
-    csock_recvr->start();
 }
 
 CSocket::~CSocket()
@@ -294,38 +279,54 @@ CSocket::~CSocket()
 }
 
 int
-CSocket::phys_connect(void)
+CSocket::phys_connect()
 {
     struct sockaddr_in local_addr, remote_addr;
-
+    
     local_addr.sin_family = AF_INET;
     local_addr.sin_addr = local_iface.ip_addr;
     local_addr.sin_port = 0;
-
+    
     remote_addr.sin_family = AF_INET;
     remote_addr.sin_addr = remote_iface.ip_addr;
     remote_addr.sin_port = sk->remote_listener_port;
-
-    int rc = bind(osfd, (struct sockaddr *)&local_addr, sizeof(local_addr));
+    
+    int rc = bind(osfd, (struct sockaddr *)&local_addr, 
+		  sizeof(local_addr));
     if (rc < 0) {
-        perror("bind");
-        dbgprintf("Failed to bind osfd %d to %s:%d\n",
-                  osfd, inet_ntoa(local_addr.sin_addr), 
-                  ntohs(local_addr.sin_port));
-        return rc;
+	perror("bind");
+	dbgprintf("Failed to bind osfd %d to %s:%d\n",
+		  osfd, inet_ntoa(local_addr.sin_addr), 
+		  ntohs(local_addr.sin_port));
+	return rc;
     }
     dbgprintf("Successfully bound osfd %d to %s:%d\n",
-              osfd, inet_ntoa(local_addr.sin_addr), 
-              ntohs(local_addr.sin_port));
-
-    rc = connect(osfd, (struct sockaddr *)&remote_addr, sizeof(remote_addr));
+	      osfd, inet_ntoa(local_addr.sin_addr), 
+	      ntohs(local_addr.sin_port));
+    
+    rc = connect(osfd, (struct sockaddr *)&remote_addr, 
+		 sizeof(remote_addr));
     if (rc < 0) {
-        perror("connect");
-        dbgprintf("Failed to connect osfd %d to %s:%d\n",
-                  osfd, inet_ntoa(remote_addr.sin_addr), 
-                  ntohs(remote_addr.sin_port));
+	perror("connect");
+	dbgprintf("Failed to connect osfd %d to %s:%d\n",
+		  osfd, inet_ntoa(remote_addr.sin_addr), 
+		  ntohs(remote_addr.sin_port));
+	return rc;
     }
-    return rc;
+
+    startup_workers();
+    return 0;
+}
+
+void
+CSocket::startup_workers()
+{
+    if (!csock_sendr && !csock_recvr) {
+	csock_sendr = new CSocketSender(this);
+	csock_recvr = new CSocketReceiver(this);
+	csock_sendr->start();
+	csock_recvr->start();
+    }
 }
 
 void 

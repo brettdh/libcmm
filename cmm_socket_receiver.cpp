@@ -260,3 +260,10 @@ CMMSocketReceiver::recv(void *bufp, size_t len, int flags, u_long *recv_labels)
     }
     return bytes_passed;
 }
+
+bool 
+CMMSocketReceiver::find_irob(PendingIROBHash::const_accessor& ac, 
+			     irob_id_t id)
+{
+    return pending_irobs.find(ac, id);
+}

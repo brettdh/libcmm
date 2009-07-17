@@ -1,7 +1,9 @@
 #include "cmm_socket_sender.h"
+#include "cmm_socket_receiver.h"
 #include "libcmm_irob.h"
 #include "pending_irob.h"
 #include "pending_sender_irob.h"
+#include "pending_receiver_irob.h"
 #include "debug.h"
 #include "cmm_socket_control.h"
 #include "common.h"
@@ -325,29 +327,43 @@ CMMSocketSender::pass_to_any_worker(struct CMMSocketRequest req)
 void
 CMMSocketSender::pass_to_any_worker_prefer_labels(struct CMMSocketRequest req)
 {
-    PendingIROBHash::const_accessor ac;
-    irob_id_t id;
     struct CMMSocketControlHdr& hdr = req.hdr;
-    if (req.hdr.type == htons(CMM_CONTROL_MSG_END_IROB)) {
-        id = ntohl(hdr.op.end_irob.id);
-    } else if (req.hdr.type == htons(CMM_CONTROL_MSG_ACK)) {
-        id = ntohl(hdr.op.ack.id);
-    } else assert(0);
 
-    if (!pending_irobs.find(ac, id)) {
-        dbgprintf("Sending message for non-existent IROB %d\n", id);
-        throw CMMException();        
+    u_long send_labels = 0, recv_labels = 0;
+    if (req.hdr.type == htons(CMM_CONTROL_MSG_END_IROB)) {
+	irob_id_t id = ntohl(hdr.op.end_irob.id);
+	PendingIROBHash::const_accessor ac;
+	if (!pending_irobs.find(ac, id)) {
+	    throw Exception::make("Sending message for nonexistent IROB", req);
+	}
+	PendingIROB *pirob = ac->second;
+	assert(pirob);
+	send_labels = pirob->send_labels;
+	recv_labels = pirob->recv_labels;
+    } else {
+	assert(req.hdr.type == htons(CMM_CONTROL_MSG_ACK));
+	irob_id_t id = ntohl(hdr.op.ack.id);
+	PendingIROBHash::const_accessor ac;
+	if (!sk->recvr->find_irob(ac, id)) {
+	    throw Exception::make("Sending ACK for nonexistent IROB", req);
+	}
+	PendingIROB *pirob = ac->second;
+	assert(pirob);
+
+	/* Send this ACK on the same connection that the ACK'd packet
+	 * was received on, if possible. */
+	send_labels = pirob->recv_labels;
+	recv_labels = pirob->send_labels;
     }
-    PendingIROB *pirob = ac->second;
-    assert(pirob);
+
     CSocket *csock = NULL;
     try {
-        csock = sk->csock_map.new_csock_with_labels(pirob->send_labels,
-                                                    pirob->recv_labels);
-        ac.release();
+        csock = sk->csock_map.new_csock_with_labels(send_labels,
+                                                    recv_labels);
     } catch (std::runtime_error& e) {
+	/* this means we ran out of memory/FDs. */
         dbgprintf("Error passing message to worker pref lbls: %s\n", e.what());
-        signal_completion(req.requester_tid, CMM_FAILED);
+	pass_to_any_worker(req);
         return;
     }
 
@@ -358,6 +374,8 @@ CMMSocketSender::pass_to_any_worker_prefer_labels(struct CMMSocketRequest req)
     }
 }
 
+/* TODO: what about a timeout for these? Maybe just check if
+ * SO_TIMEOUT is set for the socket. */
 struct BlockingRequest {
     CMMSocketSender *sendr;
     struct CMMSocketRequest req;
@@ -384,8 +402,7 @@ CMMSocketSender::pass_to_worker_by_labels(struct CMMSocketRequest req)
     } else assert(0);
 
     if (!pending_irobs.find(ac, id)) {
-        dbgprintf("Sending message for non-existent IROB %d\n", id);
-        throw CMMException();
+        throw Exception::make("Sending message for non-existent IROB\n", req);
     }
     PendingIROB *pirob = ac->second;
     assert(pirob);

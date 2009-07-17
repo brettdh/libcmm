@@ -33,8 +33,10 @@ class CSocket {
     ~CSocket();
     void send(CMMSocketRequest req);
     void remove(void);
-  private:
+
     int phys_connect(void);
+  private:
+    void startup_workers();
     
     CSocketSender *csock_sendr;
     CSocketReceiver *csock_recvr;

@@ -208,6 +208,20 @@ CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label)
 
     csock = csock_ptr.release();
 
+    int rc = csock->phys_connect();
+    if (rc < 0) {
+	if (errno==EINPROGRESS || errno==EWOULDBLOCK) {
+	    /* XXX: handle this sanely for non-blocking connect. */
+	    //is this what we want for the 'send', 
+	    //i.e wait until the sock is conn'ed.
+	    errno = EAGAIN;
+	} else {
+	    dbgprintf("Failed to connect new csock\n");
+	    delete csock;
+	    return NULL;
+	}
+    }
+
     {
 	scoped_rwlock lock(sockset_mutex, true);
 	connected_csocks.insert(csock);

@@ -22,6 +22,8 @@ class CMMSocketReceiver : public CMMSocketScheduler<struct CMMSocketControlHdr> 
      * regular sockets) concurrent read/recv/etc. on a multi-socket
      * is not safe either. */
     ssize_t recv(void *buf, size_t len, int flags, u_long *recv_labels);
+
+    bool find_irob(PendingIROBHash::const_accessor& ac, irob_id_t id);
   protected:
     virtual void dispatch(struct CMMSocketControlHdr hdr);
   private:
