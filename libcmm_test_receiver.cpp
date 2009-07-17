@@ -52,7 +52,7 @@ void * Worker(void * arg)
     }
     
     printf("Done with connection %d\n", sock);
-    close(sock);
+    cmm_close(sock);
     return NULL;
 }
 
