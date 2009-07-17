@@ -160,7 +160,6 @@ CMMSocketReceiver::do_goodbye(struct CMMSocketControlHdr hdr)
 	/* I initiated the shutdown; this is the "FIN/ACK" */
 	/* at this point, both sides have stopped sending. */
 	sk->sendr->goodbye_acked();
-	pending_irobs.shutdown();
     } else {
 	/* The other side initiated the shutdown; this is the "FIN" */
 	/* Send the "FIN/ACK" */
@@ -168,6 +167,12 @@ CMMSocketReceiver::do_goodbye(struct CMMSocketControlHdr hdr)
     }
     /* Note: the senders will still wait for all IROB chunks
      * to be ACK'd before finalizing the shutdown. */
+}
+
+void
+CMMSocketReceiver::shutdown()
+{
+    pending_irobs.shutdown();
 }
 
 /* This is where all the scheduling logic happens. 
