@@ -72,6 +72,8 @@ CSocketSender::send_header(struct CMMSocketRequest req)
         /* give this request back to the send scheduler */
         csock->sendr->enqueue(req);
         throw Exception::make("Socket error", req);
+    } else {
+	csock->sendr->signal_completion(req.requester_tid, 0);
     }
 }
 

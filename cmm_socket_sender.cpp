@@ -460,11 +460,13 @@ CMMSocketSender::enqueue_and_wait_for_completion(CMMSocketRequest req)
 void 
 CMMSocketSender::signal_completion(pthread_t requester_tid, long rc)
 {
-    assert(app_threads.find(requester_tid) != app_threads.end());
-    struct AppThread& thread = app_threads[requester_tid];
-
-    pthread_mutex_lock(&thread.mutex);
-    thread.rc = rc;
-    pthread_cond_signal(&thread.cv);
-    pthread_mutex_unlock(&thread.mutex);
+    if (requester_tid != 0) {
+	assert(app_threads.find(requester_tid) != app_threads.end());
+	struct AppThread& thread = app_threads[requester_tid];
+	
+	pthread_mutex_lock(&thread.mutex);
+	thread.rc = rc;
+	pthread_cond_signal(&thread.cv);
+	pthread_mutex_unlock(&thread.mutex);
+    }
 }
