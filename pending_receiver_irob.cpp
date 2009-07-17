@@ -105,3 +105,10 @@ PendingReceiverIROBLattice::partially_read(PendingReceiverIROB *pirob)
     assert(partially_read_irob == NULL);
     partially_read_irob = pirob;
 }
+
+void
+PendingReceiverIROBLattice::shutdown()
+{
+    /* This will cause further recvs to return 0 (EOF). */
+    ready_irobs.push(NULL);
+}

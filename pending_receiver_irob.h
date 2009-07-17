@@ -58,6 +58,9 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
     void release_dependents(PendingReceiverIROB *pirob, Predicate is_ready);
 
     void partially_read(PendingReceiverIROB *pirob);
+    
+    /* signify that the socket has been shut down for reading. */
+    void shutdown(); 
   private:
     PendingReceiverIROBHash pending_irobs;
 
