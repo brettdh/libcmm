@@ -91,6 +91,7 @@ CMMSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
 
     PendingReceiverIROB *prirob = static_cast<PendingReceiverIROB*>(pirob);
     pending_irobs.release_if_ready(prirob, ReadyIROB());
+    ac.release();
 
     //sk->sendr->ack(id);
 }
@@ -124,6 +125,7 @@ CMMSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
 	dbgprintf("Successfully added chunk %d to IROB %d\n",
 		  chunk.seqno, id);
     }
+    ac.release();
     
     sk->sendr->ack(id, chunk.seqno);
 }

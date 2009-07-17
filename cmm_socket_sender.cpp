@@ -227,12 +227,12 @@ void
 CMMSocketSender::ack(irob_id_t id, u_long seqno)
 {
     struct CMMSocketRequest req;
-    req.requester_tid = 0;
+    req.requester_tid = pthread_self();
     req.hdr.type = htons(CMM_CONTROL_MSG_ACK);
     req.hdr.op.ack.id = htonl(id);
     req.hdr.op.ack.seqno = htonl(seqno);
 
-    enqueue(req);
+    (void)enqueue_and_wait_for_completion(req);
 }
 
 void
