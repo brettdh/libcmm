@@ -244,7 +244,8 @@ CSocket::CSocket(CMMSocketImpl *sk_,
                  struct net_interface remote_iface_,
                  int accepted_sock)
     : sk(sk_), sendr(sendr_), recvr(recvr_), 
-      local_iface(local_iface_), remote_iface(remote_iface_)
+      local_iface(local_iface_), remote_iface(remote_iface_),
+      csock_sendr(NULL), csock_recvr(NULL)
 {
     assert(sk && sendr && recvr);
     if (accepted_sock == -1) {
