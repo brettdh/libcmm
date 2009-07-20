@@ -137,7 +137,7 @@ class CMMSocketImpl : public CMMSocket {
 
     mc_socket_t sock; /* file-descriptor handle for this multi-socket */
 
-    CSockMapping csock_map;
+    CSockMapping *csock_map;
 
     NetInterfaceSet local_ifaces;
     ListenerThread *listener_thread;

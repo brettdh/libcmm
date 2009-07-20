@@ -363,5 +363,5 @@ CSocket::send(CMMSocketRequest req)
 void
 CSocket::remove()
 {
-    sk->csock_map.delete_csock(this);
+    sk->csock_map->delete_csock(this);
 }

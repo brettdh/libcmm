@@ -119,7 +119,7 @@ CMMSocketImpl::add_connection(int sock,
                               struct in_addr local_addr,
                               struct in_addr remote_addr)
 {
-    csock_map.add_connection(sock, local_addr, remote_addr);
+    csock_map->add_connection(sock, local_addr, remote_addr);
 }
 
 int
@@ -292,8 +292,7 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
 
 
 CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
-    : csock_map(this),
-      listener_thread(NULL), sendr(NULL), recvr(NULL),
+    : listener_thread(NULL), sendr(NULL), recvr(NULL),
       next_irob(0)
 {
     /* reserve a dummy OS file descriptor for this mc_socket. */
@@ -316,10 +315,14 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
     sock_protocol = protocol;
 
     non_blocking=0;
+
+    csock_map = new CSockMapping(this);
 }
 
 CMMSocketImpl::~CMMSocketImpl()
 {
+    delete csock_map;
+
     if (listener_thread) {
 	listener_thread->stop();
     }
@@ -432,7 +435,7 @@ CMMSocketImpl::make_real_fd_set(int nfds, fd_set *fds,
 
 	    CMMSocketImplPtr sk = ac->second;
 	    assert(sk);
-	    sk->csock_map.get_real_fds(osfd_list);
+	    sk->csock_map->get_real_fds(osfd_list);
 	    if (osfd_list.size() == 0) {
 		/* XXX: what about the nonblocking case? */
 		/* XXX: what if the socket is connected, but currently
@@ -570,7 +573,7 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 	} else {
 	    CMMSocketImplPtr sk = ac->second;
 	    assert(sk);
-	    sk->csock_map.get_real_fds(osfd_list);
+	    sk->csock_map->get_real_fds(osfd_list);
 	    if (osfd_list.size() == 0) {
 		/* XXX: is this right? should we instead
 		 * wait for connections to poll on? */
@@ -731,7 +734,7 @@ CMMSocketImpl::mc_shutdown(int how)
     int rc = 0;
     CMMSockHash::accessor ac;
     if (cmm_sock_hash.find(ac, sock)) {
-	rc = csock_map.for_each(shutdown_each(how));
+	rc = csock_map->for_each(shutdown_each(how));
 	sendr->goodbye(false);
     } else {
 	errno = EBADF;
@@ -937,7 +940,7 @@ CMMSocketImpl::mc_getsockopt(int level, int optname,
         assert(0);
     }
 
-    CSocket *csock = csock_map.csock_with_labels(0, 0);
+    CSocket *csock = csock_map->csock_with_labels(0, 0);
     if (csock) {
 	return getsockopt(csock->osfd, level, optname, optval, optlen);
     } else {
@@ -993,7 +996,7 @@ CMMSocketImpl::mc_setsockopt(int level, int optname,
 	non_blocking = true;
     }
 
-    rc = csock_map.for_each(set_sock_opt(level, optname, optval, optlen));
+    rc = csock_map->for_each(set_sock_opt(level, optname, optval, optlen));
     if (rc < 0) {
 	return rc;
     }
@@ -1031,7 +1034,7 @@ CMMSocketImpl::mc_getpeername(struct sockaddr *address,
 	// return getpeername(sock, address, address_len);
     }
 
-    CSocket *csock = csock_map.csock_with_labels(0,0);
+    CSocket *csock = csock_map->csock_with_labels(0,0);
     if (!csock) {
         /* XXX: maybe instead create a connection and then proceed */
         errno = ENOTCONN;
@@ -1072,7 +1075,7 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
     CMMSockHash::accessor read_ac;
     lock(read_ac);
     
-    csock_map.teardown(iface, local);
+    csock_map->teardown(iface, local);
 
     if (local) {
         sendr->down_interface(iface.ip_addr);

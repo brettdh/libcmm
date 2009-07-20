@@ -328,7 +328,7 @@ CMMSocketSender::pass_to_any_worker(struct CMMSocketRequest req)
 {
     CSocket *csock = NULL;
     try {
-        csock = sk->csock_map.new_csock_with_labels(0, 0);
+        csock = sk->csock_map->new_csock_with_labels(0, 0);
     } catch (std::runtime_error& e) {
         dbgprintf("Error passing message to worker: %s\n", e.what());
         signal_completion(req.requester_tid, CMM_FAILED);
@@ -375,7 +375,7 @@ CMMSocketSender::pass_to_any_worker_prefer_labels(struct CMMSocketRequest req)
 
     CSocket *csock = NULL;
     try {
-        csock = sk->csock_map.new_csock_with_labels(send_labels,
+        csock = sk->csock_map->new_csock_with_labels(send_labels,
                                                     recv_labels);
     } catch (std::runtime_error& e) {
 	/* this means we ran out of memory/FDs. */
@@ -425,7 +425,7 @@ CMMSocketSender::pass_to_worker_by_labels(struct CMMSocketRequest req)
     assert(pirob);
     CSocket *csock = NULL;
     try {
-        csock = sk->csock_map.new_csock_with_labels(pirob->send_labels, 
+        csock = sk->csock_map->new_csock_with_labels(pirob->send_labels, 
                                                     pirob->recv_labels);
     } catch (std::runtime_error& e) {
         dbgprintf("Error passing message to worker by labels: %s\n", e.what());

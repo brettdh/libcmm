@@ -5,6 +5,8 @@
 #include <memory>
 #include <map>
 #include <vector>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 using std::auto_ptr;
 using std::pair;
@@ -293,6 +295,8 @@ CSockMapping::add_connection(int sock,
                              struct in_addr local_addr, 
                              struct in_addr remote_addr)
 {
+    dbgprintf("Adding new connection from %s on %s\n",
+	    inet_ntoa(remote_addr), inet_ntoa(local_addr));
     struct net_interface local_iface, remote_iface;
     if (!get_local_iface_by_addr(local_addr, local_iface) ||
         !get_remote_iface_by_addr(remote_addr, remote_iface)) {
