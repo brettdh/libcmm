@@ -288,11 +288,6 @@ CSocket::CSocket(CMMSocketImpl *sk_,
 
 CSocket::~CSocket()
 {
-    if (osfd > 0) {
-	/* if it's a real open socket */
-	close(osfd);
-    }
-    
     if (csock_sendr) {
 	csock_sendr->stop();
     }
@@ -301,6 +296,11 @@ CSocket::~CSocket()
     }
     delete csock_sendr;
     delete csock_recvr;
+
+    if (osfd > 0) {
+	/* if it's a real open socket */
+	close(osfd);
+    }    
 }
 
 int
