@@ -60,3 +60,6 @@
   * where all physical connections are broken and no connections are possible
 
 * Make a more interesting test app with actual reordering and constraints.
+
+* BUG: Threads are still not getting cancelled, damnit.  It's now limited
+  to CSocketReceiver threads; pthread_cancel still doesn't always work.
