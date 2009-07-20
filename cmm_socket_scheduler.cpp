@@ -43,10 +43,14 @@ template <typename MsgClass>
 void
 CMMSocketScheduler<MsgClass>::stop()
 {
-    MsgClass msg;
-    msg.settype(htons(CMM_TERMINATE_THREAD));
-    enqueue(msg);
-    pthread_join(tid, NULL);
+    if (running) {
+	running = false;
+
+	MsgClass msg;
+	msg.settype(htons(CMM_TERMINATE_THREAD));
+	enqueue(msg);
+	pthread_join(tid, NULL);
+    }
 }
 
 template <typename MsgClass>

@@ -38,7 +38,12 @@ void * Worker(void * arg)
         u_long sender_labels = 0;
         int rc = cmm_read(sock, &ch, sizeof(ch), &sender_labels);
         if (rc != sizeof(ch)) {
-            perror("cmm_read");
+	    if (rc == 0) {
+		fprintf(stderr, "Connection %d closed remotely\n", sock);
+	    } else {
+		fprintf(stderr, "Connection %d had error %d\n", sock, errno);
+		perror("cmm_read");
+	    }
             break;
         }
         ch.data[sizeof(ch)-1] = '\0';
