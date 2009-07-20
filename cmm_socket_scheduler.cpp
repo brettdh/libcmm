@@ -46,6 +46,7 @@ CMMSocketScheduler<MsgClass>::stop()
     MsgClass msg;
     msg.settype(CMM_TERMINATE_THREAD);
     enqueue(msg);
+    pthread_join(tid, NULL);
 }
 
 template <typename MsgClass>
