@@ -70,6 +70,13 @@ ListenerThread::Run()
         FD_ZERO(&readfds);
         FD_SET(listener_sock, &readfds);
         int rc = select(listener_sock + 1, &readfds, NULL, NULL, NULL);
+	if (rc < 0) {
+	    if (errno == EINTR) {
+		continue;
+	    } else {
+		return;
+	    }
+	}
 
         struct sockaddr_in remote_addr;
         socklen_t addrlen = sizeof(remote_addr);
