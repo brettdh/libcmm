@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include "libcmm.h"
 #include "libcmm_test.h"
+#include <errno.h>
 
 static bool running;
 
@@ -43,9 +44,12 @@ void * Worker(void * arg)
         ch.data[sizeof(ch)-1] = '\0';
         printf("Msg: %*s\n", (int)(sizeof(ch) - 1), ch.data);
         str_reverse(ch.data);
+	errno = 0;
         rc = cmm_send(sock, &ch, sizeof(ch), 0, 
                       0, sender_labels, NULL, NULL);
         if (rc != sizeof(ch)) {
+	    fprintf(stderr, "cmm_send returned %d (expected %u), errno=%d\n",
+		    rc, sizeof(ch), errno);
             perror("cmm_send");
             break;
         }

@@ -634,6 +634,10 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
 {
     int rc;
 
+    if ((ssize_t)len < 0) {
+	errno = EINVAL;
+	return rc;
+    }
 #ifdef IMPORT_RULES
     /** Rules Part 3: Update labels if a better interface is available**/
     /* TODO-IMPL: move/reference this code as necessary */
@@ -647,7 +651,7 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
     }
     
     ssize_t bytes = mc_irob_send(id, buf, len, flags);
-    if (bytes < 0) {
+    if (bytes < 0 || (size_t)bytes != len) {
         return bytes;
     }
 
@@ -665,6 +669,27 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
 {
     int rc;
     
+    if (count < 0) {
+	errno = EINVAL;
+	return -1;
+    } else if (count == 0) {
+	return 0;
+    }
+
+    ssize_t total_bytes = 0;
+    for (int i = 0; i < count; i++) {
+	ssize_t bytes = total_bytes;
+	if (vec[i].iov_len < 0) {
+	    errno = EINVAL;
+	    return -1;
+	}
+	total_bytes += vec[i].iov_len;
+	if (total_bytes < bytes) {
+	    /* overflow */
+	    errno = EINVAL;
+	    return -1;
+	}
+    }
 #ifdef IMPORT_RULES
     /** Rules Part 3: Update labels if a better interface is available**/
     /* TODO-IMPL: move/reference this code as necessary */
@@ -678,7 +703,7 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
     }
     
     int bytes = mc_irob_writev(id, vec, count);
-    if (bytes < 0) {
+    if (bytes != total_bytes) {
         return bytes;
     }
 

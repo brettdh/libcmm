@@ -17,10 +17,12 @@ class CSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
   private:
     CSocket *csock;
     
-    void send_header(struct CMMSocketRequest req);
+    void send_request(struct CMMSocketRequest req);
     void do_begin_irob(struct CMMSocketRequest req);
     void do_end_irob(struct CMMSocketRequest req);
     void do_irob_chunk(struct CMMSocketRequest req);
+
+    void send_header(struct CMMSocketControlHdr hdr);
 };
 
 void
@@ -49,12 +51,12 @@ CSocketSender::CSocketSender(CSocket *csock_)
     : csock(csock_)
 {
     handle(CMM_CONTROL_MSG_BEGIN_IROB, this, &CSocketSender::do_begin_irob);
-    handle(CMM_CONTROL_MSG_END_IROB, this, &CSocketSender::do_end_irob);
+    handle(CMM_CONTROL_MSG_END_IROB, this, &CSocketSender::send_request);
     handle(CMM_CONTROL_MSG_IROB_CHUNK, this, &CSocketSender::do_irob_chunk);
-    handle(CMM_CONTROL_MSG_NEW_INTERFACE, this, &CSocketSender::send_header);
-    handle(CMM_CONTROL_MSG_DOWN_INTERFACE, this, &CSocketSender::send_header);
-    handle(CMM_CONTROL_MSG_ACK, this, &CSocketSender::send_header);
-    handle(CMM_CONTROL_MSG_GOODBYE, this, &CSocketSender::send_header);
+    handle(CMM_CONTROL_MSG_NEW_INTERFACE, this, &CSocketSender::send_request);
+    handle(CMM_CONTROL_MSG_DOWN_INTERFACE, this, &CSocketSender::send_request);
+    handle(CMM_CONTROL_MSG_ACK, this, &CSocketSender::send_request);
+    handle(CMM_CONTROL_MSG_GOODBYE, this, &CSocketSender::send_request);
 }
 
 void
@@ -63,18 +65,27 @@ CSocketSender::Finish(void)
     csock->remove();
 }
 
-void
-CSocketSender::send_header(struct CMMSocketRequest req)
+void CSocketSender::send_header(struct CMMSocketControlHdr hdr)
 {
-    struct CMMSocketControlHdr& hdr = req.hdr;
     int rc = send(csock->osfd, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr)) {
+	throw Exception::make("Socket error", hdr);
+    }
+}
+
+void
+CSocketSender::send_request(struct CMMSocketRequest req)
+{
+    struct CMMSocketControlHdr& hdr = req.hdr;
+    try {
+	send_header(hdr);
+    } catch (std::runtime_error& e) {
         /* give this request back to the send scheduler */
         csock->sendr->enqueue(req);
-        throw Exception::make("Socket error", req);
-    } else {
-	csock->sendr->signal_completion(req.requester_tid, 0);
+        throw;
     }
+
+    csock->sendr->signal_completion(req.requester_tid, 0);
 }
 
 void
@@ -82,29 +93,29 @@ CSocketSender::do_begin_irob(struct CMMSocketRequest req)
 {
     struct CMMSocketControlHdr& hdr = req.hdr;
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_BEGIN_IROB);
-    int numdeps = ntohl(hdr.op.begin_irob.numdeps);
-    if (numdeps > 0) {
-        assert(hdr.op.begin_irob.deps);
-        int datalen = numdeps * sizeof(irob_id_t);
-        irob_id_t *deps = hdr.op.begin_irob.deps;
-        hdr.op.begin_irob.deps = NULL; 
-        send_header(req);
-        int rc = send(csock->osfd, deps, datalen, 0);
-        if (rc != datalen) {
-            csock->sendr->enqueue(req);
-            throw Exception::make("Socket error", req);
-        }
-        /* this buffer is no longer needed, so delete it */
-        delete [] deps;
-    } else {
-        send_header(req);
-    }
-    csock->sendr->signal_completion(req.requester_tid, 0);
-}
+    irob_id_t *deps = hdr.op.begin_irob.deps;
+    hdr.op.begin_irob.deps = NULL; 
 
-void CSocketSender::do_end_irob(struct CMMSocketRequest req)
-{
-    send_header(req);
+    try {
+	int numdeps = ntohl(hdr.op.begin_irob.numdeps);
+	if (numdeps > 0) {
+	    assert(deps);
+	    int datalen = numdeps * sizeof(irob_id_t);
+	    send_header(hdr);
+	    int rc = send(csock->osfd, deps, datalen, 0);
+	    if (rc != datalen) {
+		throw Exception::make("Socket error", req);
+	    }
+	    /* this buffer is no longer needed, so delete it */
+	    delete [] deps;
+	} else {
+	    send_header(hdr);
+	}
+    } catch (std::runtime_error& e) {
+	hdr.op.begin_irob.deps = deps;
+	csock->sendr->enqueue(req);
+	throw;
+    }
     csock->sendr->signal_completion(req.requester_tid, 0);
 }
 
@@ -121,12 +132,16 @@ CSocketSender::do_irob_chunk(struct CMMSocketRequest req)
     char *buf = hdr.op.irob_chunk.data;
     hdr.op.irob_chunk.data = NULL;
     
-    send_header(req);
-    int rc = send(csock->osfd, buf, datalen, 0);
-    if (rc != datalen) {
+    try {
+	send_header(hdr);
+	int rc = send(csock->osfd, buf, datalen, 0);
+	if (rc != datalen) {
+	    throw Exception::make("Socket error", req);
+	}
+    } catch (std::runtime_error& e) {
 	hdr.op.irob_chunk.data = buf;
-        csock->sendr->enqueue(req);
-        throw Exception::make("Socket error", req);
+	csock->sendr->enqueue(req);
+	throw;
     }
     /* notice that we don't delete the data buffer here, 
      * since it is an un-ACK'd part of an IROB. 
