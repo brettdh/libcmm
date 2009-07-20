@@ -35,6 +35,7 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
     CMMSocketImpl *sk;
 
     PendingIROBLattice pending_irobs;
+    void remove_if_unneeded(PendingIROBHash::accessor& ac);
 
     std::map<pthread_t, AppThread> app_threads;
 

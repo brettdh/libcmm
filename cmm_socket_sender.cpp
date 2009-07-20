@@ -138,7 +138,13 @@ CMMSocketSender::end_irob(irob_id_t id)
     if (rc != 0) {
         dbgprintf("end irob %d failed entirely; connection must be gone\n", id);
         return -1;
+    } else {
+	PendingIROBHash::accessor ac;
+	if (pending_irobs.find(ac, id)) {
+	    remove_if_unneeded(ac);
+	}
     }
+
     return rc;
 }
 
@@ -249,7 +255,17 @@ CMMSocketSender::ack_received(irob_id_t id, u_long seqno)
     assert(psirob);
 
     psirob->ack(seqno);
-    if (psirob->is_acked()) {
+    remove_if_unneeded(ac);
+}
+
+/* call only with ac held */
+void CMMSocketSender::remove_if_unneeded(PendingIROBHash::accessor& ac)
+{
+    PendingIROB *pirob = ac->second;
+    assert(pirob);
+    PendingSenderIROB *psirob = static_cast<PendingSenderIROB*>(pirob);
+    assert(psirob);
+    if (psirob->is_acked() && psirob->is_complete()) {
         pending_irobs.erase(ac);
         delete pirob;
 	ac.release();
