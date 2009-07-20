@@ -79,6 +79,11 @@ PendingReceiverIROB::numbytes()
     return num_bytes;
 }
 
+PendingReceiverIROBLattice::PendingReceiverIROBLattice()
+    : partially_read_irob(NULL)
+{
+}
+
 /* There's a race on partially_read_irob between get_ready_irob and 
  * partially_read below, but they are only called sequentially. */
 PendingReceiverIROB *

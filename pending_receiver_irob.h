@@ -46,6 +46,8 @@ typedef tbb::concurrent_hash_map
 
 class PendingReceiverIROBLattice : public PendingIROBLattice {
   public:
+    PendingReceiverIROBLattice();
+
     /* First take: this won't ever return an incomplete IROB. 
      *  (we may want to loosen this restriction in the future) */
     /* Hard rule: this won't ever return an unreleased IROB. */
