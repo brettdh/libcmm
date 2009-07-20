@@ -4,6 +4,7 @@
 #include <sstream>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "cmm_socket_scheduler.h"
 
 void 
 CMMSocketControlHdr::cleanup()
@@ -29,6 +30,7 @@ CMMSocketControlHdr::type_str() const
 	"Goodbye",
 	"(unknown)"
     };
+
     short my_type = ntohs(type);
     if (my_type > CMM_CONTROL_MSG_GOODBYE || my_type < CMM_CONTROL_MSG_HELLO) {
 	my_type = CMM_CONTROL_MSG_GOODBYE + 1;

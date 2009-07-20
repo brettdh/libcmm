@@ -24,9 +24,11 @@
 template <typename MsgClass>
 class CMMSocketScheduler : public CMMThread {
   public:
+    CMMSocketScheduler();
     virtual ~CMMSocketScheduler();
     
     void enqueue(MsgClass msg);
+    void stop();
 
   protected:
     PendingIROBLattice pending_irobs;
@@ -65,6 +67,8 @@ class CMMSocketScheduler : public CMMThread {
     };
 
     std::map<short, Handler*> dispatcher;
+
+    void terminate_thread(MsgClass msg);
 
   public:
     template <typename T>

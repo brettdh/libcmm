@@ -64,6 +64,7 @@ struct ack_data {
 struct CMMSocketControlHdr {
     short type;
     short msgtype() { return type; }
+    void settype(short t) { type = t; }
     union {
         struct hello_data hello;
         struct begin_irob_data begin_irob;
@@ -86,7 +87,8 @@ struct CMMSocketRequest {
     pthread_t requester_tid;
     struct CMMSocketControlHdr hdr;
 
-    short msgtype() { return hdr.type; }
+    short msgtype() { return hdr.msgtype(); }
+    void settype(short t) { hdr.settype(t); }
     std::string describe() const;
     void cleanup() { hdr.cleanup(); }
 };

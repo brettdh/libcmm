@@ -1,3 +1,12 @@
+#define CMM_TERMINATE_THREAD 255
+
+template <typename MsgClass>
+CMMSocketScheduler<MsgClass>::CMMSocketScheduler()
+{
+    handle(CMM_TERMINATE_THREAD, this, 
+	   &CMMSocketScheduler<MsgClass>::terminate_thread);
+}
+
 template <typename MsgClass>
 CMMSocketScheduler<MsgClass>::~CMMSocketScheduler()
 {
@@ -28,6 +37,22 @@ CMMSocketScheduler<MsgClass>::dispatch(MsgClass msg)
         Handler *handler = dispatcher[type];
         (*handler)(msg);
     }
+}
+
+template <typename MsgClass>
+void
+CMMSocketScheduler<MsgClass>::stop()
+{
+    MsgClass msg;
+    msg.settype(CMM_TERMINATE_THREAD);
+    enqueue(msg);
+}
+
+template <typename MsgClass>
+void
+CMMSocketScheduler<MsgClass>::terminate_thread(MsgClass msg)
+{
+    throw std::runtime_error("Thread killed.");
 }
 
 template <typename MsgClass>
