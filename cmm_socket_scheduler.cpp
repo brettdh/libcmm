@@ -44,7 +44,7 @@ void
 CMMSocketScheduler<MsgClass>::stop()
 {
     MsgClass msg;
-    msg.settype(CMM_TERMINATE_THREAD);
+    msg.settype(htons(CMM_TERMINATE_THREAD));
     enqueue(msg);
     pthread_join(tid, NULL);
 }
@@ -53,7 +53,7 @@ template <typename MsgClass>
 void
 CMMSocketScheduler<MsgClass>::terminate_thread(MsgClass msg)
 {
-    throw std::runtime_error("Thread killed.");
+    throw CMMThreadFinish();
 }
 
 template <typename MsgClass>

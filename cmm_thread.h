@@ -25,4 +25,6 @@ class CMMThread {
     friend void ThreadCleanup(void *);
 };
 
+class CMMThreadFinish {};
+
 #endif

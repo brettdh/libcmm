@@ -25,6 +25,8 @@ ThreadFn(void * arg)
         thread->Run();
     } catch(const std::exception& e) {
 	dbgprintf("Thread %d exited: %s\n", pthread_self(), e.what());
+    } catch(const CMMThreadFinish& e) {
+	dbgprintf("Thread %d was cancelled via exception.\n", pthread_self());
     }
 
     pthread_cleanup_pop(1);
