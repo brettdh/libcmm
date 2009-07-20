@@ -35,6 +35,7 @@ CSocketSender::dispatch(struct CMMSocketRequest req)
 class CSocketReceiver : public CMMSocketScheduler<struct CMMSocketControlHdr> {
   public:
     explicit CSocketReceiver(CSocket *csock_);
+    void stop();
   protected:
     virtual void Run();
     virtual void Finish();
@@ -187,6 +188,12 @@ CSocketReceiver::Run(void)
         
         dispatch(hdr);
     }
+}
+
+void
+CSocketReceiver::stop(void)
+{
+    CMMThread::stop();
 }
 
 void
