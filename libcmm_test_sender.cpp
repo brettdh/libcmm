@@ -295,6 +295,11 @@ int main(int argc, char *argv[])
             if (rc < 0) {
                 break;
             }
+	    struct timeval reply_end;
+	    TIME(reply_end);
+	    TIMEDIFF(begin, reply_end, diff);
+	    fprintf(stderr, "Send-and-receive time: %lu.%06lu seconds\n", 
+		    diff.tv_sec, diff.tv_usec);
 	}
     }
 
