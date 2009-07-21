@@ -75,7 +75,7 @@ void * Worker(void * arg)
             break;
         }
 	TIMEDIFF(begin, end, diff);
-	fprintf(stderr, "cmm_read took %lu.%06lu seconds\n",
+	fprintf(stderr, "cmm_read took %lu.%06lu seconds (IGNORE, INCLUDES BLOCKING)\n",
 		diff.tv_sec, diff.tv_usec);
         ch.data[sizeof(ch)-1] = '\0';
         printf("Msg: %*s\n", (int)(sizeof(ch) - 1), ch.data);

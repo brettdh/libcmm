@@ -92,7 +92,9 @@ int get_reply(mc_socket_t sock)
         return rc;
     }
     TIMEDIFF(begin, end, diff);
-    
+    fprintf(stderr, "Received msg in %lu.%06lu seconds\n",
+	    diff.tv_sec, diff.tv_usec);
+
     ch.data[sizeof(ch)-1] = '\0';
     fprintf(stderr, "Echo: %*s\n", (int)(sizeof(ch) - 1), ch.data);
     return rc;
