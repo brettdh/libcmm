@@ -1,6 +1,7 @@
 #include "cmm_socket.private.h"
 #include "csocket.h"
 #include "debug.h"
+#include "timeops.h"
 #include "cmm_socket_scheduler.h"
 #include "cmm_socket_control.h"
 #include "cmm_socket_sender.h"
@@ -182,6 +183,9 @@ CSocketReceiver::Run(void)
                 return;
             }
         }
+	struct timeval tv;
+	TIME(tv);
+	dbgprintf("[%lu.%06lu] Received bytes\n", tv.tv_sec, tv.tv_usec);
         rc = recv(csock->osfd, &hdr, sizeof(hdr), 0);
         if (rc != sizeof(hdr)) {
 	    dbgprintf("CSocketReceiver: recv failed, errno=%d\n", errno);

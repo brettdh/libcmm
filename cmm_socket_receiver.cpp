@@ -2,6 +2,7 @@
 #include "cmm_socket_sender.h"
 #include <pthread.h>
 #include "debug.h"
+#include "timeops.h"
 #include <vector>
 using std::vector;
 
@@ -268,6 +269,11 @@ CMMSocketReceiver::recv(void *bufp, size_t len, int flags, u_long *recv_labels)
             pending_irobs.partially_read(pirob);
         }
     }
+
+    struct timeval tv;
+    TIME(tv);
+    dbgprintf("[%lu.%06lu] Passing bytes to application\n",
+	      tv.tv_sec, tv.tv_usec);
     return bytes_passed;
 }
 
