@@ -23,6 +23,7 @@ ThreadFn(void * arg)
     try {
         thread->running = true;
         thread->Run();
+	dbgprintf("Thread %d exited normally.\n", pthread_self());
     } catch(const std::exception& e) {
 	dbgprintf("Thread %d exited: %s\n", pthread_self(), e.what());
     } catch(const CMMThreadFinish& e) {

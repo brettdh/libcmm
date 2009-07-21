@@ -71,12 +71,20 @@ int main()
     if (listen_sock < 0) {
         handle_error("socket");
     }
+    
+    int on = 1;
+    int rc = setsockopt (listen_sock, SOL_SOCKET, SO_REUSEADDR,
+			 (char *) &on, sizeof(on));
+    if (rc < 0) {
+	fprintf(stderr, "Cannot reuse socket address");
+    }
+
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_port = htons(LISTEN_PORT);
 
-    int rc = bind(listen_sock, (struct sockaddr *)&addr, (socklen_t)sizeof(addr));
+    rc = bind(listen_sock, (struct sockaddr *)&addr, (socklen_t)sizeof(addr));
     if (rc < 0) {
         handle_error("bind");
     }
