@@ -63,16 +63,15 @@ int get_reply(int sock)
 int get_reply(mc_socket_t sock)
 #endif
 {
-#if 0
+#ifdef NOMULTISOCK
     /* cmm_select doesn't work yet. */
     fd_set readfds;
     FD_ZERO(&readfds);
     FD_SET(sock, &readfds);
-#ifdef NOMULTISOCK
     int s_rc = select(sock+1, &readfds, NULL, NULL, NULL);
-#else
-    int s_rc = cmm_select(sock+1, &readfds, NULL, NULL, NULL);
-#endif
+//#else
+//    int s_rc = cmm_select(sock+1, &readfds, NULL, NULL, NULL);
+//#endif
     if (s_rc < 0) {
 	return s_rc;
     }

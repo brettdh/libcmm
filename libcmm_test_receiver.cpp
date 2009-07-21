@@ -39,16 +39,15 @@ void * Worker(void * arg)
 #endif
     printf("Starting up on connection %d\n", sock);
     while (1) {
-#if 0
+#ifdef NOMULTISOCK
 	/* cmm_select doesn't work yet. */
 	fd_set readfds;
 	FD_ZERO(&readfds);
 	FD_SET(sock, &readfds);
-#ifdef NOMULTISOCK
 	int s_rc = select(sock+1, &readfds, NULL, NULL, NULL);
-#else
-	int s_rc = cmm_select(sock+1, &readfds, NULL, NULL, NULL);
-#endif
+//#else
+//	int s_rc = cmm_select(sock+1, &readfds, NULL, NULL, NULL);
+//#endif
 	if (s_rc < 0) {
 	    perror("select");
 	    break;
@@ -97,7 +96,7 @@ void * Worker(void * arg)
             break;
         }
 	TIMEDIFF(begin, end, diff);
-	fprintf(stderr, "cmm_send finished in %lu.%06lu seconds\n", 
+	fprintf(stderr, "Sent message; took %lu.%06lu seconds\n", 
 		diff.tv_sec, diff.tv_usec);
     }
     
