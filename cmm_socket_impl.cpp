@@ -630,7 +630,7 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
 
     if ((ssize_t)len < 0) {
 	errno = EINVAL;
-	return rc;
+	return -1;
     }
 #ifdef IMPORT_RULES
     /** Rules Part 3: Update labels if a better interface is available**/

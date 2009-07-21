@@ -1,4 +1,4 @@
-CXXFLAGS:=-Wall -Werror -g -I. -fpic -m32
+CXXFLAGS:=-Wall -Werror -O2 -I. -fpic -m32 # -DCMM_DEBUG
 LIBTBB:=-ltbb_debug
 LDFLAGS:=-L.  $(LIBTBB) -lrt -m32
 
