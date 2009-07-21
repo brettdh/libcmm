@@ -4,7 +4,8 @@ LDFLAGS:=-L. -m32
 LIBS:=$(LIBTBB) -lrt
 
 LIBRARIES:=libcmm.so
-EXECUTABLES:=conn_scout cmm_test_sender cmm_test_receiver cdf_test
+EXECUTABLES:=conn_scout cmm_test_sender cmm_test_receiver cdf_test\
+	     vanilla_test_sender vanilla_test_receiver
 
 all: $(LIBRARIES) $(EXECUTABLES)
 
