@@ -63,6 +63,8 @@ int get_reply(int sock)
 int get_reply(mc_socket_t sock)
 #endif
 {
+#if 0
+    /* cmm_select doesn't work yet. */
     fd_set readfds;
     FD_ZERO(&readfds);
     FD_SET(sock, &readfds);
@@ -74,6 +76,7 @@ int get_reply(mc_socket_t sock)
     if (s_rc < 0) {
 	return s_rc;
     }
+#endif
 
     struct chunk ch = {""};
     struct timeval begin, end, diff;

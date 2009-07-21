@@ -39,6 +39,8 @@ void * Worker(void * arg)
 #endif
     printf("Starting up on connection %d\n", sock);
     while (1) {
+#if 0
+	/* cmm_select doesn't work yet. */
 	fd_set readfds;
 	FD_ZERO(&readfds);
 	FD_SET(sock, &readfds);
@@ -51,6 +53,7 @@ void * Worker(void * arg)
 	    perror("select");
 	    break;
 	}
+#endif
 
         struct chunk ch;
 	struct timeval begin, end, diff;
