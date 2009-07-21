@@ -1,12 +1,15 @@
-CXXFLAGS:=-Wall -Werror -O2 -I. -fpic -m32 # -DCMM_DEBUG
+CXXFLAGS:=-Wall -Werror -I. -fpic -m32 -pg # -DCMM_DEBUG
 LIBTBB:=-ltbb_debug
-LDFLAGS:=-L. -m32
+LDFLAGS:=-L. -m32 -pg
 LIBS:=$(LIBTBB) -lrt
 
 LIBRARIES:=libcmm.so
 EXECUTABLES:=conn_scout cmm_test_sender cmm_test_receiver cdf_test
 
 all: $(LIBRARIES) $(EXECUTABLES)
+
+gprof-helper.so: gprof-helper.c
+	gcc -shared -fpic gprof-helper.c -o gprof-helper.so -lpthread -ldl
 
 cdf_test: cdf_test.o cdf_sampler.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
