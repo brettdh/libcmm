@@ -323,15 +323,6 @@ CMMSocketImpl::~CMMSocketImpl()
 {
     delete csock_map;
 
-    if (listener_thread) {
-	listener_thread->stop();
-    }
-    if (sendr) {
-	sendr->stop();
-    }
-    if (recvr) {
-	recvr->stop();
-    }
     delete listener_thread;
     delete sendr;
     delete recvr;

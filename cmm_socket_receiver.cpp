@@ -33,6 +33,8 @@ CMMSocketReceiver::CMMSocketReceiver(CMMSocketImpl *sk_)
 
 CMMSocketReceiver::~CMMSocketReceiver()
 {
+    stop();
+
     PendingIROBHash::accessor ac;
     while (pending_irobs.any(ac)) {
         PendingIROB *victim = ac->second;
