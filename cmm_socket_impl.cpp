@@ -424,10 +424,12 @@ CMMSocketImpl::make_real_fd_set(int nfds, fd_set *fds,
                 continue;
 	    }
 
+	    FD_CLR(s, fds);
 	    CMMSocketImplPtr sk = ac->second;
 	    assert(sk);
 	    sk->csock_map->get_real_fds(osfd_list);
 	    if (osfd_list.size() == 0) {
+#if 0
 		/* XXX: what about the nonblocking case? */
 		/* XXX: what if the socket is connected, but currently
 		 * lacks physical connections? */
@@ -435,8 +437,13 @@ CMMSocketImpl::make_real_fd_set(int nfds, fd_set *fds,
 			"DBG: cmm_select on a disconnected socket\n");
 		errno = EBADF;
 		return -1;
+#endif
 	    }
 	}
+    }
+
+    if (osfd_list.size() == 0) {
+	return 0;
     }
 
     assert (maxosfd);
