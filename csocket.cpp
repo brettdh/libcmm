@@ -288,6 +288,10 @@ CSocket::CSocket(CMMSocketImpl *sk_,
 
 CSocket::~CSocket()
 {
+    if (osfd > 0) {
+	shutdown(osfd, SHUT_RDWR);
+    }
+
     if (csock_sendr) {
 	csock_sendr->stop();
     }
