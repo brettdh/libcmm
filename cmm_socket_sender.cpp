@@ -10,6 +10,7 @@
 #include "csocket_mapping.h"
 #include "csocket.h"
 #include "thunks.h"
+#include "timeops.h"
 
 CMMSocketSender::CMMSocketSender(CMMSocketImpl *sk_)
     : sk(sk_), shutting_down(false), remote_shutdown(false)
@@ -467,6 +468,10 @@ CMMSocketSender::pass_to_worker_by_labels(struct CMMSocketRequest req)
 long 
 CMMSocketSender::enqueue_and_wait_for_completion(CMMSocketRequest req)
 {
+    struct timeval tv;
+    TIME(tv);
+    dbgprintf("[%lu.%06lu] Enqueued request: %s\n", tv.tv_sec, tv.tv_usec,
+	      req.describe());
     long rc;
     pthread_t self = pthread_self();
     struct AppThread& thread = app_threads[self];
@@ -480,6 +485,9 @@ CMMSocketSender::enqueue_and_wait_for_completion(CMMSocketRequest req)
     rc = thread.rc;
     pthread_mutex_unlock(&thread.mutex);
 
+    TIME(tv);
+    dbgprintf("[%lu.%06lu] Completed request: %s\n", tv.tv_sec, tv.tv_usec,
+	      req.describe());
     return rc;
 }
 
