@@ -7,8 +7,8 @@
 #include <sys/types.h>
 #include "common.h"
 
-#include "tbb/spin_rw_mutex.h"
-typedef tbb::spin_rw_mutex::scoped_lock scoped_rwlock;
+#include "tbb/queuing_rw_mutex.h"
+typedef tbb::queuing_rw_mutex::scoped_lock scoped_rwlock;
 
 class CSocket;
 typedef std::set<CSocket *> CSockSet;
@@ -50,7 +50,7 @@ class CSockMapping {
     //CSockLabelMap csocks_by_recv_label;
     CMMSocketImpl *sk;  /* XXX: janky.  Remove later? */
     CSockSet connected_csocks;
-    tbb::spin_rw_mutex sockset_mutex;
+    tbb::queuing_rw_mutex sockset_mutex;
 
     bool get_local_iface(u_long label, struct net_interface& iface);
     bool get_remote_iface(u_long label, struct net_interface& iface);
