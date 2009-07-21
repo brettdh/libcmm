@@ -8,6 +8,9 @@ EXECUTABLES:=conn_scout cmm_test_sender cmm_test_receiver cdf_test
 
 all: $(LIBRARIES) $(EXECUTABLES)
 
+gprof-helper.so: gprof-helper.c
+	gcc -shared -fpic gprof-helper.c -o gprof-helper.so -lpthread -ldl -g
+
 cdf_test: cdf_test.o cdf_sampler.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
