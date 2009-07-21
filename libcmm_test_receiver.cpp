@@ -31,12 +31,20 @@ void str_reverse(char *str)
 
 void * Worker(void * arg)
 {
+#ifdef NOMULTISOCK
+    int sock = *((int*)arg);
+#else    
     mc_socket_t sock = *((mc_socket_t*)arg);
+#endif
     printf("Starting up on connection %d\n", sock);
     while (1) {
         struct chunk ch;
+#ifdef NOMULTISOCK
+        int rc = read(sock, &ch, sizeof(ch));
+#else
         u_long sender_labels = 0;
         int rc = cmm_read(sock, &ch, sizeof(ch), &sender_labels);
+#endif
         if (rc != sizeof(ch)) {
 	    if (rc == 0) {
 		fprintf(stderr, "Connection %d closed remotely\n", sock);
@@ -50,8 +58,12 @@ void * Worker(void * arg)
         printf("Msg: %*s\n", (int)(sizeof(ch) - 1), ch.data);
         str_reverse(ch.data);
 	errno = 0;
+#ifdef NOMULTISOCK
+        rc = send(sock, &ch, sizeof(ch), 0);
+#else
         rc = cmm_send(sock, &ch, sizeof(ch), 0, 
                       0, sender_labels, NULL, NULL);
+#endif
         if (rc != sizeof(ch)) {
 	    fprintf(stderr, "cmm_send returned %d (expected %u), errno=%d\n",
 		    rc, sizeof(ch), errno);
@@ -61,7 +73,11 @@ void * Worker(void * arg)
     }
     
     printf("Done with connection %d\n", sock);
+#ifdef NOMULTISOCK
+    close(sock);
+#else
     cmm_close(sock);
+#endif
     return NULL;
 }
 
@@ -89,7 +105,11 @@ int main()
         handle_error("bind");
     }
     
+#ifdef NOMULTISOCK
+    rc = listen(listen_sock, 5);
+#else
     rc = cmm_listen(listen_sock, 5);
+#endif
     if (rc < 0) {
         handle_error("cmm_listen");
     }
@@ -109,9 +129,15 @@ int main()
             continue;
         }
 
+#ifdef NOMULTISOCK
+        int connecting_sock = accept(listen_sock, 
+				     (struct sockaddr *)&addr, 
+				     &addrlen);
+#else
         mc_socket_t connecting_sock = cmm_accept(listen_sock, 
                                                  (struct sockaddr *)&addr, 
                                                  &addrlen);
+#endif
         if (connecting_sock < 0) {
             perror("cmm_accept");
             continue;

@@ -43,7 +43,11 @@ static const char *HOST = "141.212.110.97";
 
 static atomic<bool> bg_send;
 static atomic<bool> running;
+#ifdef NOMULTISOCK
+static atomic<int> shared_sock;
+#else
 static atomic<mc_socket_t> shared_sock;
+#endif
 static struct sockaddr_in srv_addr;
 
 
@@ -53,10 +57,18 @@ void resume_bg_sends(struct th_arg* arg)
     bg_send = true;
 }
 
+#ifdef NOMULTISOCK
+int get_reply(int sock)
+#else
 int get_reply(mc_socket_t sock)
+#endif
 {
     struct chunk ch = {""};
+#ifdef NOMULTISOCK
+    int rc = read(sock, &ch, sizeof(ch));
+#else
     int rc = cmm_read(sock, &ch, sizeof(ch), NULL);
+#endif
     if (rc != sizeof(ch)) {
         perror("cmm_read");
         return rc;
@@ -76,6 +88,9 @@ void *BackgroundPing(struct th_arg * arg)
 	if (bg_send) {
 	    snprintf(writeptr, sizeof(ch) - strlen(ch.data) - 1, "%d", count++);
 
+#ifdef NOMULTISOCK
+	    int rc = send(shared_sock, &ch, sizeof(ch), 0);
+#else
 	    int rc = cmm_send(shared_sock, &ch, sizeof(ch), 0,
 			      CONNMGR_LABEL_BACKGROUND, 0,
 			      (resume_handler_t)resume_bg_sends, arg);
@@ -84,7 +99,9 @@ void *BackgroundPing(struct th_arg * arg)
 		fprintf(stderr, 
 			"Background send %d deferred; thunk registered\n", 
 			count - 1);
-	    } else if (rc < 0) {
+	    } else 
+#endif
+	      if (rc < 0) {
 		perror("send");
 		return NULL;
 	    } else {
@@ -101,6 +118,7 @@ void *BackgroundPing(struct th_arg * arg)
     return NULL;
 }
 
+#ifndef NOMULTISOCK
 void resume_ondemand(struct th_arg *arg)
 {
     if (strlen(arg->ch.data) > 0) {
@@ -126,6 +144,7 @@ void resume_ondemand(struct th_arg *arg)
 	}
     }
 }
+#endif
 
 void handle_term(int)
 {
@@ -139,8 +158,13 @@ int srv_connect(const char *host, u_long label)
   conn_retry:
     fprintf(stderr, "Attempting to connect to %s:%d, label %lu\n", 
 	    host, LISTEN_PORT, label);
+#ifdef NOMULTISOCK
+    rc = connect(shared_sock, (struct sockaddr*)&srv_addr,
+		 (socklen_t)sizeof(srv_addr));
+#else
     rc = cmm_connect(shared_sock, (struct sockaddr*)&srv_addr,
 		     (socklen_t)sizeof(srv_addr));
+#endif
     if (rc < 0) {
 	if (errno == EINTR) {
 	    goto conn_retry;
@@ -170,7 +194,11 @@ int main(int argc, char *argv[])
     memcpy(&srv_addr.sin_addr, hp->h_addr, hp->h_length);
     
     struct th_arg args;
+#ifdef NOMULTISOCK
+    shared_sock = socket(PF_INET, SOCK_STREAM, 0);
+#else
     shared_sock = cmm_socket(PF_INET, SOCK_STREAM, 0);
+#endif
     if (shared_sock < 0) {
 	perror("socket");
 	exit(-1);
@@ -178,11 +206,18 @@ int main(int argc, char *argv[])
 
     rc = srv_connect(hostname, CONNMGR_LABEL_ONDEMAND);
     if (rc < 0) {
+#ifndef NOMULTISOCK
 	if (rc == CMM_DEFERRED) {
 	    fprintf(stderr, "Initial connection deferred\n");
-	} else {
+	} else 
+#endif
+	  {
 	    fprintf(stderr, "Initial connection failed!\n");
+#ifdef NOMULTISOCK
+	    close(shared_sock);
+#else
 	    cmm_close(shared_sock);
+#endif
 	    exit(-1);
 	}
     }
@@ -212,12 +247,17 @@ int main(int argc, char *argv[])
 	}
 
 	fprintf(stderr, "Attempting to send message\n");
+#ifdef NOMULTISOCK
+	rc = send(shared_sock, new_args->ch.data, sizeof(new_args->ch), 0);
+#else
 	rc = cmm_send(shared_sock, new_args->ch.data, sizeof(new_args->ch), 0,
 		      CONNMGR_LABEL_ONDEMAND, 0, 
 		      (resume_handler_t)resume_ondemand, new_args);
 	if (rc == CMM_DEFERRED) {
 	    fprintf(stderr, "Deferred\n");
-	} else if (rc < 0) {
+	} else 
+#endif
+	if (rc < 0) {
 	    perror("send");
 	    break;
 	} else {
@@ -230,7 +270,11 @@ int main(int argc, char *argv[])
 	}
     }
 
+#ifdef NOMULTISOCK
+    close(shared_sock);
+#else
     cmm_close(shared_sock);
+#endif
     //pthread_join(tid, NULL);
 
     return 0;

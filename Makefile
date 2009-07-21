@@ -1,6 +1,7 @@
 CXXFLAGS:=-Wall -Werror -O2 -I. -fpic -m32 # -DCMM_DEBUG
 LIBTBB:=-ltbb_debug
-LDFLAGS:=-L.  $(LIBTBB) -lrt -m32
+LDFLAGS:=-L. -m32
+LIBS:=$(LIBTBB) -lrt
 
 LIBRARIES:=libcmm.so
 EXECUTABLES:=conn_scout cmm_test_sender cmm_test_receiver cdf_test
@@ -8,16 +9,25 @@ EXECUTABLES:=conn_scout cmm_test_sender cmm_test_receiver cdf_test
 all: $(LIBRARIES) $(EXECUTABLES)
 
 cdf_test: cdf_test.o cdf_sampler.o
-	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
 cmm_test_sender: libcmm_test_sender.o libcmm.so
-	$(CXX) $(CFLAGS) $(LDFLAGS)  -lcmm -o $@ $<
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -lcmm -o $@ $<
 
 cmm_test_receiver: libcmm_test_receiver.o libcmm.so
-	$(CXX) $(CFLAGS) $(LDFLAGS)  -lcmm -o $@ $<
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -lcmm -o $@ $<
+
+vanilla_test_sender: vanilla_test_sender.o
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $<
+
+vanilla_test_receiver: vanilla_test_receiver.o
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $<
+
+vanilla_%.o: libcmm_%.cpp
+	$(CXX) $(CXXFLAGS) -DNOMULTISOCK $(LDFLAGS) -c -o $@ $<
 
 conn_scout: libcmm_scout.o cdf_sampler.o
-	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -o $@ $^
 
 libcmm.so: libcmm_new.o libcmm_ipc.o cmm_socket.o cmm_socket_impl.o \
 	   cmm_socket_passthrough.o thunks.o cmm_timing.o signals.o csocket.o \
@@ -25,7 +35,7 @@ libcmm.so: libcmm_new.o libcmm_ipc.o cmm_socket.o cmm_socket_impl.o \
            pending_irob.o pending_sender_irob.o pending_receiver_irob.o \
            cmm_thread.o cmm_internal_listener.o libcmm_irob.o debug.o \
            intset.o cmm_socket_control.o
-	$(CXX) $(CFLAGS) $(LDFLAGS) -shared -o $@ $^
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -shared -o $@ $^
 
 # Generate header dependency rules
 #   see http://stackoverflow.com/questions/204823/
