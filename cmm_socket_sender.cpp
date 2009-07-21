@@ -471,7 +471,7 @@ CMMSocketSender::enqueue_and_wait_for_completion(CMMSocketRequest req)
     struct timeval tv;
     TIME(tv);
     dbgprintf("[%lu.%06lu] Enqueued request: %s\n", tv.tv_sec, tv.tv_usec,
-	      req.describe());
+	      req.describe().c_str());
     long rc;
     pthread_t self = pthread_self();
     struct AppThread& thread = app_threads[self];
@@ -487,7 +487,7 @@ CMMSocketSender::enqueue_and_wait_for_completion(CMMSocketRequest req)
 
     TIME(tv);
     dbgprintf("[%lu.%06lu] Completed request: %s\n", tv.tv_sec, tv.tv_usec,
-	      req.describe());
+	      req.describe().c_str());
     return rc;
 }
 
