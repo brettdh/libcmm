@@ -178,11 +178,13 @@ CSocketReceiver::Run(void)
             if (errno == EINTR) {
                 continue;
             } else {
+		dbgprintf("CSocketReceiver: select failed, errno=%d\n", errno);
                 return;
             }
         }
         rc = recv(csock->osfd, &hdr, sizeof(hdr), 0);
         if (rc != sizeof(hdr)) {
+	    dbgprintf("CSocketReceiver: recv failed, errno=%d\n", errno);
             return;
         }
         
