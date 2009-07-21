@@ -66,7 +66,11 @@ class CMMSocketScheduler : public CMMThread {
         Function fn;
     };
 
-    std::map<short, Handler*> dispatcher;
+    //std::map<short, Handler*> dispatcher;
+    static const short MAX_HANDLERS = 20;
+    static const short CMM_TERMINATE_THREAD = MAX_HANDLERS - 1;
+ 
+    Handler *dispatcher[MAX_HANDLERS];
 
     void terminate_thread(MsgClass msg);
 

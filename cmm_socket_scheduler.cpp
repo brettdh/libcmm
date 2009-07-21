@@ -1,8 +1,7 @@
-#define CMM_TERMINATE_THREAD 255
-
 template <typename MsgClass>
 CMMSocketScheduler<MsgClass>::CMMSocketScheduler()
 {
+    memset(dispatcher, 0, sizeof(Handler*) * MAX_HANDLERS);
     handle(CMM_TERMINATE_THREAD, this, 
 	   &CMMSocketScheduler<MsgClass>::terminate_thread);
 }
@@ -15,6 +14,9 @@ CMMSocketScheduler<MsgClass>::~CMMSocketScheduler()
         msg_queue.pop(msg);
         msg.cleanup();
     }
+    for (short i = 0; i < MAX_HANDLERS; i++) {
+	delete dispatcher[i];
+    }
 }
 
 template <typename MsgClass>
@@ -23,6 +25,8 @@ void
 CMMSocketScheduler<MsgClass>::handle(short hdr_type, T *obj,
                                      void (T::*fn)(MsgClass))
 {
+    assert(hdr_type < MAX_HANDLERS);
+    assert(dispatcher[hdr_type] == NULL);
     dispatcher[hdr_type] = new HandlerImpl<T>(obj, fn);
 }
 
@@ -31,7 +35,7 @@ void
 CMMSocketScheduler<MsgClass>::dispatch(MsgClass msg)
 {
     short type = ntohs(msg.msgtype());
-    if (dispatcher.find(type) == dispatcher.end()) {
+    if (type < 0 || type >= MAX_HANDLERS || dispatcher[type] == NULL) {
         unrecognized_control_msg(msg);
     } else {
         Handler *handler = dispatcher[type];
