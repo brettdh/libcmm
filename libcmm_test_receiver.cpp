@@ -8,6 +8,7 @@
 #include "libcmm.h"
 #include "libcmm_test.h"
 #include <errno.h>
+#include "timeops.h"
 
 static bool running;
 
@@ -38,13 +39,29 @@ void * Worker(void * arg)
 #endif
     printf("Starting up on connection %d\n", sock);
     while (1) {
+	fd_set readfds;
+	FD_ZERO(&readfds);
+	FD_SET(sock, &readfds);
+#ifdef NOMULTISOCK
+	int s_rc = select(sock+1, &readfds, NULL, NULL, NULL);
+#else
+	int s_rc = cmm_select(sock+1, &readfds, NULL, NULL, NULL);
+#endif
+	if (s_rc < 0) {
+	    perror("select");
+	    break;
+	}
+
         struct chunk ch;
+	struct timeval begin, end, diff;
+	TIME(begin);
 #ifdef NOMULTISOCK
         int rc = read(sock, &ch, sizeof(ch));
 #else
         u_long sender_labels = 0;
         int rc = cmm_read(sock, &ch, sizeof(ch), &sender_labels);
 #endif
+	TIME(end);
         if (rc != sizeof(ch)) {
 	    if (rc == 0) {
 		fprintf(stderr, "Connection %d closed remotely\n", sock);
@@ -54,22 +71,31 @@ void * Worker(void * arg)
 	    }
             break;
         }
+	TIMEDIFF(begin, end, diff);
+	fprintf(stderr, "cmm_read took %lu.%06lu seconds\n",
+		diff.tv_sec, diff.tv_usec);
         ch.data[sizeof(ch)-1] = '\0';
         printf("Msg: %*s\n", (int)(sizeof(ch) - 1), ch.data);
-        str_reverse(ch.data);
+        //str_reverse(ch.data);
 	errno = 0;
+	//struct timeval begin, end, diff;
+	TIME(begin);
 #ifdef NOMULTISOCK
         rc = send(sock, &ch, sizeof(ch), 0);
 #else
         rc = cmm_send(sock, &ch, sizeof(ch), 0, 
                       0, sender_labels, NULL, NULL);
 #endif
+	TIME(end);
         if (rc != sizeof(ch)) {
 	    fprintf(stderr, "cmm_send returned %d (expected %u), errno=%d\n",
 		    rc, sizeof(ch), errno);
             perror("cmm_send");
             break;
         }
+	TIMEDIFF(begin, end, diff);
+	fprintf(stderr, "cmm_send finished in %lu.%06lu seconds\n", 
+		diff.tv_sec, diff.tv_usec);
     }
     
     printf("Done with connection %d\n", sock);

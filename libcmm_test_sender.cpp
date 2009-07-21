@@ -18,7 +18,7 @@ using tbb::atomic;
 #include <signal.h>
 #include <sys/time.h>
 #include <time.h>
-
+#include "timeops.h"
 
 void thread_sleep(int seconds)
 {
@@ -63,16 +63,33 @@ int get_reply(int sock)
 int get_reply(mc_socket_t sock)
 #endif
 {
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(sock, &readfds);
+#ifdef NOMULTISOCK
+    int s_rc = select(sock+1, &readfds, NULL, NULL, NULL);
+#else
+    int s_rc = cmm_select(sock+1, &readfds, NULL, NULL, NULL);
+#endif
+    if (s_rc < 0) {
+	return s_rc;
+    }
+
     struct chunk ch = {""};
+    struct timeval begin, end, diff;
+    TIME(begin);
 #ifdef NOMULTISOCK
     int rc = read(sock, &ch, sizeof(ch));
 #else
     int rc = cmm_read(sock, &ch, sizeof(ch), NULL);
 #endif
+    TIME(end);
     if (rc != sizeof(ch)) {
         perror("cmm_read");
         return rc;
     }
+    TIMEDIFF(begin, end, diff);
+    
     ch.data[sizeof(ch)-1] = '\0';
     fprintf(stderr, "Echo: %*s\n", (int)(sizeof(ch) - 1), ch.data);
     return rc;
@@ -247,6 +264,8 @@ int main(int argc, char *argv[])
 	}
 
 	fprintf(stderr, "Attempting to send message\n");
+	struct timeval begin, end, diff;
+	TIME(begin);
 #ifdef NOMULTISOCK
 	rc = send(shared_sock, new_args->ch.data, sizeof(new_args->ch), 0);
 #else
@@ -262,7 +281,10 @@ int main(int argc, char *argv[])
 	    break;
 	} else {
 	    delete new_args;
-	    fprintf(stderr, "...message sent.\n");
+	    TIME(end);
+	    TIMEDIFF(begin, end, diff);
+	    fprintf(stderr, "...message sent, took %lu.%06lu seconds\n",
+		    diff.tv_sec, diff.tv_usec);
             rc = get_reply(shared_sock);
             if (rc < 0) {
                 break;
