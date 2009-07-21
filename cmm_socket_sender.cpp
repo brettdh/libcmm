@@ -284,7 +284,11 @@ void
 CMMSocketSender::goodbye(bool remote_initiated)
 {
     struct CMMSocketRequest req;
-    req.requester_tid = 0;
+    if (remote_initiated) {
+	req.requester_tid = pthread_self();
+    } else {
+	req.requester_tid = 0;
+    }
     req.hdr.type = htons(CMM_CONTROL_MSG_GOODBYE);
 
     if (is_shutting_down()) {
@@ -299,7 +303,11 @@ CMMSocketSender::goodbye(bool remote_initiated)
     while (!pending_irobs.empty()) {
 	pthread_cond_wait(&shutdown_cv, &shutdown_mutex);
     }
-    enqueue(req);
+    if (remote_initiated) {
+	enqueue_and_wait_for_completion(req);
+    } else {
+	enqueue(req);
+    }
     while (!remote_shutdown) {
 	pthread_cond_wait(&shutdown_cv, &shutdown_mutex);
     }
