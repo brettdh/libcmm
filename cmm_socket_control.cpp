@@ -94,6 +94,6 @@ std::string
 CMMSocketRequest::describe() const
 {
     std::ostringstream stream;
-    stream << "Requester thread: " << requester_tid;
+    stream << "Requester thread: " << requester_tid << " ";
     return stream.str() + hdr.describe();
 }
