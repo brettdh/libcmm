@@ -42,7 +42,7 @@ std::string
 CMMSocketControlHdr::describe() const
 {
     std::ostringstream stream;
-    stream << std:: endl << "Type: " << type_str() << " ";
+    stream << "Type: " << type_str() << " ";
     switch (ntohs(type)) {
     case CMM_CONTROL_MSG_HELLO:
       stream << "listen port: " << ntohs(op.hello.listen_port) << " ";
@@ -87,7 +87,6 @@ CMMSocketControlHdr::describe() const
     default:
         break;
     };
-    stream << std::endl;
     return stream.str();
 }
 
@@ -95,6 +94,6 @@ std::string
 CMMSocketRequest::describe() const
 {
     std::ostringstream stream;
-    stream << std::endl << "Requester thread: " << requester_tid;
+    stream << "Requester thread: " << requester_tid;
     return stream.str() + hdr.describe();
 }

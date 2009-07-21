@@ -468,10 +468,8 @@ CMMSocketSender::pass_to_worker_by_labels(struct CMMSocketRequest req)
 long 
 CMMSocketSender::enqueue_and_wait_for_completion(CMMSocketRequest req)
 {
-    struct timeval tv;
-    TIME(tv);
-    dbgprintf("[%lu.%06lu] Enqueued request: %s\n", tv.tv_sec, tv.tv_usec,
-	      req.describe().c_str());
+    struct timeval begin, end, diff;
+    TIME(begin);
     long rc;
     pthread_t self = pthread_self();
     struct AppThread& thread = app_threads[self];
@@ -485,8 +483,10 @@ CMMSocketSender::enqueue_and_wait_for_completion(CMMSocketRequest req)
     rc = thread.rc;
     pthread_mutex_unlock(&thread.mutex);
 
-    TIME(tv);
-    dbgprintf("[%lu.%06lu] Completed request: %s\n", tv.tv_sec, tv.tv_usec,
+    TIME(end);
+    TIMEDIFF(begin, end, diff);
+    dbgprintf("[%lu.%06lu] Completed request in %lu.%06lu seconds (%s)\n",
+	      end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec,
 	      req.describe().c_str());
     return rc;
 }
