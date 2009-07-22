@@ -48,7 +48,10 @@ CMMSocketReceiver::~CMMSocketReceiver()
 void
 CMMSocketReceiver::dispatch(struct CMMSocketControlHdr hdr)
 {
-    dbgprintf("Got request\n%s\n", hdr.describe().c_str());
+    struct timeval now;
+    TIME(now);
+    dbgprintf("[%lu.%06lu] Receiver-scheduler got request: %s\n", 
+	      now.tv_sec, now.tv_usec, hdr.describe().c_str());
     CMMSocketScheduler<struct CMMSocketControlHdr>::dispatch(hdr);
 }
 
