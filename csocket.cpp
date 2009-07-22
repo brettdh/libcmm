@@ -29,10 +29,6 @@ class CSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
 void
 CSocketSender::dispatch(struct CMMSocketRequest req)
 {
-    struct timeval now;
-    TIME(now);
-    dbgprintf("Sending request: %s\n",
-	      req.describe().c_str());
     CMMSocketScheduler<struct CMMSocketRequest>::dispatch(req);
 }
 
@@ -72,6 +68,11 @@ CSocketSender::Finish(void)
 
 void CSocketSender::send_header(struct CMMSocketControlHdr hdr)
 {
+    struct timeval now;
+    TIME(now);
+    dbgprintf("Sending request: %s\n",
+	      hdr.describe().c_str());
+
     int rc = send(csock->osfd, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr)) {
 	throw Exception::make("Socket error", hdr);
