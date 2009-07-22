@@ -191,8 +191,16 @@ CSocketReceiver::Run(void)
 	    dbgprintf("CSocketReceiver: recv failed, errno=%d\n", errno);
             return;
         }
-        
+
+	struct timeval begin, end, diff;
+	TIME(begin);
+
         dispatch(hdr);
+
+	TIME(end);
+	TIMEDIFF(begin, end, diff);
+	dbgprintf("Worker-receiver passed message in %lu.%06lu seconds (%s)\n",
+		  diff.tv_sec, diff.tv_usec, hdr.describe().c_str());
     }
 }
 
