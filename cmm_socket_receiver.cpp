@@ -55,6 +55,8 @@ CMMSocketReceiver::dispatch(struct CMMSocketControlHdr hdr)
 void
 CMMSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
 {
+    struct timeval begin, end, diff;
+    TIME(begin);
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_BEGIN_IROB);
     if (hdr.op.begin_irob.numdeps > 0) {
         assert(hdr.op.begin_irob.deps);
@@ -71,11 +73,17 @@ CMMSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     if (hdr.op.begin_irob.numdeps > 0) {
         delete [] hdr.op.begin_irob.deps;
     }
+    TIME(end);
+    TIMEDIFF(begin, end, diff);
+    dbgprintf("Receiver began IROB %d, took %lu.%06lu seconds\n",
+	      ntohl(hdr.op.begin_irob.id), diff.tv_sec, diff.tv_usec);
 }
 
 void
 CMMSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
 {
+    struct timeval begin, end, diff;
+    TIME(begin);
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_END_IROB);
     PendingIROBHash::accessor ac;
     irob_id_t id = ntohl(hdr.op.end_irob.id);
@@ -97,11 +105,18 @@ CMMSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
     ac.release();
 
     //sk->sendr->ack(id);
+
+    TIME(end);
+    TIMEDIFF(begin, end, diff);
+    dbgprintf("Receiver ended IROB %d, took %lu.%06lu seconds\n",
+	      id, diff.tv_sec, diff.tv_usec);
 }
 
 void
 CMMSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
 {
+    struct timeval begin, end, diff;
+    TIME(begin);
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_IROB_CHUNK);
     PendingIROBHash::accessor ac;
     irob_id_t id = ntohl(hdr.op.irob_chunk.id);
@@ -125,8 +140,10 @@ CMMSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     if (!prirob->add_chunk(chunk)) {
         throw Exception::make("Tried to add to completed IROB", hdr);
     } else {
-	dbgprintf("Successfully added chunk %d to IROB %d\n",
-		  chunk.seqno, id);
+	TIME(end);
+	TIMEDIFF(begin, end, diff);
+	dbgprintf("Successfully added chunk %d to IROB %d, took %lu.%06lu seconds\n",
+		  chunk.seqno, id, diff.tv_sec, diff.tv_usec);
     }
     ac.release();
     
