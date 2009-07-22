@@ -11,10 +11,11 @@
 #define CMM_CONTROL_MSG_BEGIN_IROB     1
 #define CMM_CONTROL_MSG_END_IROB       2
 #define CMM_CONTROL_MSG_IROB_CHUNK     3
-#define CMM_CONTROL_MSG_NEW_INTERFACE  4
-#define CMM_CONTROL_MSG_DOWN_INTERFACE 5
-#define CMM_CONTROL_MSG_ACK            6
-#define CMM_CONTROL_MSG_GOODBYE        7
+#define CMM_CONTROL_MSG_DEFAULT_IROB   4
+#define CMM_CONTROL_MSG_NEW_INTERFACE  5
+#define CMM_CONTROL_MSG_DOWN_INTERFACE 6
+#define CMM_CONTROL_MSG_ACK            7
+#define CMM_CONTROL_MSG_GOODBYE        8
 
 struct hello_data {
     in_port_t listen_port;
@@ -35,9 +36,11 @@ struct end_irob_data {
     irob_id_t id;
 };
 
+/* used for both chunks and default-irobs (no-dep, single chunk) */
 struct irob_chunk_data {
     irob_id_t id;
-    u_long seqno; /* these start at 1.  0 is invalid; see ack_data, below. */
+    u_long seqno; /* these start at 1.  0 is invalid; see ack_data, below. 
+		   * This should be set to 0 for default IROBs. */
     size_t datalen;
     char *data; /* NULL in network messages
                  * Allocated and used at receiver */

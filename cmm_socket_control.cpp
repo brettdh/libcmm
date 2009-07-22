@@ -11,7 +11,8 @@ CMMSocketControlHdr::cleanup()
 {
     if (type == CMM_CONTROL_MSG_BEGIN_IROB) {
         delete [] op.begin_irob.deps;
-    } else if (type == CMM_CONTROL_MSG_IROB_CHUNK) {
+    } else if (type == CMM_CONTROL_MSG_IROB_CHUNK ||
+	       type == CMM_CONTROL_MSG_DEFAULT_IROB) {
         delete [] op.irob_chunk.data;
     }
 }
@@ -24,6 +25,7 @@ CMMSocketControlHdr::type_str() const
 	"Begin_IROB",
 	"End_IROB",
 	"IROB_chunk",
+	"Default IROB",
 	"New_Interface",
 	"Down_Interface",
 	"Ack",
@@ -65,8 +67,14 @@ CMMSocketControlHdr::describe() const
         stream << "IROB: " << ntohl(op.end_irob.id);
         break;
     case CMM_CONTROL_MSG_IROB_CHUNK:
+    case CMM_CONTROL_MSG_DEFAULT_IROB:
         stream << "IROB: " << ntohl(op.irob_chunk.id) << " ";
-        stream << "seqno: " << ntohl(op.irob_chunk.seqno) << " ";
+	stream << "seqno: ";
+	if (ntohs(type) == CMM_CONTROL_MSG_IROB_CHUNK) {
+	    stream << ntohl(op.irob_chunk.seqno) << " ";
+	} else {
+	    stream << "(n/a) ";	    
+	}
         stream << "datalen: " << ntohl(op.irob_chunk.datalen);
         break;
     case CMM_CONTROL_MSG_NEW_INTERFACE:

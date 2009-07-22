@@ -45,6 +45,7 @@ class CSocketReceiver : public CMMSocketScheduler<struct CMMSocketControlHdr> {
     void pass_header(struct CMMSocketControlHdr hdr);
     void do_begin_irob(struct CMMSocketControlHdr hdr);
     void do_irob_chunk(struct CMMSocketControlHdr hdr);
+    void do_default_irob(struct CMMSocketControlHdr hdr);
 };
 
 
@@ -54,6 +55,7 @@ CSocketSender::CSocketSender(CSocket *csock_)
     handle(CMM_CONTROL_MSG_BEGIN_IROB, this, &CSocketSender::do_begin_irob);
     handle(CMM_CONTROL_MSG_END_IROB, this, &CSocketSender::send_request);
     handle(CMM_CONTROL_MSG_IROB_CHUNK, this, &CSocketSender::do_irob_chunk);
+    handle(CMM_CONTROL_MSG_DEFAULT_IROB, this, &CSocketSender::do_irob_chunk);
     handle(CMM_CONTROL_MSG_NEW_INTERFACE, this, &CSocketSender::send_request);
     handle(CMM_CONTROL_MSG_DOWN_INTERFACE, this, &CSocketSender::send_request);
     handle(CMM_CONTROL_MSG_ACK, this, &CSocketSender::send_request);
@@ -129,10 +131,11 @@ void
 CSocketSender::do_irob_chunk(struct CMMSocketRequest req)
 {
     struct CMMSocketControlHdr& hdr = req.hdr;
-    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_IROB_CHUNK);
+    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_IROB_CHUNK ||
+	   ntohs(hdr.type) == CMM_CONTROL_MSG_DEFAULT_IROB);
     int datalen = ntohl(hdr.op.irob_chunk.datalen);
     if (datalen <= 0) {
-        throw Exception::make("Expected data with header, got none", hdr);
+        throw Exception::make("Expected data with header, got none", req);
     }
     
     char *buf = hdr.op.irob_chunk.data;
@@ -162,6 +165,7 @@ CSocketReceiver::CSocketReceiver(CSocket *csock_)
     handle(CMM_CONTROL_MSG_BEGIN_IROB, this, &CSocketReceiver::do_begin_irob);
     handle(CMM_CONTROL_MSG_END_IROB, this, &CSocketReceiver::pass_header);
     handle(CMM_CONTROL_MSG_IROB_CHUNK, this, &CSocketReceiver::do_irob_chunk);
+    handle(CMM_CONTROL_MSG_DEFAULT_IROB, this, &CSocketReceiver::do_irob_chunk);
     handle(CMM_CONTROL_MSG_NEW_INTERFACE, this, &CSocketReceiver::pass_header);
     handle(CMM_CONTROL_MSG_DOWN_INTERFACE, this, 
            &CSocketReceiver::pass_header);
@@ -258,7 +262,8 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
 
 void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
 {
-    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_IROB_CHUNK);
+    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_IROB_CHUNK || 
+	   ntohs(hdr.type) == CMM_CONTROL_MSG_DEFAULT_IROB);
     int datalen = ntohl(hdr.op.irob_chunk.datalen);
     if (datalen <= 0) {
         throw Exception::make("Expected data with header, got none", hdr);
