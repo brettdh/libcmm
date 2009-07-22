@@ -72,6 +72,9 @@ CMMSocketSender::begin_irob(irob_id_t next_irob,
 	return CMM_FAILED;
     }
 
+    struct timeval begin, end, diff;
+    TIME(begin);
+
     irob_id_t id = next_irob;
 
     struct CMMSocketRequest req;
@@ -101,6 +104,11 @@ CMMSocketSender::begin_irob(irob_id_t next_irob,
     if (rc < 0) {
         pending_irobs.erase(id);
     }
+    TIME(end);
+    TIMEDIFF(begin, end, diff);
+    dbgprintf("[%lu.%06lu] Completed request in %lu.%06lu seconds (%s)\n",
+	      end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec,
+	      req.describe().c_str());
     
     return rc;
 }
@@ -115,6 +123,9 @@ CMMSocketSender::end_irob(irob_id_t id)
 	errno = EPIPE;
 	return CMM_FAILED;
     }
+
+    struct timeval begin, end, diff;
+    TIME(begin);
 
     {
         PendingIROBHash::accessor ac;
@@ -147,6 +158,11 @@ CMMSocketSender::end_irob(irob_id_t id)
 	    remove_if_unneeded(ac);
 	}
     }
+    TIME(end);
+    TIMEDIFF(begin, end, diff);
+    dbgprintf("[%lu.%06lu] Completed request in %lu.%06lu seconds (%s)\n",
+	      end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec,
+	      req.describe().c_str());
 
     return rc;
 }
@@ -162,6 +178,9 @@ CMMSocketSender::irob_chunk(irob_id_t id, const void *buf, size_t len,
 	errno = EPIPE;
 	return CMM_FAILED;
     }
+
+    struct timeval begin, end, diff;
+    TIME(begin);
 
     struct irob_chunk_data chunk;
     {
@@ -198,6 +217,12 @@ CMMSocketSender::irob_chunk(irob_id_t id, const void *buf, size_t len,
     req.hdr.op.irob_chunk = chunk;
 
     long rc = enqueue_and_wait_for_completion(req);
+    TIME(end);
+    TIMEDIFF(begin, end, diff);
+    dbgprintf("[%lu.%06lu] Completed request in %lu.%06lu seconds (%s)\n",
+	      end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec,
+	      req.describe().c_str());
+
     return rc;
 }
 
@@ -468,8 +493,6 @@ CMMSocketSender::pass_to_worker_by_labels(struct CMMSocketRequest req)
 long 
 CMMSocketSender::enqueue_and_wait_for_completion(CMMSocketRequest req)
 {
-    struct timeval begin, end, diff;
-    TIME(begin);
     long rc;
     pthread_t self = pthread_self();
     struct AppThread& thread = app_threads[self];
@@ -483,11 +506,6 @@ CMMSocketSender::enqueue_and_wait_for_completion(CMMSocketRequest req)
     rc = thread.rc;
     pthread_mutex_unlock(&thread.mutex);
 
-    TIME(end);
-    TIMEDIFF(begin, end, diff);
-    dbgprintf("[%lu.%06lu] Completed request in %lu.%06lu seconds (%s)\n",
-	      end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec,
-	      req.describe().c_str());
     return rc;
 }
 
