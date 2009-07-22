@@ -140,14 +140,16 @@ CMMSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     if (!prirob->add_chunk(chunk)) {
         throw Exception::make("Tried to add to completed IROB", hdr);
     } else {
-	TIME(end);
-	TIMEDIFF(begin, end, diff);
-	dbgprintf("Successfully added chunk %d to IROB %d, took %lu.%06lu seconds\n",
-		  chunk.seqno, id, diff.tv_sec, diff.tv_usec);
+	dbgprintf("Successfully added chunk %d to IROB %d\n",
+		  chunk.seqno, id);
     }
     ac.release();
     
     sk->sendr->ack(id, chunk.seqno);
+    TIME(end);
+    TIMEDIFF(begin, end, diff);
+    dbgprintf("Added and ACK'd chunk %d in IROB %d, took %lu.%06lu seconds\n",
+	      chunk.seqno, id, diff.tv_sec, diff.tv_usec);
 }
 
 void
@@ -170,8 +172,17 @@ CMMSocketReceiver::do_down_interface(struct CMMSocketControlHdr hdr)
 void
 CMMSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
 {
+    struct timeval begin, end, diff;
+    TIME(begin);
+
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_ACK);
     sk->sendr->ack_received(ntohl(hdr.op.ack.id), ntohl(hdr.op.ack.seqno));
+
+    TIME(end);
+    TIMEDIFF(begin, end, diff);
+    dbgprintf("Receiver got ACK for IROB %d chunk %d, took %lu.%06lu seconds\n",
+	      ntohl(hdr.op.ack.id), ntohl(hdr.op.ack.seqno), 
+	      diff.tv_sec, diff.tv_usec);
 }
 
 void
