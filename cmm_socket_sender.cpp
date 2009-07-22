@@ -266,7 +266,14 @@ CMMSocketSender::ack(irob_id_t id, u_long seqno)
     req.hdr.op.ack.id = htonl(id);
     req.hdr.op.ack.seqno = htonl(seqno);
 
+    struct timeval begin, end, diff;
+    TIME(begin);
     (void)enqueue_and_wait_for_completion(req);
+    TIME(end);
+    TIMEDIFF(begin, end, diff);
+    dbgprintf("[%lu.%06lu] Completed request in %lu.%06lu seconds (%s)\n",
+	      end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec,
+	      req.describe().c_str());
 }
 
 void
