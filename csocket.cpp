@@ -29,7 +29,10 @@ class CSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
 void
 CSocketSender::dispatch(struct CMMSocketRequest req)
 {
-    dbgprintf("Sending request\n%s\n", req.describe().c_str());
+    struct timeval now;
+    TIME(now);
+    dbgprintf("[%lu.%06lu] Sending request: %s\n",
+	      now.tv_sec, now.tv_usec, req.describe().c_str());
     CMMSocketScheduler<struct CMMSocketRequest>::dispatch(req);
 }
 
