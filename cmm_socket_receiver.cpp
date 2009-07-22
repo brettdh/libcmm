@@ -225,7 +225,13 @@ CMMSocketReceiver::recv(void *bufp, size_t len, int flags, u_long *recv_labels)
 
     ssize_t bytes_ready = 0;
     while ((size_t)bytes_ready < len) {
+	struct timeval one_begin, one_end, one_diff;
+	TIME(one_begin);
         PendingReceiverIROB *pirob = pending_irobs.get_ready_irob();
+	TIME(one_end);
+	TIMEDIFF(one_begin, one_end, one_diff);
+	dbgprintf("Getting one ready IROB took %lu.%06lu seconds\n",
+		  one_diff.tv_sec, one_diff.tv_usec);
 	if (!pirob) {
 	    if (sk->sendr->is_shutting_down()) {
 		return 0;

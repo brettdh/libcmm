@@ -183,17 +183,20 @@ CSocketReceiver::Run(void)
                 return;
             }
         }
-	struct timeval tv;
-	TIME(tv);
-	dbgprintf("[%lu.%06lu] Received bytes\n", tv.tv_sec, tv.tv_usec);
+
+	struct timeval begin, end, diff;
+	TIME(begin);
+
         rc = recv(csock->osfd, &hdr, sizeof(hdr), 0);
         if (rc != sizeof(hdr)) {
 	    dbgprintf("CSocketReceiver: recv failed, errno=%d\n", errno);
             return;
         }
 
-	struct timeval begin, end, diff;
-	TIME(begin);
+	struct timeval tv;
+	TIME(tv);
+	dbgprintf("[%lu.%06lu] Received message: %s\n",
+		  tv.tv_sec, tv.tv_usec, hdr.describe().c_str());
 
         dispatch(hdr);
 
