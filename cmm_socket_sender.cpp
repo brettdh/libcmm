@@ -106,8 +106,8 @@ CMMSocketSender::begin_irob(irob_id_t next_irob,
     }
     TIME(end);
     TIMEDIFF(begin, end, diff);
-    dbgprintf("[%lu.%06lu] Completed request in %lu.%06lu seconds (%s)\n",
-	      end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec,
+    dbgprintf("Completed request in %lu.%06lu seconds (%s)\n",
+	      diff.tv_sec, diff.tv_usec,
 	      req.describe().c_str());
     
     return rc;
@@ -160,8 +160,8 @@ CMMSocketSender::end_irob(irob_id_t id)
     }
     TIME(end);
     TIMEDIFF(begin, end, diff);
-    dbgprintf("[%lu.%06lu] Completed request in %lu.%06lu seconds (%s)\n",
-	      end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec,
+    dbgprintf("Completed request in %lu.%06lu seconds (%s)\n",
+	      diff.tv_sec, diff.tv_usec,
 	      req.describe().c_str());
 
     return rc;
@@ -219,8 +219,8 @@ CMMSocketSender::irob_chunk(irob_id_t id, const void *buf, size_t len,
     long rc = enqueue_and_wait_for_completion(req);
     TIME(end);
     TIMEDIFF(begin, end, diff);
-    dbgprintf("[%lu.%06lu] Completed request in %lu.%06lu seconds (%s)\n",
-	      end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec,
+    dbgprintf("Completed request in %lu.%06lu seconds (%s)\n",
+	      diff.tv_sec, diff.tv_usec,
 	      req.describe().c_str());
 
     return rc;
@@ -271,8 +271,8 @@ CMMSocketSender::ack(irob_id_t id, u_long seqno)
     (void)enqueue_and_wait_for_completion(req);
     TIME(end);
     TIMEDIFF(begin, end, diff);
-    dbgprintf("[%lu.%06lu] Completed request in %lu.%06lu seconds (%s)\n",
-	      end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec,
+    dbgprintf("Completed request in %lu.%06lu seconds (%s)\n",
+	      diff.tv_sec, diff.tv_usec,
 	      req.describe().c_str());
 }
 

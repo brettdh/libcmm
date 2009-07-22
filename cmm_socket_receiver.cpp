@@ -50,8 +50,8 @@ CMMSocketReceiver::dispatch(struct CMMSocketControlHdr hdr)
 {
     struct timeval now;
     TIME(now);
-    dbgprintf("[%lu.%06lu] Receiver-scheduler got request: %s\n", 
-	      now.tv_sec, now.tv_usec, hdr.describe().c_str());
+    dbgprintf("Receiver-scheduler got request: %s\n", 
+	      hdr.describe().c_str());
     CMMSocketScheduler<struct CMMSocketControlHdr>::dispatch(hdr);
 }
 
@@ -320,8 +320,7 @@ CMMSocketReceiver::recv(void *bufp, size_t len, int flags, u_long *recv_labels)
     TIMEDIFF(begin, end, diff);
     dbgprintf("recv: Copying bytes took %lu.%06lu seconds\n",
 	      diff.tv_sec, diff.tv_usec);
-    dbgprintf("[%lu.%06lu] Passing bytes to application\n",
-	      end.tv_sec, end.tv_usec);
+    dbgprintf("Passing bytes to application\n");
     return bytes_passed;
 }
 

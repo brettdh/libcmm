@@ -31,8 +31,8 @@ CSocketSender::dispatch(struct CMMSocketRequest req)
 {
     struct timeval now;
     TIME(now);
-    dbgprintf("[%lu.%06lu] Sending request: %s\n",
-	      now.tv_sec, now.tv_usec, req.describe().c_str());
+    dbgprintf("Sending request: %s\n",
+	      req.describe().c_str());
     CMMSocketScheduler<struct CMMSocketRequest>::dispatch(req);
 }
 
@@ -198,8 +198,8 @@ CSocketReceiver::Run(void)
 
 	struct timeval tv;
 	TIME(tv);
-	dbgprintf("[%lu.%06lu] Received message: %s\n",
-		  tv.tv_sec, tv.tv_usec, hdr.describe().c_str());
+	dbgprintf("Received message: %s\n",
+		  hdr.describe().c_str());
 
         dispatch(hdr);
 
