@@ -203,6 +203,9 @@ CMMSocketReceiver::recv(void *bufp, size_t len, int flags, u_long *recv_labels)
     vector<PendingReceiverIROB *> pirobs;
     char *buf = (char*)bufp;
     
+    struct timeval begin, end, diff;
+    TIME(begin);
+
     ssize_t bytes_ready = 0;
     while ((size_t)bytes_ready < len) {
         PendingReceiverIROB *pirob = pending_irobs.get_ready_irob();
@@ -234,6 +237,12 @@ CMMSocketReceiver::recv(void *bufp, size_t len, int flags, u_long *recv_labels)
             break;
         }
     }
+    TIME(end);
+    TIMEDIFF(begin, end, diff);
+    dbgprintf("recv: gathering bytes took %lu.%06lu seconds\n", 
+	      diff.tv_sec, diff.tv_usec);
+
+    TIME(begin);
 
     ssize_t bytes_passed = 0;
     bool partial_irob = false;
@@ -270,10 +279,12 @@ CMMSocketReceiver::recv(void *bufp, size_t len, int flags, u_long *recv_labels)
         }
     }
 
-    struct timeval tv;
-    TIME(tv);
+    TIME(end);
+    TIMEDIFF(begin, end, diff);
+    dbgprintf("recv: Copying bytes took %lu.%06lu seconds\n",
+	      diff.tv_sec, diff.tv_usec);
     dbgprintf("[%lu.%06lu] Passing bytes to application\n",
-	      tv.tv_sec, tv.tv_usec);
+	      end.tv_sec, end.tv_usec);
     return bytes_passed;
 }
 
