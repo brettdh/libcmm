@@ -1,6 +1,7 @@
 #include "pending_irob.h"
 #include "pending_receiver_irob.h"
 #include "debug.h"
+#include "timeops.h"
 #include <algorithm>
 using std::min;
 
@@ -99,7 +100,13 @@ PendingReceiverIROBLattice::get_ready_irob()
         partially_read_irob = NULL;
     } else {
         /* TODO: nonblocking */
+	struct timeval begin, end, diff;
+	TIME(begin);
         ready_irobs.pop(pirob);
+	TIME(end);
+	TIMEDIFF(begin, end, diff);
+	dbgprintf("recv: spent %lu.%06lu seconds blocked on the IROB queue\n",
+		  diff.tv_sec, diff.tv_usec);
     }
     return pirob;
 }
