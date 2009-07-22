@@ -483,6 +483,8 @@ CMMSocketImpl::make_mc_fd_set(fd_set *fds,
     return dups;
 }
 
+/* TODO: reimplement for multi-sockets by selecting on a special pipe 
+ * that is written to when data is available to read. */
 int 
 CMMSocketImpl::mc_select(mc_socket_t nfds, 
 			 fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
