@@ -39,20 +39,19 @@ void * Worker(void * arg)
 #endif
     printf("Starting up on connection %d\n", sock);
     while (1) {
-#ifdef NOMULTISOCK
-	/* cmm_select doesn't work yet. */
 	fd_set readfds;
 	FD_ZERO(&readfds);
 	FD_SET(sock, &readfds);
+#ifdef NOMULTISOCK
 	int s_rc = select(sock+1, &readfds, NULL, NULL, NULL);
-//#else
-//	int s_rc = cmm_select(sock+1, &readfds, NULL, NULL, NULL);
-//#endif
+#else
+	/* XXX: make sure this is working properly. */
+	int s_rc = cmm_select(sock+1, &readfds, NULL, NULL, NULL);
+#endif
 	if (s_rc < 0) {
 	    perror("select");
 	    break;
 	}
-#endif
 
         struct chunk ch;
 	struct timeval begin, end, diff;
