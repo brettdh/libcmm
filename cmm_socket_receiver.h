@@ -37,6 +37,7 @@ class CMMSocketReceiver : public CMMSocketScheduler<struct CMMSocketControlHdr> 
     void do_begin_irob(struct CMMSocketControlHdr hdr);
     void do_end_irob(struct CMMSocketControlHdr hdr);
     void do_irob_chunk(struct CMMSocketControlHdr hdr);
+    void do_default_irob(struct CMMSocketControlHdr hdr);
     void do_new_interface(struct CMMSocketControlHdr hdr);
     void do_down_interface(struct CMMSocketControlHdr hdr);
     void do_ack(struct CMMSocketControlHdr hdr);

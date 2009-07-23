@@ -12,6 +12,13 @@ PendingReceiverIROB::PendingReceiverIROB(struct begin_irob_data begin_irob)
     partial_chunk.datalen = 0;
 }
 
+PendingReceiverIROB::PendingReceiverIROB(struct default_irob_data default_irob)
+    : PendingIROB(default_irob), offset(0), num_bytes(ntohl(default_irob.datalen))
+{
+    partial_chunk.data = NULL;
+    partial_chunk.datalen = 0;
+}
+
 bool
 PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
 {

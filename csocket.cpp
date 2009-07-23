@@ -138,8 +138,8 @@ CSocketSender::do_irob_chunk(struct CMMSocketRequest req)
 	datalen = ntohl(hdr.op.default_irob.datalen);
     } else assert(0);
     char *& data_r = ((type == CMM_CONTROL_MSG_IROB_CHUNK) 
-		      ? hdr.op.irob_chunk.buf 
-		      : hdr.op.default_irob.buf);
+		      ? hdr.op.irob_chunk.data
+		      : hdr.op.default_irob.data);
     if (datalen <= 0) {
         throw Exception::make("Expected data with header, got none", req);
     }

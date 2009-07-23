@@ -24,6 +24,8 @@ CMMSocketReceiver::CMMSocketReceiver(CMMSocketImpl *sk_)
     handle(CMM_CONTROL_MSG_END_IROB, this, &CMMSocketReceiver::do_end_irob);
     handle(CMM_CONTROL_MSG_IROB_CHUNK, this,
            &CMMSocketReceiver::do_irob_chunk);
+    handle(CMM_CONTROL_MSG_DEFAULT_IROB, this,
+           &CMMSocketReceiver::do_default_irob);
     handle(CMM_CONTROL_MSG_NEW_INTERFACE, this, 
            &CMMSocketReceiver::do_new_interface);
     handle(CMM_CONTROL_MSG_DOWN_INTERFACE, this, 
@@ -158,7 +160,22 @@ CMMSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
 void
 CMMSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
 {
-    /* TODO: pick up here. */
+    struct timeval begin, end, diff;
+    TIME(begin);
+
+    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_DEFAULT_IROB);
+    PendingIROB *pirob = new PendingReceiverIROB(hdr.op.default_irob);
+    PendingIROBHash::accessor ac;
+    if (!pending_irobs.insert(ac, pirob)) {
+        delete pirob;
+        throw Exception::make("Tried to add default IROB that already exists", 
+			      hdr);
+    }
+    
+    TIME(end);
+    TIMEDIFF(begin, end, diff);
+    dbgprintf("Sent default IROB %d, took %lu.%06lu seconds\n",
+	      ntohl(hdr.op.default_irob.id), diff.tv_sec, diff.tv_usec);
 }
 
 void

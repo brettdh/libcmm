@@ -169,33 +169,6 @@ CMMSocketSender::end_irob(irob_id_t id)
     return rc;
 }
 
-void
-CMMSocketSender::add_chunk_to_irob(irob_id_t id, const void *buf, size_t len,
-				   struct irob_chunk_data& chunk)
-{
-    PendingIROBHash::accessor ac;
-    if (!pending_irobs.find(ac, id)) {
-	dbgprintf("Tried to add to nonexistent IROB %d\n", id);
-	throw CMMException();
-    }
-    
-    PendingIROB *pirob = ac->second;
-    assert(pirob);
-    if (pirob->is_complete()) {
-	dbgprintf("Tried to add to complete IROB %d\n", id);
-	throw CMMException();
-    }
-    chunk.id = id;
-    chunk.seqno = INVALID_IROB_SEQNO; /* will be overwritten 
-				       * with valid seqno */
-    chunk.datalen = len;
-    chunk.data = new char[len];
-    memcpy(chunk.data, buf, len);
-    PendingSenderIROB *psirob = static_cast<PendingSenderIROB*>(pirob);
-    assert(psirob);
-    psirob->add_chunk(chunk); /* writes correct seqno into struct
-			       * if this is not a default IROB */
-}
 
 /* This function blocks until the data has been sent.
  * If the socket is non-blocking, we need to implement that here.
@@ -213,8 +186,30 @@ CMMSocketSender::irob_chunk(irob_id_t id, const void *buf, size_t len,
     TIME(begin);
 
     struct irob_chunk_data chunk;
-    add_chunk_to_irob(id, buf, len, chunk);
-
+    {
+	PendingIROBHash::accessor ac;
+	if (!pending_irobs.find(ac, id)) {
+	    dbgprintf("Tried to add to nonexistent IROB %d\n", id);
+	    throw CMMException();
+	}
+	
+	PendingIROB *pirob = ac->second;
+	assert(pirob);
+	if (pirob->is_complete()) {
+	    dbgprintf("Tried to add to complete IROB %d\n", id);
+	    throw CMMException();
+	}
+	chunk.id = id;
+	chunk.seqno = INVALID_IROB_SEQNO; /* will be overwritten 
+					   * with valid seqno */
+	chunk.datalen = len;
+	chunk.data = new char[len];
+	memcpy(chunk.data, buf, len);
+	PendingSenderIROB *psirob = static_cast<PendingSenderIROB*>(pirob);
+	assert(psirob);
+	psirob->add_chunk(chunk); /* writes correct seqno into struct */
+    }
+    
     struct CMMSocketRequest req;
     req.requester_tid = pthread_self();
     req.hdr.type = htons(CMM_CONTROL_MSG_IROB_CHUNK);
@@ -234,11 +229,11 @@ CMMSocketSender::irob_chunk(irob_id_t id, const void *buf, size_t len,
     return rc;
 }
 
-void
+int
 CMMSocketSender::default_irob(irob_id_t next_irob, 
 			      const void *buf, size_t len, int flags,
 			      u_long send_labels, u_long recv_labels,
-			      resume_handler_t resume_handler, void *arg)
+			      resume_handler_t resume_handler, void *rh_arg)
 {
     if (is_shutting_down()) {
 	errno = EPIPE;

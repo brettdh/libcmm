@@ -29,6 +29,12 @@ PendingIROB::PendingIROB(struct default_irob_data default_irob)
       anonymous(true), 
       complete(true)
 {
+    struct irob_chunk_data chunk;
+    chunk.id = id;
+    chunk.seqno = INVALID_IROB_SEQNO;
+    chunk.datalen = ntohl(default_irob.datalen);
+    chunk.data = default_irob.data;
+    chunks.push(chunk);
 }
 
 PendingIROB::~PendingIROB()
