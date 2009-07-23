@@ -26,6 +26,8 @@ CMMSocketSender::CMMSocketSender(CMMSocketImpl *sk_)
            &CMMSocketSender::pass_to_any_worker_prefer_labels);
     handle(CMM_CONTROL_MSG_IROB_CHUNK, this,
            &CMMSocketSender::pass_to_worker_by_labels);
+    handle(CMM_CONTROL_MSG_DEFAULT_IROB, this,
+           &CMMSocketSender::pass_to_worker_by_labels);
     handle(CMM_CONTROL_MSG_NEW_INTERFACE, this, 
            &CMMSocketSender::pass_to_any_worker);
     handle(CMM_CONTROL_MSG_DOWN_INTERFACE, this, 
@@ -232,14 +234,6 @@ CMMSocketSender::irob_chunk(irob_id_t id, const void *buf, size_t len,
     return rc;
 }
 
-/* TODO: left off here.  implementing default_irob as its own kind of message,
- * reusing a lot of stuff from irob_chunk.
- * First thing when I look at this code again:
- *   - Make sure this function makes sense.
- *   - Look at adding a constructor to PendingSenderIROB that
- *     creates the default IROB, adds the chunk, and marks it complete.
- *   - Carry on.
- */
 void
 CMMSocketSender::default_irob(irob_id_t next_irob, 
 			      const void *buf, size_t len, int flags,
@@ -256,14 +250,15 @@ CMMSocketSender::default_irob(irob_id_t next_irob,
 
     irob_id_t id = next_irob;
 
-    struct irob_chunk_data chunk;
-    chunk.id = id;
-    chunk.seqno = INVALID_IROB_SEQNO;
-    chunk.datalen = len;
-    chunk.data = new char[len];
-    memcpy(chunk.data, buf, len);
+    struct default_irob_data default_irob;
+    default_irob.id = id;
+    default_irob.send_labels = send_labels;
+    default_irob.recv_labels = recv_labels;
+    default_irob.datalen = len;
+    default_irob.data = new char[len];
+    memcpy(default_irob.data, buf, len);
     {
-        PendingIROB *pirob = new PendingSenderIROB(chunk,
+        PendingIROB *pirob = new PendingSenderIROB(default_irob,
                                                    resume_handler, rh_arg);
         PendingIROBHash::accessor ac;
         bool success = pending_irobs.insert(ac, pirob);
@@ -274,10 +269,11 @@ CMMSocketSender::default_irob(irob_id_t next_irob,
     req.requester_tid = pthread_self();
     req.hdr.type = htons(CMM_CONTROL_MSG_DEFAULT_IROB);
 
-    chunk.id = htonl(chunk.id);
-    chunk.seqno = htonl(chunk.seqno);
-    chunk.datalen = htonl(chunk.datalen);
-    req.hdr.op.irob_chunk = chunk;
+    default_irob.id = htonl(default_irob.id);
+    default_irob.send_labels = htonl(default_irob.send_labels);
+    default_irob.recv_labels = htonl(default_irob.recv_labels);
+    default_irob.datalen = htonl(default_irob.datalen);
+    req.hdr.op.default_irob = default_irob;
 
     long rc = enqueue_and_wait_for_completion(req);
     TIME(end);
@@ -520,9 +516,10 @@ CMMSocketSender::pass_to_worker_by_labels(struct CMMSocketRequest req)
     irob_id_t id;
     if (req.hdr.type == htons(CMM_CONTROL_MSG_BEGIN_IROB)) {
         id = ntohl(req.hdr.op.begin_irob.id);
-    } else if (req.hdr.type == htons(CMM_CONTROL_MSG_IROB_CHUNK) ||
-	       req.hdr.type == htons(CMM_CONTROL_MSG_DEFAULT_IROB)) {
+    } else if (req.hdr.type == htons(CMM_CONTROL_MSG_IROB_CHUNK)) {
         id = ntohl(req.hdr.op.irob_chunk.id);
+    } else if (req.hdr.type == htons(CMM_CONTROL_MSG_DEFAULT_IROB)) {
+	id = ntohl(req.hdr.op.default_irob.id);
     } else assert(0);
 
     if (!pending_irobs.find(ac, id)) {

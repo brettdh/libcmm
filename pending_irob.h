@@ -23,6 +23,7 @@
 class PendingIROB {
   public:
     PendingIROB(struct begin_irob_data data);
+    PendingIROB(struct default_irob_data data);
     virtual ~PendingIROB();
 
     /* return true on success; false if action is invalid */

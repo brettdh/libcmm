@@ -121,8 +121,8 @@ CMMSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     struct timeval begin, end, diff;
     TIME(begin);
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_IROB_CHUNK);
-    PendingIROBHash::accessor ac;
     irob_id_t id = ntohl(hdr.op.irob_chunk.id);
+    PendingIROBHash::accessor ac;
     if (!pending_irobs.find(ac, id)) {
         if (pending_irobs.past_irob_exists(id)) {
             throw Exception::make("Tried to add to committed IROB", hdr);
@@ -153,6 +153,12 @@ CMMSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     TIMEDIFF(begin, end, diff);
     dbgprintf("Added and ACK'd chunk %d in IROB %d, took %lu.%06lu seconds\n",
 	      chunk.seqno, id, diff.tv_sec, diff.tv_usec);
+}
+
+void
+CMMSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
+{
+    /* TODO: pick up here. */
 }
 
 void

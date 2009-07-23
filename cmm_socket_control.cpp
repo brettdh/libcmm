@@ -67,16 +67,16 @@ CMMSocketControlHdr::describe() const
         stream << "IROB: " << ntohl(op.end_irob.id);
         break;
     case CMM_CONTROL_MSG_IROB_CHUNK:
-    case CMM_CONTROL_MSG_DEFAULT_IROB:
         stream << "IROB: " << ntohl(op.irob_chunk.id) << " ";
-	stream << "seqno: ";
-	if (ntohs(type) == CMM_CONTROL_MSG_IROB_CHUNK) {
-	    stream << ntohl(op.irob_chunk.seqno) << " ";
-	} else {
-	    stream << "(n/a) ";	    
-	}
+	stream << "seqno: " << ntohl(op.irob_chunk.seqno) << " ";
         stream << "datalen: " << ntohl(op.irob_chunk.datalen);
         break;
+    case CMM_CONTROL_MSG_DEFAULT_IROB:
+        stream << "IROB: " << ntohl(op.default_irob.id) << " ";
+        stream << "send_labels: " << ntohl(op.default_irob.send_labels) << " ";
+        stream << "recv_labels: " << ntohl(op.default_irob.recv_labels) << " ";	
+        stream << "datalen: " << ntohl(op.default_irob.datalen);
+	break;
     case CMM_CONTROL_MSG_NEW_INTERFACE:
         stream << "IP: " << inet_ntoa(op.new_interface.ip_addr) << " ";
         stream << "labels: " << ntohl(op.new_interface.labels);

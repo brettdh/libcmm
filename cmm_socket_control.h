@@ -36,11 +36,19 @@ struct end_irob_data {
     irob_id_t id;
 };
 
-/* used for both chunks and default-irobs (no-dep, single chunk) */
 struct irob_chunk_data {
     irob_id_t id;
-    u_long seqno; /* these start at 1.  0 is invalid; see ack_data, below. 
-		   * This should be set to 0 for default IROBs. */
+    u_long seqno; /* these start at 1.  0 is invalid; see ack_data, below. */
+    size_t datalen;
+    char *data; /* NULL in network messages
+                 * Allocated and used at receiver */
+    /* followed by datalen bytes of application data */
+};
+
+struct default_irob_data {
+    irob_id_t id;
+    u_long send_labels;
+    u_long recv_labels;
     size_t datalen;
     char *data; /* NULL in network messages
                  * Allocated and used at receiver */
@@ -73,6 +81,7 @@ struct CMMSocketControlHdr {
         struct begin_irob_data begin_irob;
         struct end_irob_data end_irob;
         struct irob_chunk_data irob_chunk;
+	struct default_irob_data default_irob;
         struct new_interface_data new_interface;
         struct down_interface_data down_interface;
         struct ack_data ack;

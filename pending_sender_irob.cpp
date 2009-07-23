@@ -12,6 +12,16 @@ PendingSenderIROB::PendingSenderIROB(struct begin_irob_data begin_irob,
 {
 }
 
+PendingSenderIROB::PendingSenderIROB(struct default_irob_data data,
+				     resume_handler_t resume_handler_, void *rh_arg_)
+    : PendingIROB(data),
+      next_seqno(INVALID_IROB_SEQNO + 1),
+      resume_handler(resume_handler_), rh_arg(rh_arg_),
+      acked(false)
+{
+}
+
+
 bool
 PendingSenderIROB::add_chunk(struct irob_chunk_data& irob_chunk)
 {

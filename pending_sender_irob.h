@@ -23,6 +23,8 @@ class PendingSenderIROB : public PendingIROB {
   public:
     PendingSenderIROB(struct begin_irob_data data,
                       resume_handler_t resume_handler, void *rh_arg);
+    PendingSenderIROB(struct default_irob_data data,
+                      resume_handler_t resume_handler, void *rh_arg);
     
     bool add_chunk(struct irob_chunk_data&);
     

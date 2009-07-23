@@ -22,6 +22,15 @@ PendingIROB::PendingIROB(struct begin_irob_data begin_irob)
     }
 }
 
+PendingIROB::PendingIROB(struct default_irob_data default_irob)
+    : id(ntohl(default_irob.id)), 
+      send_labels(ntohl(default_irob.send_labels)), 
+      recv_labels(ntohl(default_irob.recv_labels)),
+      anonymous(true), 
+      complete(true)
+{
+}
+
 PendingIROB::~PendingIROB()
 {
     while (!chunks.empty()) {
