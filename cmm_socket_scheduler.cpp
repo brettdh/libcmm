@@ -86,9 +86,9 @@ CMMSocketScheduler<MsgClass>::Run(void)
 {
     while (1) {
         MsgClass msg;
-	dbgprintf("About to wait on message queue");
+	dbgprintf("About to wait on message queue\n");
         msg_queue.pop(msg);
-	dbgprintf("Got new message from queue");
+	dbgprintf("Got new message from queue\n");
 
         dispatch(msg);
     }
