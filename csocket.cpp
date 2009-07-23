@@ -184,7 +184,8 @@ CSocketReceiver::Run(void)
 {
     while (1) {
         struct CMMSocketControlHdr hdr;
-        
+
+	dbgprintf("About to wait for network messages\n");
         fd_set readfds;
         FD_ZERO(&readfds);
         FD_SET(csock->osfd, &readfds);
@@ -197,6 +198,8 @@ CSocketReceiver::Run(void)
                 return;
             }
         }
+
+	dbgprintf("Network message incoming\n");
 
 	struct timeval begin, end, diff;
 	TIME(begin);
