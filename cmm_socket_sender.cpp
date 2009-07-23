@@ -83,10 +83,11 @@ CMMSocketSender::begin_irob(irob_id_t next_irob,
     req.requester_tid = pthread_self();
     req.hdr.type = htons(CMM_CONTROL_MSG_BEGIN_IROB);
     req.hdr.op.begin_irob.id = htonl(id);
-    req.hdr.op.begin_irob.send_labels = htonl(send_labels);
-    req.hdr.op.begin_irob.recv_labels = htonl(recv_labels);
     req.hdr.op.begin_irob.numdeps = htonl(numdeps);
     req.hdr.op.begin_irob.deps = NULL;
+    req.hdr.send_labels = htonl(send_labels);
+    req.hdr.recv_labels = htonl(recv_labels);
+
     if (numdeps > 0) {
         req.hdr.op.begin_irob.deps = new irob_id_t[numdeps];
         for (int i = 0; i < numdeps; i++) {
@@ -95,7 +96,8 @@ CMMSocketSender::begin_irob(irob_id_t next_irob,
     }
     
     {
-        PendingIROB *pirob = new PendingSenderIROB(req.hdr.op.begin_irob,
+        PendingIROB *pirob = new PendingSenderIROB(req.hdr.op.begin_irob, 
+						   send_labels, recv_labels,
                                                    resume_handler, rh_arg);
         PendingIROBHash::accessor ac;
         bool success = pending_irobs.insert(ac, pirob);
@@ -247,13 +249,12 @@ CMMSocketSender::default_irob(irob_id_t next_irob,
 
     struct default_irob_data default_irob;
     default_irob.id = htonl(id);
-    default_irob.send_labels = htonl(send_labels);
-    default_irob.recv_labels = htonl(recv_labels);
     default_irob.datalen = htonl(len);
     default_irob.data = new char[len];
     memcpy(default_irob.data, buf, len);
     {
-        PendingIROB *pirob = new PendingSenderIROB(default_irob,
+        PendingIROB *pirob = new PendingSenderIROB(default_irob, 
+						   send_labels, recv_labels,
                                                    resume_handler, rh_arg);
         PendingIROBHash::accessor ac;
         bool success = pending_irobs.insert(ac, pirob);
@@ -264,6 +265,8 @@ CMMSocketSender::default_irob(irob_id_t next_irob,
     req.requester_tid = pthread_self();
     req.hdr.type = htons(CMM_CONTROL_MSG_DEFAULT_IROB);
     req.hdr.op.default_irob = default_irob;
+    req.hdr.send_labels = htonl(send_labels);
+    req.hdr.recv_labels = htonl(recv_labels);
 
     long rc = enqueue_and_wait_for_completion(req);
     TIME(end);
@@ -307,13 +310,16 @@ CMMSocketSender::down_interface(struct in_addr ip_addr)
 }
 
 void 
-CMMSocketSender::ack(irob_id_t id, u_long seqno)
+CMMSocketSender::ack(irob_id_t id, u_long seqno, 
+		     u_long ack_send_labels, u_long ack_recv_labels)
 {
     struct CMMSocketRequest req;
     req.requester_tid = pthread_self();
     req.hdr.type = htons(CMM_CONTROL_MSG_ACK);
     req.hdr.op.ack.id = htonl(id);
     req.hdr.op.ack.seqno = htonl(seqno);
+    req.hdr.send_labels = htonl(ack_send_labels);
+    req.hdr.recv_labels = htonl(ack_recv_labels);
 
     struct timeval begin, end, diff;
     TIME(begin);
@@ -436,39 +442,16 @@ CMMSocketSender::pass_to_any_worker(struct CMMSocketRequest req)
 void
 CMMSocketSender::pass_to_any_worker_prefer_labels(struct CMMSocketRequest req)
 {
-    struct CMMSocketControlHdr& hdr = req.hdr;
-
-    u_long send_labels = 0, recv_labels = 0;
-    if (req.hdr.type == htons(CMM_CONTROL_MSG_END_IROB)) {
-	irob_id_t id = ntohl(hdr.op.end_irob.id);
-	PendingIROBHash::const_accessor ac;
-	if (!pending_irobs.find(ac, id)) {
-	    throw Exception::make("Sending message for nonexistent IROB", req);
-	}
-	PendingIROB *pirob = ac->second;
-	assert(pirob);
-	send_labels = pirob->send_labels;
-	recv_labels = pirob->recv_labels;
-    } else {
-	assert(req.hdr.type == htons(CMM_CONTROL_MSG_ACK));
-	irob_id_t id = ntohl(hdr.op.ack.id);
-	PendingIROBHash::const_accessor ac;
-	if (!sk->recvr->find_irob(ac, id)) {
-	    throw Exception::make("Sending ACK for nonexistent IROB", req);
-	}
-	PendingIROB *pirob = ac->second;
-	assert(pirob);
-
-	/* Send this ACK on the same connection that the ACK'd packet
-	 * was received on, if possible. */
-	send_labels = pirob->recv_labels;
-	recv_labels = pirob->send_labels;
-    }
+    u_long send_labels = ntohl(req.hdr.send_labels);
+    u_long recv_labels = ntohl(req.hdr.recv_labels);
+    short type = ntohs(req.hdr.type);
+    assert(type == CMM_CONTROL_MSG_END_IROB ||
+	   type == CMM_CONTROL_MSG_ACK);
 
     CSocket *csock = NULL;
     try {
         csock = sk->csock_map->new_csock_with_labels(send_labels,
-                                                    recv_labels);
+						     recv_labels);
     } catch (std::runtime_error& e) {
 	/* this means we ran out of memory/FDs. */
         dbgprintf("Error passing message to worker pref lbls: %s\n", e.what());
@@ -502,8 +485,9 @@ static void resume_request(BlockingRequest *breq)
 void
 CMMSocketSender::pass_to_worker_by_labels(struct CMMSocketRequest req)
 {
-    PendingIROBHash::const_accessor ac;
     irob_id_t id;
+    u_long send_labels = ntohl(req.hdr.send_labels);
+    u_long recv_labels = ntohl(req.hdr.recv_labels);
     if (req.hdr.type == htons(CMM_CONTROL_MSG_BEGIN_IROB)) {
         id = ntohl(req.hdr.op.begin_irob.id);
     } else if (req.hdr.type == htons(CMM_CONTROL_MSG_IROB_CHUNK)) {
@@ -512,15 +496,10 @@ CMMSocketSender::pass_to_worker_by_labels(struct CMMSocketRequest req)
 	id = ntohl(req.hdr.op.default_irob.id);
     } else assert(0);
 
-    if (!pending_irobs.find(ac, id)) {
-        throw Exception::make("Sending message for non-existent IROB\n", req);
-    }
-    PendingIROB *pirob = ac->second;
-    assert(pirob);
     CSocket *csock = NULL;
     try {
-        csock = sk->csock_map->new_csock_with_labels(pirob->send_labels, 
-                                                    pirob->recv_labels);
+        csock = sk->csock_map->new_csock_with_labels(send_labels, 
+						     recv_labels);
     } catch (std::runtime_error& e) {
         dbgprintf("Error passing message to worker by labels: %s\n", e.what());
         signal_completion(req.requester_tid, CMM_FAILED);
@@ -528,19 +507,25 @@ CMMSocketSender::pass_to_worker_by_labels(struct CMMSocketRequest req)
     }
 
     if (csock) {
-        ac.release();
         csock->send(req);
     } else {
-        PendingSenderIROB *psirob = static_cast<PendingSenderIROB*>(pirob);
+	PendingIROBHash::const_accessor ac;
+	if (!pending_irobs.find(ac, id)) {
+	    throw Exception::make("Sending message for non-existent IROB\n", req);
+	}
+	PendingIROB *pirob = ac->second;
+	assert(pirob);
+	PendingSenderIROB *psirob = static_cast<PendingSenderIROB*>(pirob);
         assert(psirob);
         if (psirob->resume_handler) {
-            enqueue_handler(sk->sock, pirob->send_labels, pirob->recv_labels,
+            enqueue_handler(sk->sock, send_labels, recv_labels,
                             psirob->resume_handler, psirob->rh_arg);
             signal_completion(req.requester_tid, CMM_DEFERRED);
         } else {
             /* no resume handler, so just wait until a suitable network
              * becomes available and try the request again. */
-            enqueue_handler(sk->sock, pirob->send_labels, pirob->recv_labels,
+	    /* TODO: nonblocking */
+            enqueue_handler(sk->sock, send_labels, recv_labels,
                             (resume_handler_t)resume_request, 
                             new BlockingRequest(this, req));
         }

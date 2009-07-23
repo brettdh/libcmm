@@ -22,8 +22,10 @@
 
 class PendingIROB {
   public:
-    PendingIROB(struct begin_irob_data data);
-    PendingIROB(struct default_irob_data data);
+    PendingIROB(struct begin_irob_data data,
+		u_long send_labels, u_long recv_labels);
+    PendingIROB(struct default_irob_data data,
+		u_long send_labels, u_long recv_labels);
     virtual ~PendingIROB();
 
     /* return true on success; false if action is invalid */

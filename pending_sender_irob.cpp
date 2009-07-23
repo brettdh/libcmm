@@ -2,10 +2,11 @@
 #include "pending_sender_irob.h"
 #include "debug.h"
 
-PendingSenderIROB::PendingSenderIROB(struct begin_irob_data begin_irob,
+PendingSenderIROB::PendingSenderIROB(struct begin_irob_data begin_irob, 
+				     u_long send_labels, u_long recv_labels,
                                      resume_handler_t resume_handler_, 
                                      void *rh_arg_)
-    : PendingIROB(begin_irob),
+    : PendingIROB(begin_irob, send_labels, recv_labels),
       next_seqno(INVALID_IROB_SEQNO + 1),
       resume_handler(resume_handler_), rh_arg(rh_arg_),
       acked(false)
@@ -13,8 +14,9 @@ PendingSenderIROB::PendingSenderIROB(struct begin_irob_data begin_irob,
 }
 
 PendingSenderIROB::PendingSenderIROB(struct default_irob_data data,
+				     u_long send_labels, u_long recv_labels,
 				     resume_handler_t resume_handler_, void *rh_arg_)
-    : PendingIROB(data),
+    : PendingIROB(data, send_labels, recv_labels),
       next_seqno(INVALID_IROB_SEQNO + 1),
       resume_handler(resume_handler_), rh_arg(rh_arg_),
       acked(false)

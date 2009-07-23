@@ -4,11 +4,12 @@
 using std::mem_fun_ref;
 using std::bind1st;
 
-PendingIROB::PendingIROB(struct begin_irob_data begin_irob)
-    : id(ntohl(begin_irob.id)), 
-      send_labels(ntohl(begin_irob.send_labels)), 
-      recv_labels(ntohl(begin_irob.recv_labels)),
-      anonymous(false), 
+PendingIROB::PendingIROB(struct begin_irob_data begin_irob,
+			 u_long send_labels_, u_long recv_labels_)
+    : id(ntohl(begin_irob.id)),
+      send_labels(send_labels_),
+      recv_labels(recv_labels_),
+      anonymous(false),
       complete(false)
 {
     int numdeps = ntohl(begin_irob.numdeps);
@@ -22,10 +23,11 @@ PendingIROB::PendingIROB(struct begin_irob_data begin_irob)
     }
 }
 
-PendingIROB::PendingIROB(struct default_irob_data default_irob)
+PendingIROB::PendingIROB(struct default_irob_data default_irob,
+			 u_long send_labels_, u_long recv_labels_)
     : id(ntohl(default_irob.id)), 
-      send_labels(ntohl(default_irob.send_labels)), 
-      recv_labels(ntohl(default_irob.recv_labels)),
+      send_labels(send_labels_), 
+      recv_labels(recv_labels_),
       anonymous(true), 
       complete(true)
 {

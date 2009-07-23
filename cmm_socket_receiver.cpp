@@ -67,7 +67,9 @@ CMMSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
         assert(hdr.op.begin_irob.deps);
     }
 
-    PendingIROB *pirob = new PendingReceiverIROB(hdr.op.begin_irob);
+    PendingIROB *pirob = new PendingReceiverIROB(hdr.op.begin_irob,
+						 ntohl(hdr.send_labels),
+						 ntohl(hdr.recv_labels));
     PendingIROBHash::accessor ac;
     if (!pending_irobs.insert(ac, pirob)) {
         delete pirob;
@@ -149,8 +151,10 @@ CMMSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
 		  chunk.seqno, id);
     }
     ac.release();
+    u_long ack_send_labels = hdr.recv_labels;
+    u_long ack_recv_labels = hdr.send_labels;
     
-    sk->sendr->ack(id, chunk.seqno);
+    sk->sendr->ack(id, chunk.seqno, ack_send_labels, ack_recv_labels);
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Added and ACK'd chunk %d in IROB %d, took %lu.%06lu seconds\n",
@@ -164,7 +168,9 @@ CMMSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
     TIME(begin);
 
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_DEFAULT_IROB);
-    PendingIROB *pirob = new PendingReceiverIROB(hdr.op.default_irob);
+    PendingIROB *pirob = new PendingReceiverIROB(hdr.op.default_irob,
+						 ntohl(hdr.send_labels),
+						 ntohl(hdr.recv_labels));
     PendingIROBHash::accessor ac;
     if (!pending_irobs.insert(ac, pirob)) {
         delete pirob;
@@ -176,7 +182,11 @@ CMMSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
     pending_irobs.release_if_ready(prirob, ReadyIROB());
     ac.release();
 
-    sk->sendr->ack(ntohl(hdr.op.default_irob.id));
+    u_long ack_send_labels = hdr.recv_labels;
+    u_long ack_recv_labels = hdr.send_labels;
+
+    sk->sendr->ack(ntohl(hdr.op.default_irob.id), INVALID_IROB_SEQNO,
+		   ack_send_labels, ack_recv_labels);
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Received default IROB %d, took %lu.%06lu seconds\n",

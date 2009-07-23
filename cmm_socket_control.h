@@ -24,8 +24,6 @@ struct hello_data {
 
 struct begin_irob_data {
     irob_id_t id;
-    u_long send_labels;
-    u_long recv_labels;
     int numdeps;
     irob_id_t *deps; /* NULL in network messages
                       * Allocated and used at receiver */
@@ -47,8 +45,6 @@ struct irob_chunk_data {
 
 struct default_irob_data {
     irob_id_t id;
-    u_long send_labels;
-    u_long recv_labels;
     size_t datalen;
     char *data; /* NULL in network messages
                  * Allocated and used at receiver */
@@ -74,6 +70,8 @@ struct ack_data {
 
 struct CMMSocketControlHdr {
     short type;
+    u_long send_labels;
+    u_long recv_labels;
     short msgtype() { return type; }
     void settype(short t) { type = t; }
     union {

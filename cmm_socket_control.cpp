@@ -45,6 +45,8 @@ CMMSocketControlHdr::describe() const
 {
     std::ostringstream stream;
     stream << "Type: " << type_str() << " ";
+    stream << "Send labels: " << ntohl(send_labels) << " ";
+    stream << "Recv labels: " << ntohl(recv_labels) << " ";
     switch (ntohs(type)) {
     case CMM_CONTROL_MSG_HELLO:
       stream << "listen port: " << ntohs(op.hello.listen_port) << " ";
@@ -52,8 +54,6 @@ CMMSocketControlHdr::describe() const
       break;
     case CMM_CONTROL_MSG_BEGIN_IROB:
         stream << "IROB: " << ntohl(op.begin_irob.id) << " ";
-        stream << "send_labels: " << ntohl(op.begin_irob.send_labels) << " ";
-        stream << "recv_labels: " << ntohl(op.begin_irob.recv_labels) << " ";
         stream << "numdeps: " << op.begin_irob.numdeps;
         if (op.begin_irob.deps) {
             stream << " [ ";
@@ -73,8 +73,6 @@ CMMSocketControlHdr::describe() const
         break;
     case CMM_CONTROL_MSG_DEFAULT_IROB:
         stream << "IROB: " << ntohl(op.default_irob.id) << " ";
-        stream << "send_labels: " << ntohl(op.default_irob.send_labels) << " ";
-        stream << "recv_labels: " << ntohl(op.default_irob.recv_labels) << " ";	
         stream << "datalen: " << ntohl(op.default_irob.datalen);
 	break;
     case CMM_CONTROL_MSG_NEW_INTERFACE:

@@ -12,8 +12,10 @@
 
 class PendingReceiverIROB : public PendingIROB {
   public:
-    PendingReceiverIROB(struct begin_irob_data data);
-    PendingReceiverIROB(struct default_irob_data data);
+    PendingReceiverIROB(struct begin_irob_data data,
+			u_long send_labels, u_long recv_labels);
+    PendingReceiverIROB(struct default_irob_data data,
+			u_long send_labels, u_long recv_labels);
     
     bool add_chunk(struct irob_chunk_data&); /* host byte order */
 
