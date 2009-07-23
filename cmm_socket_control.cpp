@@ -32,9 +32,12 @@ CMMSocketControlHdr::type_str() const
 	"Goodbye",
 	"(unknown)"
     };
+    static const char *term_str = "(Terminate thread)";
 
     short my_type = ntohs(type);
-    if (my_type > CMM_CONTROL_MSG_GOODBYE || my_type < CMM_CONTROL_MSG_HELLO) {
+    if (my_type == CMMSocketScheduler<CMMSocketControlHdr>::CMM_TERMINATE_THREAD) {
+	return term_str;
+    } else if (my_type > CMM_CONTROL_MSG_GOODBYE || my_type < CMM_CONTROL_MSG_HELLO) {
 	my_type = CMM_CONTROL_MSG_GOODBYE + 1;
     }
     return strs[my_type];
@@ -45,8 +48,10 @@ CMMSocketControlHdr::describe() const
 {
     std::ostringstream stream;
     stream << "Type: " << type_str() << " ";
-    stream << "Send labels: " << ntohl(send_labels) << " ";
-    stream << "Recv labels: " << ntohl(recv_labels) << " ";
+    if (type != CMMSocketScheduler<CMMSocketControlHdr>::CMM_TERMINATE_THREAD) {
+	stream << "Send labels: " << ntohl(send_labels) << " ";
+	stream << "Recv labels: " << ntohl(recv_labels) << " ";
+    }
     switch (ntohs(type)) {
     case CMM_CONTROL_MSG_HELLO:
       stream << "listen port: " << ntohs(op.hello.listen_port) << " ";

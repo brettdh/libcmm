@@ -68,13 +68,14 @@ class CMMSocketScheduler : public CMMThread {
 
     //std::map<short, Handler*> dispatcher;
     static const short MAX_HANDLERS = 20;
-    static const short CMM_TERMINATE_THREAD = MAX_HANDLERS - 1;
  
     Handler *dispatcher[MAX_HANDLERS];
 
     void terminate_thread(MsgClass msg);
 
   public:
+    static const short CMM_TERMINATE_THREAD = MAX_HANDLERS - 1;
+
     template <typename T>
     void handle(short type, T *obj, void (T::*fn)(MsgClass));
 };

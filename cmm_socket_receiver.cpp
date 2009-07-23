@@ -151,8 +151,8 @@ CMMSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
 		  chunk.seqno, id);
     }
     ac.release();
-    u_long ack_send_labels = hdr.recv_labels;
-    u_long ack_recv_labels = hdr.send_labels;
+    u_long ack_send_labels = ntohl(hdr.recv_labels);
+    u_long ack_recv_labels = ntohl(hdr.send_labels);
     
     sk->sendr->ack(id, chunk.seqno, ack_send_labels, ack_recv_labels);
     TIME(end);
@@ -182,8 +182,8 @@ CMMSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
     pending_irobs.release_if_ready(prirob, ReadyIROB());
     ac.release();
 
-    u_long ack_send_labels = hdr.recv_labels;
-    u_long ack_recv_labels = hdr.send_labels;
+    u_long ack_send_labels = ntohl(hdr.recv_labels);
+    u_long ack_recv_labels = ntohl(hdr.send_labels);
 
     sk->sendr->ack(ntohl(hdr.op.default_irob.id), INVALID_IROB_SEQNO,
 		   ack_send_labels, ack_recv_labels);
