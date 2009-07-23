@@ -330,7 +330,7 @@ CMMSocketSender::ack(irob_id_t id, u_long seqno,
 		     u_long ack_send_labels, u_long ack_recv_labels)
 {
     struct CMMSocketRequest req;
-    req.requester_tid = pthread_self();
+    req.requester_tid = 0;
     req.hdr.type = htons(CMM_CONTROL_MSG_ACK);
     req.hdr.op.ack.id = htonl(id);
     req.hdr.op.ack.seqno = htonl(seqno);
@@ -339,10 +339,10 @@ CMMSocketSender::ack(irob_id_t id, u_long seqno,
 
     struct timeval begin, end, diff;
     TIME(begin);
-    (void)enqueue_and_wait_for_completion(req);
+    enqueue(req);
     TIME(end);
     TIMEDIFF(begin, end, diff);
-    dbgprintf("Completed request in %lu.%06lu seconds (%s)\n",
+    dbgprintf("Enqueued request in %lu.%06lu seconds (%s)\n",
 	      diff.tv_sec, diff.tv_usec,
 	      req.describe().c_str());
 }
