@@ -246,10 +246,10 @@ CMMSocketSender::default_irob(irob_id_t next_irob,
     irob_id_t id = next_irob;
 
     struct default_irob_data default_irob;
-    default_irob.id = id;
-    default_irob.send_labels = send_labels;
-    default_irob.recv_labels = recv_labels;
-    default_irob.datalen = len;
+    default_irob.id = htonl(id);
+    default_irob.send_labels = htonl(send_labels);
+    default_irob.recv_labels = htonl(recv_labels);
+    default_irob.datalen = htonl(len);
     default_irob.data = new char[len];
     memcpy(default_irob.data, buf, len);
     {
@@ -263,11 +263,6 @@ CMMSocketSender::default_irob(irob_id_t next_irob,
     struct CMMSocketRequest req;
     req.requester_tid = pthread_self();
     req.hdr.type = htons(CMM_CONTROL_MSG_DEFAULT_IROB);
-
-    default_irob.id = htonl(default_irob.id);
-    default_irob.send_labels = htonl(default_irob.send_labels);
-    default_irob.recv_labels = htonl(default_irob.recv_labels);
-    default_irob.datalen = htonl(default_irob.datalen);
     req.hdr.op.default_irob = default_irob;
 
     long rc = enqueue_and_wait_for_completion(req);
