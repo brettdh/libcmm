@@ -172,9 +172,10 @@ CMMSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
 			      hdr);
     }
     
+    /* missing ack */
     TIME(end);
     TIMEDIFF(begin, end, diff);
-    dbgprintf("Sent default IROB %d, took %lu.%06lu seconds\n",
+    dbgprintf("Received default IROB %d, took %lu.%06lu seconds\n",
 	      ntohl(hdr.op.default_irob.id), diff.tv_sec, diff.tv_usec);
 }
 
