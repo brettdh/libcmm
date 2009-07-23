@@ -75,8 +75,8 @@ void * Worker(void * arg)
         }
 	TIMEDIFF(begin, end, diff);
 #ifdef NOMULTISOCK
-	fprintf(stderr, "Received msg; took %lu.%06lu seconds\n",
-		diff.tv_sec, diff.tv_usec);
+	fprintf(stderr, "[%lu.%06lu][testapp] Received msg; took %lu.%06lu seconds\n",
+		end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec);
 #endif
         ch.data[sizeof(ch)-1] = '\0';
         printf("Msg: %*s\n", (int)(sizeof(ch) - 1), ch.data);
@@ -84,6 +84,8 @@ void * Worker(void * arg)
 	errno = 0;
 	//struct timeval begin, end, diff;
 	TIME(begin);
+	fprintf(stderr, "[%lu.%06lu][testapp] About to send response\n",
+		begin.tv_sec, begin.tv_usec);
 #ifdef NOMULTISOCK
         rc = send(sock, &ch, sizeof(ch), 0);
 #else

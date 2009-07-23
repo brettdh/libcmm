@@ -80,6 +80,9 @@ int get_reply(mc_socket_t sock)
     struct chunk ch = {""};
     struct timeval begin, end, diff;
     TIME(begin);
+    fprintf(stderr, "[%lu.%06lu][testapp] Receiving reply\n",
+	    begin.tv_sec, begin.tv_usec);
+
 #ifdef NOMULTISOCK
     int rc = read(sock, &ch, sizeof(ch));
 #else
@@ -92,8 +95,8 @@ int get_reply(mc_socket_t sock)
     }
     TIMEDIFF(begin, end, diff);
 #ifdef NOMULTISOCK
-    fprintf(stderr, "Received msg in %lu.%06lu seconds\n",
-	    diff.tv_sec, diff.tv_usec);
+    fprintf(stderr, "[%lu.%06lu][testapp] Received msg in %lu.%06lu seconds\n",
+	    end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec);
 #endif
 
     ch.data[sizeof(ch)-1] = '\0';
@@ -289,8 +292,8 @@ int main(int argc, char *argv[])
 	    delete new_args;
 	    TIME(end);
 	    TIMEDIFF(begin, end, diff);
-	    fprintf(stderr, "...message sent, took %lu.%06lu seconds\n",
-		    diff.tv_sec, diff.tv_usec);
+	    fprintf(stderr, "[%lu.%06lu][testapp] ...message sent, took %lu.%06lu seconds\n",
+		    end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec);
             rc = get_reply(shared_sock);
             if (rc < 0) {
                 break;
