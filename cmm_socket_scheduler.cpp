@@ -6,6 +6,8 @@ CMMSocketScheduler<MsgClass>::CMMSocketScheduler()
     memset(dispatcher, 0, sizeof(Handler*) * MAX_HANDLERS);
     handle(CMM_TERMINATE_THREAD, this, 
 	   &CMMSocketScheduler<MsgClass>::terminate_thread);
+    pthread_mutex_init(&queue_mutex, NULL);
+    pthread_cond_init(&queue_cv, NULL);
 }
 
 template <typename MsgClass>
@@ -77,7 +79,10 @@ template <typename MsgClass>
 void
 CMMSocketScheduler<MsgClass>::enqueue(MsgClass msg)
 {
+    pthread_mutex_lock(&queue_mutex);
     msg_queue.push(msg);
+    pthread_cond_signal(&queue_cv);
+    pthread_mutex_unlock(&queue_mutex);
 }
 
 template <typename MsgClass>
@@ -87,7 +92,11 @@ CMMSocketScheduler<MsgClass>::Run(void)
     while (1) {
         MsgClass msg;
 	dbgprintf("About to wait on message queue\n");
-        msg_queue.pop(msg);
+	pthread_mutex_lock(&queue_mutex);
+	while  (!msg_queue.pop_if_present(msg)) {
+	    pthread_cond_wait(&queue_cv, &queue_mutex);
+	}
+	pthread_mutex_unlock(&queue_mutex);
 	dbgprintf("Got new message from queue\n");
 
         dispatch(msg);

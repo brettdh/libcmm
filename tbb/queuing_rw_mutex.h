@@ -32,6 +32,8 @@
 #include <cstring>
 #include "atomic.h"
 
+#include <debug.h>
+
 namespace tbb {
 
 //! Reader-writer lock with local-only spinning.
@@ -100,7 +102,10 @@ public:
 
         //! Release lock (if lock is held).
         ~scoped_lock() {
-            if( mutex ) release();
+	    if( mutex ) {
+		dbgprintf("Released mutex\n");
+		release();
+	    }
         }
 
         //! Acquire lock on given mutex.

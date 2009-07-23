@@ -70,6 +70,10 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
     PendingReceiverIROBHash pending_irobs;
 
     tbb::concurrent_queue<PendingReceiverIROB*> ready_irobs;
+    void enqueue(PendingReceiverIROB *pirob);
+    pthread_mutex_t ready_mutex;
+    pthread_cond_t ready_cv;
+
     PendingReceiverIROB *partially_read_irob;
 };
 
@@ -79,7 +83,7 @@ PendingReceiverIROBLattice::release_if_ready(PendingReceiverIROB *pirob,
                                              Predicate is_ready)
 {
     if (is_ready(pirob)) {
-        ready_irobs.push(pirob);
+        enqueue(pirob);
     }
 }
 

@@ -128,14 +128,14 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
 {
     /* TODO: non-blocking considerations? */
     try {
-        sendr = new CMMSocketSender(this);
-        recvr = new CMMSocketReceiver(this);
-        listener_thread = new ListenerThread(this);
-
+	sendr = new CMMSocketSender(this);
+	recvr = new CMMSocketReceiver(this);
+	listener_thread = new ListenerThread(this);
+	
 	sendr->start();
 	recvr->start();
-        listener_thread->start();
-
+	listener_thread->start();
+    
         pthread_mutex_lock(&hashmaps_mutex);
         for (NetInterfaceSet::iterator it = ifaces.begin();
              it != ifaces.end(); it++) {
@@ -170,7 +170,7 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
 		    dbgprintf("Error connecting bootstrap socket\n");
                     throw rc;
                 }
-                
+		
                 send_local_listeners(bootstrap_sock);
                 recv_remote_listeners(bootstrap_sock);
             } catch (int error_rc) {
@@ -1137,9 +1137,11 @@ CMMSocketImpl::net_available(mc_socket_t sock,
 void 
 CMMSocketImpl::lock(CMMSockHash::const_accessor& ac)
 {
+    dbgprintf("Begin: read-lock msocket %d\n", sock);
     if (!cmm_sock_hash.find(ac, sock)) {
         assert(0);
     }
+    dbgprintf("End: read-lock msocket %d\n", sock);
     assert(get_pointer(ac->second) == this);
 }
 
@@ -1148,8 +1150,10 @@ CMMSocketImpl::lock(CMMSockHash::const_accessor& ac)
 void 
 CMMSocketImpl::lock(CMMSockHash::accessor& ac)
 {
+    dbgprintf("Begin: write-lock msocket %d\n", sock);
     if (!cmm_sock_hash.find(ac, sock)) {
         assert(0);
     }
+    dbgprintf("End: write-lock msocket %d\n", sock);
     assert(get_pointer(ac->second) == this);
 }

@@ -93,6 +93,8 @@ PendingReceiverIROB::numbytes()
 PendingReceiverIROBLattice::PendingReceiverIROBLattice()
     : partially_read_irob(NULL)
 {
+    pthread_mutex_init(&ready_mutex, NULL);
+    pthread_cond_init(&ready_cv, NULL);
 }
 
 /* There's a race on partially_read_irob between get_ready_irob and 
@@ -112,7 +114,11 @@ PendingReceiverIROBLattice::get_ready_irob()
         /* TODO: nonblocking */
 	struct timeval begin, end, diff;
 	TIME(begin);
-        ready_irobs.pop(pirob);
+	pthread_mutex_lock(&ready_mutex);
+        while (!ready_irobs.pop_if_present(pirob)) {
+	    pthread_cond_wait(&ready_cv, &ready_mutex);
+	}
+	pthread_mutex_unlock(&ready_mutex);
 	TIME(end);
 	TIMEDIFF(begin, end, diff);
 	dbgprintf("recv: spent %lu.%06lu seconds blocked on the IROB queue\n",
@@ -132,5 +138,14 @@ void
 PendingReceiverIROBLattice::shutdown()
 {
     /* This will cause further recvs to return 0 (EOF). */
-    ready_irobs.push(NULL);
+    enqueue(NULL);
+}
+
+void
+PendingReceiverIROBLattice::enqueue(PendingReceiverIROB *pirob)
+{
+    pthread_mutex_lock(&ready_mutex);
+    ready_irobs.push(pirob);
+    pthread_cond_signal(&ready_cv);
+    pthread_mutex_unlock(&ready_mutex);
 }

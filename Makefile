@@ -30,7 +30,7 @@ vanilla_test_receiver: vanilla_test_receiver.o
 vanilla_%.o: libcmm_%.cpp
 	$(CXX) $(CXXFLAGS) -DNOMULTISOCK $(LDFLAGS) -c -o $@ $<
 
-conn_scout: libcmm_scout.o cdf_sampler.o
+conn_scout: libcmm_scout.o cdf_sampler.o debug.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -o $@ $^
 
 libcmm.so: libcmm_new.o libcmm_ipc.o cmm_socket.o cmm_socket_impl.o \

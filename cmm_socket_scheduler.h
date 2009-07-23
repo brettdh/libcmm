@@ -36,6 +36,9 @@ class CMMSocketScheduler : public CMMThread {
     typedef tbb::concurrent_queue<MsgClass> ControlMsgQueue;
     ControlMsgQueue msg_queue;
 
+    pthread_mutex_t queue_mutex;
+    pthread_cond_t queue_cv;
+
     /* Default: read messages from msg_queue and dispatch them, forever. 
      * Any std::exception raised prints e.what() and terminates the thread. 
      * Subclasses should call handle() in their constructor to 

@@ -43,6 +43,8 @@
 #include <typeinfo>
 #endif
 
+#include <debug.h>
+
 namespace tbb {
 
 template<typename Key, typename T, typename HashCompare, typename A = tbb_allocator<std::pair<Key, T> > >
@@ -507,43 +509,64 @@ public:
     //! Find item and acquire a read lock on the item.
     /** Return true if item is found, false otherwise. */
     bool find( const_accessor& result, const Key& key ) const {
-        return const_cast<concurrent_hash_map*>(this)->lookup</*insert*/false>(&result, key, /*write=*/false, NULL );
+	dbgprintf("Begin: concurrent_hash_map::find(const_accessor)\n");
+        bool rc = const_cast<concurrent_hash_map*>(this)->lookup</*insert*/false>(&result, key, /*write=*/false, NULL );
+	dbgprintf("End:   concurrent_hash_map::find(const_accessor)\n");
+	return rc;
     }
 
     //! Find item and acquire a write lock on the item.
     /** Return true if item is found, false otherwise. */
     bool find( accessor& result, const Key& key ) {
-        return lookup</*insert*/false>(&result, key, /*write=*/true, NULL );
+	dbgprintf("Begin: concurrent_hash_map::find(accessor)\n");
+        bool rc = lookup</*insert*/false>(&result, key, /*write=*/true, NULL );
+	dbgprintf("End:   concurrent_hash_map::find(accessor)\n");
+	return rc;
     }
         
     //! Insert item (if not already present) and acquire a read lock on the item.
     /** Returns true if item is new. */
     bool insert( const_accessor& result, const Key& key ) {
-        return lookup</*insert*/true>(&result, key, /*write=*/false, NULL );
+	dbgprintf("Begin: concurrent_hash_map::insert(const_accessor)\n");
+        bool rc = lookup</*insert*/true>(&result, key, /*write=*/false, NULL );
+	dbgprintf("End:   concurrent_hash_map::insert(const_accessor)\n");
+	return rc;
     }
 
     //! Insert item (if not already present) and acquire a write lock on the item.
     /** Returns true if item is new. */
     bool insert( accessor& result, const Key& key ) {
-        return lookup</*insert*/true>(&result, key, /*write=*/true, NULL );
+	dbgprintf("Begin: concurrent_hash_map::insert(accessor)\n");
+        bool rc = lookup</*insert*/true>(&result, key, /*write=*/true, NULL );
+	dbgprintf("End:   concurrent_hash_map::insert(accessor)\n");
+	return rc;
     }
 
     //! Insert item by copying if there is no such key present already and acquire a read lock on the item.
     /** Returns true if item is new. */
     bool insert( const_accessor& result, const value_type& value ) {
-        return lookup</*insert*/true>(&result, value.first, /*write=*/false, &value.second );
+	dbgprintf("Begin: concurrent_hash_map::insert(const_accessor)\n");
+        bool rc = lookup</*insert*/true>(&result, value.first, /*write=*/false, &value.second );
+	dbgprintf("End:   concurrent_hash_map::insert(const_accessor)\n");
+	return rc;
     }
 
     //! Insert item by copying if there is no such key present already and acquire a write lock on the item.
     /** Returns true if item is new. */
     bool insert( accessor& result, const value_type& value ) {
-        return lookup</*insert*/true>(&result, value.first, /*write=*/true, &value.second );
+	dbgprintf("Begin: concurrent_hash_map::insert(accessor)\n");
+        bool rc = lookup</*insert*/true>(&result, value.first, /*write=*/true, &value.second );
+	dbgprintf("End:   concurrent_hash_map::insert(accessor)\n");
+	return rc;
     }
 
     //! Insert item by copying if there is no such key present already
     /** Returns true if item is inserted. */
     bool insert( const value_type& value ) {
-        return lookup</*insert*/true>(NULL, value.first, /*write=*/false, &value.second );
+	dbgprintf("Begin: concurrent_hash_map::insert(value)\n");
+        bool rc = lookup</*insert*/true>(NULL, value.first, /*write=*/false, &value.second );
+	dbgprintf("End:   concurrent_hash_map::insert(value)\n");
+	return rc;
     }
 
     //! Insert range [first, last)

@@ -108,6 +108,7 @@ PendingIROBLattice::insert(PendingIROBHash::accessor& ac, PendingIROB *pirob)
                   pirob->id);
         return false;
     }
+    dbgprintf("Begin: pending_irobs.insert\n");
     if (!pending_irobs.insert(ac, pirob->id)) {
         ac.release();
         dbgprintf("E: Tried to add irob %d, which I've already added\n",
@@ -117,6 +118,7 @@ PendingIROBLattice::insert(PendingIROBHash::accessor& ac, PendingIROB *pirob)
     ac->second = pirob;
 
     correct_deps(pirob);
+    dbgprintf("End: pending_irobs.insert\n");
     return true;
 }
 
@@ -142,14 +144,20 @@ bool
 PendingIROBLattice::find(PendingIROBHash::const_accessor& ac, 
                          irob_id_t id)
 {
-    return pending_irobs.find(ac, id);
+    dbgprintf("Begin: pending_irobs.find(const_accessor)\n");
+    bool result = pending_irobs.find(ac, id);
+    dbgprintf("End: pending_irobs.find(const_accessor)\n");
+    return result;
 }
 
 bool
 PendingIROBLattice::find(PendingIROBHash::accessor& ac, 
                          irob_id_t id)
 {
-    return pending_irobs.find(ac, id);
+    dbgprintf("Begin: pending_irobs.find(accessor)\n");
+    bool result = pending_irobs.find(ac, id);
+    dbgprintf("End: pending_irobs.find(accessor)\n");
+    return result;
 }
 
 bool
@@ -157,14 +165,20 @@ PendingIROBLattice::find(PendingIROBHash::const_accessor& ac,
                          PendingIROB *pirob)
 {
     assert(pirob);
-    return pending_irobs.find(ac, pirob->id);
+    dbgprintf("Begin: pending_irobs.find(const_accessor)\n");
+    bool result = pending_irobs.find(ac, pirob->id);
+    dbgprintf("End: pending_irobs.find(const_accessor)\n");
+    return result;
 }
 
 bool
 PendingIROBLattice::find(PendingIROBHash::accessor& ac, PendingIROB *pirob)
 {
     assert(pirob);
-    return pending_irobs.find(ac, pirob->id);
+    dbgprintf("Begin: pending_irobs.find(accessor)\n");
+    bool result = pending_irobs.find(ac, pirob->id);
+    dbgprintf("End: pending_irobs.find(accessor)\n");
+    return result;
 }
 
 bool 
@@ -173,20 +187,26 @@ PendingIROBLattice::any(PendingIROBHash::accessor &ac)
     if (pending_irobs.empty()) {
         return false;
     } else {
-        return pending_irobs.find(ac, pending_irobs.begin()->first);
+        return find(ac, pending_irobs.begin()->first);
     }
 }
 
 bool
 PendingIROBLattice::erase(irob_id_t id)
 {
-    return pending_irobs.erase(id);
+    dbgprintf("Begin: pending_irobs.erase(const_accessor)\n");
+    bool result = pending_irobs.erase(id);
+    dbgprintf("End: pending_irobs.erase(const_accessor)\n");
+    return result;
 }
 
 bool
 PendingIROBLattice::erase(PendingIROBHash::accessor& ac)
 {
-    return pending_irobs.erase(ac);
+    dbgprintf("Begin: pending_irobs.erase(accessor)\n");
+    bool result = pending_irobs.erase(ac);
+    dbgprintf("End: pending_irobs.erase(accessor)\n");
+    return result;
 }
 
 bool 
