@@ -635,8 +635,6 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
 		       u_long send_labels, u_long recv_labels,
 		       resume_handler_t resume_handler, void *arg)
 {
-    int rc;
-
     if ((ssize_t)len < 0) {
 	errno = EINVAL;
 	return -1;
@@ -649,28 +647,29 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
 
     struct timeval begin, end, diff;
     TIME(begin);
-    irob_id_t id = mc_begin_irob(-1, NULL, send_labels, recv_labels, 
-                                 resume_handler, arg);
-    if (id < 0) {
-        return id;
-    }
     
-    ssize_t bytes = mc_irob_send(id, buf, len, flags);
-    if (bytes < 0 || (size_t)bytes != len) {
-        return bytes;
+    irob_id_t id = -1;
+    {
+        CMMSockHash::accessor write_ac;
+        lock(write_ac);
+        id = next_irob++;
     }
-
-    rc = mc_end_irob(id);
-    if (rc < 0) {
-        return rc;
+    CMMSockHash::const_accessor read_ac;
+    lock(read_ac);
+    if (!sendr) {
+        errno = ENOTCONN;
+        return CMM_FAILED;
     }
+    int rc = sendr->default_irob(id, buf, len, flags,
+				 send_labels, recv_labels, 
+				 resume_handler, arg);
 
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("mc_send (%d bytes) took %lu.%06lu seconds, start-to-finish\n", 
-	      bytes, diff.tv_sec, diff.tv_usec);
+	      rc, diff.tv_sec, diff.tv_usec);
 
-    return bytes;
+    return rc;
 }
 
 int 
