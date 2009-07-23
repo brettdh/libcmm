@@ -131,6 +131,7 @@ CMMSocketSender::end_irob(irob_id_t id)
     struct timeval begin, end, diff;
     TIME(begin);
 
+    u_long send_labels, recv_labels;
     {
         PendingIROBHash::accessor ac;
         if (!pending_irobs.find(ac, id)) {
@@ -145,12 +146,17 @@ CMMSocketSender::end_irob(irob_id_t id)
             return -1;
         }
         pirob->finish();
+
+	send_labels = pirob->send_labels;
+	recv_labels = pirob->recv_labels;
     }
     
     struct CMMSocketRequest req;
     req.requester_tid = pthread_self();
     req.hdr.type = htons(CMM_CONTROL_MSG_END_IROB);
     req.hdr.op.end_irob.id = htonl(id);
+    req.hdr.send_labels = htonl(send_labels);
+    req.hdr.recv_labels = htonl(recv_labels);
     
     long rc = enqueue_and_wait_for_completion(req);
     if (rc != 0) {
@@ -188,6 +194,7 @@ CMMSocketSender::irob_chunk(irob_id_t id, const void *buf, size_t len,
     TIME(begin);
 
     struct irob_chunk_data chunk;
+    u_long send_labels, recv_labels;
     {
 	PendingIROBHash::accessor ac;
 	if (!pending_irobs.find(ac, id)) {
@@ -210,11 +217,16 @@ CMMSocketSender::irob_chunk(irob_id_t id, const void *buf, size_t len,
 	PendingSenderIROB *psirob = static_cast<PendingSenderIROB*>(pirob);
 	assert(psirob);
 	psirob->add_chunk(chunk); /* writes correct seqno into struct */
+	
+	send_labels = pirob->send_labels;
+	recv_labels = pirob->recv_labels;
     }
     
     struct CMMSocketRequest req;
     req.requester_tid = pthread_self();
     req.hdr.type = htons(CMM_CONTROL_MSG_IROB_CHUNK);
+    req.hdr.send_labels = htonl(send_labels);
+    req.hdr.recv_labels = htonl(recv_labels);
 
     chunk.id = htonl(chunk.id);
     chunk.seqno = htonl(chunk.seqno);
@@ -291,6 +303,8 @@ CMMSocketSender::new_interface(struct in_addr ip_addr, u_long labels)
     req.hdr.op.new_interface.ip_addr = ip_addr;
     req.hdr.op.new_interface.labels = htonl(labels);
 
+    req.hdr.send_labels = req.hdr.recv_labels = htonl(0);
+
     enqueue(req);
 }
 
@@ -305,6 +319,8 @@ CMMSocketSender::down_interface(struct in_addr ip_addr)
     req.requester_tid = 0; /* signifying that we won't wait for the result */
     req.hdr.type = htons(CMM_CONTROL_MSG_DOWN_INTERFACE);
     req.hdr.op.down_interface.ip_addr = ip_addr;
+
+    req.hdr.send_labels = req.hdr.recv_labels = htonl(0);
 
     enqueue(req);
 }
@@ -380,6 +396,7 @@ CMMSocketSender::goodbye(bool remote_initiated)
 	req.requester_tid = 0;
     }
     req.hdr.type = htons(CMM_CONTROL_MSG_GOODBYE);
+    req.hdr.send_labels = req.hdr.recv_labels = htonl(0);
 
     if (is_shutting_down()) {
 	return;
