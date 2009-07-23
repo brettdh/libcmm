@@ -172,7 +172,11 @@ CMMSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
 			      hdr);
     }
     
-    /* missing ack */
+    PendingReceiverIROB *prirob = static_cast<PendingReceiverIROB*>(pirob);
+    pending_irobs.release_if_ready(prirob, ReadyIROB());
+    ac.release();
+
+    sk->sendr->ack(ntohl(hdr.op.default_irob.id));
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Received default IROB %d, took %lu.%06lu seconds\n",
