@@ -13,11 +13,13 @@ CMMSocketScheduler<MsgClass>::CMMSocketScheduler()
 template <typename MsgClass>
 CMMSocketScheduler<MsgClass>::~CMMSocketScheduler()
 {
+    pthread_mutex_lock(&queue_mutex);
     while (!msg_queue.empty()) {
-        MsgClass msg;
-        msg_queue.pop(msg);
+	MsgClass msg = msg_queue.front();
+        msg_queue.pop();
         msg.cleanup();
     }
+    pthread_mutex_unlock(&queue_mutex);
     for (short i = 0; i < MAX_HANDLERS; i++) {
 	delete dispatcher[i];
     }
@@ -93,9 +95,11 @@ CMMSocketScheduler<MsgClass>::Run(void)
         MsgClass msg;
 	dbgprintf("About to wait on message queue\n");
 	pthread_mutex_lock(&queue_mutex);
-	while  (!msg_queue.pop_if_present(msg)) {
+	while  (msg_queue.empty()) {
 	    pthread_cond_wait(&queue_cv, &queue_mutex);
 	}
+	msg = msg_queue.front();
+	msg_queue.pop();
 	pthread_mutex_unlock(&queue_mutex);
 	dbgprintf("Got new message from queue\n");
 

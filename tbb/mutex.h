@@ -1,5 +1,5 @@
 /*
-    Copyright 2005-2008 Intel Corporation.  All Rights Reserved.
+    Copyright 2005-2009 Intel Corporation.  All Rights Reserved.
 
     This file is part of Threading Building Blocks.
 
@@ -45,8 +45,8 @@ extern void handle_perror( int error_code, const char* what );
 } } //namespaces
 #endif /* _WIN32||_WIN64 */
 
-#include <stdio.h>
 #include "tbb_stddef.h"
+#include "tbb_profiling.h"
 
 namespace tbb {
 
@@ -57,7 +57,7 @@ class mutex {
 public:
     //! Construct unacquired mutex.
     mutex() {
-#if TBB_DO_ASSERT
+#if TBB_USE_ASSERT || TBB_USE_THREADING_TOOLS
     internal_construct();
 #else
   #if _WIN32||_WIN64
@@ -67,11 +67,11 @@ public:
         if( error_code )
             tbb::internal::handle_perror(error_code,"mutex: pthread_mutex_init failed");
   #endif /* _WIN32||_WIN64*/
-#endif /* TBB_DO_ASSERT */
+#endif /* TBB_USE_ASSERT */
     };
 
     ~mutex() {
-#if TBB_DO_ASSERT
+#if TBB_USE_ASSERT
         internal_destroy();
 #else
   #if _WIN32||_WIN64
@@ -80,7 +80,7 @@ public:
         pthread_mutex_destroy(&impl); 
 
   #endif /* _WIN32||_WIN64 */
-#endif /* TBB_DO_ASSERT */
+#endif /* TBB_USE_ASSERT */
     };
 
     class scoped_lock;
@@ -89,7 +89,7 @@ public:
     //! The scoped locking pattern
     /** It helps to avoid the common problem of forgetting to release lock.
         It also nicely provides the "node" for queuing locks. */
-    class scoped_lock : private internal::no_copy {
+    class scoped_lock : internal::no_copy {
     public:
         //! Construct lock that has not acquired a mutex. 
         scoped_lock() : my_mutex(NULL) {};
@@ -108,7 +108,7 @@ public:
 
         //! Acquire lock on given mutex.
         void acquire( mutex& mutex ) {
-#if TBB_DO_ASSERT
+#if TBB_USE_ASSERT
             internal_acquire(mutex);
 #else
             my_mutex = &mutex;
@@ -117,12 +117,12 @@ public:
   #else
             pthread_mutex_lock(&mutex.impl);
   #endif /* _WIN32||_WIN64 */
-#endif /* TBB_DO_ASSERT */
+#endif /* TBB_USE_ASSERT */
         }
 
         //! Try acquire lock on given mutex.
         bool try_acquire( mutex& mutex ) {
-#if TBB_DO_ASSERT
+#if TBB_USE_ASSERT
             return internal_try_acquire (mutex);
 #else
             bool result;
@@ -134,12 +134,12 @@ public:
             if( result )
                 my_mutex = &mutex;
             return result;
-#endif /* TBB_DO_ASSERT */
+#endif /* TBB_USE_ASSERT */
         }
 
         //! Release lock
         void release() {
-#if TBB_DO_ASSERT
+#if TBB_USE_ASSERT
             internal_release ();
 #else
   #if _WIN32||_WIN64
@@ -148,7 +148,7 @@ public:
             pthread_mutex_unlock(&my_mutex->impl);
   #endif /* _WIN32||_WIN64 */
             my_mutex = NULL;
-#endif /* TBB_DO_ASSERT */
+#endif /* TBB_USE_ASSERT */
         }
 
     private:
@@ -156,13 +156,13 @@ public:
         mutex* my_mutex;
 
         //! All checks from acquire using mutex.state were moved here
-        void internal_acquire( mutex& m );
+        void __TBB_EXPORTED_METHOD internal_acquire( mutex& m );
 
         //! All checks from try_acquire using mutex.state were moved here
-        bool internal_try_acquire( mutex& m );
+        bool __TBB_EXPORTED_METHOD internal_try_acquire( mutex& m );
 
         //! All checks from release using mutex.state were moved here
-        void internal_release();
+        void __TBB_EXPORTED_METHOD internal_release();
     };
 
     // Mutex traits
@@ -183,11 +183,13 @@ private:
 #endif /* _WIN32||_WIN64 */
 
     //! All checks from mutex constructor using mutex.state were moved here
-    void internal_construct();
+    void __TBB_EXPORTED_METHOD internal_construct();
 
     //! All checks from mutex destructor using mutex.state were moved here
-    void internal_destroy();
+    void __TBB_EXPORTED_METHOD internal_destroy();
 };
+
+__TBB_DEFINE_PROFILING_SET_NAME(mutex)
 
 } // namespace tbb 
 

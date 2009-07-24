@@ -7,8 +7,9 @@
 #include "cmm_socket_control.h"
 #include "intset.h"
 #include <map>
-#include "tbb/concurrent_hash_map.h"
-#include "tbb/concurrent_queue.h"
+#include <queue>
+//#include "tbb/concurrent_hash_map.h"
+//#include "tbb/concurrent_queue.h"
 #include "pending_irob.h"
 
 /* CMMSocketScheduler
@@ -33,7 +34,8 @@ class CMMSocketScheduler : public CMMThread {
   protected:
     PendingIROBLattice pending_irobs;
     
-    typedef tbb::concurrent_queue<MsgClass> ControlMsgQueue;
+    //typedef tbb::concurrent_queue<MsgClass> ControlMsgQueue;
+    typedef std::queue<MsgClass> ControlMsgQueue;
     ControlMsgQueue msg_queue;
 
     pthread_mutex_t queue_mutex;
@@ -57,7 +59,7 @@ class CMMSocketScheduler : public CMMThread {
     };
     
     template <typename T> 
-    class HandlerImpl : public Handler {
+    class HandlerImpl : public Handler{
       public:
         typedef void (T::*Function)(MsgClass);
         HandlerImpl(T *obj_, Function fn_) : obj(obj_), fn(fn_) {}

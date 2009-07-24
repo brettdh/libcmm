@@ -115,9 +115,11 @@ PendingReceiverIROBLattice::get_ready_irob()
 	struct timeval begin, end, diff;
 	TIME(begin);
 	pthread_mutex_lock(&ready_mutex);
-        while (!ready_irobs.pop_if_present(pirob)) {
+        while (ready_irobs.empty()) {
 	    pthread_cond_wait(&ready_cv, &ready_mutex);
 	}
+	pirob = ready_irobs.front();
+	ready_irobs.pop();
 	pthread_mutex_unlock(&ready_mutex);
 	TIME(end);
 	TIMEDIFF(begin, end, diff);

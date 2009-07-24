@@ -1,5 +1,5 @@
 /*
-    Copyright 2005-2008 Intel Corporation.  All Rights Reserved.
+    Copyright 2005-2009 Intel Corporation.  All Rights Reserved.
 
     This file is part of Threading Building Blocks.
 
@@ -40,13 +40,9 @@ class filter;
 
 //! @cond INTERNAL
 namespace internal {
-const unsigned char IS_SERIAL = 0x1;
-const unsigned char SERIAL_MODE_MASK = 0x1; // the lowest bit 0 is for parallel vs. serial 
 
 // The argument for PIPELINE_VERSION should be an integer between 2 and 9
 #define __TBB_PIPELINE_VERSION(x) (unsigned char)(x-2)<<1
-const unsigned char VERSION_MASK = 0x7<<1; // bits 1-3 are for version
-const unsigned char CURRENT_VERSION = __TBB_PIPELINE_VERSION(3);
 
 typedef unsigned long Token;
 typedef long tokendiff_t;
@@ -58,17 +54,33 @@ class ordered_buffer;
 
 //! A stage in a pipeline.
 /** @ingroup algorithms */
-class filter {
+class filter: internal::no_copy {
 private:
     //! Value used to mark "not in pipeline"
     static filter* not_in_pipeline() {return reinterpret_cast<filter*>(internal::intptr(-1));}
-protected:
-    //! For pipeline version 2 and earlier 0 is parallel and 1 is serial mode
-    enum mode {
-        parallel = internal::CURRENT_VERSION,
-        serial = internal::CURRENT_VERSION | internal::IS_SERIAL
-    };
+    
+    //! The lowest bit 0 is for parallel vs. serial
+    static const unsigned char filter_is_serial = 0x1; 
 
+    //! 4th bit distinguish ordered vs unordered
+    // The bit was not set for parallel filters in TBB 2.1 and earlier,
+    // but is_ordered() function always treats parallel filters as out of order
+    static const unsigned char filter_is_out_of_order = 0x1<<4;  
+
+    static const unsigned char current_version = __TBB_PIPELINE_VERSION(4);
+    static const unsigned char version_mask = 0x7<<1; // bits 1-3 are for version
+public:
+    enum mode {
+        //! processes multiple items in parallel and in no particular order
+        parallel = current_version | filter_is_out_of_order, 
+        //! processes items one at a time; all such filters process items in the same order
+        serial_in_order = current_version | filter_is_serial,
+        //! processes items one at a time and in no particular order
+        serial_out_of_order = current_version | filter_is_serial | filter_is_out_of_order,
+        //! @deprecated use serial_in_order instead
+        serial = serial_in_order
+    };
+protected:
     filter( bool is_serial_ ) : 
         next_filter_in_pipeline(not_in_pipeline()),
         input_buffer(NULL),
@@ -85,12 +97,16 @@ protected:
         my_pipeline(NULL)
     {}
 
-
 public:
-    //! True if filter must receive stream in order.
+    //! True if filter is serial.
     bool is_serial() const {
-        return (my_filter_mode & internal::SERIAL_MODE_MASK) == internal::IS_SERIAL;
+        return bool( my_filter_mode & filter_is_serial );
     }  
+    
+    // ! True if filter must receive stream in order.
+    bool is_ordered() const {
+        return (my_filter_mode & (filter_is_out_of_order|filter_is_serial))==filter_is_serial;
+    }
 
     //! Operate on an item from the input stream, and return item for output stream.
     /** Returns NULL if filter is a sink. */
@@ -98,7 +114,14 @@ public:
 
     //! Destroy filter.  
     /** If the filter was added to a pipeline, the pipeline must be destroyed first. */
-    virtual ~filter();
+    virtual __TBB_EXPORTED_METHOD ~filter();
+
+#if __TBB_EXCEPTIONS
+    //! Destroys item if pipeline is cancelled
+    /** Required to prevent memory leaks 
+        Note it can be called concurrently even for serial filters.*/
+    virtual void finalize( void* /*item*/ ) {};
+#endif
 
 private:
     //! Pointer to next filter in the pipeline.
@@ -125,19 +148,25 @@ private:
 class pipeline {
 public:
     //! Construct empty pipeline.
-    pipeline();
+    __TBB_EXPORTED_METHOD pipeline();
 
-    //! Destroy pipeline.
-    virtual ~pipeline();
+    /** Though the current implementation declares the destructor virtual, do not rely on this 
+        detail.  The virtualness is deprecated and may disappear in future versions of TBB. */
+    virtual __TBB_EXPORTED_METHOD ~pipeline();
 
     //! Add filter to end of pipeline.
-    void add_filter( filter& filter_ );
+    void __TBB_EXPORTED_METHOD add_filter( filter& filter_ );
 
     //! Run the pipeline to completion.
-    void run( size_t max_number_of_live_tokens );
+    void __TBB_EXPORTED_METHOD run( size_t max_number_of_live_tokens );
+
+#if __TBB_EXCEPTIONS
+    //! Run the pipeline to completion with user-supplied context
+    void __TBB_EXPORTED_METHOD run( size_t max_number_of_live_tokens, tbb::task_group_context& context );
+#endif
 
     //! Remove all filters from the pipeline
-    void clear();
+    void __TBB_EXPORTED_METHOD clear();
 
 private:
     friend class internal::stage_task;
@@ -165,7 +194,12 @@ private:
     void remove_filter( filter& filter_ );
 
     //! Not used, but retained to satisfy old export files.
-    void inject_token( task& self );
+    void __TBB_EXPORTED_METHOD inject_token( task& self );
+
+#if __TBB_EXCEPTIONS
+    //! Does clean up if pipeline is cancelled or exception occured
+    void clear_filters();
+#endif
 };
 
 } // tbb

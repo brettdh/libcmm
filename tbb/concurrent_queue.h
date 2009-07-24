@@ -1,5 +1,5 @@
 /*
-    Copyright 2005-2008 Intel Corporation.  All Rights Reserved.
+    Copyright 2005-2009 Intel Corporation.  All Rights Reserved.
 
     This file is part of Threading Building Blocks.
 
@@ -31,7 +31,7 @@
 
 #include "tbb_stddef.h"
 #include "cache_aligned_allocator.h"
-#include "tbb_allocator.h"
+#include <iterator>
 #include <new>
 
 namespace tbb {
@@ -79,27 +79,27 @@ private:
     virtual void copy_item( page& dst, size_t index, const void* src ) = 0;
     virtual void assign_and_destroy_item( void* dst, page& src, size_t index ) = 0;
 protected:
-    concurrent_queue_base_v3( size_t item_size );
-    virtual ~concurrent_queue_base_v3();
+    __TBB_EXPORTED_METHOD concurrent_queue_base_v3( size_t item_size );
+    virtual __TBB_EXPORTED_METHOD ~concurrent_queue_base_v3();
 
     //! Enqueue item at tail of queue
-    void internal_push( const void* src );
+    void __TBB_EXPORTED_METHOD internal_push( const void* src );
 
     //! Dequeue item from head of queue
-    void internal_pop( void* dst );
+    void __TBB_EXPORTED_METHOD internal_pop( void* dst );
 
     //! Attempt to enqueue item onto queue.
-    bool internal_push_if_not_full( const void* src );
+    bool __TBB_EXPORTED_METHOD internal_push_if_not_full( const void* src );
 
     //! Attempt to dequeue item from queue.
     /** NULL if there was no item to dequeue. */
-    bool internal_pop_if_present( void* dst );
+    bool __TBB_EXPORTED_METHOD internal_pop_if_present( void* dst );
 
     //! Get size of queue
-    ptrdiff_t internal_size() const;
+    ptrdiff_t __TBB_EXPORTED_METHOD internal_size() const;
 
     //! set the queue capacity
-    void internal_set_capacity( ptrdiff_t capacity, size_t element_size );
+    void __TBB_EXPORTED_METHOD internal_set_capacity( ptrdiff_t capacity, size_t element_size );
 
     //! custom allocator
     virtual page *allocate_page() = 0;
@@ -108,10 +108,17 @@ protected:
     virtual void deallocate_page( page *p ) = 0;
 
     //! free any remaining pages
-    void internal_finish_clear() ;
+    /* note that the name may be misleading, but it remains so due to a historical accident. */
+    void __TBB_EXPORTED_METHOD internal_finish_clear() ;
 
     //! throw an exception
-    void internal_throw_exception() const;
+    void __TBB_EXPORTED_METHOD internal_throw_exception() const;
+
+    //! copy internal representation
+    void __TBB_EXPORTED_METHOD assign( const concurrent_queue_base_v3& src ) ;
+
+private:
+    virtual void copy_page_item( page& dst, size_t dindex, const page& src, size_t sindex ) = 0;
 };
 
 typedef concurrent_queue_base_v3 concurrent_queue_base ;
@@ -141,16 +148,16 @@ protected:
     }
 
     //! Construct iterator pointing to head of queue.
-    concurrent_queue_iterator_base_v3( const concurrent_queue_base& queue );
+    __TBB_EXPORTED_METHOD concurrent_queue_iterator_base_v3( const concurrent_queue_base& queue );
 
     //! Assignment
-    void assign( const concurrent_queue_iterator_base_v3& i );
+    void __TBB_EXPORTED_METHOD assign( const concurrent_queue_iterator_base_v3& i );
 
     //! Advance iterator one step towards tail of queue.
-    void advance();
+    void __TBB_EXPORTED_METHOD advance();
 
     //! Destructor
-    ~concurrent_queue_iterator_base_v3();
+    __TBB_EXPORTED_METHOD ~concurrent_queue_iterator_base_v3();
 };
 
 typedef concurrent_queue_iterator_base_v3 concurrent_queue_iterator_base;
@@ -159,7 +166,8 @@ typedef concurrent_queue_iterator_base_v3 concurrent_queue_iterator_base;
 /** Value is either the T or const T type of the container.
     @ingroup containers */
 template<typename Container, typename Value>
-class concurrent_queue_iterator: public concurrent_queue_iterator_base_v3 {
+class concurrent_queue_iterator: public concurrent_queue_iterator_base,
+        public std::iterator<std::forward_iterator_tag,Value> {
 #if !defined(_MSC_VER) || defined(__INTEL_COMPILER)
     template<typename T, class A>
     friend class ::tbb::concurrent_queue;
@@ -224,7 +232,7 @@ bool operator!=( const concurrent_queue_iterator<C,T>& i, const concurrent_queue
 
 //! A high-performance thread-safe queue.
 /** Multiple threads may each push and pop concurrently.
-    Assignment and copy construction are not allowed.
+    Assignment construction is not allowed.
     @ingroup containers */
 template<typename T, class A>
 class concurrent_queue: public internal::concurrent_queue_base_v3 {
@@ -235,7 +243,7 @@ class concurrent_queue: public internal::concurrent_queue_base_v3 {
     page_allocator_type my_allocator;
 
     //! Class used to ensure exception-safety of method "pop" 
-    class destroyer {
+    class destroyer: internal::no_copy {
         T& my_value;
     public:
         destroyer( T& value ) : my_value(value) {}
@@ -251,6 +259,10 @@ class concurrent_queue: public internal::concurrent_queue_base_v3 {
         new( &get_ref(dst,index) ) T(*static_cast<const T*>(src)); 
     }
 
+    /*override*/ virtual void copy_page_item( page& dst, size_t dindex, const page& src, size_t sindex ) {
+        new( &get_ref(dst,dindex) ) T( static_cast<const T*>(static_cast<const void*>(&src+1))[sindex] );
+    }
+
     /*override*/ virtual void assign_and_destroy_item( void* dst, page& src, size_t index ) {
         T& from = get_ref(src,index);
         destroyer d(from);
@@ -263,7 +275,7 @@ class concurrent_queue: public internal::concurrent_queue_base_v3 {
         if( !p ) internal_throw_exception(); 
         return p;
     }
-    
+
     /*override*/ virtual void deallocate_page( page *p ) {
         size_t n = sizeof(page) + items_per_page*item_size;
         my_allocator.deallocate( reinterpret_cast<char*>(p), n );
@@ -291,9 +303,8 @@ public:
     typedef std::ptrdiff_t difference_type;
 
     //! Construct empty queue
-    concurrent_queue(const allocator_type  &a = allocator_type()) : 
-        concurrent_queue_base_v3( sizeof(T) )
-            , my_allocator( a )
+    explicit concurrent_queue(const allocator_type  &a = allocator_type()) : 
+        concurrent_queue_base_v3( sizeof(T) ), my_allocator( a )
     {
     }
 
@@ -349,7 +360,7 @@ public:
     //! return allocator object
     allocator_type get_allocator() const { return this->my_allocator; }
 
-    //! clear the queue and release all resources (i.e., pages)
+    //! clear the queue. not thread-safe.
     void clear() ;
 
     typedef internal::concurrent_queue_iterator<concurrent_queue,T> iterator;
@@ -363,11 +374,27 @@ public:
     const_iterator begin() const {return const_iterator(*this);}
     const_iterator end() const {return const_iterator();}
     
+    //! Copy constructor
+    concurrent_queue( const concurrent_queue& src, const allocator_type &a = allocator_type()) : 
+        concurrent_queue_base_v3( sizeof(T) ), my_allocator( a )
+    {
+        assign( src );
+    }
+
+    //! [begin,end) constructor
+    template<typename InputIterator>
+    concurrent_queue( InputIterator begin, InputIterator end, const allocator_type &a = allocator_type()) :
+        concurrent_queue_base_v3( sizeof(T) ), my_allocator( a )
+    {
+        for( ; begin != end; ++begin )
+            internal_push_if_not_full(&*begin);
+    }
 }; 
 
 template<typename T, class A>
 concurrent_queue<T,A>::~concurrent_queue() {
     clear();
+    internal_finish_clear();
 }
 
 template<typename T, class A>
@@ -376,7 +403,6 @@ void concurrent_queue<T,A>::clear() {
         T value;
         internal_pop_if_present(&value);
     }
-    internal_finish_clear();
 }
 
 } // namespace tbb

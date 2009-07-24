@@ -1,5 +1,5 @@
 /*
-    Copyright 2005-2008 Intel Corporation.  All Rights Reserved.
+    Copyright 2005-2009 Intel Corporation.  All Rights Reserved.
 
     This file is part of Threading Building Blocks.
 
@@ -44,7 +44,7 @@ public:
 } // namespace tbb
 
 #if __TBB_EXCEPTIONS
-#include "tbb/tbb_allocator.h"
+#include "tbb_allocator.h"
 #include <exception>
 #include <typeinfo>
 #include <new>
@@ -117,7 +117,7 @@ public:
         set(name, info);
     }
 
-    ~captured_exception () throw() {
+    __TBB_EXPORTED_METHOD ~captured_exception () throw() {
         clear();
     }
 
@@ -139,10 +139,10 @@ public:
     void throw_self () { throw *this; }
 
     /*override*/ 
-    const char* name() const throw();
+    const char* __TBB_EXPORTED_METHOD name() const throw();
 
     /*override*/ 
-    const char* what() const throw();
+    const char* __TBB_EXPORTED_METHOD what() const throw();
 
 private:
     //! Used only by method clone().  

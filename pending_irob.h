@@ -51,10 +51,10 @@ class PendingIROB {
     bool depends_on(irob_id_t id);
 
     /* is this IROB "anonymous", depending on all in-flight IROBs? */
-    bool is_anonymous(void);
+    bool is_anonymous(void) const;
     
     /* has all the data arrived? */
-    bool is_complete(void);
+    bool is_complete(void) const;
 
   protected:
     friend class CMMSocketSender;

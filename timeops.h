@@ -1,6 +1,11 @@
+#ifndef timeops_h_incl
+#define timeops_h_incl
+
 #include <assert.h>
 #include <sys/time.h>
 #include <time.h>
+#include <string>
+#include "debug.h"
 
 /*************************************** time operations */
 
@@ -57,4 +62,25 @@ do {                                                             \
                         (vvp)->tv_usec += 1000000;                      \
                 }                                                       \
         } while (0)
+
+struct TimeFunctionBody {
+#ifndef CMM_DEBUG
+    TimeFunctionBody(const char *str) { (void)str; }
+#else
+    struct timeval begin, end, diff;
+    const char *str;
+  
+    TimeFunctionBody(const char *str_) : str(str_) { 
+	TIME(begin); 
+    }
+    ~TimeFunctionBody() {
+	TIME(end);
+	TIMEDIFF(begin, end, diff);
+	dbgprintf("%s took %lu.%06lu seconds\n", str.c_str(),
+		  diff.tv_sec, diff.tv_usec);
+    }
+#endif
+};
 #endif /* DEF_TIMEOPS */
+
+#endif /* timeops_h_incl */

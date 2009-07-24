@@ -9,6 +9,7 @@
 #include "intset.h"
 #include "pending_irob.h"
 #include "tbb/concurrent_queue.h"
+#include <queue>
 
 class PendingReceiverIROB : public PendingIROB {
   public:
@@ -69,7 +70,7 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
   private:
     PendingReceiverIROBHash pending_irobs;
 
-    tbb::concurrent_queue<PendingReceiverIROB*> ready_irobs;
+    std::queue<PendingReceiverIROB*> ready_irobs;
     void enqueue(PendingReceiverIROB *pirob);
     pthread_mutex_t ready_mutex;
     pthread_cond_t ready_cv;

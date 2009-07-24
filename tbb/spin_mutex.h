@@ -1,5 +1,5 @@
 /*
-    Copyright 2005-2008 Intel Corporation.  All Rights Reserved.
+    Copyright 2005-2009 Intel Corporation.  All Rights Reserved.
 
     This file is part of Threading Building Blocks.
 
@@ -31,7 +31,8 @@
 
 #include <cstddef>
 #include "tbb_stddef.h"
-#include "tbb/tbb_machine.h"
+#include "tbb_machine.h"
+#include "tbb_profiling.h"
 
 namespace tbb {
 
@@ -48,10 +49,14 @@ class spin_mutex {
 public:
     //! Construct unacquired lock.
     /** Equivalent to zero-initialization of *this. */
-    spin_mutex() : flag(0) {}
+    spin_mutex() : flag(0) {
+#if TBB_USE_THREADING_TOOLS
+        internal_construct();
+#endif
+    }
 
     //! Represents acquisition of a mutex.
-    class scoped_lock : private internal::no_copy {
+    class scoped_lock : internal::no_copy {
     private:
         //! Points to currently held mutex, or NULL if no lock is held.
         spin_mutex* my_mutex; 
@@ -60,42 +65,42 @@ public:
         internal::uintptr my_unlock_value;
 
         //! Like acquire, but with ITT instrumentation.
-        void internal_acquire( spin_mutex& m );
+        void __TBB_EXPORTED_METHOD internal_acquire( spin_mutex& m );
 
         //! Like try_acquire, but with ITT instrumentation.
-        bool internal_try_acquire( spin_mutex& m );
+        bool __TBB_EXPORTED_METHOD internal_try_acquire( spin_mutex& m );
 
         //! Like release, but with ITT instrumentation.
-        void internal_release();
+        void __TBB_EXPORTED_METHOD internal_release();
 
     public:
-        //! Construct without without acquiring a mutex.
+        //! Construct without acquiring a mutex.
         scoped_lock() : my_mutex(NULL), my_unlock_value(0) {}
 
         //! Construct and acquire lock on a mutex.
         scoped_lock( spin_mutex& m ) { 
-#if TBB_DO_THREADING_TOOLS||TBB_DO_ASSERT
+#if TBB_USE_THREADING_TOOLS||TBB_USE_ASSERT
             my_mutex=NULL;
             internal_acquire(m);
 #else
             my_unlock_value = __TBB_LockByte(m.flag);
             my_mutex=&m;
-#endif /* TBB_DO_THREADING_TOOLS||TBB_DO_ASSERT*/
+#endif /* TBB_USE_THREADING_TOOLS||TBB_USE_ASSERT*/
         }
 
         //! Acquire lock.
         void acquire( spin_mutex& m ) {
-#if TBB_DO_THREADING_TOOLS||TBB_DO_ASSERT
+#if TBB_USE_THREADING_TOOLS||TBB_USE_ASSERT
             internal_acquire(m);
 #else
             my_unlock_value = __TBB_LockByte(m.flag);
             my_mutex = &m;
-#endif /* TBB_DO_THREADING_TOOLS||TBB_DO_ASSERT*/
+#endif /* TBB_USE_THREADING_TOOLS||TBB_USE_ASSERT*/
         }
 
         //! Try acquiring lock (non-blocking)
         bool try_acquire( spin_mutex& m ) {
-#if TBB_DO_THREADING_TOOLS||TBB_DO_ASSERT
+#if TBB_USE_THREADING_TOOLS||TBB_USE_ASSERT
             return internal_try_acquire(m);
 #else
             bool result = __TBB_TryLockByte(m.flag);
@@ -104,30 +109,32 @@ public:
                 my_mutex = &m;
             }
             return result;
-#endif /* TBB_DO_THREADING_TOOLS||TBB_DO_ASSERT*/
+#endif /* TBB_USE_THREADING_TOOLS||TBB_USE_ASSERT*/
         }
 
         //! Release lock
         void release() {
-#if TBB_DO_THREADING_TOOLS||TBB_DO_ASSERT
+#if TBB_USE_THREADING_TOOLS||TBB_USE_ASSERT
             internal_release();
 #else
             __TBB_store_with_release(my_mutex->flag, static_cast<unsigned char>(my_unlock_value));
             my_mutex = NULL;
-#endif /* TBB_DO_THREADING_TOOLS||TBB_DO_ASSERT */
+#endif /* TBB_USE_THREADING_TOOLS||TBB_USE_ASSERT */
         }
 
         //! Destroy lock.  If holding a lock, releases the lock first.
         ~scoped_lock() {
             if( my_mutex ) {
-#if TBB_DO_THREADING_TOOLS||TBB_DO_ASSERT
+#if TBB_USE_THREADING_TOOLS||TBB_USE_ASSERT
                 internal_release();
 #else
                 __TBB_store_with_release(my_mutex->flag, static_cast<unsigned char>(my_unlock_value));
-#endif /* TBB_DO_THREADING_TOOLS||TBB_DO_ASSERT */
+#endif /* TBB_USE_THREADING_TOOLS||TBB_USE_ASSERT */
             }
         }
     };
+
+    void __TBB_EXPORTED_METHOD internal_construct();
 
     // Mutex traits
     static const bool is_rw_mutex = false;
@@ -136,6 +143,8 @@ public:
 
     friend class scoped_lock;
 };
+
+__TBB_DEFINE_PROFILING_SET_NAME(spin_mutex)
 
 } // namespace tbb
 

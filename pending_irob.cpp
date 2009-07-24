@@ -1,8 +1,14 @@
 #include "pending_irob.h"
 #include "debug.h"
+#include "timeops.h"
 #include <functional>
 using std::mem_fun_ref;
 using std::bind1st;
+
+#include "tbb/parallel_for.h"
+#include "tbb/task_scheduler_init.h"
+using tbb::parallel_for;
+using tbb::task_scheduler_init;
 
 PendingIROB::PendingIROB(struct begin_irob_data begin_irob,
 			 u_long send_labels_, u_long recv_labels_)
@@ -88,13 +94,13 @@ PendingIROB::add_dependent(irob_id_t id)
 }
 
 bool 
-PendingIROB::is_complete(void)
+PendingIROB::is_complete(void) const
 {
     return complete;
 }
 
 bool
-PendingIROB::is_anonymous(void)
+PendingIROB::is_anonymous(void) const
 {
     return anonymous;
 }
@@ -108,7 +114,9 @@ PendingIROBLattice::insert(PendingIROBHash::accessor& ac, PendingIROB *pirob)
                   pirob->id);
         return false;
     }
-    dbgprintf("Begin: pending_irobs.insert\n");
+
+    TimeFunctionBody timer("pending_irobs.insert");
+
     if (!pending_irobs.insert(ac, pirob->id)) {
         ac.release();
         dbgprintf("E: Tried to add irob %d, which I've already added\n",
@@ -118,23 +126,51 @@ PendingIROBLattice::insert(PendingIROBHash::accessor& ac, PendingIROB *pirob)
     ac->second = pirob;
 
     correct_deps(pirob);
-    dbgprintf("End: pending_irobs.insert\n");
+
     return true;
 }
+
+#if 0
+struct CorrectDeps {
+    PendingIROB *pirob;
+    CorrectDeps(PendingIROB *pi) : pirob(pi) {}
+
+    void operator()(const PendingIROBHash::const_range_type& range) const {
+	for (PendingIROBHash::const_iterator it = range.begin();
+	     it != range.end(); ++it) {
+	    correct_dep(it->first, it->second);
+	}
+    }
+
+    void correct_dep(irob_id_t target_id, const PendingIROB *target) const {
+	assert(pirob && target);
+	if (pirob == target) return;
+	if (pirob->is_anonymous() || target->is_anonymous()) {
+	    pirob->add_dep(target_id);
+	}
+    }
+};
+#endif
 
 void
 PendingIROBLattice::correct_deps(PendingIROB *pirob)
 {
     /* 1) If pirob is anonymous, add deps on all pending IROBs. */
     /* 2) Otherwise, add deps on all pending anonymous IROBs. */
+#if 0
+    task_scheduler_init init(1);
+    parallel_for(pending_irobs.range(), CorrectDeps(pirob));
+#else
     for (PendingIROBHash::iterator it = pending_irobs.begin();
-         it != pending_irobs.end(); it++) {
-        if (it->second == pirob) continue;
-
-        if (pirob->is_anonymous() || it->second->is_anonymous()) {
-            pirob->add_dep(it->first);
-        }
+	 it != pending_irobs.end(); it++) {
+	if (it->second == pirob) continue;
+	
+	if (pirob->is_anonymous() || it->second->is_anonymous()) {
+	    pirob->add_dep(it->first);
+	}
     }
+#endif
+
     /* 3) Remove already-satisfied deps. */
     pirob->remove_deps_if(bind1st(mem_fun_ref(&IntSet::contains), 
                                   past_irobs));
@@ -144,9 +180,8 @@ bool
 PendingIROBLattice::find(PendingIROBHash::const_accessor& ac, 
                          irob_id_t id)
 {
-    dbgprintf("Begin: pending_irobs.find(const_accessor)\n");
+    TimeFunctionBody timer("pending_irobs.find(const_accessor)");
     bool result = pending_irobs.find(ac, id);
-    dbgprintf("End: pending_irobs.find(const_accessor)\n");
     return result;
 }
 
@@ -154,9 +189,8 @@ bool
 PendingIROBLattice::find(PendingIROBHash::accessor& ac, 
                          irob_id_t id)
 {
-    dbgprintf("Begin: pending_irobs.find(accessor)\n");
+    TimeFunctionBody timer("pending_irobs.find(accessor)");
     bool result = pending_irobs.find(ac, id);
-    dbgprintf("End: pending_irobs.find(accessor)\n");
     return result;
 }
 
@@ -165,9 +199,8 @@ PendingIROBLattice::find(PendingIROBHash::const_accessor& ac,
                          PendingIROB *pirob)
 {
     assert(pirob);
-    dbgprintf("Begin: pending_irobs.find(const_accessor)\n");
+    TimeFunctionBody timer("pending_irobs.find(const_accessor)");
     bool result = pending_irobs.find(ac, pirob->id);
-    dbgprintf("End: pending_irobs.find(const_accessor)\n");
     return result;
 }
 
@@ -175,9 +208,8 @@ bool
 PendingIROBLattice::find(PendingIROBHash::accessor& ac, PendingIROB *pirob)
 {
     assert(pirob);
-    dbgprintf("Begin: pending_irobs.find(accessor)\n");
+    TimeFunctionBody timer("pending_irobs.find(accessor)");
     bool result = pending_irobs.find(ac, pirob->id);
-    dbgprintf("End: pending_irobs.find(accessor)\n");
     return result;
 }
 
@@ -194,18 +226,16 @@ PendingIROBLattice::any(PendingIROBHash::accessor &ac)
 bool
 PendingIROBLattice::erase(irob_id_t id)
 {
-    dbgprintf("Begin: pending_irobs.erase(const_accessor)\n");
+    TimeFunctionBody timer("pending_irobs.erase(const_accessor)");
     bool result = pending_irobs.erase(id);
-    dbgprintf("End: pending_irobs.erase(const_accessor)\n");
     return result;
 }
 
 bool
 PendingIROBLattice::erase(PendingIROBHash::accessor& ac)
 {
-    dbgprintf("Begin: pending_irobs.erase(accessor)\n");
+    TimeFunctionBody timer("pending_irobs.erase(accessor)");
     bool result = pending_irobs.erase(ac);
-    dbgprintf("End: pending_irobs.erase(accessor)\n");
     return result;
 }
 

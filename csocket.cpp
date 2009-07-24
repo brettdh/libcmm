@@ -7,7 +7,9 @@
 #include "cmm_socket_sender.h"
 #include "cmm_socket_receiver.h"
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 
 class CSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
   public:
@@ -186,6 +188,7 @@ CSocketReceiver::Run(void)
         struct CMMSocketControlHdr hdr;
 
 	dbgprintf("About to wait for network messages\n");
+#if 0
         fd_set readfds;
         FD_ZERO(&readfds);
         FD_SET(csock->osfd, &readfds);
@@ -200,20 +203,18 @@ CSocketReceiver::Run(void)
         }
 
 	dbgprintf("Network message incoming\n");
+#endif
 
 	struct timeval begin, end, diff;
 	TIME(begin);
 
-        rc = recv(csock->osfd, &hdr, sizeof(hdr), 0);
+        int rc = recv(csock->osfd, &hdr, sizeof(hdr), 0);
         if (rc != sizeof(hdr)) {
 	    dbgprintf("CSocketReceiver: recv failed, errno=%d\n", errno);
             return;
         }
 
-	struct timeval tv;
-	TIME(tv);
-	dbgprintf("Received message: %s\n",
-		  hdr.describe().c_str());
+	dbgprintf("Received message: %s\n", hdr.describe().c_str());
 
         dispatch(hdr);
 
@@ -325,6 +326,21 @@ CSocket::CSocket(CMMSocketImpl *sk_,
     } else {
         osfd = accepted_sock;
 	startup_workers();
+    }
+    
+    int on = 1;
+    int rc;
+    /* Make sure that this socket is TCP_NODELAY for good performance */
+    struct protoent *pe = getprotobyname("TCP");
+    if (pe) {
+	rc = setsockopt (osfd, pe->p_proto, TCP_NODELAY, 
+			 (char *) &on, sizeof(on));
+    } else {
+	rc = setsockopt (osfd, 6, TCP_NODELAY, 
+			 (char *) &on, sizeof(on));
+    }
+    if (rc < 0) {
+	dbgprintf("Cannot make socket TCP_NODELAY");
     }
 }
 

@@ -26,27 +26,34 @@
     the GNU General Public License.
 */
 
-#ifndef __TBB_machine_H
-#error Do not include this file directly; include tbb_machine.h instead
-#endif
+#ifndef __TBB_null_mutex_H
+#define __TBB_null_mutex_H
 
-#define __TBB_WORDSIZE 8
-#define __TBB_BIG_ENDIAN 1
-
-#include <stdint.h>
-#include <unistd.h>
-#include <sched.h>
-
-extern "C" {
-
-int32_t __TBB_machine_cas_32 (volatile void* ptr, int32_t value, int32_t comparand);
-int64_t __TBB_machine_cas_64 (volatile void* ptr, int64_t value, int64_t comparand);
-#define __TBB_fence_for_acquire() __TBB_machine_flush ()
-#define __TBB_fence_for_release() __TBB_machine_flush ()
+namespace tbb {
+    
+class null_mutex {   
+    //! Deny assignment and copy construction 
+    null_mutex( const null_mutex& );   
+    void operator=( const null_mutex& );   
+public:   
+    class scoped_lock {   
+    public:   
+        scoped_lock() {}
+        scoped_lock( null_mutex& ) {}   
+        ~scoped_lock() {}
+        void acquire( null_mutex& ) {}
+        bool try_acquire( null_mutex& ) { return true; }
+        void release() {}
+    };
+  
+    null_mutex() {}
+    
+    // Mutex traits   
+    static const bool is_rw_mutex = false;   
+    static const bool is_recursive_mutex = true;
+    static const bool is_fair_mutex = true;
+};  
 
 }
 
-#define __TBB_CompareAndSwap4(P,V,C) __TBB_machine_cas_32(P,V,C)
-#define __TBB_CompareAndSwap8(P,V,C) __TBB_machine_cas_64(P,V,C)
-#define __TBB_CompareAndSwapW(P,V,C) __TBB_machine_cas_64(P,V,C)
-#define __TBB_Yield() sched_yield()
+#endif /* __TBB_null_mutex_H */
