@@ -1,0 +1,58 @@
+Internals of the multi-socket library
+-------------------------------------
+
+For each multi-socket, the library creates these threads:
+  * An internal listener thread, which accepts new connections
+    and adds them to the multi-socket.
+  * A sender-scheduler thread, which delegates network messages to 
+    physical connections (using label-matching) by passing them to
+    worker-sender threads, which in turn carry out the actual sending.
+  * A receiver-scheduler thread, which keeps track of the necessary 
+    data structures to buffer IROBs and guarantee that they are passed
+    to the application in a correct order.
+  * For each physical connection,
+    * A sender-worker thread, which sends network messages as directed
+      by the sender-scheduler.
+    * A receiver-worker thread, which reads messages from the network
+      and passes them to the receiver-scheduler.
+
+In order to simplify implementation and thread-safety, interactions between 
+the scheduler and worker threads and the application's threads are managed
+through thread-safe request queues.  Take for example this sequence of events
+that comprise a single send() call on a multi-socket:
+
+1) The application requests bytes be sent on a multi-socket with the FG label. 
+   This is accomplished by a library function similar to the send syscall.
+2) The library function packages the send() parameters as a request object
+   and pushes the request onto the sender-scheduler's queue.
+3) When the sender-scheduler thread runs, it pops the request from its queue.
+   It then does the necessary bookkeeping for creating a new IROB, adding
+   dependency information as needed (see the API documentation on "anonymous"
+   IROBs, also called "default" IROBs in the code).  The current implementation
+   simply sends IROBs as they arrive; the scheduler could in the future 
+   send the IROBs and other requests it receives in any order.
+4) The sender-scheduler thread will send a message (an IROB, for instance) by
+   choosing a sender-worker thread based on the message's labels and passing
+   the message to the sender-worker thread.  As noted above, this is implemented
+   via a thread-safe queue in the sender-worker thread.
+5) The sender-worker thread wakes up, pops the message from its queue, and
+   sends the message on its socket, along with any associated application 
+   IROB data.
+6) At the remote endpoint, a receiver-worker thread is blocking for input
+   on its socket.  When it wakes up from the blocking read, it will read
+   the next control message from the network, plus any data that follows.
+   It then passes the data as a request message to the receiver-scheduler 
+   thread, again via a thread-safe queue.
+7) When the remote application calls the recv library function on a 
+   multi-socket, it will wait for the next IROB to be released by the
+   receiver-scheduler.  (An IROB is released when all of its dependencies
+   are satisfied.)  The receiver-scheduler is free to release IROBs in any
+   order that obeys the dependencies between them.  The receiver-scheduler
+   is also free to release IROBs for which not all the data has arrived yet,
+   though it must then release all of that IROB's bytes to the application 
+   before it can release another IROB.  Currently, the receiver-scheduler
+   will only pass to the application IROBs for which all bytes have arrived.
+
+Aside: if no IROBs can be released to the application, the recv call will by
+   default block until the request can be satisfied.  Non-blocking recv is
+   feasible, but not yet implemented.
