@@ -52,6 +52,10 @@ class CMMSocketScheduler : public CMMThread {
     virtual void unrecognized_control_msg(MsgClass msg);
 
   private:
+    /* This is a bit kludgy.  Since the subclass type will vary
+     * with the template arguments, the handler functor must
+     * itself be created with a template argument.  Couldn't find
+     * a way to call member function functors that compiled. */
     class Handler {
       public:
         virtual void operator()(MsgClass) = 0;

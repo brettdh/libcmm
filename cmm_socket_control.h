@@ -93,6 +93,7 @@ struct CMMSocketControlHdr {
     const char *type_str() const;
 };
 
+/* for passing between request-handling threads. */
 struct CMMSocketRequest {
     pthread_t requester_tid;
     struct CMMSocketControlHdr hdr;

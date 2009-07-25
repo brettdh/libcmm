@@ -70,6 +70,7 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
   private:
     PendingReceiverIROBHash pending_irobs;
 
+    /* for now, pass IROBs to the app in the order in which they are released */
     std::queue<PendingReceiverIROB*> ready_irobs;
     void enqueue(PendingReceiverIROB *pirob);
     pthread_mutex_t ready_mutex;

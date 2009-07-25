@@ -14,7 +14,10 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
     explicit CMMSocketSender(CMMSocketImpl *sk_);
     virtual ~CMMSocketSender();
 
-    //ssize_t send(const void *buf, size_t len, int flags);
+    /* These functions (begin_irob through goodbye) are called
+     * by other parts of the library in order to carry out the 
+     * actions that result in network messages, storing the
+     * neceessary IROB and interface data. */
 
     int begin_irob(irob_id_t next_irob, 
                    int numdeps, const irob_id_t *deps,
@@ -32,6 +35,8 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
 	     u_long ack_send_labels, u_long ack_recv_labels);
     void goodbye(bool remote_initiated);
 
+    /* These are called by the receiver when their associated messages
+     * are received. */
     void ack_received(irob_id_t id, u_long seqno);
     void goodbye_acked(void);
 
@@ -57,10 +62,8 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
     void pass_to_worker_by_labels(struct CMMSocketRequest req);
     void pass_to_any_worker_prefer_labels(struct CMMSocketRequest req);
 
-    /* the wait_for_completion functions will atomically enqueue 
-     * the request and begin waiting for the result. */
-
-    /* returns result of underlying send, or -1 on error */
+    /* atomically enqueue the request and wait for the result. */
+    /* returns result of the operation, or -1 on error */
     long enqueue_and_wait_for_completion(CMMSocketRequest req);
 
     void signal_completion(pthread_t requester_tid, long result);

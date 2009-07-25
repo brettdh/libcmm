@@ -38,6 +38,7 @@ class CSocket {
   private:
     void startup_workers();
     
+    /* worker threads */
     CSocketSender *csock_sendr;
     CSocketReceiver *csock_recvr;
 };

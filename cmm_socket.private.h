@@ -152,7 +152,7 @@ class CMMSocketImpl : public CMMSocket {
 
     int non_blocking; /* 1 if non blocking, 0 otherwise */
 
-    /* these are used for re-creating the socket */
+    /* these are used for creating new physical sockets */
     int sock_family;
     int sock_type;
     int sock_protocol;

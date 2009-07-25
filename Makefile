@@ -33,7 +33,7 @@ vanilla_%.o: libcmm_%.cpp
 conn_scout: libcmm_scout.o cdf_sampler.o debug.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -o $@ $^
 
-libcmm.so: libcmm_new.o libcmm_ipc.o cmm_socket.o cmm_socket_impl.o \
+libcmm.so: libcmm.o libcmm_ipc.o cmm_socket.o cmm_socket_impl.o \
 	   cmm_socket_passthrough.o thunks.o cmm_timing.o signals.o csocket.o \
            csocket_mapping.o cmm_socket_sender.o cmm_socket_receiver.o \
            pending_irob.o pending_sender_irob.o pending_receiver_irob.o \
