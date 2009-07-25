@@ -85,6 +85,7 @@ PendingReceiverIROBLattice::release_if_ready(PendingReceiverIROB *pirob,
                                              Predicate is_ready)
 {
     if (is_ready(pirob)) {
+        /* TODO: smarter strategy for ordering ready IROBs. */
         enqueue(pirob);
     }
 }

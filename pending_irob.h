@@ -149,12 +149,15 @@ class PendingIROBLattice {
     void correct_deps(PendingIROB *pirob);
 
 #if 0
+    /* This may be a better way to quickly access the dependencies - by 
+     * keeping a pointer-lattice of IROBs. For now we just look them up
+     * in the hash as needed. */
     std::map<irob_id_t, struct node *> nodes;
     struct node {
         PendingIROB *pirob;
         irob_id_t id;
-        std::set<struct node *> up;
-        std::set<struct node *> down;
+        std::set<struct node *> up; // dependencies
+        std::set<struct node *> down; // dependents
     };
     struct node bottom;
     struct node top;

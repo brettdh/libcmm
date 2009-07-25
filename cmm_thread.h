@@ -25,6 +25,7 @@ class CMMThread {
     friend void ThreadCleanup(void *);
 };
 
+/* throw from Run() function to terminate thread */
 class CMMThreadFinish {};
 
 #endif

@@ -34,6 +34,8 @@ class CMMSocketReceiver : public CMMSocketScheduler<struct CMMSocketControlHdr> 
 
     PendingReceiverIROBLattice pending_irobs;
 
+    /* These are dispatched based on the type of message
+     * on the queue.  (see cmm_socket_scheduler.h) */
     void do_begin_irob(struct CMMSocketControlHdr hdr);
     void do_end_irob(struct CMMSocketControlHdr hdr);
     void do_irob_chunk(struct CMMSocketControlHdr hdr);
