@@ -78,6 +78,7 @@ void CSocketSender::send_header(struct CMMSocketControlHdr hdr)
 
     int rc = send(csock->osfd, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr)) {
+	dbgprintf("CSocketSender: send failed, rc = %d, errno=%d\n", rc, errno);
 	throw Exception::make("Socket error", hdr);
     }
 }
@@ -113,6 +114,7 @@ CSocketSender::do_begin_irob(struct CMMSocketRequest req)
 	    send_header(hdr);
 	    int rc = send(csock->osfd, deps, datalen, 0);
 	    if (rc != datalen) {
+		dbgprintf("CSocketSender: send failed, rc = %d, errno=%d\n", rc, errno);
 		throw Exception::make("Socket error", req);
 	    }
 	    /* this buffer is no longer needed, so delete it */
@@ -153,6 +155,7 @@ CSocketSender::do_irob_chunk(struct CMMSocketRequest req)
 	send_header(hdr);
 	int rc = send(csock->osfd, buf, datalen, 0);
 	if (rc != datalen) {
+	    dbgprintf("CSocketSender: send failed, rc = %d, errno=%d\n", rc, errno);
 	    throw Exception::make("Socket error", req);
 	}
     } catch (std::runtime_error& e) {
@@ -210,7 +213,7 @@ CSocketReceiver::Run(void)
 
         int rc = recv(csock->osfd, &hdr, sizeof(hdr), 0);
         if (rc != sizeof(hdr)) {
-	    dbgprintf("CSocketReceiver: recv failed, errno=%d\n", errno);
+	    dbgprintf("CSocketReceiver: recv failed, rc = %d, errno=%d\n", rc, errno);
             return;
         }
 
@@ -283,7 +286,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     }
     
     char *buf = new char[datalen];
-    int rc = recv(csock->osfd, buf, datalen, 0);
+    int rc = recv(csock->osfd, buf, datalen, MSG_WAITALL);
     if (rc != datalen) {
         if (rc < 0) {
             dbgprintf("Error %d on socket %d\n", errno, csock->osfd);

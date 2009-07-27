@@ -1,11 +1,12 @@
-CXXFLAGS:=-Wall -Werror -I. -fpic -m32 -g #-DCMM_DEBUG 
+CXXFLAGS:=-Wall -Werror -I. -fpic -m32 -g # -DCMM_DEBUG 
 LIBTBB:=-ltbb_debug
 LDFLAGS:=-L. -m32 
 LIBS:=$(LIBTBB) -lrt
 
 LIBRARIES:=libcmm.so
 EXECUTABLES:=conn_scout cmm_test_sender cmm_test_receiver cdf_test\
-	     vanilla_test_sender vanilla_test_receiver
+	     vanilla_test_sender vanilla_test_receiver \
+	     cmm_throughput_test vanilla_throughput_test
 
 all: $(LIBRARIES) $(EXECUTABLES)
 
@@ -25,6 +26,12 @@ vanilla_test_sender: vanilla_test_sender.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $<
 
 vanilla_test_receiver: vanilla_test_receiver.o
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $<
+
+cmm_throughput_test: libcmm_throughput_test.o libcmm.so
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -lcmm -o $@ $<
+
+vanilla_throughput_test: vanilla_throughput_test.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $<
 
 vanilla_%.o: libcmm_%.cpp

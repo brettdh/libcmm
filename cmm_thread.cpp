@@ -45,11 +45,11 @@ ThreadFn(void * arg)
 	pthread_mutex_unlock(&th_arg->starter_mutex);
 
         thread->Run();
-	dbgprintf("Thread %d exited normally.\n", pthread_self());
+	dbgprintf("Thread %08x exited normally.\n", pthread_self());
     } catch(const std::exception& e) {
-	dbgprintf("Thread %d exited: %s\n", pthread_self(), e.what());
+	dbgprintf("Thread %08x exited: %s\n", pthread_self(), e.what());
     } catch(const CMMThreadFinish& e) {
-	dbgprintf("Thread %d was cancelled via exception.\n", pthread_self());
+	dbgprintf("Thread %08x was cancelled via exception.\n", pthread_self());
     }
 
     pthread_cleanup_pop(1);

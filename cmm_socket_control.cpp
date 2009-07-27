@@ -6,6 +6,9 @@
 #include <arpa/inet.h>
 #include "cmm_socket_scheduler.h"
 
+#include <iomanip>
+using std::ios;
+
 void 
 CMMSocketControlHdr::cleanup()
 {
@@ -105,6 +108,6 @@ std::string
 CMMSocketRequest::describe() const
 {
     std::ostringstream stream;
-    stream << "Requester thread: " << requester_tid << " ";
+    stream << "Requester thread: " << ios::hex << requester_tid << " ";
     return stream.str() + hdr.describe();
 }
