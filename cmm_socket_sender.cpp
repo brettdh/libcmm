@@ -70,6 +70,8 @@ CMMSocketSender::begin_irob(irob_id_t next_irob,
                             resume_handler_t resume_handler, void *rh_arg)
 {
     if (is_shutting_down()) {
+	dbgprintf("Tried to begin IROB, but mc_socket %d is shutting down\n", 
+		  sk->sock);
 	errno = EPIPE;
 	return CMM_FAILED;
     }
@@ -124,6 +126,8 @@ int
 CMMSocketSender::end_irob(irob_id_t id)
 {
     if (is_shutting_down()) {
+	dbgprintf("Tried to end IROB, but mc_socket %d is shutting down\n", 
+		  sk->sock);
 	errno = EPIPE;
 	return CMM_FAILED;
     }
@@ -186,6 +190,8 @@ CMMSocketSender::irob_chunk(irob_id_t id, const void *buf, size_t len,
                             int flags)
 {
     if (is_shutting_down()) {
+	dbgprintf("Tried to send IROB chunk, but mc_socket %d is shutting down\n", 
+		  sk->sock);
 	errno = EPIPE;
 	return CMM_FAILED;
     }
@@ -250,6 +256,8 @@ CMMSocketSender::default_irob(irob_id_t next_irob,
 			      resume_handler_t resume_handler, void *rh_arg)
 {
     if (is_shutting_down()) {
+	dbgprintf("Tried to send default IROB, but mc_socket %d is shutting down\n", 
+		  sk->sock);
 	errno = EPIPE;
 	return CMM_FAILED;
     }

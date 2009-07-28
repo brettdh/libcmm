@@ -115,7 +115,7 @@ PendingIROBLattice::insert(PendingIROBHash::accessor& ac, PendingIROB *pirob)
         return false;
     }
 
-    TimeFunctionBody timer("pending_irobs.insert");
+    //TimeFunctionBody timer("pending_irobs.insert");
 
     if (!pending_irobs.insert(ac, pirob->id)) {
         ac.release();
@@ -180,7 +180,7 @@ bool
 PendingIROBLattice::find(PendingIROBHash::const_accessor& ac, 
                          irob_id_t id)
 {
-    TimeFunctionBody timer("pending_irobs.find(const_accessor)");
+    //TimeFunctionBody timer("pending_irobs.find(const_accessor)");
     bool result = pending_irobs.find(ac, id);
     return result;
 }
@@ -189,7 +189,7 @@ bool
 PendingIROBLattice::find(PendingIROBHash::accessor& ac, 
                          irob_id_t id)
 {
-    TimeFunctionBody timer("pending_irobs.find(accessor)");
+    //TimeFunctionBody timer("pending_irobs.find(accessor)");
     bool result = pending_irobs.find(ac, id);
     return result;
 }
@@ -199,7 +199,7 @@ PendingIROBLattice::find(PendingIROBHash::const_accessor& ac,
                          PendingIROB *pirob)
 {
     assert(pirob);
-    TimeFunctionBody timer("pending_irobs.find(const_accessor)");
+    //TimeFunctionBody timer("pending_irobs.find(const_accessor)");
     bool result = pending_irobs.find(ac, pirob->id);
     return result;
 }
@@ -208,7 +208,7 @@ bool
 PendingIROBLattice::find(PendingIROBHash::accessor& ac, PendingIROB *pirob)
 {
     assert(pirob);
-    TimeFunctionBody timer("pending_irobs.find(accessor)");
+    //TimeFunctionBody timer("pending_irobs.find(accessor)");
     bool result = pending_irobs.find(ac, pirob->id);
     return result;
 }
@@ -226,7 +226,7 @@ PendingIROBLattice::any(PendingIROBHash::accessor &ac)
 bool
 PendingIROBLattice::erase(irob_id_t id)
 {
-    TimeFunctionBody timer("pending_irobs.erase(const_accessor)");
+    //TimeFunctionBody timer("pending_irobs.erase(const_accessor)");
     bool result = pending_irobs.erase(id);
     return result;
 }
@@ -234,7 +234,7 @@ PendingIROBLattice::erase(irob_id_t id)
 bool
 PendingIROBLattice::erase(PendingIROBHash::accessor& ac)
 {
-    TimeFunctionBody timer("pending_irobs.erase(accessor)");
+    //TimeFunctionBody timer("pending_irobs.erase(accessor)");
     bool result = pending_irobs.erase(ac);
     return result;
 }

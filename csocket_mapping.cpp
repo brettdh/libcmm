@@ -229,9 +229,9 @@ CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label)
 	connected_csocks.insert(csock);
     }
     // to interrupt any select() in progress, adding the new osfd
-    printf("Interrupting any selects() in progress to add osfd %d "
-           "to multi-socket %d\n",
-           csock->osfd, sk->sock);
+    dbgprintf("Interrupting any selects() in progress to add osfd %d "
+	      "to multi-socket %d\n",
+	      csock->osfd, sk->sock);
     signal_selecting_threads();
     
     return csock;

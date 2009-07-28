@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <errno.h>
+#include <signal.h>
 
 #include "timeops.h"
 
@@ -21,6 +22,7 @@
 #define CLOSE close
 #else
 #include "libcmm.h"
+#include "libcmm_irob.h"
 #define SOCKET cmm_socket
 #define CONNECT cmm_connect
 #define ACCEPT cmm_accept
@@ -47,7 +49,7 @@ void usage()
 {
     fprintf(stderr, "Usage:\n");
     fprintf(stderr, "   receiver:  throughput_test -l\n");
-    fprintf(stderr, "     sender:  throughput_test <host> <mbytes>\n");
+    fprintf(stderr, "     sender:  throughput_test <host> < -b <bytes> | -k <kbytes> | -m <mbytes> >\n");
     exit(-1);
 }
 
@@ -71,8 +73,7 @@ void send_bytes(int sock, char *buf, size_t bytes)
     if (rc < 0) {
 	handle_error("send", sock);
     } else if (rc != (ssize_t)bytes) {
-	fprintf(stderr, "Connection lost after %d bytes\n",
-		rc);
+	fprintf(stderr, "Connection lost after %d bytes\n", rc);
 	exit(-1);
     }
 }
@@ -102,18 +103,115 @@ void send_bytes_by_chunk(int sock, char *buf, size_t bytes, size_t chunksize,
     calc_avg_time(total_time, count, avg_time);
 }
 
+#ifndef NOMULTISOCK
+void send_bytes_by_chunk_one_irob(int sock, char *buf, size_t bytes, size_t chunksize,
+				  struct timeval *avg_time)
+{
+    struct timeval total_time = {0, 0};
+    int count = 0;
+    size_t bytes_sent = 0;
+    irob_id_t irob = begin_irob(sock, 0, NULL, 0, 0, NULL, NULL);
+    if (irob < 0) {
+	handle_error("begin_irob", sock);
+    }
+    while (bytes_sent < bytes) {
+	struct timeval begin, end, diff;
+	size_t len = (chunksize > (bytes - bytes_sent)) 
+	    ? (bytes - bytes_sent) : chunksize;
+
+	TIME(begin);
+	int rc = irob_send(irob, buf + bytes_sent, len, 0);
+	if (rc < 0) {
+	    handle_error("irob_send", sock);
+	} else if (rc != (ssize_t)len) {
+	    fprintf(stderr, "Connection lost after %d bytes\n", rc);
+	}
+	TIME(end);
+	TIMEDIFF(begin, end, diff);
+	timeradd(&total_time, &diff, &total_time);
+	count++;
+
+	bytes_sent += len;
+    }
+    int rc = end_irob(irob);
+    if (rc < 0) {
+	fprintf(stderr, "Failed ending IROB %lu\n", irob);
+	exit(-1);
+    }
+
+    assert(avg_time);
+    calc_avg_time(total_time, count, avg_time);    
+}
+#endif
+
+int get_int_from_string(const char *str, const char *name)
+{
+    errno = 0;
+    int val = strtol(str, NULL, 10);
+    if (errno != 0) {
+	fprintf(stderr, "Error: %s argument must be an integer\n", name);
+	usage();
+    }
+    return val;
+}
+
 int main(int argc, char *argv[])
 {
     bool receiver = false;
     char ch;
-    while ((ch = getopt(argc, argv, "l")) != -1) {
-	if (ch == 'l') {
+    int mbytes = 0, kbytes = 0, bytes = 0;
+    while ((ch = getopt(argc, argv, "lb:k:m:")) != -1) {
+	switch (ch) {
+	case 'l':
 	    receiver = true;
+	    break;
+	case 'b':
+	    if (bytes != 0) {
+		fprintf(stderr, "Error: specify only one of -b, -k, -m\n");
+		usage();
+	    }
+	    bytes = get_int_from_string(optarg, "bytes");
+	    kbytes = bytes / 1024;
+	    mbytes = kbytes / 1024;
+	    break;
+	case 'k':
+	    if (bytes != 0) {
+		fprintf(stderr, "Error: specify only one of -b, -k, -m\n");
+		usage();
+	    }
+	    kbytes = get_int_from_string(optarg, "kbytes");
+	    bytes = kbytes * 1024;
+	    mbytes = kbytes / 1024;
+	    if (bytes < kbytes) {
+		fprintf(stderr, "Error: kbytes argument is too large! (overflow)\n");
+		usage();
+	    }
+	    break;
+	case 'm':
+	    if (bytes != 0) {
+		fprintf(stderr, "Error: specify only one of -b, -k, -m\n");
+		usage();
+	    }
+	    mbytes = get_int_from_string(optarg, "mbytes");
+	    kbytes = mbytes * 1024;
+	    bytes = kbytes * 1024;
+	    if (bytes < kbytes || kbytes < mbytes) {
+		fprintf(stderr, "Error: mbytes argument is too large! (overflow)\n");
+		usage();
+	    }
+	    break;
 	}
     }
     
     if (!receiver) {
+	if (bytes == 0) {
+	    fprintf(stderr, "Error: sender needs positive integer "
+		    "for one of -b, -k, or -m args\n");
+	    usage();
+	}
     }
+
+    signal(SIGPIPE, SIG_IGN);
 
     if (receiver) {
 	int listen_sock = socket(PF_INET, SOCK_STREAM, 0);
@@ -176,22 +274,8 @@ int main(int argc, char *argv[])
 
 	close(listen_sock);
     } else {
-	int mbytes = 0, kbytes = 0, bytes = 0;
-	if (argc != 3) {
-	    fprintf(stderr, "Error: host and mbytes args required for sender\n");
-	    usage();
-	}
-
-	errno = 0;
-	mbytes = strtol(argv[2], NULL, 10);
-	if (errno != 0) {
-	    fprintf(stderr, "Error: kbytes argument must be an integer\n");
-	    usage();
-	}
-	kbytes = mbytes*1024;
-	bytes = mbytes*1024*1024;
-	if (bytes < kbytes || kbytes < mbytes) {
-	    fprintf(stderr, "Error: mbytes argument is too large!\n");
+	if (!argv[optind]) {
+	    fprintf(stderr, "Error: host arg required for sender\n");
 	    usage();
 	}
 
@@ -202,7 +286,7 @@ int main(int argc, char *argv[])
 	socklen_t addrlen = sizeof(srv_addr);
 	srv_addr.sin_family = AF_INET;
 	srv_addr.sin_port = htons(LISTEN_PORT);
-	const char *hostname = argv[1];
+	const char *hostname = argv[optind];
 	struct hostent *hp = gethostbyname(hostname);
 	if (hp == NULL) {
 	    fprintf(stderr, "Failed to lookup hostname %s\n", hostname);
@@ -217,7 +301,13 @@ int main(int argc, char *argv[])
 	
 	char *buf = new char[bytes];
 	memset(buf, 'Q', bytes);
-	fprintf(stderr, "Sending %dMB\n", mbytes);
+	if (mbytes > 0) {
+	    fprintf(stderr, "Sending %dMB\n", mbytes);
+	} else if (kbytes > 0) {
+	    fprintf(stderr, "Sending %dKB\n", kbytes);
+	} else if (bytes > 0) {
+	    fprintf(stderr, "Sending %d bytes\n", bytes);
+	} else assert(0);
 	
 	TIME(begin);
 	send_bytes(sock, buf, bytes);
@@ -236,6 +326,20 @@ int main(int argc, char *argv[])
 		    kchunk, diff.tv_sec, diff.tv_usec,
 		    avg_send_time.tv_sec, avg_send_time.tv_usec);
 	}
+
+#ifndef NOMULTISOCK
+	fprintf(stderr, "  In a single IROB:\n");
+	for (int kchunk = 4; kchunk < kbytes; kchunk *= 2) {
+	    struct timeval avg_send_time = {0,0};
+	    TIME(begin);
+	    send_bytes_by_chunk_one_irob(sock, buf, bytes, 1024 * kchunk, &avg_send_time);
+	    TIME(end);
+	    TIMEDIFF(begin, end, diff);
+	    fprintf(stderr, "   In %dK chunks: %lu.%06lu seconds (each send avg %lu.%06lu seconds)\n", 
+		    kchunk, diff.tv_sec, diff.tv_usec,
+		    avg_send_time.tv_sec, avg_send_time.tv_usec);
+	}	
+#endif
 
 	delete [] buf;
 

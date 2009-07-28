@@ -48,7 +48,12 @@ PendingReceiverIROB::read_data(void *buf, size_t len)
 {
     ssize_t bytes_copied = 0;
 
+    dbgprintf("Attempting to copy %lu bytes from irob %d, which has %d bytes,\n"
+	      "                   %d untouched chunks, and %s partial chunk\n", 
+	      len, id, num_bytes, chunks.size(), (partial_chunk.data?"a":"no"));
     if (partial_chunk.data) {
+	dbgprintf("Copying first from partial chunk; offset=%d, datalen=%d\n",
+		  offset, partial_chunk.datalen);
         ssize_t bytes = min(len, partial_chunk.datalen - offset);
         assert(bytes > 0);
         memcpy(buf, partial_chunk.data + offset, bytes);
@@ -69,18 +74,24 @@ PendingReceiverIROB::read_data(void *buf, size_t len)
         struct irob_chunk_data chunk;
         chunks.pop(chunk);
 
+	dbgprintf("Copying from chunk: datalen=%d, data=%p\n", 
+		  chunk.datalen, chunk.data);
+
         ssize_t bytes = min(len, chunk.datalen);
         memcpy((char*)buf + bytes_copied, chunk.data, bytes);
         bytes_copied += bytes;
         if (chunk.datalen > len) {
-            offset = chunk.datalen - len;
+            offset = bytes;
             partial_chunk = chunk;
         } else {
             delete [] chunk.data;
         }
         len -= bytes;
+	dbgprintf("Read %d bytes; %d bytes remaining in request\n",
+		  bytes, len);
     }
     num_bytes -= bytes_copied;
+    dbgprintf("Copied %d bytes from IROB %d\n", bytes_copied, id);
     return bytes_copied;
 }
 

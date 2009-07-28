@@ -358,7 +358,7 @@ CMMSocketReceiver::recv(void *bufp, size_t len, int flags, u_long *recv_labels)
     TIMEDIFF(begin, end, diff);
     dbgprintf("recv: Copying bytes took %lu.%06lu seconds\n",
 	      diff.tv_sec, diff.tv_usec);
-    dbgprintf("Passing bytes to application\n");
+    dbgprintf("Passing %d bytes to application\n", bytes_passed);
     return bytes_passed;
 }
 

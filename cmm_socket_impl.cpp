@@ -774,6 +774,12 @@ CMMSocketImpl::mc_begin_irob(int numdeps, const irob_id_t *deps,
     if (rc < 0) {
         return rc;
     }
+    IROBSockHash::accessor ac;
+    if (!irob_sock_hash.insert(ac, id)) {
+	assert(0);
+    }
+    ac->second = sock;
+
     return id;
 }
 
@@ -786,7 +792,11 @@ CMMSocketImpl::mc_end_irob(irob_id_t id)
         errno = ENOTCONN;
         return CMM_FAILED;
     }
-    return sendr->end_irob(id);
+    int rc = sendr->end_irob(id);
+    if (rc == 0) {
+	irob_sock_hash.erase(id);
+    }
+    return rc;
 }
 
 ssize_t

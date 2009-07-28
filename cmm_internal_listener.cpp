@@ -97,7 +97,8 @@ ListenerThread::Run()
         int sock = accept(listener_sock,
                           (struct sockaddr *)&remote_addr, &addrlen);
         if (sock < 0) {
-	    perror("accept");
+	    dbgprintf("Listener socket closed, listener thread exiting\n");
+	    close(listener_sock);
             throw std::runtime_error("Socket error");
         }
 
