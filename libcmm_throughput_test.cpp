@@ -74,7 +74,8 @@ void send_bytes(int sock, char *buf, size_t bytes)
 {
     ssize_t bytes_sent = 0;
     while (bytes_sent < (ssize_t)bytes) {
-	int rc = SEND(sock, buf+bytes_sent, bytes, 0);
+	int rc = SEND(sock, buf + bytes_sent, 
+		      bytes - bytes_sent, 0);
 	fprintf(stderr, "send returned %d\n", rc);
 	if (rc < 0) {
 	    handle_error("send", sock);
@@ -155,6 +156,22 @@ int get_int_from_string(const char *str, const char *name)
 	usage();
     }
     return val;
+}
+
+ssize_t read_bytes(int sock, void *buf, size_t count)
+{
+    ssize_t bytes_read = 0;
+    while (bytes_read < (ssize_t)count) {
+	int rc = READ(sock, (char*)buf + bytes_read, 
+		      count - bytes_read);
+	if (rc < 0) {
+	    handle_error("read", sock);
+	} else if (rc == 0) {
+	    return rc;
+	}
+	bytes_read += rc;
+    }
+    return bytes_read;
 }
 
 int main(int argc, char *argv[])
@@ -253,16 +270,12 @@ int main(int argc, char *argv[])
 
 		struct timeval begin, end, diff;
 		TIME(begin);
-		// XXX: should loop until recv'd all bytes,
-		//      but this seems to always succeed.
-		rc = READ(sock, buf, chunksize);
+		rc = read_bytes(sock, buf, chunksize);
 		TIME(end);
 		TIMEDIFF(begin, end, diff);
 		timeradd(&total_read_time, &diff, &total_read_time);
 		total_reads++;
-		if (rc < 0) {
-		    handle_error("read", sock);
-		} else if (rc != chunksize) {
+		if (rc != chunksize) {
 		    break;
 		}
 	    } while (1);
