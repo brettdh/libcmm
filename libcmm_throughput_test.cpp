@@ -76,7 +76,6 @@ void send_bytes(int sock, char *buf, size_t bytes)
     while (bytes_sent < (ssize_t)bytes) {
 	int rc = SEND(sock, buf + bytes_sent, 
 		      bytes - bytes_sent, 0);
-	fprintf(stderr, "send returned %d\n", rc);
 	if (rc < 0) {
 	    handle_error("send", sock);
 	}
@@ -172,6 +171,28 @@ ssize_t read_bytes(int sock, void *buf, size_t count)
 	bytes_read += rc;
     }
     return bytes_read;
+}
+
+int srv_connect(const char *hostname)
+{
+    int sock = SOCKET(PF_INET, SOCK_STREAM, 0);
+    if (sock < 0) handle_error("socket");
+    
+    struct sockaddr_in srv_addr;
+    socklen_t addrlen = sizeof(srv_addr);
+    srv_addr.sin_family = AF_INET;
+    srv_addr.sin_port = htons(LISTEN_PORT);
+    struct hostent *hp = gethostbyname(hostname);
+    if (hp == NULL) {
+	fprintf(stderr, "Failed to lookup hostname %s\n", hostname);
+	exit(-1);
+    }
+    memcpy(&srv_addr.sin_addr, hp->h_addr, hp->h_length);
+    
+    int rc = CONNECT(sock, (struct sockaddr *)&srv_addr, addrlen);
+    if (rc < 0) handle_error("connect", sock);
+
+    return sock;
 }
 
 int main(int argc, char *argv[])
@@ -296,23 +317,8 @@ int main(int argc, char *argv[])
 	    usage();
 	}
 
-	int sock = SOCKET(PF_INET, SOCK_STREAM, 0);
-	if (sock < 0) handle_error("socket");
-
-	struct sockaddr_in srv_addr;
-	socklen_t addrlen = sizeof(srv_addr);
-	srv_addr.sin_family = AF_INET;
-	srv_addr.sin_port = htons(LISTEN_PORT);
-	const char *hostname = argv[optind];
-	struct hostent *hp = gethostbyname(hostname);
-	if (hp == NULL) {
-	    fprintf(stderr, "Failed to lookup hostname %s\n", hostname);
-	    exit(-1);
-	}
-	memcpy(&srv_addr.sin_addr, hp->h_addr, hp->h_length);
-	
-	int rc = CONNECT(sock, (struct sockaddr *)&srv_addr, addrlen);
-	if (rc < 0) handle_error("connect", sock);
+	int sock = srv_connect(argv[optind]);
+	assert(sock >= 0);
 
 	struct timeval begin, end, diff;
 	
@@ -333,11 +339,17 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "   In one chunk: %lu.%06lu seconds\n",
 		diff.tv_sec, diff.tv_usec);
 
+	CLOSE(sock);
+
 	for (int kchunk = 4; kchunk < kbytes; kchunk *= 2) {
+	    sock = srv_connect(argv[optind]);
 	    struct timeval avg_send_time = {0,0};
 	    TIME(begin);
 	    send_bytes_by_chunk(sock, buf, bytes, 1024 * kchunk, &avg_send_time);
 	    TIME(end);
+
+	    CLOSE(sock);
+
 	    TIMEDIFF(begin, end, diff);
 	    fprintf(stderr, "   In %dK chunks: %lu.%06lu seconds (each send avg %lu.%06lu seconds)\n", 
 		    kchunk, diff.tv_sec, diff.tv_usec,
@@ -347,10 +359,14 @@ int main(int argc, char *argv[])
 #ifndef NOMULTISOCK
 	fprintf(stderr, "  In a single IROB:\n");
 	for (int kchunk = 4; kchunk < kbytes; kchunk *= 2) {
+	    sock = srv_connect(argv[optind]);
 	    struct timeval avg_send_time = {0,0};
 	    TIME(begin);
 	    send_bytes_by_chunk_one_irob(sock, buf, bytes, 1024 * kchunk, &avg_send_time);
 	    TIME(end);
+	    
+	    CLOSE(sock);
+
 	    TIMEDIFF(begin, end, diff);
 	    fprintf(stderr, "   In %dK chunks: %lu.%06lu seconds (each send avg %lu.%06lu seconds)\n", 
 		    kchunk, diff.tv_sec, diff.tv_usec,
@@ -359,8 +375,6 @@ int main(int argc, char *argv[])
 #endif
 
 	delete [] buf;
-
-	CLOSE(sock);
     }
     
     return 0;

@@ -63,3 +63,19 @@
 
 * BUG: Threads are still not getting cancelled, damnit.  It's now limited
   to CSocketReceiver threads; pthread_cancel still doesn't always work.
+
+-------
+New 7-29-2009
+-------
+
+* Get rid of the scheduler threads and just have the sender worker thread
+  and the application receiver thread make the scheduling decisions
+  in a procedure call.
+
+* Think about the IROB data structure on the sender and receiver ends,
+  especially how to index IROBs.
+
+* Rethink whether using TBB is a good idea.
+
+* Try the throughput experiment with induced latency on a vanilla socket,
+  to see whether latency is causing throughput degradation.
