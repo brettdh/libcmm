@@ -1,7 +1,88 @@
 Internals of the multi-socket library
 -------------------------------------
 
-For each multi-socket, the library creates these threads:
+The multi-socket data structure
+-------------------------------
+
+The internal multi-socket data structure has these data elements:
+ - An integer socket file descriptor
+ - All information needed to create new sockets as needed, including:
+   - Parameters for the socket() system call (PF_INET, SOCK_STREAM, etc)
+   - All socket options set on this multisocket
+
+ - An internal listener socket and a listener thread that accepts
+    new physical connections inside the multi-socket
+ - The set of available local network interfaces and their labels
+ - The set of available remote network interfaces and their labels
+ - The remote multi-socket's internal listener port, for initiating
+    new physical connections
+ (The above information is exchanged with the initial multi-socket
+  post-connection handshake and may be updated later with control
+  messages as conditions change on either end.)
+
+ - A CMMSocketSender structure, which contains:
+    - IROB information for all IROBs in flight but not yet ACK'd,
+      including copied data buffers and dependency information
+    - A collection of application thread identifiers, indicating
+      application threads blocking on sending actions.
+    - A thread that receives requests from other parts of the
+      library, including application actions and messages from
+      the scout, and dispatches network messages to worker threads
+
+ - A CMMSocketReceiver structure, which contains:
+    - IROB information for IROBs that have been received by the
+      library but not yet passed to the application, including
+      copied data buffers and dependency information
+    - A collection of "released" IROBs - IROBs that have no unmet
+      dependencies and are ready to be passed to the application
+    - A thread that receives messages from worker threads and
+      performs some action based on their contents. Such actions
+      include adding IROBs to the collection, adding chunks to
+      existing IROBs, updating the available interface information,
+      and gracefully terminating a multisocket connection.
+
+ - A CSockMapping structure, which provides an abstract way to
+   create and lookup physical connections by label-matching.
+   Behind this abstraction, the mapping may change based on 
+   updates from the scout, or internally to implement (e.g.) traffic 
+   striping and defaulting to the "best" interface if one exists.
+ - Each physical connection has these components:
+    - A connected socket file descriptor
+    - A local/remote interface pair, with associated labels
+       - Note to self: this needs to be made more resilient to 
+         changing interfaces and labels
+    - A sender-worker thread, which receives requests from the 
+      CMMSocketSender thread and sends them on its socket
+    - A receiver-worker thread, which receives messages from the
+      network and passes them to the multisocket's CMMSocketReceiver
+
+IROB data structures
+--------------------
+
+At both the sender and receiver, an IROB contains:
+ - An integer ID
+ - Send labels and recv labels
+ - A collection of dependencies (IROB IDs)
+ - A collection of dependents (IROB IDs)
+ - A list of data chunks
+ - A flag indicating whether the IROB is "default" (no explicit dependencies,
+    but depends on all previous IROBs)
+ - A flag indicating whether all the application data for this IROB has
+    been sent/received
+
+At the sender, IROBs also contain:
+ - A thunk handler function and argument, optionally
+ - Per-byte and per-IROB acknowledgement status
+
+At the receiver, IROBs also contain:
+ - Bookkeeping information about bytes that have been passed to the application
+
+(...under construction...)
+
+Threads and their interactions
+------------------------------
+
+Recapping from above, for each multi-socket, the library creates these threads:
   * An internal listener thread, which accepts new connections
     and adds them to the multi-socket.
   * A sender-scheduler thread, which delegates network messages to 
@@ -56,3 +137,13 @@ that comprise a single send() call on a multi-socket:
 Aside: if no IROBs can be released to the application, the recv call will by
    default block until the request can be satisfied.  Non-blocking recv is
    feasible, but not yet implemented.
+
+* Connection Scout IPC *
+
+As the connection scout observes networks appearing and disappearing, it sends
+updates to all subscriber processes via inter-process message queues.  An IPC
+thread in the multi-socket library receives these updates, modifies 
+internal data structures to reflect the network status change, and asks the 
+CMMSocketSender for each multi-socket to communicate the status change
+to the library on the remote host(s).  This thread is also in charge of
+firing any queued thunks that were waiting for any now-available interfaces.
