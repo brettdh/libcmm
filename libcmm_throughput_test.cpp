@@ -10,6 +10,9 @@
 #include <errno.h>
 #include <signal.h>
 
+#include <algorithm>
+using std::min;
+
 #include "timeops.h"
 
 #ifdef NOMULTISOCK
@@ -69,12 +72,13 @@ void calc_avg_time(struct timeval total_time, int count, struct timeval *avg_tim
 
 void send_bytes(int sock, char *buf, size_t bytes)
 {
-    int rc = SEND(sock, buf, bytes, 0);
-    if (rc < 0) {
-	handle_error("send", sock);
-    } else if (rc != (ssize_t)bytes) {
-	fprintf(stderr, "Connection lost after %d bytes\n", rc);
-	exit(-1);
+    ssize_t bytes_sent = 0;
+    while (bytes_sent < (ssize_t)bytes) {
+	int rc = SEND(sock, buf+bytes_sent, bytes, 0);
+	if (rc < 0) {
+	    handle_error("send", sock);
+	}
+	bytes_sent += rc;
     }
 }
 
@@ -116,22 +120,19 @@ void send_bytes_by_chunk_one_irob(int sock, char *buf, size_t bytes, size_t chun
     }
     while (bytes_sent < bytes) {
 	struct timeval begin, end, diff;
-	size_t len = (chunksize > (bytes - bytes_sent)) 
-	    ? (bytes - bytes_sent) : chunksize;
+	size_t len = min(chunksize, (bytes - bytes_sent));
 
 	TIME(begin);
 	int rc = irob_send(irob, buf + bytes_sent, len, 0);
 	if (rc < 0) {
 	    handle_error("irob_send", sock);
-	} else if (rc != (ssize_t)len) {
-	    fprintf(stderr, "Connection lost after %d bytes\n", rc);
 	}
 	TIME(end);
 	TIMEDIFF(begin, end, diff);
 	timeradd(&total_time, &diff, &total_time);
 	count++;
 
-	bytes_sent += len;
+	bytes_sent += rc;
     }
     int rc = end_irob(irob);
     if (rc < 0) {
@@ -251,6 +252,8 @@ int main(int argc, char *argv[])
 
 		struct timeval begin, end, diff;
 		TIME(begin);
+		// XXX: should loop until recv'd all bytes,
+		//      but this seems to always succeed.
 		rc = READ(sock, buf, chunksize);
 		TIME(end);
 		TIMEDIFF(begin, end, diff);
