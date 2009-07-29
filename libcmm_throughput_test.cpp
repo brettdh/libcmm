@@ -75,6 +75,7 @@ void send_bytes(int sock, char *buf, size_t bytes)
     ssize_t bytes_sent = 0;
     while (bytes_sent < (ssize_t)bytes) {
 	int rc = SEND(sock, buf+bytes_sent, bytes, 0);
+	fprintf(stderr, "send returned %d\n", rc);
 	if (rc < 0) {
 	    handle_error("send", sock);
 	}
