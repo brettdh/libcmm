@@ -15,11 +15,9 @@ class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
     virtual ~CMMSocketSender();
 
     /* These functions (begin_irob through goodbye) are called
-     * by other parts of the library in order to enqueue the 
+     * by other parts of the library in order to request 
      * actions that result in network messages, storing the
-     * neceessary IROB and interface data. 
-     * The CMMSocketSender thread reads these requests in order,
-     * but can choose to execute them in any order. */
+     * neceessary IROB and interface data. */
 
     int begin_irob(irob_id_t next_irob, 
                    int numdeps, const irob_id_t *deps,

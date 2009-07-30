@@ -75,7 +75,24 @@ New 7-29-2009
 * Think about the IROB data structure on the sender and receiver ends,
   especially how to index IROBs.
 
+  * Useful indexes in the sender-side data structure:
+    - Put simply, IROBs for which *some* bytes are ready to be sent 
+      (whether those bytes are "begin/end" messages, or chunks, or acks).
+    - Pending control messages (separate from IROBs).
+
+  * Useful indexes in the receiver-side data structure:
+    - IROBs that are ready to be received by the application.
+    - IROBs/chunks that haven't been ACK'd.
+
 * Rethink whether using TBB is a good idea.
 
 * Try the throughput experiment with induced latency on a vanilla socket,
   to see whether latency is causing throughput degradation.
+  * Prelim: doesn't seem to affect throughput significantly (4ms or 30ms 
+    NISTnet latency, comparable to/more than the per-send latency I was
+    inducing.)
+
+* This reasonable assumption makes implementation simpler:
+   "IROBs may not depend on future IROBs.  Thus, the IROB IDs form
+    a partial order over all IROBs."
+
