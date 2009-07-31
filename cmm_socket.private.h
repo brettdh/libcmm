@@ -108,8 +108,8 @@ class CMMSocketImpl : public CMMSocket {
   private:
     friend class CSocket;
     friend class CSockMapping;
-    friend class CMMSocketSender;
-    friend class CMMSocketReceiver;
+    friend class CSocketSender;
+    friend class CSocketReceiver;
 
     static pthread_mutex_t hashmaps_mutex;
     static CMMSockHash cmm_sock_hash;
@@ -142,13 +142,61 @@ class CMMSocketImpl : public CMMSocket {
     NetInterfaceSet local_ifaces;
     ListenerThread *listener_thread;
 
-    CMMSocketSender *sendr;
-    CMMSocketReceiver *recvr;
-
     /* these are used for connecting csockets */
     NetInterfaceSet remote_ifaces;
     in_port_t remote_listener_port; /* network byte order, 
                                      * recv'd from remote host */
+
+    // Functions to manipulate IROB data structures
+    // and other data that the network threads are monitoring
+    int begin_irob(irob_id_t next_irob, 
+                   int numdeps, const irob_id_t *deps,
+		   u_long send_labels, u_long recv_labels,
+                   resume_handler_t resume_handler, void *rh_arg);
+    int end_irob(irob_id_t id);
+    long irob_chunk(irob_id_t, const void *buf, size_t len, int flags);
+    int default_irob(irob_id_t next_irob, 
+		     const void *buf, size_t len, int flags,
+		     u_long send_labels, u_long recv_labels,
+		     resume_handler_t resume_handler, void *arg);
+    void new_interface(struct in_addr ip_addr, u_long labels);
+    void down_interface(struct in_addr ip_addr);
+    void ack(irob_id_t id, u_long seqno, 
+	     u_long ack_send_labels, u_long ack_recv_labels);
+    void goodbye(bool remote_initiated);
+    
+    /* These are called by the receiver when their associated messages
+     * are received. */
+    void ack_received(irob_id_t id, u_long seqno);
+    void goodbye_acked(void);
+    
+    bool is_shutting_down(void);
+
+    // for protecting data structures that comprise the "state"
+    // of the multisocket from the scheduling threads' perspective
+    pthread_mutex_t big_multisocket_lock; //TODO: better name.
+    pthread_cond_t action_completed_cv;
+
+    // For blocking and waking up application threads as needed
+    std::map<pthread_t, AppThread> app_threads;
+
+    // Call with the big_multisocket_lock held, so that
+    // the operation you are waiting for doesn't complete
+    // and signal you before you sleep on the CV.
+    long wait_for_completion();
+
+    void signal_completion(pthread_t requester_tid, long result);
+
+    /* true iff the socket has begun shutting down 
+     * via shutdown() or close(). */
+    bool shutting_down;
+    bool remote_shutdown; /* true if remote has ack'd the shutdown */
+    pthread_mutex_t shutdown_mutex;
+    pthread_cond_t shutdown_cv;
+    
+    PendingIROBLattice outgoing_irobs;
+    PendingReceiverIROBLattice incoming_irobs;
+
 
     int non_blocking; /* 1 if non blocking, 0 otherwise */
 
@@ -165,14 +213,6 @@ class CMMSocketImpl : public CMMSocket {
                                 int *maxosfd);
     static int make_mc_fd_set(fd_set *fds, 
                               const mcSocketOsfdPairList &osfd_list);
-
-    int get_osfd(u_long label);
-
-    /* send a control message.
-     * if osfd != -1, send it on that socket.
-     * otherwise, pick any connection, creating one if needed. */
-    void send_control_message(struct CMMSocketControlHdr hdr,
-                              int osfd = -1);
 
     bool net_available(u_long send_labels, u_long recv_labels);
 

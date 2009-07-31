@@ -9,10 +9,10 @@
 #include <map>
 #include "cmm_socket_scheduler.h"
 
-class CMMSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
+class CMMSocketSender {
   public:
     explicit CMMSocketSender(CMMSocketImpl *sk_);
-    virtual ~CMMSocketSender();
+    ~CMMSocketSender();
 
     /* These functions (begin_irob through goodbye) are called
      * by other parts of the library in order to request 
