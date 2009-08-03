@@ -94,8 +94,8 @@ IROB data structures
 At both the sender and receiver, an IROB contains:
  - An integer ID
  - Send labels and recv labels
- - A collection of dependencies (IROB IDs)
- - A collection of dependents (IROB IDs)
+ - A collection of dependencies (IROB pointers)
+ - A collection of dependents (IROB pointers)
  - A list of data chunks
  - A flag indicating whether the IROB is "default" (no explicit dependencies,
     but depends on all previous IROBs)
