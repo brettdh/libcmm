@@ -16,7 +16,7 @@ The internal multi-socket data structure has these data elements:
    - ...each with a flag indicating whether the remote end has been
      notified of this interface's existence
    - ...and a flag indicating if this interface is down, but
-     the fact has not yet been notified
+     the remote host has not yet been notified
  - The set of available remote network interfaces and their labels
  - The remote multi-socket's internal listener port, for initiating
     new physical connections
