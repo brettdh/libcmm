@@ -13,6 +13,10 @@ The internal multi-socket data structure has these data elements:
  - An internal listener socket and a listener thread that accepts
     new physical connections inside the multi-socket
  - The set of available local network interfaces and their labels
+   - ...each with a flag indicating whether the remote end has been
+     notified of this interface's existence
+   - ...and a flag indicating if this interface is down, but
+     the fact has not yet been notified
  - The set of available remote network interfaces and their labels
  - The remote multi-socket's internal listener port, for initiating
     new physical connections
@@ -20,16 +24,40 @@ The internal multi-socket data structure has these data elements:
   post-connection handshake and may be updated later with control
   messages as conditions change on either end.)
 
- - IROB information for all IROBs in flight but not yet ACK'd,
-   including copied data buffers and dependency information
- - A collection of application thread identifiers, indicating
-   application threads blocking on sending actions.
+ - IROB data structures for sending and receiving:
+   - IROB information for all IROBs in flight but not yet ACK'd,
+     including copied data buffers and dependency information
+     - This collection should be label-indexed so that sender-scheduler
+       threads can easily access the pending IROBs that match
+       their labels.
+   - A collection of application thread identifiers, indicating
+     application threads blocking on sending actions.
 
- - IROB information for IROBs that have been received by the
-   library but not yet passed to the application, including
-   copied data buffers and dependency information
- - A collection of "released" IROBs - IROBs that have no unmet
-   dependencies and are ready to be passed to the application
+   - IROB information for IROBs that have been received by the
+     library but not yet passed to the application, including
+     copied data buffers and dependency information
+   - A collection of pointers to "released" IROBs - IROBs that have no
+     unmet dependencies and are ready to be passed to the application
+     - This collection should contain label-indexed sets of pointers.
+
+ - IROB dependency information 
+   - An IROB has pointers to IROBs it depends on and to IROBs that
+     depend on it.  In the sender, this information can be used to
+     inform scheduling decisions.  In the receiver, this information
+     forms the order in which bytes can be passed to the application.
+     As an IROB's dependencies are received by the application, their
+     pointers are removed from the IROB's collection, allowing
+     dependent IROBs to be received.
+   - Since IROBs can arrive out of order at the receiver, if one of an
+     IROB's dependencies doesn't exist at the receiver yet, a
+     placeholder will be added until the actual IROB arrives to take
+     its place.  An empty set of dependencies indicates a released
+     IROB, and so these placeholders ensure that IROBs are not seen by
+     the application before their dependencies.
+   - After an IROB's data has been received by the application, the 
+     data is no longer needed, but its ID must be stored so that future
+     IROBs that depend on it know that it has been received.  Past IROB
+     IDs are stored in a bit vector for space efficiency.
 
  - A CSockMapping structure, which provides an abstract way to
    create and lookup physical connections by label-matching.
@@ -42,12 +70,23 @@ The internal multi-socket data structure has these data elements:
        - Note to self: this needs to be made more resilient to 
          changing interfaces and labels
     - A sender-scheduler thread, which observes the multi-socket
-      state (include changes in IROBs and available interfaces)
+      state (including changes in IROBs and available interfaces)
       and prepares and sends network messages as the state changes.
-    - A receiver-scheduler thread, which receives messages from the
-      network, interprets them, and modifies the multi-socket state
-      as appropriate (adding/modifying/removing IROBs, changing 
+    - A receiver thread, which receives messages from the network,
+      interprets them, and modifies the multi-socket state as
+      appropriate (adding/modifying/removing IROBs, changing remote
       interface information, etc).
+
+    - All network messages are sent by one of these sender-scheduler
+      threads, with the following exceptions:
+      1) The initial handshake and exchange of interface information
+         is done on the socket created by internally connecting to the 
+         vanilla listener socket (the one passed to cmm_listen), which
+         is closed after the handshake is completed.
+      2) Orderly connection shutdown is done from the application 
+         thread that calls cmm_shutdown or cmm_close.  These operations
+         return when all in-flight IROBs in both directions have been 
+         ACK'd by their receivers and the shutdown is done on both ends.
 
 IROB data structures
 --------------------
@@ -65,12 +104,13 @@ At both the sender and receiver, an IROB contains:
 
 At the sender, IROBs also contain:
  - A thunk handler function and argument, optionally
- - Per-byte and per-IROB acknowledgement status
+ - Per-chunk and per-IROB acknowledgement status, so that IROB data
+   can be discarded after it has been ACK'd
 
 At the receiver, IROBs also contain:
  - Bookkeeping information about bytes that have been passed to the application
-
-(...under construction...)
+ - Per-chunk and per-IROB acknowledgement status, so that the sender-scheduler
+   threads know which ACKs to send
 
 Threads and their interactions
 ------------------------------
@@ -80,38 +120,53 @@ modify data structures shared with scheduling threads; when shared
 state changes, sender-scheduler threads will wake up, observe the
 state change, and potentially construct and send network messages that
 communicate the state change - e.g.  a new IROB, a new interface, etc.
-On the receiver side, the opposite is true; receiver threads read
-messages from the network and update shared state, potentially waking
-up application threads that are waiting for new data.  Take for
-example this sequence of events that comprise a single send() call on
-a multi-socket:
+On the receiver side, receiver threads read messages from the network
+and update shared state, potentially waking up application threads
+that are waiting for new data.  Take for example this sequence of
+events that comprise a single send() call on a multi-socket:
 
-1) The application requests bytes be sent on a multi-socket with the FG label. 
-   This is accomplished by a library function similar to the send syscall.
-2) The library function calls an internal method of the multi-socket, creating
-   a new "default" IROB (one with only implicit dependencies on all in-flight
-   IROBs) and adding it to an internal data structure. The application
-   thread now sleeps on a condition variable, waiting for the send 
-   to complete.
-3) The sender-scheduler thread wakes up, notices that there is a new IROB
-   that matches its labels, so it packages the IROB as a network message
-   and sends it on its socket.  Once the send returns, the sender-scheduler
-   signals the application thread that the operation has completed.
-4) At the remote endpoint, a receiver-scheduler thread is blocking for input
-   on its socket.  When it wakes up from the blocking read, it will read
-   the next control message from the network, plus any data that follows.
-   It interprets the network message and adds a new IROB to the receiver-side
-   data structure, and it also signals any application threads that are blocking
-   for incoming data on this multi-socket.
+1) The application requests bytes be sent on a multi-socket with the
+   FG label.  This is accomplished by a library function similar to
+   the send syscall.
+2) The library function calls an internal method of the multi-socket,
+   creating a new "default" IROB (one with only implicit dependencies
+   on all in-flight IROBs) and adding it to an internal data
+   structure. The application thread now sleeps on a condition
+   variable, waiting for the send to complete.
+   - The library function will also check at this point whether a
+     matching physical connection exists, creating one if none exists
+     and suitable network interfaces are available.  If no suitable
+     connection can be made, the request may be thunk'd if the caller
+     provided a thunk, or the request may block or return EAGAIN if no
+     thunk is provided (depending on whether the socket/request is
+     non-blocking).
+3) A sender-scheduler thread wakes up and notices that there is a new
+   IROB that matches its labels, so it packages the IROB as a network
+   message and sends it on its socket.  Once the send returns, the
+   sender-scheduler signals the application thread that the operation
+   has completed.
+4) At the remote endpoint, a receiver thread is blocking for
+   input on its socket.  When it wakes up from the blocking read, it
+   will read the next control message from the network, plus any data
+   that follows.  It interprets the network message and adds a new
+   IROB to the receiver-side data structure, and it also signals any
+   application threads that are blocking for incoming data on this
+   multi-socket.
+   - The data received in this IROB has not yet been ACK'd to the
+     sender.  When a sender-scheduler thread at the receiver next
+     runs, it may choose to send ACKs for any un-ACK'd IROBs/chunks.
 5) When the remote application calls the recv library function on a
    multi-socket, it will wait for the next IROB to be released.  (An
    IROB is released when all of its dependencies are satisfied.)
    IROBs may be received by the application in any order that obeys
-   the dependencies between them.  
+   the dependencies between them.  Once enough IROBs are available to
+   satisfy the recv request, the bytes will be copied to the application
+   buffer and the recv can return.
 
-Aside: if no IROBs can be released to the application, the recv call will by
-   default block until the request can be satisfied.  Non-blocking recv is
-   feasible, but not yet implemented.
+Aside: if no IROBs can be released to the application, or if the
+   number of bytes requested exceeds the number in the ready IROBs,
+   the recv call will by default block until the request can be
+   satisfied.  Non-blocking recv is feasible, but not yet implemented.
 
 * Connection Scout IPC *
 
