@@ -1198,33 +1198,32 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
 
     irob_id_t id = next_irob;
 
-    struct CMMSocketRequest req;
-    req.requester_tid = pthread_self();
-    req.hdr.type = htons(CMM_CONTROL_MSG_BEGIN_IROB);
-    req.hdr.op.begin_irob.id = htonl(id);
-    req.hdr.op.begin_irob.numdeps = htonl(numdeps);
-    req.hdr.op.begin_irob.deps = NULL;
-    req.hdr.send_labels = htonl(send_labels);
-    req.hdr.recv_labels = htonl(recv_labels);
+    struct begin_irob_data begin_irob;
+    begin_irob.id = htonl(id);
+    begin_irob.numdeps = htonl(numdeps);
+    begin_irob.deps = NULL;
 
     if (numdeps > 0) {
-        req.hdr.op.begin_irob.deps = new irob_id_t[numdeps];
+	begin_irob.deps = new irob_id_t[numdeps];
         for (int i = 0; i < numdeps; i++) {
-            req.hdr.op.begin_irob.deps[i] = htonl(deps[i]);
+            begin_irob.deps[i] = htonl(deps[i]);
         }
     }
     
     {
-        PendingIROB *pirob = new PendingSenderIROB(req.hdr.op.begin_irob, 
-						   send_labels, recv_labels,
-                                                   resume_handler, rh_arg);
-        PendingIROBHash::accessor ac;
-        bool success = pending_irobs.insert(ac, pirob);
+        PendingSenderIROB *pirob = new PendingSenderIROB(begin_irob, 
+							 send_labels, recv_labels,
+							 resume_handler, rh_arg);
+        pirob->waiting_thread = pthread_self();
+
+        PendingIROBLattice::scoped_lock lock(pending_irobs);
+        bool success = pending_irobs.insert(pirob);
         assert(success);
     }
     
-    long rc = enqueue_and_wait_for_completion(req);
+    long rc = wait_for_completion();
     if (rc < 0) {
+        PendingIROBLattice::scoped_lock lock(pending_irobs);
         pending_irobs.erase(id);
     }
     TIME(end);
@@ -1559,7 +1558,7 @@ CMMSocketImpl::goodbye_acked(void)
 
 /* returns result of underlying send, or -1 on error */
 long 
-CMMSocketSender::wait_for_completion()
+CMMSocketImpl::wait_for_completion()
 {
     long rc;
     pthread_t self = pthread_self();
@@ -1577,7 +1576,7 @@ CMMSocketSender::wait_for_completion()
 }
 
 void 
-CMMSocketSender::signal_completion(pthread_t requester_tid, long rc)
+CMMSocketImpl::signal_completion(pthread_t requester_tid, long rc)
 {
     if (requester_tid != 0) {
 	assert(app_threads.find(requester_tid) != app_threads.end());
@@ -1585,6 +1584,9 @@ CMMSocketSender::signal_completion(pthread_t requester_tid, long rc)
 	
 	pthread_mutex_lock(&thread.mutex);
 	thread.rc = rc;
+
+	// since there's one cv per app thread, we don't need to
+	// broadcast here; at most one thread is waiting
 	pthread_cond_signal(&thread.cv);
 	pthread_mutex_unlock(&thread.mutex);
     }

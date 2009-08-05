@@ -2,7 +2,7 @@
 #define pending_irob_h_incl
 
 #include "tbb/concurrent_queue.h"
-#include <set>
+#include <deque>
 #include "libcmm.h"
 #include "cmm_socket_control.h"
 #include "cmm_socket.private.h"
@@ -104,10 +104,6 @@ PendingIROB::remove_deps_if(Predicate pred)
     }
 }
 
-typedef tbb::concurrent_hash_map
-    <irob_id_t, PendingIROB *,
-     IntegerHashCompare<irob_id_t> > PendingIROBHash;
-    
 /* IROBs are related by the depends-on relation.
  * This relation forms a partial-ordering on all IROBs.
  * We think here of the relation pointing upwards, where the 
@@ -115,17 +111,13 @@ typedef tbb::concurrent_hash_map
  */
 class PendingIROBLattice {
   public:
-    bool insert(PendingIROBHash::accessor &ac, PendingIROB *pirob);
-    bool find(PendingIROBHash::const_accessor &ac, irob_id_t id);
-    bool find(PendingIROBHash::accessor &ac, irob_id_t id);
-    bool find(PendingIROBHash::const_accessor &ac, PendingIROB *pirob);
-    bool find(PendingIROBHash::accessor &ac, PendingIROB *pirob);
+    bool insert(PendingIROB *pirob);
+    PendingIROB * find(irob_id_t id);
     bool erase(irob_id_t id);
-    bool erase(PendingIROBHash::accessor &ac);
 
     bool past_irob_exists(irob_id_t id) const;
 
-    bool any(PendingIROBHash::accessor &ac);
+    bool any();
 
     bool empty() { return pending_irobs.empty(); }
     
@@ -136,8 +128,26 @@ class PendingIROBLattice {
      * the argument is a given dependent IROB ptr. */
     //typedef void (PendingIROB::*iter_fn_t)(PendingIROB *);
     //void for_each_dep(PendingIROB *dependent, iter_fn_t fn);
-  protected:
-    PendingIROBHash pending_irobs;
+
+    class scoped_lock {
+      public:
+        // acquire this lattice's lock
+        scoped_lock(PendingIROBLattice&);
+
+        // released upon destruction
+        ~scoped_lock();
+      private:
+        PendingIROBLattice& lattice;
+    };
+  private:
+    pthread_mutex_t lock;
+
+    // Invariant: pending_irobs.empty() || 
+    //            (pending_irobs[0] != NULL &&
+    //             forall_i>0(pending_irobs[i] == NULL || 
+    //                        pending_irobs[i]->id == i + offset))
+    std::deque<PendingIROB *> pending_irobs;
+    size_t offset;
 
     /* In a sender, this means IROBs that have been sent and ACK'd.
      * In a receiver, this means IROBs that have been received by the app. */
@@ -148,20 +158,6 @@ class PendingIROBLattice {
      * 3) Remove already-satisfied deps. */
     void correct_deps(PendingIROB *pirob);
 
-#if 0
-    /* This may be a better way to quickly access the dependencies - by 
-     * keeping a pointer-lattice of IROBs. For now we just look them up
-     * in the hash as needed. */
-    std::map<irob_id_t, struct node *> nodes;
-    struct node {
-        PendingIROB *pirob;
-        irob_id_t id;
-        std::set<struct node *> up; // dependencies
-        std::set<struct node *> down; // dependents
-    };
-    struct node bottom;
-    struct node top;
-#endif
 };
 
 #endif

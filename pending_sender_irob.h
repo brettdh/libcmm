@@ -48,6 +48,8 @@ class PendingSenderIROB : public PendingIROB {
     IntSet acked_chunks;
     
     bool acked;
+
+    pthread_t waiting_thread;
 };
 
 #endif
