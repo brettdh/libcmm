@@ -177,6 +177,17 @@ class CMMSocketImpl : public CMMSocket {
     pthread_mutex_t big_multisocket_lock; //TODO: better name.
     pthread_cond_t action_completed_cv;
 
+    struct AppThread {
+	pthread_mutex_t mutex;
+	pthread_cond_t cv;
+	long rc;
+	
+	AppThread() : rc(CMM_INVALID_RC) {
+	    pthread_mutex_init(&mutex, NULL);
+	    pthread_cond_init(&cv, NULL);
+	}
+    };
+    
     // For blocking and waking up application threads as needed
     std::map<pthread_t, AppThread> app_threads;
 
