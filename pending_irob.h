@@ -5,7 +5,7 @@
 #include <deque>
 #include "libcmm.h"
 #include "cmm_socket_control.h"
-#include "cmm_socket.private.h"
+//#include "cmm_socket.private.h"
 #include "intset.h"
 #include <functional>
 #include <string.h>
@@ -22,14 +22,14 @@
 
 class PendingIROB {
   public:
-    PendingIROB(struct begin_irob_data data,
+    PendingIROB(irob_id_t id_, int numdeps, irob_id_t *deps_array,
 		u_long send_labels, u_long recv_labels);
-    PendingIROB(struct default_irob_data data,
+    PendingIROB(irob_id_t id_, size_t datalen, char *data,
 		u_long send_labels, u_long recv_labels);
     virtual ~PendingIROB();
 
     /* return true on success; false if action is invalid */
-    bool add_chunk(struct irob_chunk_data&); /* host byte order */
+    virtual bool add_chunk(struct irob_chunk_data&); /* host byte order */
     bool finish(void);
 
     void add_dep(irob_id_t id);
@@ -57,8 +57,6 @@ class PendingIROB {
     bool is_complete(void) const;
 
   protected:
-    friend class CMMSocketSender;
-
     /* all integers here are in host byte order */
     irob_id_t id;
     u_long send_labels;
@@ -77,6 +75,8 @@ class PendingIROB {
     bool anonymous;
     bool complete;
 
+    pthread_t waiting_thread;
+
     friend class PendingIROBLattice;
 
     /* if not NULL, points to the lattice that this IROB belongs to. 
@@ -89,7 +89,7 @@ template <typename Predicate>
 void 
 PendingIROB::remove_deps_if(Predicate pred)
 {
-    std::set<irob_id_t>::iterator iter = deps.begin();
+    irob_id_set::iterator iter = deps.begin();
     while (iter != deps.end()) {
         irob_id_t id = *iter;
         if (pred(id)) {
@@ -117,9 +117,7 @@ class PendingIROBLattice {
 
     bool past_irob_exists(irob_id_t id) const;
 
-    bool any();
-
-    bool empty() { return pending_irobs.empty(); }
+    bool empty();// { return pending_irobs.empty(); }
     
     /* returns true if first depends on second. */
     //bool depends_on(PendingIROB *first, PendingIROB *second);

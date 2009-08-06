@@ -6,7 +6,7 @@ class ReadyIROB {
   public:
     bool operator()(PendingIROB *pi) {
         assert(pi);
-        PendingReceiverIROB *pirob = static_cast<PendingReceiverIROB*>(pi);
+        PendingReceiverIROB *pirob = dynamic_cast<PendingReceiverIROB*>(pi);
         assert(pirob);
         return (pirob->is_complete() && pirob->is_released());
     }
@@ -113,6 +113,8 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
         hdr.op.begin_irob.deps = deps;
     }
 
+    hdr.op.begin_irob.id = ntohl(hdr.op.begin_irob.id);
+    hdr.op.begin_irob.numdeps = ntohl(hdr.op.begin_irob.numdeps);
     PendingIROB *pirob = new PendingReceiverIROB(hdr.op.begin_irob,
 						 ntohl(hdr.send_labels),
 						 ntohl(hdr.recv_labels));
@@ -130,7 +132,7 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Receiver began IROB %d, took %lu.%06lu seconds\n",
-	      ntohl(hdr.op.begin_irob.id), diff.tv_sec, diff.tv_usec);
+	      hdr.op.begin_irob.id, diff.tv_sec, diff.tv_usec);
 }
 
 void
@@ -154,7 +156,7 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
         throw Exception::make("Tried to end already-done IROB", hdr);
     }
 
-    PendingReceiverIROB *prirob = static_cast<PendingReceiverIROB*>(pirob);
+    PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
     pending_irobs.release_if_ready(prirob, ReadyIROB());
     ac.release();
 
@@ -208,7 +210,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
 
     PendingIROB *pirob = ac->second;
     assert(pirob);
-    PendingReceiverIROB *prirob = static_cast<PendingReceiverIROB*>(pirob);
+    PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
     assert(prirob);
     if (!prirob->add_chunk(chunk)) {
         throw Exception::make("Tried to add to completed IROB", hdr);
@@ -254,6 +256,8 @@ void CSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
 
     hdr.op.default_irob.data = buf;
 
+    hdr.op.default_irob.id = ntohl(hdr.op.default_irob.id);
+    hdr.op.default_irob.datalen = ntohl(hdr.op.default_irob.datalen);
     /* modify data structures */
     PendingIROB *pirob = new PendingReceiverIROB(hdr.op.default_irob,
 						 ntohl(hdr.send_labels),
@@ -265,19 +269,19 @@ void CSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
 			      hdr);
     }
     
-    PendingReceiverIROB *prirob = static_cast<PendingReceiverIROB*>(pirob);
+    PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
     pending_irobs.release_if_ready(prirob, ReadyIROB());
     ac.release();
 
     u_long ack_send_labels = ntohl(hdr.recv_labels);
     u_long ack_recv_labels = ntohl(hdr.send_labels);
 
-    sk->sendr->ack(ntohl(hdr.op.default_irob.id), INVALID_IROB_SEQNO,
+    sk->sendr->ack(hdr.op.default_irob.id, INVALID_IROB_SEQNO,
 		   ack_send_labels, ack_recv_labels);
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Received default IROB %d, took %lu.%06lu seconds\n",
-	      ntohl(hdr.op.default_irob.id), diff.tv_sec, diff.tv_usec);
+	      hdr.op.default_irob.id, diff.tv_sec, diff.tv_usec);
 }
 
 void

@@ -1198,39 +1198,26 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
 
     irob_id_t id = next_irob;
 
-    struct begin_irob_data begin_irob;
-    begin_irob.id = htonl(id);
-    begin_irob.numdeps = htonl(numdeps);
-    begin_irob.deps = NULL;
-
-    if (numdeps > 0) {
-	begin_irob.deps = new irob_id_t[numdeps];
-        for (int i = 0; i < numdeps; i++) {
-            begin_irob.deps[i] = htonl(deps[i]);
-        }
-    }
-    
     {
-        PendingSenderIROB *pirob = new PendingSenderIROB(begin_irob, 
+        PendingSenderIROB *pirob = new PendingSenderIROB(id, numdeps, deps,
 							 send_labels, recv_labels,
 							 resume_handler, rh_arg);
         pirob->waiting_thread = pthread_self();
 
-        PendingIROBLattice::scoped_lock lock(pending_irobs);
-        bool success = pending_irobs.insert(pirob);
+        PendingIROBLattice::scoped_lock lock(outgoing_irobs);
+        bool success = outgoing_irobs.insert(pirob);
         assert(success);
     }
     
     long rc = wait_for_completion();
     if (rc < 0) {
-        PendingIROBLattice::scoped_lock lock(pending_irobs);
-        pending_irobs.erase(id);
+        PendingIROBLattice::scoped_lock lock(outgoing_irobs);
+        outgoing_irobs.erase(id);
     }
     TIME(end);
     TIMEDIFF(begin, end, diff);
-    dbgprintf("Completed request in %lu.%06lu seconds (%s)\n",
-	      diff.tv_sec, diff.tv_usec,
-	      req.describe().c_str());
+    dbgprintf("Completed request in %lu.%06lu seconds (begin_irob)\n",
+	      diff.tv_sec, diff.tv_usec);
     
     return rc;
 }
@@ -1251,15 +1238,14 @@ CMMSocketImpl::end_irob(irob_id_t id)
     struct timeval begin, end, diff;
     TIME(begin);
 
-    u_long send_labels, recv_labels;
     {
-        PendingIROBHash::accessor ac;
-        if (!pending_irobs.find(ac, id)) {
+        PendingIROBLattice::scoped_lock lock(outgoing_irobs);
+
+        PendingIROB *pirob = outgoing_irobs.find(id);
+        if (!pirob) {
             return -1;
         }
         
-        PendingIROB *pirob = ac->second;
-        assert(pirob);
         if (pirob->is_complete()) {
             dbgprintf("Trying to complete IROB %lu, "
                       "which is already complete\n", id);
@@ -1267,32 +1253,25 @@ CMMSocketImpl::end_irob(irob_id_t id)
         }
         pirob->finish();
 
-	send_labels = pirob->send_labels;
-	recv_labels = pirob->recv_labels;
+        assert(pirob->waiting_thread == 0);
+        pirob->waiting_thread = pthread_self();
     }
     
-    struct CMMSocketRequest req;
-    req.requester_tid = pthread_self();
-    req.hdr.type = htons(CMM_CONTROL_MSG_END_IROB);
-    req.hdr.op.end_irob.id = htonl(id);
-    req.hdr.send_labels = htonl(send_labels);
-    req.hdr.recv_labels = htonl(recv_labels);
-    
-    long rc = enqueue_and_wait_for_completion(req);
+    long rc = wait_for_completion();
     if (rc != 0) {
         dbgprintf("end irob %d failed entirely; connection must be gone\n", id);
         return -1;
     } else {
-	PendingIROBHash::accessor ac;
-	if (pending_irobs.find(ac, id)) {
-	    remove_if_unneeded(ac);
+        PendingIROBLattice::scoped_lock lock(outgoing_irobs);
+        PendingIROB *pirob = outgoing_irobs.find(id);
+        if (pirob) {
+	    remove_if_unneeded(pirob);
 	}
     }
     TIME(end);
     TIMEDIFF(begin, end, diff);
-    dbgprintf("Completed request in %lu.%06lu seconds (%s)\n",
-	      diff.tv_sec, diff.tv_usec,
-	      req.describe().c_str());
+    dbgprintf("Completed request in %lu.%06lu seconds (end_irob)\n",
+	      diff.tv_sec, diff.tv_usec);
 
     return rc;
 }
@@ -1316,16 +1295,15 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
     TIME(begin);
 
     struct irob_chunk_data chunk;
-    u_long send_labels, recv_labels;
     {
-	PendingIROBHash::accessor ac;
-	if (!pending_irobs.find(ac, id)) {
+        PendingIROBLattice::scoped_lock lock(outgoing_irobs);
+
+        PendingIROB *pirob = outgoing_irobs.find(id);
+        if (!pirob) {
 	    dbgprintf("Tried to add to nonexistent IROB %d\n", id);
 	    throw CMMException();
 	}
 	
-	PendingIROB *pirob = ac->second;
-	assert(pirob);
 	if (pirob->is_complete()) {
 	    dbgprintf("Tried to add to complete IROB %d\n", id);
 	    throw CMMException();
@@ -1336,31 +1314,16 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 	chunk.datalen = len;
 	chunk.data = new char[len];
 	memcpy(chunk.data, buf, len);
-	PendingSenderIROB *psirob = static_cast<PendingSenderIROB*>(pirob);
+	PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
 	assert(psirob);
 	psirob->add_chunk(chunk); /* writes correct seqno into struct */
-	
-	send_labels = pirob->send_labels;
-	recv_labels = pirob->recv_labels;
     }
     
-    struct CMMSocketRequest req;
-    req.requester_tid = pthread_self();
-    req.hdr.type = htons(CMM_CONTROL_MSG_IROB_CHUNK);
-    req.hdr.send_labels = htonl(send_labels);
-    req.hdr.recv_labels = htonl(recv_labels);
-
-    chunk.id = htonl(chunk.id);
-    chunk.seqno = htonl(chunk.seqno);
-    chunk.datalen = htonl(chunk.datalen);
-    req.hdr.op.irob_chunk = chunk;
-
-    long rc = enqueue_and_wait_for_completion(req);
+    long rc = wait_for_completion();
     TIME(end);
     TIMEDIFF(begin, end, diff);
-    dbgprintf("Completed request in %lu.%06lu seconds (%s)\n",
-	      diff.tv_sec, diff.tv_usec,
-	      req.describe().c_str());
+    dbgprintf("Completed request in %lu.%06lu seconds (irob_chunk)\n",
+	      diff.tv_sec, diff.tv_usec);
 
     return rc;
 }
@@ -1383,36 +1346,31 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
 
     irob_id_t id = next_irob;
 
-    struct default_irob_data default_irob;
-    default_irob.id = htonl(id);
-    default_irob.datalen = htonl(len);
-    default_irob.data = new char[len];
-    memcpy(default_irob.data, buf, len);
+    char *data = new char[len];
+    memcpy(data, buf, len);
     {
-        PendingIROB *pirob = new PendingSenderIROB(default_irob, 
+        PendingIROB *pirob = new PendingSenderIROB(id, len, data,
 						   send_labels, recv_labels,
                                                    resume_handler, rh_arg);
-        PendingIROBHash::accessor ac;
-        bool success = pending_irobs.insert(ac, pirob);
+        pirob->waiting_thread = pthread_self();
+
+        PendingIROBLattice::scoped_lock lock(outgoing_irobs);
+        bool success = outgoing_irobs.insert(pirob);
         assert(success);
     }
     
-    struct CMMSocketRequest req;
-    req.requester_tid = pthread_self();
-    req.hdr.type = htons(CMM_CONTROL_MSG_DEFAULT_IROB);
-    req.hdr.op.default_irob = default_irob;
-    req.hdr.send_labels = htonl(send_labels);
-    req.hdr.recv_labels = htonl(recv_labels);
-
-    long rc = enqueue_and_wait_for_completion(req);
+    long rc = wait_for_completion();
     TIME(end);
     TIMEDIFF(begin, end, diff);
-    dbgprintf("Completed request in %lu.%06lu seconds (%s)\n",
-	      diff.tv_sec, diff.tv_usec,
-	      req.describe().c_str());
+    dbgprintf("Completed request in %lu.%06lu seconds (default_irob)\n",
+	      diff.tv_sec, diff.tv_usec);
 
     return rc;
 }
+
+/* TODO: left off here.  transforming "enqueue(req)" opes into
+ * ops that just modify state and let the sender threads
+ * detect the change and send messages. */
 
 void 
 CMMSocketImpl::new_interface(struct in_addr ip_addr, u_long labels)
@@ -1474,39 +1432,38 @@ CMMSocketImpl::ack(irob_id_t id, u_long seqno,
 void
 CMMSocketImpl::ack_received(irob_id_t id, u_long seqno)
 {
-    PendingIROBHash::accessor ac;
-    if (!pending_irobs.find(ac, id)) {
+    PendingIROBLattice::scoped_lock lock(outgoing_irobs);
+    PendingIROB *pirob = outgoing_irobs.find(id);
+    if (!pirob) {
         dbgprintf("Ack received for non-existent IROB %d\n", id);
         throw CMMException();
     }
-    PendingIROB *pirob = ac->second;
-    assert(pirob);
-    PendingSenderIROB *psirob = static_cast<PendingSenderIROB*>(pirob);
+
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
 
     psirob->ack(seqno);
-    remove_if_unneeded(ac);
+    remove_if_unneeded(pirob);
 }
 
-/* call only with ac held */
-void CMMSocketImpl::remove_if_unneeded(PendingIROBHash::accessor& ac)
+/* call only with lock held on outgoing_irobs */
+void CMMSocketImpl::remove_if_unneeded(PendingIROB *pirob)
 {
-    PendingIROB *pirob = ac->second;
     assert(pirob);
-    PendingSenderIROB *psirob = static_cast<PendingSenderIROB*>(pirob);
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
     if (psirob->is_acked() && psirob->is_complete()) {
-        pending_irobs.erase(ac);
+        outgoing_irobs.erase(pirob->id);
         delete pirob;
 	ac.release();
 
-	if (pending_irobs.empty()) {
-	    pthread_mutex_lock(&shutdown_mutex);
+        pthread_mutex_lock(&shutdown_mutex);
+	if (outgoing_irobs.empty()) {
 	    if (shutting_down) {
 		pthread_cond_signal(&shutdown_cv);
 	    }
-	    pthread_mutex_unlock(&shutdown_mutex);
 	}
+        pthread_mutex_unlock(&shutdown_mutex);
     }
 }
 
@@ -1531,7 +1488,7 @@ CMMSocketImpl::goodbye(bool remote_initiated)
     if (remote_initiated) {
 	remote_shutdown = true;
     }
-    while (!pending_irobs.empty()) {
+    while (!outgoing_irobs.empty()) {
 	pthread_cond_wait(&shutdown_cv, &shutdown_mutex);
     }
     if (remote_initiated) {

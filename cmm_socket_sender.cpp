@@ -220,7 +220,7 @@ CMMSocketSender::irob_chunk(irob_id_t id, const void *buf, size_t len,
 	chunk.datalen = len;
 	chunk.data = new char[len];
 	memcpy(chunk.data, buf, len);
-	PendingSenderIROB *psirob = static_cast<PendingSenderIROB*>(pirob);
+	PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
 	assert(psirob);
 	psirob->add_chunk(chunk); /* writes correct seqno into struct */
 	
@@ -365,7 +365,7 @@ CMMSocketSender::ack_received(irob_id_t id, u_long seqno)
     }
     PendingIROB *pirob = ac->second;
     assert(pirob);
-    PendingSenderIROB *psirob = static_cast<PendingSenderIROB*>(pirob);
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
 
     psirob->ack(seqno);
@@ -377,7 +377,7 @@ void CMMSocketSender::remove_if_unneeded(PendingIROBHash::accessor& ac)
 {
     PendingIROB *pirob = ac->second;
     assert(pirob);
-    PendingSenderIROB *psirob = static_cast<PendingSenderIROB*>(pirob);
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
     if (psirob->is_acked() && psirob->is_complete()) {
         pending_irobs.erase(ac);
@@ -540,7 +540,7 @@ CMMSocketSender::pass_to_worker_by_labels(struct CMMSocketRequest req)
 	}
 	PendingIROB *pirob = ac->second;
 	assert(pirob);
-	PendingSenderIROB *psirob = static_cast<PendingSenderIROB*>(pirob);
+	PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
         assert(psirob);
         if (psirob->resume_handler) {
             enqueue_handler(sk->sock, send_labels, recv_labels,

@@ -5,7 +5,7 @@
 #include <set>
 #include "libcmm.h"
 #include "cmm_socket_control.h"
-#include "cmm_socket.private.h"
+//#include "cmm_socket.private.h"
 #include "intset.h"
 #include "pending_irob.h"
 
@@ -21,14 +21,15 @@
 
 class PendingSenderIROB : public PendingIROB {
   public:
-    PendingSenderIROB(struct begin_irob_data data,
+    PendingSenderIROB(irob_id_t id_, int numdeps, irob_id_t *deps_array,
 		      u_long send_labels, u_long recv_labels,
 		      resume_handler_t resume_handler, void *rh_arg);
-    PendingSenderIROB(struct default_irob_data data,
+    PendingSenderIROB(irob_id_t id_, size_t datalen, char *data,
 		      u_long send_labels, u_long recv_labels,
                       resume_handler_t resume_handler, void *rh_arg);
-    
-    bool add_chunk(struct irob_chunk_data&);
+    virtual ~PendingSenderIROB();
+
+    virtual bool add_chunk(struct irob_chunk_data&);
     
     void ack(u_long seqno = INVALID_IROB_SEQNO);
 
@@ -37,13 +38,17 @@ class PendingSenderIROB : public PendingIROB {
     bool is_acked(void);
 
   private:
-    friend class CMMSocketSender;
-    
     /* all integers here are in host byte order */
     u_long next_seqno;
 
     resume_handler_t resume_handler;
     void *rh_arg;
+
+    struct ready_irob_chunk {
+        struct irob_chunk_data chunk;
+        pthread_t waiting_thread;
+    };
+    tbb::concurrent_queue<struct ready_irob_chunk> chunks;
 
     IntSet acked_chunks;
     

@@ -5,11 +5,12 @@
 #include <set>
 #include "libcmm.h"
 #include "cmm_socket_control.h"
-#include "cmm_socket.private.h"
+//#include "cmm_socket.private.h"
 #include "intset.h"
 #include "pending_irob.h"
 #include "tbb/concurrent_queue.h"
 #include <queue>
+#include <cassert>
 
 class PendingReceiverIROB : public PendingIROB {
   public:
@@ -44,10 +45,6 @@ class PendingReceiverIROB : public PendingIROB {
     ssize_t num_bytes;
 };
 
-typedef tbb::concurrent_hash_map
-    <irob_id_t, PendingReceiverIROB *,
-     IntegerHashCompare<irob_id_t> > PendingReceiverIROBHash;
-
 class PendingReceiverIROBLattice : public PendingIROBLattice {
   public:
     PendingReceiverIROBLattice();
@@ -68,7 +65,7 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
     /* signify that the socket has been shut down for reading. */
     void shutdown(); 
   private:
-    PendingReceiverIROBHash pending_irobs;
+    //PendingReceiverIROBHash pending_irobs;
 
     /* for now, pass IROBs to the app in the order in which they are released */
     std::queue<PendingReceiverIROB*> ready_irobs;
@@ -98,11 +95,12 @@ PendingReceiverIROBLattice::release_dependents(PendingReceiverIROB *pirob,
     assert(pirob);
     for (PendingIROB::irob_id_set::iterator it = pirob->dependents.begin();
          it != pirob->dependents.end(); it++) {
-        PendingReceiverIROBHash::accessor ac;
-        if (!pending_irobs.find(ac, *it)) {
+        
+        PendingIROB *pi = this->find(*it);
+        if (pi == NULL) {
             continue;
         }
-        PendingReceiverIROB *dependent = ac->second;
+        PendingReceiverIROB *dependent = dynamic_cast<PendingReceiverIROB*>(pi);
         assert(dependent);
         dependent->dep_satisfied(pirob->id);
         release_if_ready(dependent, is_ready);

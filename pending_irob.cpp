@@ -5,44 +5,40 @@
 using std::mem_fun_ref;
 using std::bind1st;
 
-#include "tbb/parallel_for.h"
-#include "tbb/task_scheduler_init.h"
-using tbb::parallel_for;
-using tbb::task_scheduler_init;
-
-PendingIROB::PendingIROB(struct begin_irob_data begin_irob,
+PendingIROB::PendingIROB(irob_id_t id_, int numdeps, irob_id_t *deps_array,
 			 u_long send_labels_, u_long recv_labels_)
-    : id(ntohl(begin_irob.id)),
+    : id(id),
       send_labels(send_labels_),
       recv_labels(recv_labels_),
       anonymous(false),
       complete(false)
 {
-    int numdeps = ntohl(begin_irob.numdeps);
     if (numdeps > 0) {
-        assert(begin_irob.deps);
+        assert(deps_array);
     } else if (numdeps == -1) {
         anonymous = true;
     }
     for (int i = 0; i < numdeps; i++) {
-        deps.insert(ntohl(begin_irob.deps[i]));
+        deps.insert(deps_array[i]);
     }
 }
 
-PendingIROB::PendingIROB(struct default_irob_data default_irob,
+PendingIROB::PendingIROB(irob_id_t id_, size_t datalen, char *data,
 			 u_long send_labels_, u_long recv_labels_)
-    : id(ntohl(default_irob.id)), 
+    : id(id_), 
       send_labels(send_labels_), 
       recv_labels(recv_labels_),
       anonymous(true), 
-      complete(true)
+      complete(false)
 {
     struct irob_chunk_data chunk;
     chunk.id = id;
     chunk.seqno = INVALID_IROB_SEQNO;
-    chunk.datalen = ntohl(default_irob.datalen);
-    chunk.data = default_irob.data;
-    chunks.push(chunk);
+    chunk.datalen = datalen;
+    chunk.data = data;
+    
+    (void)add_chunk(chunk);
+    (void)finish();
 }
 
 PendingIROB::~PendingIROB()
@@ -106,7 +102,7 @@ PendingIROB::is_anonymous(void) const
 }
 
 bool
-PendingIROBLattice::insert(PendingIROBHash::accessor& ac, PendingIROB *pirob)
+PendingIROBLattice::insert(PendingIROB *pirob)
 {
     assert(pirob);
     if (past_irobs.contains(pirob->id)) {
@@ -117,132 +113,75 @@ PendingIROBLattice::insert(PendingIROBHash::accessor& ac, PendingIROB *pirob)
 
     //TimeFunctionBody timer("pending_irobs.insert");
 
-    if (!pending_irobs.insert(ac, pirob->id)) {
-        ac.release();
+    size_t index = pirob->id - offset;
+    if (index < pending_irobs.size() && pending_irobs[index] != NULL) {
         dbgprintf("E: Tried to add irob %d, which I've already added\n",
                   pirob->id);
         return false;
     }
-    ac->second = pirob;
+    pending_irobs[index] = pirob;
 
     correct_deps(pirob);
 
     return true;
 }
 
-#if 0
-struct CorrectDeps {
-    PendingIROB *pirob;
-    CorrectDeps(PendingIROB *pi) : pirob(pi) {}
-
-    void operator()(const PendingIROBHash::const_range_type& range) const {
-	for (PendingIROBHash::const_iterator it = range.begin();
-	     it != range.end(); ++it) {
-	    correct_dep(it->first, it->second);
-	}
-    }
-
-    void correct_dep(irob_id_t target_id, const PendingIROB *target) const {
-	assert(pirob && target);
-	if (pirob == target) return;
-	if (pirob->is_anonymous() || target->is_anonymous()) {
-	    pirob->add_dep(target_id);
-	}
-    }
-};
-#endif
-
 void
 PendingIROBLattice::correct_deps(PendingIROB *pirob)
 {
     /* 1) If pirob is anonymous, add deps on all pending IROBs. */
     /* 2) Otherwise, add deps on all pending anonymous IROBs. */
-#if 0
-    task_scheduler_init init(1);
-    parallel_for(pending_irobs.range(), CorrectDeps(pirob));
-#else
-    for (PendingIROBHash::iterator it = pending_irobs.begin();
-	 it != pending_irobs.end(); it++) {
-	if (it->second == pirob) continue;
+    for (size_t i = 0; i < pending_irobs.size(); i++) {
+	if (pending_irobs[i] == pirob) continue;
 	
-	if (pirob->is_anonymous() || it->second->is_anonymous()) {
-	    pirob->add_dep(it->first);
+	if (pending_irobs[i] &&
+            (pirob->is_anonymous() || pending_irobs[i]->is_anonymous())) {
+	    pirob->add_dep(i);
 	}
     }
-#endif
 
     /* 3) Remove already-satisfied deps. */
     pirob->remove_deps_if(bind1st(mem_fun_ref(&IntSet::contains), 
                                   past_irobs));
 }
 
-bool
-PendingIROBLattice::find(PendingIROBHash::const_accessor& ac, 
-                         irob_id_t id)
-{
-    //TimeFunctionBody timer("pending_irobs.find(const_accessor)");
-    bool result = pending_irobs.find(ac, id);
-    return result;
-}
-
-bool
-PendingIROBLattice::find(PendingIROBHash::accessor& ac, 
-                         irob_id_t id)
+PendingIROB *
+PendingIROBLattice::find(irob_id_t id)
 {
     //TimeFunctionBody timer("pending_irobs.find(accessor)");
-    bool result = pending_irobs.find(ac, id);
-    return result;
-}
-
-bool
-PendingIROBLattice::find(PendingIROBHash::const_accessor& ac, 
-                         PendingIROB *pirob)
-{
-    assert(pirob);
-    //TimeFunctionBody timer("pending_irobs.find(const_accessor)");
-    bool result = pending_irobs.find(ac, pirob->id);
-    return result;
-}
-
-bool
-PendingIROBLattice::find(PendingIROBHash::accessor& ac, PendingIROB *pirob)
-{
-    assert(pirob);
-    //TimeFunctionBody timer("pending_irobs.find(accessor)");
-    bool result = pending_irobs.find(ac, pirob->id);
-    return result;
-}
-
-bool 
-PendingIROBLattice::any(PendingIROBHash::accessor &ac)
-{
-    if (pending_irobs.empty()) {
-        return false;
-    } else {
-        return find(ac, pending_irobs.begin()->first);
+    size_t index = id - offset;
+    if (index < 0 || index >= pending_irobs.size()) {
+        return NULL;
     }
+    return pending_irobs[index];
 }
 
 bool
 PendingIROBLattice::erase(irob_id_t id)
 {
     //TimeFunctionBody timer("pending_irobs.erase(const_accessor)");
-    bool result = pending_irobs.erase(id);
-    return result;
-}
-
-bool
-PendingIROBLattice::erase(PendingIROBHash::accessor& ac)
-{
-    //TimeFunctionBody timer("pending_irobs.erase(accessor)");
-    bool result = pending_irobs.erase(ac);
-    return result;
+    size_t index = id - offset;
+    if (index < 0 || index >= pending_irobs.size()) {
+        return false;
+    }
+    pending_irobs[index] = NULL; // caller must free it
+    while (!pending_irobs.empty() && pending_irobs[0] == NULL) {
+        pending_irobs.pop_front();
+        offset++;
+    }
+    return true;
 }
 
 bool 
 PendingIROBLattice::past_irob_exists(irob_id_t id) const
 {
     return past_irobs.contains(id);
+}
+
+bool 
+PendingIROBLattice::empty()
+{
+    return pending_irobs.empty(); 
 }
 
 #if 0

@@ -93,6 +93,7 @@ struct CMMSocketControlHdr {
     const char *type_str() const;
 };
 
+#if 0
 /* for passing between request-handling threads. */
 struct CMMSocketRequest {
     pthread_t requester_tid;
@@ -103,5 +104,6 @@ struct CMMSocketRequest {
     std::string describe() const;
     void cleanup() { hdr.cleanup(); }
 };
+#endif
 
 #endif
