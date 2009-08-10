@@ -65,8 +65,6 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
     /* signify that the socket has been shut down for reading. */
     void shutdown(); 
   private:
-    //PendingReceiverIROBHash pending_irobs;
-
     /* for now, pass IROBs to the app in the order in which they are released */
     std::queue<PendingReceiverIROB*> ready_irobs;
     void enqueue(PendingReceiverIROB *pirob);

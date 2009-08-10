@@ -1072,24 +1072,25 @@ CMMSocketImpl::mc_getpeername(struct sockaddr *address,
 void
 CMMSocketImpl::setup(struct net_interface iface, bool local)
 {
-    CMMSockHash::const_accessor read_ac;
-    if (!cmm_sock_hash.find(read_ac, sock)) {
+    CMMSockHash::accessor write_ac;
+    if (!cmm_sock_hash.find(write_ac, sock)) {
         assert(0);
     }
-    assert(get_pointer(read_ac->second) == this);
+    assert(get_pointer(write_ac->second) == this);
     
     if (local) {
-        if (sendr) {
-            sendr->new_interface(iface.ip_addr, iface.labels);
+        if (local_ifaces.count(iface) > 0) {
+            // make sure labels update if needed
+            local_ifaces.erase(iface);
+            changed_local_ifaces.erase(iface);
         }
+        local_ifaces.insert(iface);
+        changed_local_ifaces.insert(iface);
     } else {
-        read_ac.release();
-        CMMSockHash::accessor write_ac;
-        if (!cmm_sock_hash.find(write_ac, sock)) {
-            assert(0);
+        if (remote_ifaces.count(iface) > 0) {
+            // make sure labels update if needed
+            remote_ifaces.erase(iface);
         }
-        assert(get_pointer(write_ac->second) == this);
-
         remote_ifaces.insert(iface);
     }
 }
@@ -1103,7 +1104,10 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
     csock_map->teardown(iface, local);
 
     if (local) {
-        sendr->down_interface(iface.ip_addr);
+        local_ifaces.erase(iface);
+        changed_local_ifaces.insert(iface);
+    } else {
+        remote_ifaces.erase(iface);
     }
 }
 
@@ -1177,6 +1181,23 @@ CMMSocketImpl::is_shutting_down()
     return shdwn;
 }
 
+/* TODO: what about a timeout for these? Maybe just check if
+ * SO_TIMEOUT is set for the socket. */
+struct BlockingRequest {
+    CMMSocketSender *sendr;
+    struct CMMSocketRequest req;
+
+    BlockingRequest(CMMSocketSender *sendr_, struct CMMSocketRequest req_)
+        : sendr(sendr_), req(req_) {}
+};
+
+
+static void unblock_thread(BlockingRequest *breq)
+{
+    // TODO: finish this up, using signal_completion to
+    // wake up the blocking app request.
+}
+
 /* This function blocks until the data has been sent.
  * If the socket is non-blocking, we need to implement that here.
  */
@@ -1198,12 +1219,34 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
 
     irob_id_t id = next_irob;
 
-    {
-        PendingSenderIROB *pirob = new PendingSenderIROB(id, numdeps, deps,
-							 send_labels, recv_labels,
-							 resume_handler, rh_arg);
-        pirob->waiting_thread = pthread_self();
+    CSocket *csock = NULL;
+    
+    try {
+        csock = csock_map->new_csock_with_labels(send_labels, recv_labels);
+    } catch (std::runtime_error& e) {
+        dbgprintf("Error finding csocket by labels: %s\n", e.what());
+        return CMM_FAILED;
+    }
 
+    if (!csock) {
+        if (resume_handler) {
+            enqueue_handler(sock, send_labels, recv_labels, 
+                            resume_handler, arg);
+            return CMM_DEFERRED;
+        } else {
+            // pseudo-thunk to block this until it's ready to send
+            begin_app_operation();
+            enqueue_handler(sock, send_labels, recv_labels,
+                            unblock_thread, (void*)pthread_self());
+        }
+    }
+
+    PendingSenderIROB *pirob = new PendingSenderIROB(id, numdeps, deps,
+                                                     send_labels, recv_labels,
+                                                     resume_handler, rh_arg);
+    pirob->waiting_thread = pthread_self();
+
+    {
         PendingIROBLattice::scoped_lock lock(outgoing_irobs);
         bool success = outgoing_irobs.insert(pirob);
         assert(success);
@@ -1368,67 +1411,6 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
     return rc;
 }
 
-/* TODO: left off here.  transforming "enqueue(req)" opes into
- * ops that just modify state and let the sender threads
- * detect the change and send messages. */
-
-void 
-CMMSocketImpl::new_interface(struct in_addr ip_addr, u_long labels)
-{
-    if (is_shutting_down()) {
-	return;
-    }
-
-    struct CMMSocketRequest req;
-    req.requester_tid = 0; /* signifying that we won't wait for the result */
-    req.hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
-    req.hdr.op.new_interface.ip_addr = ip_addr;
-    req.hdr.op.new_interface.labels = htonl(labels);
-
-    req.hdr.send_labels = req.hdr.recv_labels = htonl(0);
-
-    enqueue(req);
-}
-
-void 
-CMMSocketImpl::down_interface(struct in_addr ip_addr)
-{
-    if (is_shutting_down()) {
-	return;
-    }
-
-    struct CMMSocketRequest req;
-    req.requester_tid = 0; /* signifying that we won't wait for the result */
-    req.hdr.type = htons(CMM_CONTROL_MSG_DOWN_INTERFACE);
-    req.hdr.op.down_interface.ip_addr = ip_addr;
-
-    req.hdr.send_labels = req.hdr.recv_labels = htonl(0);
-
-    enqueue(req);
-}
-
-void 
-CMMSocketImpl::ack(irob_id_t id, u_long seqno, 
-		     u_long ack_send_labels, u_long ack_recv_labels)
-{
-    struct CMMSocketRequest req;
-    req.requester_tid = 0;
-    req.hdr.type = htons(CMM_CONTROL_MSG_ACK);
-    req.hdr.op.ack.id = htonl(id);
-    req.hdr.op.ack.seqno = htonl(seqno);
-    req.hdr.send_labels = htonl(ack_send_labels);
-    req.hdr.recv_labels = htonl(ack_recv_labels);
-
-    struct timeval begin, end, diff;
-    TIME(begin);
-    enqueue(req);
-    TIME(end);
-    TIMEDIFF(begin, end, diff);
-    dbgprintf("Enqueued request in %lu.%06lu seconds (%s)\n",
-	      diff.tv_sec, diff.tv_usec,
-	      req.describe().c_str());
-}
-
 void
 CMMSocketImpl::ack_received(irob_id_t id, u_long seqno)
 {
@@ -1470,32 +1452,22 @@ void CMMSocketImpl::remove_if_unneeded(PendingIROB *pirob)
 void
 CMMSocketImpl::goodbye(bool remote_initiated)
 {
-    struct CMMSocketRequest req;
-    if (remote_initiated) {
-	req.requester_tid = pthread_self();
-    } else {
-	req.requester_tid = 0;
-    }
-    req.hdr.type = htons(CMM_CONTROL_MSG_GOODBYE);
-    req.hdr.send_labels = req.hdr.recv_labels = htonl(0);
-
     if (is_shutting_down()) {
 	return;
     }
 
     pthread_mutex_lock(&shutdown_mutex);
-    shutting_down = true;
+    shutting_down = true; // picked up by sender-scheduler
     if (remote_initiated) {
 	remote_shutdown = true;
     }
     while (!outgoing_irobs.empty()) {
 	pthread_cond_wait(&shutdown_cv, &shutdown_mutex);
     }
-    if (remote_initiated) {
-	enqueue_and_wait_for_completion(req);
-    } else {
-	enqueue(req);
-    }
+
+    // sender-scheduler thread will send goodbye msg after 
+    // all ACKs are received
+
     while (!remote_shutdown) {
 	pthread_cond_wait(&shutdown_cv, &shutdown_mutex);
     }
@@ -1513,7 +1485,18 @@ CMMSocketImpl::goodbye_acked(void)
     pthread_mutex_unlock(&shutdown_mutex);
 }
 
-/* returns result of underlying send, or -1 on error */
+void
+CMMSocketImpl::begin_app_operation()
+{
+    pthread_t self = pthread_self();
+    struct AppThread& thread = app_threads[self];
+
+    pthread_mutex_lock(&thread.mutex);
+    thread.rc = CMM_INVALID_RC;
+    pthread_mutex_unlock(&thread_mutex);
+}
+
+/* returns result of pending operation, or -1 on error */
 long 
 CMMSocketImpl::wait_for_completion()
 {
@@ -1522,7 +1505,6 @@ CMMSocketImpl::wait_for_completion()
     struct AppThread& thread = app_threads[self];
 
     pthread_mutex_lock(&thread.mutex);
-    thread.rc = CMM_INVALID_RC;
     while (thread.rc == CMM_INVALID_RC) {
         pthread_cond_wait(&thread.cv, &thread.mutex);
     }

@@ -11,63 +11,6 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
-class CSocketSender : public CMMSocketScheduler<struct CMMSocketRequest> {
-  public:
-    explicit CSocketSender(CSocket *csock_);
-  protected:    
-    virtual void dispatch(struct CMMSocketRequest);
-    virtual void Finish();
-  private:
-    CSocket *csock;
-    
-    void send_request(struct CMMSocketRequest req);
-    void do_begin_irob(struct CMMSocketRequest req);
-    void do_end_irob(struct CMMSocketRequest req);
-    void do_irob_chunk(struct CMMSocketRequest req);
-
-    void send_header(struct CMMSocketControlHdr hdr);
-};
-
-void
-CSocketSender::dispatch(struct CMMSocketRequest req)
-{
-    CMMSocketScheduler<struct CMMSocketRequest>::dispatch(req);
-}
-
-class CSocketReceiver : public CMMSocketScheduler<struct CMMSocketControlHdr> {
-  public:
-    explicit CSocketReceiver(CSocket *csock_);
-    void stop();
-  protected:
-    virtual void Run();
-    virtual void Finish();
-  private:
-    CSocket *csock;
-
-    void pass_header(struct CMMSocketControlHdr hdr);
-    void do_begin_irob(struct CMMSocketControlHdr hdr);
-    void do_irob_chunk(struct CMMSocketControlHdr hdr);
-};
-
-
-CSocketSender::CSocketSender(CSocket *csock_)
-    : csock(csock_)
-{
-    handle(CMM_CONTROL_MSG_BEGIN_IROB, this, &CSocketSender::do_begin_irob);
-    handle(CMM_CONTROL_MSG_END_IROB, this, &CSocketSender::send_request);
-    handle(CMM_CONTROL_MSG_IROB_CHUNK, this, &CSocketSender::do_irob_chunk);
-    handle(CMM_CONTROL_MSG_DEFAULT_IROB, this, &CSocketSender::do_irob_chunk);
-    handle(CMM_CONTROL_MSG_NEW_INTERFACE, this, &CSocketSender::send_request);
-    handle(CMM_CONTROL_MSG_DOWN_INTERFACE, this, &CSocketSender::send_request);
-    handle(CMM_CONTROL_MSG_ACK, this, &CSocketSender::send_request);
-    handle(CMM_CONTROL_MSG_GOODBYE, this, &CSocketSender::send_request);
-}
-
-void
-CSocketSender::Finish(void)
-{
-    csock->remove();
-}
 
 void CSocketSender::send_header(struct CMMSocketControlHdr hdr)
 {

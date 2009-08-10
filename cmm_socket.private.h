@@ -172,11 +172,6 @@ class CMMSocketImpl : public CMMSocket {
     
     bool is_shutting_down(void);
 
-    // for protecting data structures that comprise the "state"
-    // of the multisocket from the scheduling threads' perspective
-    pthread_mutex_t big_multisocket_lock; //TODO: better name.
-    pthread_cond_t action_completed_cv;
-
     struct AppThread {
 	pthread_mutex_t mutex;
 	pthread_cond_t cv;
@@ -191,12 +186,17 @@ class CMMSocketImpl : public CMMSocket {
     // For blocking and waking up application threads as needed
     std::map<pthread_t, AppThread> app_threads;
 
-    // Call with the big_multisocket_lock held, so that
-    // the operation you are waiting for doesn't complete
-    // and signal you before you sleep on the CV.
+    // always call in app thread before wait_for_completion, before
+    // modifying the state that will trigger the desired operation
+    void begin_app_operation();
+
+    // assumes begin_app_operation has been called in this thread
+    // with no call to wait_for_completion since.
     long wait_for_completion();
 
+    // called from sender-scheduler thread to wake up app thread
     void signal_completion(pthread_t requester_tid, long result);
+
 
     /* true iff the socket has begun shutting down 
      * via shutdown() or close(). */
@@ -204,9 +204,30 @@ class CMMSocketImpl : public CMMSocket {
     bool remote_shutdown; /* true if remote has ack'd the shutdown */
     pthread_mutex_t shutdown_mutex;
     pthread_cond_t shutdown_cv;
+
     
+    // for protecting data structures that comprise the "state"
+    //  of the multisocket from the scheduling threads' perspective
+    // It also protects CSocket-specific state; e.g. 
+    //  the index of IROBs with a specific label.
+    pthread_mutex_t scheduling_state_lock;
+
+    // whether up or down, the newest status of these has 
+    // not been sent to the remote side
+    NetInterfaceSet changed_local_ifaces;
+
     PendingIROBLattice outgoing_irobs;
     PendingReceiverIROBLattice incoming_irobs;
+
+    // unlabeled IROB actions; can be picked up by any csocket
+    std::set<irob_id_t> new_irobs;
+    std::set<struct irob_chunk_data *> new_chunks;
+    std::set<irob_id_t> finished_irobs;
+
+    // these are unlabeled; they failed on the original connection,
+    // so they can be sent on any available connection
+    std::set<irob_id_t> unacked_irobs;
+    std::map<irob_id_t, std::set<u_long> > unacked_chunks;
 
 
     int non_blocking; /* 1 if non blocking, 0 otherwise */

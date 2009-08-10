@@ -124,13 +124,11 @@ CSockMapping::teardown(struct net_interface iface, bool local)
     (void)for_each(get_victim_csocks(iface, victims, local));
 
     scoped_rwlock lock(sockset_mutex, true);
-    if (!victims.empty()) {
-        while (!victims.empty()) {
-            CSocket *victim = victims.back();
-            victims.pop_back();
-            connected_csocks.erase(victim);
-            delete victim; /* closes socket, cleans up */
-        }
+    while (!victims.empty()) {
+        CSocket *victim = victims.back();
+        victims.pop_back();
+        connected_csocks.erase(victim);
+        delete victim; /* closes socket, cleans up */
     }
 }
 

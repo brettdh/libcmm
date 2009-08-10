@@ -11,11 +11,6 @@ class CSocketSender : public CMMThread {
   private:
     CSocket *csock;
     
-    void send_request(struct CMMSocketRequest req);
-    void do_begin_irob(struct CMMSocketRequest req);
-    void do_end_irob(struct CMMSocketRequest req);
-    void do_irob_chunk(struct CMMSocketRequest req);
-
     void send_header(struct CMMSocketControlHdr hdr);
 };
 
