@@ -9,6 +9,8 @@
 #include <set>
 #include <boost/shared_ptr.hpp>
 
+struct BlockingRequest;
+
 class CMMSocketImpl;
 typedef boost::shared_ptr<CMMSocketImpl> CMMSocketImplPtr;
 
@@ -196,6 +198,8 @@ class CMMSocketImpl : public CMMSocket {
 
     // called from sender-scheduler thread to wake up app thread
     void signal_completion(pthread_t requester_tid, long result);
+
+    friend void unblock_thread(BlockingRequest *req);
 
 
     /* true iff the socket has begun shutting down 

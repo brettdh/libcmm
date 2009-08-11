@@ -1184,18 +1184,31 @@ CMMSocketImpl::is_shutting_down()
 /* TODO: what about a timeout for these? Maybe just check if
  * SO_TIMEOUT is set for the socket. */
 struct BlockingRequest {
-    CMMSocketSender *sendr;
-    struct CMMSocketRequest req;
+    CMMSocketImpl *sk;
+    pthread_t tid;
 
-    BlockingRequest(CMMSocketSender *sendr_, struct CMMSocketRequest req_)
-        : sendr(sendr_), req(req_) {}
+    BlockingRequest(CMMSocketImpl *sk_, pthread_t tid_) 
+        : sk(sk_), tid(tid_) {}
 };
 
 
-static void unblock_thread(BlockingRequest *breq)
+void unblock_thread(BlockingRequest *breq)
 {
-    // TODO: finish this up, using signal_completion to
-    // wake up the blocking app request.
+    assert(breq && breq->sk);
+    breq->sk->signal_completion(breq->tid, 0);
+    delete breq;
+}
+
+void 
+CMMSocketImpl::wait_for_labels(u_long send_labels, u_long recv_labels)
+{
+    // pseudo-thunk to block this until it's ready to send
+    begin_app_operation();
+    enqueue_handler(sock, send_labels, recv_labels,
+                    unblock_thread, 
+                    new BlockingRequest(this, pthread_self()));
+    (void)wait_for_completion();
+    
 }
 
 /* This function blocks until the data has been sent.
@@ -1237,7 +1250,9 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
             // pseudo-thunk to block this until it's ready to send
             begin_app_operation();
             enqueue_handler(sock, send_labels, recv_labels,
-                            unblock_thread, (void*)pthread_self());
+                            unblock_thread, 
+                            new BlockingRequest(this, pthread_self()));
+            (void)wait_for_completion();
         }
     }
 
