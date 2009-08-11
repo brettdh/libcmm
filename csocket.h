@@ -25,8 +25,6 @@ class CSocket {
     struct net_interface remote_iface;
 
     CSocket(CMMSocketImpl *sk_, 
-            CMMSocketSender *sendr_,
-            CMMSocketReceiver *recvr_,
             struct net_interface local_iface_,
             struct net_interface remote_iface_,
             int accepted_sock = -1);
@@ -38,6 +36,7 @@ class CSocket {
   private:
     void startup_workers();
   
+    friend class CMMSocketImpl;
     friend class CSocketSender;
     friend class CSocketReceiver;
     
@@ -47,11 +46,11 @@ class CSocket {
 
     // indexes for the sender threads
     std::set<irob_id_t> new_irobs;
-    std::set<struct irob_chunk_data *> new_chunks;
+    std::multimap<irob_id_t, u_long> new_chunks;
     std::set<irob_id_t> finished_irobs;
 
     std::set<irob_id_t> unacked_irobs;
-    std::map<irob_id_t, std::set<u_long> > unacked_chunks;
+    std::multimap<irob_id_t, u_long> unacked_chunks;
 };
 
 

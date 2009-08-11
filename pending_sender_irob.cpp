@@ -3,7 +3,7 @@
 #include "debug.h"
 
 PendingSenderIROB::PendingSenderIROB(irob_id_t id_, 
-                                     int numdeps, irob_id_t *deps_array,
+                                     int numdeps, const irob_id_t *deps_array,
 				     u_long send_labels, u_long recv_labels,
                                      resume_handler_t resume_handler_, 
                                      void *rh_arg_)

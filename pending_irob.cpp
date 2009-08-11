@@ -5,7 +5,7 @@
 using std::mem_fun_ref;
 using std::bind1st;
 
-PendingIROB::PendingIROB(irob_id_t id_, int numdeps, irob_id_t *deps_array,
+PendingIROB::PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array,
 			 u_long send_labels_, u_long recv_labels_)
     : id(id),
       send_labels(send_labels_),

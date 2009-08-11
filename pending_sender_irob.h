@@ -21,7 +21,7 @@
 
 class PendingSenderIROB : public PendingIROB {
   public:
-    PendingSenderIROB(irob_id_t id_, int numdeps, irob_id_t *deps_array,
+    PendingSenderIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array,
 		      u_long send_labels, u_long recv_labels,
 		      resume_handler_t resume_handler, void *rh_arg);
     PendingSenderIROB(irob_id_t id_, size_t datalen, char *data,
@@ -38,6 +38,9 @@ class PendingSenderIROB : public PendingIROB {
     bool is_acked(void);
 
   private:
+    friend class CMMSocketImpl;
+    friend class CSocketSender;
+
     /* all integers here are in host byte order */
     u_long next_seqno;
 

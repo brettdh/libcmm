@@ -6,6 +6,7 @@
 #include <map>
 #include <netinet/in.h>
 #include "libcmm.h"
+#include <pthread.h>
 
 template <typename IntegerType>
 struct IntegerHashCompare {
@@ -22,6 +23,18 @@ struct net_interface {
     }
 };
 
+class PthreadScopedLock {
+  public:
+    explicit PthreadScopedLock(pthread_mutex_t *mutex_) : mutex(mutex_) {
+        pthread_mutex_lock(mutex);
+    }
+    ~PthreadScopedLock() {
+        pthread_mutex_unlock(mutex);
+    }
+  private:
+    pthread_mutex_t *mutex;
+};
+
 typedef std::set<struct net_interface> NetInterfaceSet;
 
 typedef std::vector<std::pair<mc_socket_t, int> > mcSocketOsfdPairList;
@@ -29,5 +42,21 @@ typedef std::vector<std::pair<mc_socket_t, int> > mcSocketOsfdPairList;
 #include <stdexcept>
 
 class CMMException : public std::exception { };
+
+template <template <typename, typename> class MapType>
+void multimap_erase(MapType& the_map, const MapType::value_type& value)
+{
+    std::pair<MapType::iterator, MapType::iterator> range = 
+        the_map.equal_range(value.first);
+
+    MapType::iterator it = range.first;
+    while (it != range.second) {
+        if (it->second == value.second) {
+            the_map.erase(it++);
+        } else {
+            ++it;
+        }
+    }
+}
 
 #endif

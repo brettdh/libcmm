@@ -2,16 +2,15 @@
 #include "csocket.h"
 #include "debug.h"
 #include "timeops.h"
-#include "cmm_socket_scheduler.h"
 #include "cmm_socket_control.h"
-#include "cmm_socket_sender.h"
-#include "cmm_socket_receiver.h"
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include "csocket_sender.h"
+#include "csocket_receiver.h"
 
-
+#if 0
 void CSocketSender::send_header(struct CMMSocketControlHdr hdr)
 {
     struct timeval now;
@@ -249,18 +248,17 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     }
     pass_header(hdr);
 }
+#endif // if 0 (CSocketSender,CSocketReceiver junk)
 
 CSocket::CSocket(CMMSocketImpl *sk_,
-                 CMMSocketSender *sendr_, 
-                 CMMSocketReceiver *recvr_, 
                  struct net_interface local_iface_, 
                  struct net_interface remote_iface_,
                  int accepted_sock)
-    : sk(sk_), sendr(sendr_), recvr(recvr_), 
+    : sk(sk_),
       local_iface(local_iface_), remote_iface(remote_iface_),
       csock_sendr(NULL), csock_recvr(NULL)
 {
-    assert(sk && sendr && recvr);
+    assert(sk);
     if (accepted_sock == -1) {
         osfd = socket(sk->sock_family, sk->sock_type, sk->sock_protocol);
         if (osfd < 0) {
@@ -360,12 +358,6 @@ CSocket::startup_workers()
 	csock_sendr->start();
 	csock_recvr->start();
     }
-}
-
-void 
-CSocket::send(CMMSocketRequest req)
-{
-    csock_sendr->enqueue(req);
 }
 
 void

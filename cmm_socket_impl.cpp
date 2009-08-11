@@ -1,9 +1,8 @@
 #include "cmm_socket.h"
 #include "cmm_socket.private.h"
-#include "cmm_socket_sender.h"
-#include "cmm_socket_receiver.h"
 #include "cmm_internal_listener.h"
 #include "csocket.h"
+#include "common.h"
 #include "libcmm.h"
 #include "libcmm_ipc.h"
 #include <connmgr_labels.h>
@@ -20,11 +19,16 @@
 #include "thunks.h"
 #include "cmm_timing.h"
 
+#include "pending_irob.h"
+#include "pending_sender_irob.h"
+
 #include "debug.h"
 
 #include <map>
 #include <vector>
 #include <set>
+#include <utility>
+using std::multimap; using std::make_pair;
 using std::map; using std::vector;
 using std::set; using std::pair;
 
@@ -128,12 +132,7 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
 {
     /* TODO: non-blocking considerations? */
     try {
-	sendr = new CMMSocketSender(this);
-	recvr = new CMMSocketReceiver(this);
 	listener_thread = new ListenerThread(this);
-	
-	sendr->start();
-	recvr->start();
 	listener_thread->start();
     
         pthread_mutex_lock(&hashmaps_mutex);
@@ -275,7 +274,7 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
     CMMSockHash::accessor ac;
     if (cmm_sock_hash.find(ac, sock)) {
 	CMMSocketImplPtr sk(ac->second);
-	sk->sendr->goodbye(false);
+	sk->goodbye(false);
 	cmm_sock_hash.erase(ac);
         /* the CMMSocket object gets destroyed by the shared_ptr. */
         /* moved the rest of the cleanup to the destructor */
@@ -292,7 +291,7 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
 
 
 CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
-    : listener_thread(NULL), sendr(NULL), recvr(NULL),
+    : listener_thread(NULL),
       next_irob(0)
 {
     /* reserve a dummy OS file descriptor for this mc_socket. */
@@ -317,6 +316,10 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
     non_blocking=0;
 
     csock_map = new CSockMapping(this);
+    pthread_mutex_init(&shutdown_mutex, NULL);
+    pthread_cond_init(&shutdown_cv, NULL);
+    pthread_mutex_init(&scheduling_state_lock, NULL);
+    pthread_cond_init(&scheduling_state_cv, NULL);
 }
 
 CMMSocketImpl::~CMMSocketImpl()
@@ -324,8 +327,6 @@ CMMSocketImpl::~CMMSocketImpl()
     delete csock_map;
 
     delete listener_thread;
-    delete sendr;
-    delete recvr;
     
     //free(remote_addr);
     close(sock);
@@ -656,13 +657,9 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
     }
     CMMSockHash::const_accessor read_ac;
     lock(read_ac);
-    if (!sendr) {
-        errno = ENOTCONN;
-        return CMM_FAILED;
-    }
-    int rc = sendr->default_irob(id, buf, len, flags,
-				 send_labels, recv_labels, 
-				 resume_handler, arg);
+    int rc = default_irob(id, buf, len, flags,
+                          send_labels, recv_labels, 
+                          resume_handler, arg);
 
     TIME(end);
     TIMEDIFF(begin, end, diff);
@@ -742,7 +739,7 @@ CMMSocketImpl::mc_shutdown(int how)
     CMMSockHash::accessor ac;
     if (cmm_sock_hash.find(ac, sock)) {
 	rc = csock_map->for_each(shutdown_each(how));
-	sendr->goodbye(false);
+	goodbye(false);
     } else {
 	errno = EBADF;
 	rc = -1;
@@ -764,13 +761,9 @@ CMMSocketImpl::mc_begin_irob(int numdeps, const irob_id_t *deps,
     }
     CMMSockHash::const_accessor read_ac;
     lock(read_ac);
-    if (!sendr) {
-        errno = ENOTCONN;
-        return CMM_FAILED;
-    }
-    int rc = sendr->begin_irob(id, numdeps, deps, 
-                               send_labels, recv_labels,
-                               rh, rh_arg);
+    int rc = begin_irob(id, numdeps, deps, 
+                        send_labels, recv_labels,
+                        rh, rh_arg);
     if (rc < 0) {
         return rc;
     }
@@ -788,11 +781,7 @@ CMMSocketImpl::mc_end_irob(irob_id_t id)
 {
     CMMSockHash::const_accessor read_ac;
     lock(read_ac);
-    if (!sendr) {
-        errno = ENOTCONN;
-        return CMM_FAILED;
-    }
-    int rc = sendr->end_irob(id);
+    int rc = end_irob(id);
     if (rc == 0) {
 	irob_sock_hash.erase(id);
     }
@@ -805,11 +794,7 @@ CMMSocketImpl::mc_irob_send(irob_id_t id,
 {
     CMMSockHash::const_accessor read_ac;
     lock(read_ac);
-    if (!sendr) {
-        errno = ENOTCONN;
-        return CMM_FAILED;
-    }
-    return sendr->irob_chunk(id, buf, len, flags);
+    return irob_chunk(id, buf, len, flags);
 }
 
 int
@@ -937,14 +922,9 @@ CMMSocketImpl::mc_read(void *buf, size_t count, u_long *recv_labels)
     CMMSockHash::const_accessor ac;
     lock(ac);
 
-    if (!recvr) {
-        errno = ENOTCONN;
-        return CMM_FAILED;
-    }
-
     struct timeval begin, end, diff;
     TIME(begin);
-    int rc = recvr->recv(buf, count, 0, recv_labels);
+    int rc = incoming_irobs.recv(buf, count, 0, recv_labels);
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("mc_read (%d bytes) took %lu.%06lu seconds, start-to-finish\n", 
@@ -1203,12 +1183,43 @@ void
 CMMSocketImpl::wait_for_labels(u_long send_labels, u_long recv_labels)
 {
     // pseudo-thunk to block this until it's ready to send
-    begin_app_operation();
+    prepare_app_operation();
     enqueue_handler(sock, send_labels, recv_labels,
-                    unblock_thread, 
+                    (resume_handler_t)unblock_thread, 
                     new BlockingRequest(this, pthread_self()));
     (void)wait_for_completion();
     
+}
+
+int
+CMMSocketImpl::get_csock(u_long send_labels, u_long recv_labels,
+                         resume_handler_t resume_handler, void *rh_arg,
+                         CSocket *& csock, bool blocking)
+{
+    try {
+        csock = csock_map->new_csock_with_labels(send_labels, recv_labels);
+        if (!csock) {
+            if (resume_handler) {
+                enqueue_handler(sock, send_labels, recv_labels, 
+                                resume_handler, rh_arg);
+                return CMM_DEFERRED;
+            } else {
+                if (blocking) {
+                    while (!csock) {
+                        wait_for_labels(send_labels, recv_labels);
+                        csock = csock_map->new_csock_with_labels(send_labels, 
+                                                                 recv_labels);
+                    }
+                    return 0;
+                } else {
+                    return CMM_FAILED;
+                }
+            }
+        }
+    } catch (std::runtime_error& e) {
+        dbgprintf("Error finding csocket by labels: %s\n", e.what());
+        return CMM_FAILED;
+    }
 }
 
 /* This function blocks until the data has been sent.
@@ -1233,27 +1244,10 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
     irob_id_t id = next_irob;
 
     CSocket *csock = NULL;
-    
-    try {
-        csock = csock_map->new_csock_with_labels(send_labels, recv_labels);
-    } catch (std::runtime_error& e) {
-        dbgprintf("Error finding csocket by labels: %s\n", e.what());
-        return CMM_FAILED;
-    }
-
-    if (!csock) {
-        if (resume_handler) {
-            enqueue_handler(sock, send_labels, recv_labels, 
-                            resume_handler, arg);
-            return CMM_DEFERRED;
-        } else {
-            // pseudo-thunk to block this until it's ready to send
-            begin_app_operation();
-            enqueue_handler(sock, send_labels, recv_labels,
-                            unblock_thread, 
-                            new BlockingRequest(this, pthread_self()));
-            (void)wait_for_completion();
-        }
+    int ret = get_csock(send_labels, recv_labels, resume_handler, rh_arg,
+                        csock, true);
+    if (ret < 0) {
+        return ret;
     }
 
     PendingSenderIROB *pirob = new PendingSenderIROB(id, numdeps, deps,
@@ -1261,15 +1255,19 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
                                                      resume_handler, rh_arg);
     pirob->waiting_thread = pthread_self();
 
+    prepare_app_operation();
+
     {
-        PendingIROBLattice::scoped_lock lock(outgoing_irobs);
+        PthreadScopedLock lock(&scheduling_state_lock);
         bool success = outgoing_irobs.insert(pirob);
         assert(success);
+
+        csock->new_irobs.insert(id);
     }
     
     long rc = wait_for_completion();
     if (rc < 0) {
-        PendingIROBLattice::scoped_lock lock(outgoing_irobs);
+        PthreadScopedLock lock(&scheduling_state_lock);
         outgoing_irobs.erase(id);
     }
     TIME(end);
@@ -1296,10 +1294,13 @@ CMMSocketImpl::end_irob(irob_id_t id)
     struct timeval begin, end, diff;
     TIME(begin);
 
+    CSocket *csock = NULL;
+    PendingIROB *pirob = NULL;
+    u_long send_labels, recv_labels;
     {
-        PendingIROBLattice::scoped_lock lock(outgoing_irobs);
+        PthreadScopedLock lock(&scheduling_state_lock);
 
-        PendingIROB *pirob = outgoing_irobs.find(id);
+        pirob = outgoing_irobs.find(id);
         if (!pirob) {
             return -1;
         }
@@ -1309,10 +1310,34 @@ CMMSocketImpl::end_irob(irob_id_t id)
                       "which is already complete\n", id);
             return -1;
         }
-        pirob->finish();
+        send_labels = pirob->send_labels;
+        recv_labels = pirob->recv_labels;
+    }
 
+    // prefer the IROB's labels, but fall back to any connection
+    int ret = get_csock(send_labels, recv_labels, 
+                        NULL, NULL, csock, false);
+    if (ret < 0) {
+        send_labels = recv_labels = 0;
+        ret = get_csock(0, 0, NULL, NULL, csock, true);
+        if (ret < 0) {
+            return ret;
+        }
+    }
+
+    prepare_app_operation();
+    {
+        PthreadScopedLock lock(&scheduling_state_lock);
+        pirob->finish();
+        
         assert(pirob->waiting_thread == 0);
         pirob->waiting_thread = pthread_self();
+        
+        if (send_labels == 0 && recv_labels == 0) {
+            finished_irobs.insert(id);
+        } else {
+            csock->finished_irobs.insert(id);
+        }
     }
     
     long rc = wait_for_completion();
@@ -1320,7 +1345,7 @@ CMMSocketImpl::end_irob(irob_id_t id)
         dbgprintf("end irob %d failed entirely; connection must be gone\n", id);
         return -1;
     } else {
-        PendingIROBLattice::scoped_lock lock(outgoing_irobs);
+        PthreadScopedLock lock(&scheduling_state_lock);
         PendingIROB *pirob = outgoing_irobs.find(id);
         if (pirob) {
 	    remove_if_unneeded(pirob);
@@ -1352,11 +1377,18 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
     struct timeval begin, end, diff;
     TIME(begin);
 
-    struct irob_chunk_data chunk;
-    {
-        PendingIROBLattice::scoped_lock lock(outgoing_irobs);
+    u_long send_labels, recv_labels;
+    resume_handler_t resume_handler;
+    void *rh_arg;
+    CSocket *csock = NULL;
 
-        PendingIROB *pirob = outgoing_irobs.find(id);
+    struct irob_chunk_data chunk;
+    PendingIROB *pirob = NULL;
+    PendingSenderIROB *psirob = NULL;
+    {
+        PthreadScopedLock lock(&scheduling_state_lock);
+
+        pirob = outgoing_irobs.find(id);
         if (!pirob) {
 	    dbgprintf("Tried to add to nonexistent IROB %d\n", id);
 	    throw CMMException();
@@ -1366,15 +1398,41 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 	    dbgprintf("Tried to add to complete IROB %d\n", id);
 	    throw CMMException();
 	}
+
+        psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+        assert(psirob);
+        send_labels = psirob->send_labels;
+        recv_labels = psirob->recv_labels;
+        resume_handler = psirob->resume_handler;
+        rh_arg = psirob->rh_arg;
+    }
+
+    int ret = get_csock(send_labels, recv_labels, 
+                       resume_handler, rh_arg, csock, true);
+    if (ret < 0) {
+        return ret;
+    }
+    assert(csock);
+    
+    prepare_app_operation();
+    {
+        PthreadScopedLock lock(&scheduling_state_lock);
+
 	chunk.id = id;
 	chunk.seqno = INVALID_IROB_SEQNO; /* will be overwritten 
 					   * with valid seqno */
 	chunk.datalen = len;
 	chunk.data = new char[len];
 	memcpy(chunk.data, buf, len);
-	PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
-	assert(psirob);
+
 	psirob->add_chunk(chunk); /* writes correct seqno into struct */
+
+        if (send_labels == 0 && recv_labels == 0) {
+            // unlabeled send; let any thread pick it up
+            new_chunks.insert(make_pair(id, chunk.seqno));
+        } else {
+            csock->new_chunks.insert(make_pair(id, chunk.seqno));
+        }
     }
     
     long rc = wait_for_completion();
@@ -1404,17 +1462,33 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
 
     irob_id_t id = next_irob;
 
+    CSocket *csock = NULL;
+    int ret = get_csock(send_labels, recv_labels, 
+                        resume_handler, rh_arg, csock, true);
+    if (ret < 0) {
+        return ret;
+    }
+    assert(csock);
+
     char *data = new char[len];
     memcpy(data, buf, len);
+
+    prepare_app_operation();
     {
         PendingIROB *pirob = new PendingSenderIROB(id, len, data,
 						   send_labels, recv_labels,
                                                    resume_handler, rh_arg);
         pirob->waiting_thread = pthread_self();
 
-        PendingIROBLattice::scoped_lock lock(outgoing_irobs);
+        PthreadScopedLock lock(&scheduling_state_lock);
         bool success = outgoing_irobs.insert(pirob);
         assert(success);
+
+        if (send_labels == 0 && recv_labels == 0) {
+            new_irobs.insert(id);
+        } else {
+            csock->new_irobs.insert(id);
+        }
     }
     
     long rc = wait_for_completion();
@@ -1429,7 +1503,10 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
 void
 CMMSocketImpl::ack_received(irob_id_t id, u_long seqno)
 {
-    PendingIROBLattice::scoped_lock lock(outgoing_irobs);
+    // ACKs only arrive here if they ended up being received
+    // on a connection other than the one that sent the ACK'd IROB
+
+    PthreadScopedLock lock(&scheduling_state_lock);
     PendingIROB *pirob = outgoing_irobs.find(id);
     if (!pirob) {
         dbgprintf("Ack received for non-existent IROB %d\n", id);
@@ -1439,8 +1516,18 @@ CMMSocketImpl::ack_received(irob_id_t id, u_long seqno)
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
 
+    if (seqno > INVALID_IROB_SEQNO) {
+        unacked_irobs.erase(id);
+        multimap_erase(unacked_chunks, make_pair(id, seqno));
+        if (unacked_chunks.count(id) == 0 && psirob->is_complete()) {
+            unacked_chunks.erase(id);
+        }
+    } else {
+        unacked_irobs.erase(id);
+    }
+
     psirob->ack(seqno);
-    remove_if_unneeded(pirob);
+    remove_if_unneeded(pirob);    
 }
 
 /* call only with lock held on outgoing_irobs */
@@ -1452,7 +1539,6 @@ void CMMSocketImpl::remove_if_unneeded(PendingIROB *pirob)
     if (psirob->is_acked() && psirob->is_complete()) {
         outgoing_irobs.erase(pirob->id);
         delete pirob;
-	ac.release();
 
         pthread_mutex_lock(&shutdown_mutex);
 	if (outgoing_irobs.empty()) {
@@ -1487,7 +1573,7 @@ CMMSocketImpl::goodbye(bool remote_initiated)
 	pthread_cond_wait(&shutdown_cv, &shutdown_mutex);
     }
     pthread_mutex_unlock(&shutdown_mutex);
-    sk->recvr->shutdown();
+    incoming_irobs.shutdown();
 }
 
 void 
@@ -1501,14 +1587,14 @@ CMMSocketImpl::goodbye_acked(void)
 }
 
 void
-CMMSocketImpl::begin_app_operation()
+CMMSocketImpl::prepare_app_operation()
 {
     pthread_t self = pthread_self();
     struct AppThread& thread = app_threads[self];
 
     pthread_mutex_lock(&thread.mutex);
     thread.rc = CMM_INVALID_RC;
-    pthread_mutex_unlock(&thread_mutex);
+    pthread_mutex_unlock(&thread.mutex);
 }
 
 /* returns result of pending operation, or -1 on error */

@@ -4,7 +4,6 @@
 #include <sstream>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include "cmm_socket_scheduler.h"
 
 #include <iomanip>
 using std::ios;
@@ -38,9 +37,7 @@ CMMSocketControlHdr::type_str() const
     static const char *term_str = "(Terminate thread)";
 
     short my_type = ntohs(type);
-    if (my_type == CMMSocketScheduler<CMMSocketControlHdr>::CMM_TERMINATE_THREAD) {
-	return term_str;
-    } else if (my_type > CMM_CONTROL_MSG_GOODBYE || my_type < CMM_CONTROL_MSG_HELLO) {
+    if (my_type > CMM_CONTROL_MSG_GOODBYE || my_type < CMM_CONTROL_MSG_HELLO) {
 	my_type = CMM_CONTROL_MSG_GOODBYE + 1;
     }
     return strs[my_type];
@@ -51,10 +48,9 @@ CMMSocketControlHdr::describe() const
 {
     std::ostringstream stream;
     stream << "Type: " << type_str() << " ";
-    if (type != CMMSocketScheduler<CMMSocketControlHdr>::CMM_TERMINATE_THREAD) {
-	stream << "Send labels: " << ntohl(send_labels) << " ";
-	stream << "Recv labels: " << ntohl(recv_labels) << " ";
-    }
+    stream << "Send labels: " << ntohl(send_labels) << " ";
+    stream << "Recv labels: " << ntohl(recv_labels) << " ";
+
     switch (ntohs(type)) {
     case CMM_CONTROL_MSG_HELLO:
       stream << "listen port: " << ntohs(op.hello.listen_port) << " ";
@@ -104,6 +100,14 @@ CMMSocketControlHdr::describe() const
     return stream.str();
 }
 
+CMMControlException::CMMControlException(const std::string& str, 
+                                         struct CMMSocketControlHdr hdr_)
+  : std::runtime_error(str + hdr_.describe()), hdr(hdr_)
+{
+    /* empty */
+}
+
+#if 0
 std::string
 CMMSocketRequest::describe() const
 {
@@ -111,3 +115,4 @@ CMMSocketRequest::describe() const
     stream << "Requester thread: " << ios::hex << requester_tid << " ";
     return stream.str() + hdr.describe();
 }
+#endif

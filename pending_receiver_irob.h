@@ -30,10 +30,12 @@ class PendingReceiverIROB : public PendingIROB {
     ssize_t read_data(void *buf, size_t len);
 
     ssize_t numbytes();
-  protected:
-    friend class CMMSocketReceiver;
-    friend class PendingReceiverIROBLattice;
+
   private:
+    friend class CMMSocketImpl;
+    friend class CSocketReceiver;
+    friend class PendingReceiverIROBLattice;
+
     /* If this IROB is in the middle of being read, 
      * the reader might have stopped in the middle of a
      * chunk.  If so, this is the offset into the first chunk. */

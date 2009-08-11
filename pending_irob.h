@@ -22,7 +22,7 @@
 
 class PendingIROB {
   public:
-    PendingIROB(irob_id_t id_, int numdeps, irob_id_t *deps_array,
+    PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array,
 		u_long send_labels, u_long recv_labels);
     PendingIROB(irob_id_t id_, size_t datalen, char *data,
 		u_long send_labels, u_long recv_labels);
@@ -57,6 +57,10 @@ class PendingIROB {
     bool is_complete(void) const;
 
   protected:
+    friend class CMMSocketImpl;
+    friend class CSocketSender;
+    friend class CSocketReceiver;
+    
     /* all integers here are in host byte order */
     irob_id_t id;
     u_long send_labels;
@@ -127,19 +131,7 @@ class PendingIROBLattice {
     //typedef void (PendingIROB::*iter_fn_t)(PendingIROB *);
     //void for_each_dep(PendingIROB *dependent, iter_fn_t fn);
 
-    class scoped_lock {
-      public:
-        // acquire this lattice's lock
-        scoped_lock(PendingIROBLattice&);
-
-        // released upon destruction
-        ~scoped_lock();
-      private:
-        PendingIROBLattice& lattice;
-    };
   private:
-    pthread_mutex_t lock;
-
     // Invariant: pending_irobs.empty() || 
     //            (pending_irobs[0] != NULL &&
     //             forall_i>0(pending_irobs[i] == NULL || 

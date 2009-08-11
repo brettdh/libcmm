@@ -4,6 +4,9 @@
 #include "cmm_socket.h"
 #include "common.h"
 
+#include "pending_irob.h"
+#include "pending_receiver_irob.h"
+
 #include <map>
 #include <vector>
 #include <set>
@@ -174,6 +177,8 @@ class CMMSocketImpl : public CMMSocket {
     
     bool is_shutting_down(void);
 
+#define CMM_INVALID_RC -10
+
     struct AppThread {
 	pthread_mutex_t mutex;
 	pthread_cond_t cv;
@@ -190,9 +195,9 @@ class CMMSocketImpl : public CMMSocket {
 
     // always call in app thread before wait_for_completion, before
     // modifying the state that will trigger the desired operation
-    void begin_app_operation();
+    void prepare_app_operation();
 
-    // assumes begin_app_operation has been called in this thread
+    // assumes prepare_app_operation has been called in this thread
     // with no call to wait_for_completion since.
     long wait_for_completion();
 
@@ -201,6 +206,13 @@ class CMMSocketImpl : public CMMSocket {
 
     friend void unblock_thread(BlockingRequest *req);
 
+    void wait_for_labels(u_long send_labels, u_long recv_labels);
+
+    int get_csock(u_long send_labels, u_long recv_labels,
+                  resume_handler_t resume_handler, void *rh_arg,
+                  CSocket *& csock, bool blocking);
+
+    void remove_if_unneeded(PendingIROB *pirob);
 
     /* true iff the socket has begun shutting down 
      * via shutdown() or close(). */
@@ -215,6 +227,7 @@ class CMMSocketImpl : public CMMSocket {
     // It also protects CSocket-specific state; e.g. 
     //  the index of IROBs with a specific label.
     pthread_mutex_t scheduling_state_lock;
+    pthread_cond_t scheduling_state_cv;
 
     // whether up or down, the newest status of these has 
     // not been sent to the remote side
@@ -225,13 +238,13 @@ class CMMSocketImpl : public CMMSocket {
 
     // unlabeled IROB actions; can be picked up by any csocket
     std::set<irob_id_t> new_irobs;
-    std::set<struct irob_chunk_data *> new_chunks;
+    std::multimap<irob_id_t, u_long> new_chunks;
     std::set<irob_id_t> finished_irobs;
 
     // these are unlabeled; they failed on the original connection,
     // so they can be sent on any available connection
     std::set<irob_id_t> unacked_irobs;
-    std::map<irob_id_t, std::set<u_long> > unacked_chunks;
+    std::multimap<irob_id_t, u_long> unacked_chunks;
 
 
     int non_blocking; /* 1 if non blocking, 0 otherwise */

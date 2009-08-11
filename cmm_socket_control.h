@@ -93,6 +93,12 @@ struct CMMSocketControlHdr {
     const char *type_str() const;
 };
 
+class CMMControlException : public std::runtime_error {
+  public:
+    CMMControlException(const std::string&, struct CMMSocketControlHdr);
+    struct CMMSocketControlHdr hdr;
+};
+
 #if 0
 /* for passing between request-handling threads. */
 struct CMMSocketRequest {
