@@ -5,18 +5,8 @@
 #include "pending_irob.h"
 #include "pending_receiver_irob.h"
 
-class ReadyIROB {
-  public:
-    bool operator()(PendingIROB *pi) {
-        assert(pi);
-        PendingReceiverIROB *pirob = dynamic_cast<PendingReceiverIROB*>(pi);
-        assert(pirob);
-        return (pirob->is_complete() && pirob->is_released());
-    }
-};
-
 CSocketReceiver::handler_fn_t CSocketReceiver::handlers[] = {
-    &CSocketReceiver::unexpected_control_msg, /* HELLO not expected */
+    &CSocketReceiver::unrecognized_control_msg, /* HELLO not expected */
     &CSocketReceiver::do_begin_irob,
     &CSocketReceiver::do_end_irob,
     &CSocketReceiver::do_irob_chunk,
@@ -27,12 +17,20 @@ CSocketReceiver::handler_fn_t CSocketReceiver::handlers[] = {
     &CSocketReceiver::do_goodbye
 };
 
+CSocketReceiver::CSocketReceiver(CSocket *csock_) : csock(csock_) {}
+
+void
+CSocketReceiver::unrecognized_control_msg(struct CMMSocketControlHdr hdr)
+{
+    throw CMMControlException("Unrecognized control message", hdr);
+}
+
 void
 CSocketReceiver::dispatch(struct CMMSocketControlHdr hdr)
 {
     short type = ntohs(hdr.msgtype());
     if (type < 0 || type > CMM_CONTROL_MSG_GOODBYE) {
-        unexpected_control_msg(hdr);
+        unrecognized_control_msg(hdr);
     } else {
         (this->*handlers[type])(hdr);
     }
@@ -130,7 +128,6 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
             throw CMMControlException("Tried to begin IROB that already exists", 
                                   hdr);
         }
-        // TODO: update scheduling state, signal
     }
 
     if (hdr.op.begin_irob.numdeps > 0) {
@@ -169,8 +166,6 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
         
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
         csock->sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
-
-        // TODO: update scheduling state, signal
     }
 
     //sk->sendr->ack(id);
@@ -237,12 +232,16 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
             dbgprintf("Successfully added chunk %d to IROB %d\n",
                       chunk.seqno, id);
         }
-        // TODO: update scheduling state, signal
+
+        csock->irob_indexes.waiting_acks.insert(
+            IROBSchedulingData(id, chunk.seqno)
+            );
+        pthread_cond_broadcast(&csock->sk->scheduling_state_cv);
     }
     
     TIME(end);
     TIMEDIFF(begin, end, diff);
-    dbgprintf("Added and ACK'd chunk %d in IROB %d, took %lu.%06lu seconds\n",
+    dbgprintf("Added chunk %d in IROB %d, took %lu.%06lu seconds\n",
 	      chunk.seqno, id, diff.tv_sec, diff.tv_usec);
 }
 
@@ -273,23 +272,29 @@ void CSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
 
     hdr.op.default_irob.data = buf;
 
-    hdr.op.default_irob.id = ntohl(hdr.op.default_irob.id);
-    hdr.op.default_irob.datalen = ntohl(hdr.op.default_irob.datalen);
+    struct default_irob_data default_irob = hdr.op.default_irob;
+
+    default_irob.id = ntohl(hdr.op.default_irob.id);
+    default_irob.datalen = ntohl(hdr.op.default_irob.datalen);
     /* modify data structures */
-    PendingIROB *pirob = new PendingReceiverIROB(hdr.op.default_irob,
+    PendingIROB *pirob = new PendingReceiverIROB(default_irob,
 						 ntohl(hdr.send_labels),
 						 ntohl(hdr.recv_labels));
     {
         PthreadScopedLock lock(&csock->sk->scheduling_state_lock);
         if (!csock->sk->incoming_irobs.insert(pirob)) {
             delete pirob;
-            throw CMMControlException("Tried to add default IROB that already exists", 
-                                  hdr);
+            throw CMMControlException("Tried to add default IROB "
+                                      "that already exists", 
+                                      hdr);
         }
         
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
+        assert(prirob);
         csock->sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
-        // TODO: update scheduling state, signal
+
+        csock->irob_indexes.waiting_acks.insert(IROBSchedulingData(default_irob.id));
+        pthread_cond_broadcast(&csock->sk->scheduling_state_cv);
     }
 
     TIME(end);
@@ -322,9 +327,7 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
     TIME(begin);
 
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_ACK);
-    // TODO: update scheduling state and signal, or...
     csock->sk->ack_received(ntohl(hdr.op.ack.id), ntohl(hdr.op.ack.seqno));
-    // (if it doesn't match in this CSocket's index)
 
     TIME(end);
     TIMEDIFF(begin, end, diff);

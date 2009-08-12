@@ -13,6 +13,7 @@
 #include <boost/shared_ptr.hpp>
 
 struct BlockingRequest;
+struct ResumeOperation;
 
 class CMMSocketImpl;
 typedef boost::shared_ptr<CMMSocketImpl> CMMSocketImplPtr;
@@ -204,7 +205,8 @@ class CMMSocketImpl : public CMMSocket {
     // called from sender-scheduler thread to wake up app thread
     void signal_completion(pthread_t requester_tid, long result);
 
-    friend void unblock_thread(BlockingRequest *req);
+    friend void unblock_thread_thunk(BlockingRequest *req);
+    friend void resume_operation_thunk(ResumeOperation *op);
 
     void wait_for_labels(u_long send_labels, u_long recv_labels);
 
@@ -220,7 +222,7 @@ class CMMSocketImpl : public CMMSocket {
     bool remote_shutdown; /* true if remote has ack'd the shutdown */
     pthread_mutex_t shutdown_mutex;
     pthread_cond_t shutdown_cv;
-
+    bool goodbye_sent;
     
     // for protecting data structures that comprise the "state"
     //  of the multisocket from the scheduling threads' perspective
@@ -237,15 +239,7 @@ class CMMSocketImpl : public CMMSocket {
     PendingReceiverIROBLattice incoming_irobs;
 
     // unlabeled IROB actions; can be picked up by any csocket
-    std::set<irob_id_t> new_irobs;
-    std::multimap<irob_id_t, u_long> new_chunks;
-    std::set<irob_id_t> finished_irobs;
-
-    // these are unlabeled; they failed on the original connection,
-    // so they can be sent on any available connection
-    std::set<irob_id_t> unacked_irobs;
-    std::multimap<irob_id_t, u_long> unacked_chunks;
-
+    IROBSchedulingIndexes irob_indexes;
 
     int non_blocking; /* 1 if non blocking, 0 otherwise */
 

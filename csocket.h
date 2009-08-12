@@ -15,6 +15,8 @@ class CMMSocketReceiver;
 class CSocketSender;
 class CSocketReceiver;
 
+struct ResumeOperation;
+
 class CSocket {
   public:
     int osfd;
@@ -32,6 +34,8 @@ class CSocket {
     //void send(CMMSocketRequest req);
     void remove(void);
 
+    bool matches(u_long send_labels, u_long recv_labels);
+
     int phys_connect(void);
   private:
     void startup_workers();
@@ -39,18 +43,14 @@ class CSocket {
     friend class CMMSocketImpl;
     friend class CSocketSender;
     friend class CSocketReceiver;
+    friend void resume_operation_thunk(ResumeOperation *op);
     
     /* worker threads */
     CSocketSender *csock_sendr;
     CSocketReceiver *csock_recvr;
 
     // indexes for the sender threads
-    std::set<irob_id_t> new_irobs;
-    std::multimap<irob_id_t, u_long> new_chunks;
-    std::set<irob_id_t> finished_irobs;
-
-    std::set<irob_id_t> unacked_irobs;
-    std::multimap<irob_id_t, u_long> unacked_chunks;
+    IROBSchedulingIndexes irob_indexes;
 };
 
 

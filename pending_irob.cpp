@@ -44,8 +44,8 @@ PendingIROB::PendingIROB(irob_id_t id_, size_t datalen, char *data,
 PendingIROB::~PendingIROB()
 {
     while (!chunks.empty()) {
-        struct irob_chunk_data chunk;
-        chunks.pop(chunk);
+        struct irob_chunk_data chunk = chunks.front();
+        chunks.pop_front();
         delete [] chunk.data;
     }
 }
@@ -57,7 +57,7 @@ PendingIROB::add_chunk(struct irob_chunk_data& irob_chunk)
         return false;
     }
 
-    chunks.push(irob_chunk);
+    chunks.push_back(irob_chunk);
     return true;
 }
 
@@ -182,6 +182,20 @@ bool
 PendingIROBLattice::empty()
 {
     return pending_irobs.empty(); 
+}
+
+IROBSchedulingData::IROBSchedulingData(irob_id_t id_, u_long seqno_) 
+    : id(id_), seqno(seqno_) 
+{
+    /* empty */
+}
+
+bool 
+IROBSchedulingData::operator<(const IROBSchedulingData& other) const
+{
+    // can implement priority here, based on 
+    //  any added scheduling hints
+    return (id < other.id) || (seqno < other.seqno);
 }
 
 #if 0

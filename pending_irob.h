@@ -20,6 +20,8 @@
  *    it is no longer pending and this data structure is destroyed.
  */
 
+struct ResumeOperation;
+
 class PendingIROB {
   public:
     PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array,
@@ -40,15 +42,11 @@ class PendingIROB {
     template <typename Predicate>
     void remove_deps_if(Predicate pred);
 
-    ssize_t copy_data(void *buf, size_t len);
-
-    //std::set<PendingIROB *> get_dep_ptrs();
-    
     void add_dependent(irob_id_t id);
     
     /* returns true if this IROB directly or transitively 
      * depends on that IROB. */
-    bool depends_on(irob_id_t id);
+    //bool depends_on(irob_id_t id);
 
     /* is this IROB "anonymous", depending on all in-flight IROBs? */
     bool is_anonymous(void) const;
@@ -60,6 +58,8 @@ class PendingIROB {
     friend class CMMSocketImpl;
     friend class CSocketSender;
     friend class CSocketReceiver;
+
+    friend void resume_operation_thunk(ResumeOperation *op);
     
     /* all integers here are in host byte order */
     irob_id_t id;
@@ -74,7 +74,7 @@ class PendingIROB {
     /* IROBs that depend on me */
     irob_id_set dependents;
 
-    tbb::concurrent_queue<struct irob_chunk_data> chunks;
+    std::deque<struct irob_chunk_data> chunks;
 
     bool anonymous;
     bool complete;
@@ -148,6 +148,25 @@ class PendingIROBLattice {
      * 3) Remove already-satisfied deps. */
     void correct_deps(PendingIROB *pirob);
 
+};
+
+struct IROBSchedulingData {
+    IROBSchedulingData(irob_id_t id=-1, u_long seqno=INVALID_IROB_SEQNO);
+    bool operator<(const IROBSchedulingData& other) const;
+
+    irob_id_t id;
+    u_long seqno; // may be INVALID_IROB_SEQNO
+    //u_long send_labels;
+    //u_long recv_labels;
+    // add scheduling hints later
+};
+
+struct IROBSchedulingIndexes {
+    std::set<IROBSchedulingData> new_irobs;
+    std::set<IROBSchedulingData> new_chunks;
+    std::set<IROBSchedulingData> finished_irobs;
+
+    std::set<IROBSchedulingData> waiting_acks;
 };
 
 #endif

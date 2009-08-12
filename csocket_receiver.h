@@ -18,7 +18,7 @@ class CSocketReceiver : public CMMThread {
   private:
     CSocket *csock;
 
-    void unexpected_control_msg(struct CMMSocketControlHdr hdr);
+    void unrecognized_control_msg(struct CMMSocketControlHdr hdr);
     void do_begin_irob(struct CMMSocketControlHdr hdr);
     void do_end_irob(struct CMMSocketControlHdr hdr);
     void do_irob_chunk(struct CMMSocketControlHdr hdr);

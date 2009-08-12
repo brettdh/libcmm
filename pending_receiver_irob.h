@@ -51,6 +51,8 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
   public:
     PendingReceiverIROBLattice();
 
+    ssize_t recv(void *buf, size_t len, int flags, u_long *recv_labels);
+
     /* First take: this won't ever return an incomplete IROB. 
      *  (we may want to loosen this restriction in the future) */
     /* Hard rule: this won't ever return an unreleased IROB. */
@@ -106,5 +108,15 @@ PendingReceiverIROBLattice::release_dependents(PendingReceiverIROB *pirob,
         release_if_ready(dependent, is_ready);
     }
 }
+
+class ReadyIROB {
+  public:
+    bool operator()(PendingIROB *pi) {
+        assert(pi);
+        PendingReceiverIROB *pirob = dynamic_cast<PendingReceiverIROB*>(pi);
+        assert(pirob);
+        return (pirob->is_complete() && pirob->is_released());
+    }
+};
 
 #endif

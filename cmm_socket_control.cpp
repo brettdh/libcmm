@@ -34,7 +34,6 @@ CMMSocketControlHdr::type_str() const
 	"Goodbye",
 	"(unknown)"
     };
-    static const char *term_str = "(Terminate thread)";
 
     short my_type = ntohs(type);
     if (my_type > CMM_CONTROL_MSG_GOODBYE || my_type < CMM_CONTROL_MSG_HELLO) {

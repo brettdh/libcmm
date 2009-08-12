@@ -26,15 +26,6 @@ PendingSenderIROB::PendingSenderIROB(irob_id_t id_, size_t datalen, char *data,
 {
 }
 
-PendingSenderIROB::~PendingSenderIROB()
-{
-    while (!chunks.empty()) {
-        struct ready_irob_chunk r_chunk;
-        chunks.pop(r_chunk);
-        delete [] r_chunk.chunk.data;
-    }
-}
-
 bool
 PendingSenderIROB::add_chunk(struct irob_chunk_data& irob_chunk)
 {
@@ -43,8 +34,8 @@ PendingSenderIROB::add_chunk(struct irob_chunk_data& irob_chunk)
     }
 
     irob_chunk.seqno = next_seqno++;
-    struct ready_irob_chunk r_chunk = {irob_chunk, pthread_self()};
-    chunks.push(r_chunk);
+    chunks.push_back(irob_chunk);
+    waiting_threads[irob_chunk.seqno] = pthread_self();
 
     return true;
 }

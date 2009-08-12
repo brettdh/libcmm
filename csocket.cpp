@@ -365,3 +365,9 @@ CSocket::remove()
 {
     sk->csock_map->delete_csock(this);
 }
+
+bool 
+CSocket::matches(u_long send_labels, u_long recv_labels)
+{
+    return sk->csock_map->csock_matches(this, send_labels, recv_labels);
+}

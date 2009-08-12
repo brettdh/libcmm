@@ -292,6 +292,9 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
 
 CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
     : listener_thread(NULL),
+      shutting_down(false),
+      remote_shutdown(false),
+      goodbye_sent(false),
       next_irob(0)
 {
     /* reserve a dummy OS file descriptor for this mc_socket. */
@@ -1059,6 +1062,7 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
     assert(get_pointer(write_ac->second) == this);
     
     if (local) {
+        PthreadScopedLock lock(&scheduling_state_lock);
         if (local_ifaces.count(iface) > 0) {
             // make sure labels update if needed
             local_ifaces.erase(iface);
@@ -1066,6 +1070,7 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
         }
         local_ifaces.insert(iface);
         changed_local_ifaces.insert(iface);
+        pthread_cond_broadcast(&scheduling_state_cv);
     } else {
         if (remote_ifaces.count(iface) > 0) {
             // make sure labels update if needed
@@ -1084,8 +1089,10 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
     csock_map->teardown(iface, local);
 
     if (local) {
+        PthreadScopedLock lock(&scheduling_state_lock);
         local_ifaces.erase(iface);
         changed_local_ifaces.insert(iface);
+        pthread_cond_broadcast(&scheduling_state_cv);
     } else {
         remote_ifaces.erase(iface);
     }
@@ -1171,8 +1178,7 @@ struct BlockingRequest {
         : sk(sk_), tid(tid_) {}
 };
 
-
-void unblock_thread(BlockingRequest *breq)
+void unblock_thread_thunk(BlockingRequest *breq)
 {
     assert(breq && breq->sk);
     breq->sk->signal_completion(breq->tid, 0);
@@ -1185,7 +1191,7 @@ CMMSocketImpl::wait_for_labels(u_long send_labels, u_long recv_labels)
     // pseudo-thunk to block this until it's ready to send
     prepare_app_operation();
     enqueue_handler(sock, send_labels, recv_labels,
-                    (resume_handler_t)unblock_thread, 
+                    (resume_handler_t)unblock_thread_thunk, 
                     new BlockingRequest(this, pthread_self()));
     (void)wait_for_completion();
     
@@ -1215,6 +1221,8 @@ CMMSocketImpl::get_csock(u_long send_labels, u_long recv_labels,
                     return CMM_FAILED;
                 }
             }
+        } else {
+            return 0;
         }
     } catch (std::runtime_error& e) {
         dbgprintf("Error finding csocket by labels: %s\n", e.what());
@@ -1262,7 +1270,8 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
         bool success = outgoing_irobs.insert(pirob);
         assert(success);
 
-        csock->new_irobs.insert(id);
+        csock->irob_indexes.new_irobs.insert(IROBSchedulingData(id));
+        pthread_cond_broadcast(&scheduling_state_cv);
     }
     
     long rc = wait_for_completion();
@@ -1334,10 +1343,11 @@ CMMSocketImpl::end_irob(irob_id_t id)
         pirob->waiting_thread = pthread_self();
         
         if (send_labels == 0 && recv_labels == 0) {
-            finished_irobs.insert(id);
+            irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
         } else {
-            csock->finished_irobs.insert(id);
+            csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
         }
+        pthread_cond_broadcast(&scheduling_state_cv);
     }
     
     long rc = wait_for_completion();
@@ -1429,10 +1439,11 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 
         if (send_labels == 0 && recv_labels == 0) {
             // unlabeled send; let any thread pick it up
-            new_chunks.insert(make_pair(id, chunk.seqno));
+            irob_indexes.new_chunks.insert(IROBSchedulingData(id, chunk.seqno));
         } else {
-            csock->new_chunks.insert(make_pair(id, chunk.seqno));
+            csock->irob_indexes.new_chunks.insert(IROBSchedulingData(id, chunk.seqno));
         }
+        pthread_cond_broadcast(&scheduling_state_cv);
     }
     
     long rc = wait_for_completion();
@@ -1485,10 +1496,11 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
         assert(success);
 
         if (send_labels == 0 && recv_labels == 0) {
-            new_irobs.insert(id);
+            irob_indexes.new_irobs.insert(IROBSchedulingData(id));
         } else {
-            csock->new_irobs.insert(id);
+            csock->irob_indexes.new_irobs.insert(IROBSchedulingData(id));
         }
+        pthread_cond_broadcast(&scheduling_state_cv);
     }
     
     long rc = wait_for_completion();
@@ -1503,9 +1515,6 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
 void
 CMMSocketImpl::ack_received(irob_id_t id, u_long seqno)
 {
-    // ACKs only arrive here if they ended up being received
-    // on a connection other than the one that sent the ACK'd IROB
-
     PthreadScopedLock lock(&scheduling_state_lock);
     PendingIROB *pirob = outgoing_irobs.find(id);
     if (!pirob) {
@@ -1516,21 +1525,11 @@ CMMSocketImpl::ack_received(irob_id_t id, u_long seqno)
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
 
-    if (seqno > INVALID_IROB_SEQNO) {
-        unacked_irobs.erase(id);
-        multimap_erase(unacked_chunks, make_pair(id, seqno));
-        if (unacked_chunks.count(id) == 0 && psirob->is_complete()) {
-            unacked_chunks.erase(id);
-        }
-    } else {
-        unacked_irobs.erase(id);
-    }
-
     psirob->ack(seqno);
     remove_if_unneeded(pirob);    
 }
 
-/* call only with lock held on outgoing_irobs */
+/* call only with scheduling_state_lock held */
 void CMMSocketImpl::remove_if_unneeded(PendingIROB *pirob)
 {
     assert(pirob);
@@ -1543,7 +1542,11 @@ void CMMSocketImpl::remove_if_unneeded(PendingIROB *pirob)
         pthread_mutex_lock(&shutdown_mutex);
 	if (outgoing_irobs.empty()) {
 	    if (shutting_down) {
-		pthread_cond_signal(&shutdown_cv);
+		//pthread_cond_signal(&shutdown_cv);
+
+                // make sure a sender thread wakes up 
+                // to send the goodbye-ack
+                pthread_cond_broadcast(&scheduling_state_cv);
 	    }
 	}
         pthread_mutex_unlock(&shutdown_mutex);
@@ -1561,9 +1564,6 @@ CMMSocketImpl::goodbye(bool remote_initiated)
     shutting_down = true; // picked up by sender-scheduler
     if (remote_initiated) {
 	remote_shutdown = true;
-    }
-    while (!outgoing_irobs.empty()) {
-	pthread_cond_wait(&shutdown_cv, &shutdown_mutex);
     }
 
     // sender-scheduler thread will send goodbye msg after 

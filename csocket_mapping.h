@@ -21,6 +21,10 @@ class CMMSocketImpl;
 
 class CSockMapping {
   public:
+    // return true iff csock is suitable for these labels.
+    bool csock_matches(CSocket *csock, 
+                       u_long send_label, u_long recv_label);
+
     CSocket * csock_with_send_label(u_long label);
     CSocket * csock_with_recv_label(u_long label);
     CSocket * csock_with_labels(u_long send_label, u_long recv_label);

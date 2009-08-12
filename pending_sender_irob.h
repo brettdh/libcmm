@@ -8,6 +8,7 @@
 //#include "cmm_socket.private.h"
 #include "intset.h"
 #include "pending_irob.h"
+#include <map>
 
 /* Terminology:
  *  An IROB is _pending_ if the application has not yet received all of its
@@ -27,7 +28,6 @@ class PendingSenderIROB : public PendingIROB {
     PendingSenderIROB(irob_id_t id_, size_t datalen, char *data,
 		      u_long send_labels, u_long recv_labels,
                       resume_handler_t resume_handler, void *rh_arg);
-    virtual ~PendingSenderIROB();
 
     virtual bool add_chunk(struct irob_chunk_data&);
     
@@ -47,11 +47,7 @@ class PendingSenderIROB : public PendingIROB {
     resume_handler_t resume_handler;
     void *rh_arg;
 
-    struct ready_irob_chunk {
-        struct irob_chunk_data chunk;
-        pthread_t waiting_thread;
-    };
-    tbb::concurrent_queue<struct ready_irob_chunk> chunks;
+    std::map<u_long, pthread_t> waiting_threads;
 
     IntSet acked_chunks;
     

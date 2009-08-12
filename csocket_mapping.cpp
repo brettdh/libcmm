@@ -150,6 +150,13 @@ CSockMapping::csock_with_labels(u_long send_label, u_long recv_label)
     return find_csock(BothLabelsMatch(send_label, recv_label));
 }
 
+bool
+CSockMapping::csock_matches(CSocket *csock, 
+                            u_long send_label, u_long recv_label)
+{
+    return BothLabelsMatch(send_label, recv_label)(csock);
+}
+
 class IfaceMatch {
   public:
     IfaceMatch(u_long label_) : label(label_) {}
@@ -202,8 +209,7 @@ CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label)
         return NULL;
     }
 
-    auto_ptr<CSocket> csock_ptr(new CSocket(sk, sk->sendr, sk->recvr, 
-                                            local_iface, remote_iface));
+    auto_ptr<CSocket> csock_ptr(new CSocket(sk, local_iface, remote_iface));
     /* cleanup if constructor throws */
 
     csock = csock_ptr.release();
@@ -304,8 +310,7 @@ CSockMapping::add_connection(int sock,
     
     
     CSocket *new_csock = NULL;
-    auto_ptr<CSocket> ptr(new CSocket(sk, sk->sendr, sk->recvr, 
-                                      local_iface, remote_iface, 
+    auto_ptr<CSocket> ptr(new CSocket(sk, local_iface, remote_iface, 
                                       sock));
     new_csock = ptr.release();
 
