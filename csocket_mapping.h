@@ -10,12 +10,13 @@
 #include "tbb/queuing_rw_mutex.h"
 typedef tbb::queuing_rw_mutex::scoped_lock scoped_rwlock;
 
-class CSocket;
-typedef std::set<CSocket *> CSockSet;
+#include "csocket.h"
+
+typedef std::set<CSocketPtr> CSockSet;
 
 class LabelMatch;
 
-typedef std::map<u_long, std::map<u_long, CSocket *> > CSockLabelMap;
+typedef std::map<u_long, std::map<u_long, CSocketPtr> > CSockLabelMap;
 
 class CMMSocketImpl;
 
@@ -25,12 +26,13 @@ class CSockMapping {
     bool csock_matches(CSocket *csock, 
                        u_long send_label, u_long recv_label);
 
-    CSocket * csock_with_send_label(u_long label);
-    CSocket * csock_with_recv_label(u_long label);
-    CSocket * csock_with_labels(u_long send_label, u_long recv_label);
-    CSocket * new_csock_with_labels(u_long send_label, u_long recv_label);
-    void delete_csock(CSocket *csock);
-    //CSocket * lookup(int fd);
+    CSocketPtr csock_with_send_label(u_long label);
+    CSocketPtr csock_with_recv_label(u_long label);
+    CSocketPtr csock_with_labels(u_long send_label, u_long recv_label);
+    CSocketPtr new_csock_with_labels(u_long send_label, u_long recv_label);
+    void remove_csock(CSocketPtr csock); // only removes, doesn't delete
+
+    bool empty();
     
     void add_connection(int sock, 
                         struct in_addr local_addr,
@@ -45,7 +47,7 @@ class CSockMapping {
     CSockMapping(CMMSocketImpl *sk);
     ~CSockMapping();
 
-    /* Functor must define int operator()(CSocket *), 
+    /* Functor must define int operator()(CSocketPtr), 
      * a function that returns -1 on error or >=0 on success */
     template <typename Functor>
     int for_each(Functor f);
@@ -68,7 +70,7 @@ class CSockMapping {
                            struct net_interface& iface);
 
     template <typename Predicate>
-    CSocket * find_csock(Predicate pred);
+    CSocketPtr find_csock(Predicate pred);
 };
 
 template <typename Functor>
@@ -77,7 +79,7 @@ int CSockMapping::for_each(Functor f)
     scoped_rwlock lock(sockset_mutex, false);
     for (CSockSet::iterator it = connected_csocks.begin();
 	 it != connected_csocks.end(); it++) {
-	CSocket *csock = *it;
+	CSocketPtr csock = *it;
 	int rc = f(csock);
 	if (rc < 0) {
 	    return rc;
@@ -87,7 +89,7 @@ int CSockMapping::for_each(Functor f)
 }
 
 template <typename Predicate>
-CSocket * 
+CSocketPtr 
 CSockMapping::find_csock(Predicate pred)
 {
     scoped_rwlock lock(sockset_mutex, false);
@@ -95,7 +97,7 @@ CSockMapping::find_csock(Predicate pred)
 					  connected_csocks.end(), 
 					  pred);
     if (it == connected_csocks.end()) {
-	return NULL;
+        return CSocketPtr();
     } else {
 	return *it;
     }

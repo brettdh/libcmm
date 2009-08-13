@@ -3,12 +3,14 @@
 
 #include "cmm_thread.h"
 #include "cmm_socket_control.h"
+#include "csocket.h"
 
-class CSocket;
+//class CSocket;
+class CMMSocketImpl;
 
 class CSocketReceiver : public CMMThread {
   public:
-    explicit CSocketReceiver(CSocket *csock_);
+    explicit CSocketReceiver(CSocketPtr csock_);
 
   protected:
     virtual void Run();
@@ -16,7 +18,8 @@ class CSocketReceiver : public CMMThread {
 
     void dispatch(struct CMMSocketControlHdr hdr);
   private:
-    CSocket *csock;
+    CSocketPtr csock;
+    CMMSocketImpl *sk;
 
     void unrecognized_control_msg(struct CMMSocketControlHdr hdr);
     void do_begin_irob(struct CMMSocketControlHdr hdr);

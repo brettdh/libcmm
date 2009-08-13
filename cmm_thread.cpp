@@ -89,3 +89,11 @@ CMMThread::stop()
         }
     }
 }
+
+void
+CMMThread::join()
+{
+    if (running) {
+        pthread_join(tid, NULL);
+    }
+}

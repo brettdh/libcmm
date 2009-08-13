@@ -6,18 +6,21 @@
 #include "libcmm_irob.h"
 #include "pending_irob.h"
 #include "cmm_socket_control.h"
+#include <boost/shared_ptr.hpp>
+#include "csocket.h"
 
-class CSocket;
+class CMMSocketImpl;
 
 class CSocketSender : public CMMThread {
   public:
-    explicit CSocketSender(CSocket *csock_);
+    explicit CSocketSender(CSocketPtr csock_);
     
   protected:
     virtual void Run();
     virtual void Finish();
   private:
-    CSocket *csock;
+    CSocketPtr csock;
+    CMMSocketImpl *sk;
 
     // call all these below with the scheduling_state_lock held
 

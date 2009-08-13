@@ -101,13 +101,16 @@ PendingIROB::is_anonymous(void) const
     return anonymous;
 }
 
+PendingIROBLattice::PendingIROBLattice()
+    : offset(0)
+{
+}
+
 bool
 PendingIROBLattice::insert(PendingIROB *pirob)
 {
     assert(pirob);
     if (past_irobs.contains(pirob->id)) {
-        dbgprintf("E: Tried to add irob %d, which I've seen in the past\n", 
-                  pirob->id);
         return false;
     }
 
@@ -115,9 +118,10 @@ PendingIROBLattice::insert(PendingIROB *pirob)
 
     size_t index = pirob->id - offset;
     if (index < pending_irobs.size() && pending_irobs[index] != NULL) {
-        dbgprintf("E: Tried to add irob %d, which I've already added\n",
-                  pirob->id);
         return false;
+    }
+    if (pending_irobs.size() <= index) {
+        pending_irobs.resize(index+1, NULL);
     }
     pending_irobs[index] = pirob;
 
@@ -161,9 +165,11 @@ PendingIROBLattice::erase(irob_id_t id)
 {
     //TimeFunctionBody timer("pending_irobs.erase(const_accessor)");
     size_t index = id - offset;
-    if (index < 0 || index >= pending_irobs.size()) {
+    if (index < 0 || index >= pending_irobs.size() ||
+        pending_irobs[index] == NULL) {
         return false;
     }
+    past_irobs.insert(id);
     pending_irobs[index] = NULL; // caller must free it
     while (!pending_irobs.empty() && pending_irobs[0] == NULL) {
         pending_irobs.pop_front();

@@ -2,6 +2,7 @@
 #include "cmm_socket.private.h"
 #include "cmm_internal_listener.h"
 #include "csocket.h"
+#include "csocket_mapping.h"
 #include "common.h"
 #include "libcmm.h"
 #include "libcmm_ipc.h"
@@ -728,7 +729,7 @@ struct shutdown_each {
     int how;
     shutdown_each(int how_) : how(how_) {}
 
-    int operator()(CSocket *csock) {
+    int operator()(CSocketPtr csock) {
 	assert(csock);
 	assert(csock->osfd >= 0);
 	return shutdown(csock->osfd, how);
@@ -741,8 +742,8 @@ CMMSocketImpl::mc_shutdown(int how)
     int rc = 0;
     CMMSockHash::accessor ac;
     if (cmm_sock_hash.find(ac, sock)) {
-	rc = csock_map->for_each(shutdown_each(how));
 	goodbye(false);
+        rc = csock_map->for_each(shutdown_each(how));
     } else {
 	errno = EBADF;
 	rc = -1;
@@ -838,13 +839,8 @@ CMMSocketImpl::interface_up(struct net_interface up_iface)
 
     for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
 	 sk_iter != cmm_sock_hash.end(); sk_iter++) {
-	CMMSockHash::const_accessor read_ac;
-	if (!cmm_sock_hash.find(read_ac, sk_iter->first)) {
-            assert(0);
-	}
-	CMMSocketImplPtr sk = read_ac->second;
+	CMMSocketImplPtr sk = sk_iter->second;
 	assert(sk);
-        read_ac.release();
 
 	sk->setup(up_iface, true);
     }
@@ -948,7 +944,7 @@ CMMSocketImpl::mc_getsockopt(int level, int optname,
         assert(0);
     }
 
-    CSocket *csock = csock_map->csock_with_labels(0, 0);
+    CSocketPtr csock = csock_map->csock_with_labels(0, 0);
     if (csock) {
 	return getsockopt(csock->osfd, level, optname, optval, optlen);
     } else {
@@ -974,7 +970,7 @@ struct set_sock_opt {
     set_sock_opt(int l, int o, const void *v, socklen_t len)
 	: level(l), optname(0), optval(v), optlen(len) {}
 
-    int operator()(CSocket *csock) {
+    int operator()(CSocketPtr csock) {
 	assert(csock);
 	assert(csock->osfd >= 0);
 
@@ -1042,7 +1038,7 @@ CMMSocketImpl::mc_getpeername(struct sockaddr *address,
 	// return getpeername(sock, address, address_len);
     }
 
-    CSocket *csock = csock_map->csock_with_labels(0,0);
+    CSocketPtr csock = csock_map->csock_with_labels(0,0);
     if (!csock) {
         /* XXX: maybe instead create a connection and then proceed */
         errno = ENOTCONN;
@@ -1203,7 +1199,7 @@ CMMSocketImpl::get_csock(u_long send_labels, u_long recv_labels,
                          CSocket *& csock, bool blocking)
 {
     try {
-        csock = csock_map->new_csock_with_labels(send_labels, recv_labels);
+        csock = get_pointer(csock_map->new_csock_with_labels(send_labels, recv_labels));
         if (!csock) {
             if (resume_handler) {
                 enqueue_handler(sock, send_labels, recv_labels, 
@@ -1213,8 +1209,8 @@ CMMSocketImpl::get_csock(u_long send_labels, u_long recv_labels,
                 if (blocking) {
                     while (!csock) {
                         wait_for_labels(send_labels, recv_labels);
-                        csock = csock_map->new_csock_with_labels(send_labels, 
-                                                                 recv_labels);
+                        csock = get_pointer(csock_map->new_csock_with_labels(send_labels, 
+                                                                             recv_labels));
                     }
                     return 0;
                 } else {
@@ -1241,7 +1237,7 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
 {
     if (is_shutting_down()) {
 	dbgprintf("Tried to begin IROB, but mc_socket %d is shutting down\n", 
-		  sk->sock);
+		  sock);
 	errno = EPIPE;
 	return CMM_FAILED;
     }
@@ -1251,7 +1247,7 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
 
     irob_id_t id = next_irob;
 
-    CSocket *csock = NULL;
+    CSocket *csock;
     int ret = get_csock(send_labels, recv_labels, resume_handler, rh_arg,
                         csock, true);
     if (ret < 0) {
@@ -1295,7 +1291,7 @@ CMMSocketImpl::end_irob(irob_id_t id)
 {
     if (is_shutting_down()) {
 	dbgprintf("Tried to end IROB, but mc_socket %d is shutting down\n", 
-		  sk->sock);
+		  sock);
 	errno = EPIPE;
 	return CMM_FAILED;
     }
@@ -1303,7 +1299,7 @@ CMMSocketImpl::end_irob(irob_id_t id)
     struct timeval begin, end, diff;
     TIME(begin);
 
-    CSocket *csock = NULL;
+    CSocket *csock;
     PendingIROB *pirob = NULL;
     u_long send_labels, recv_labels;
     {
@@ -1379,7 +1375,7 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 {
     if (is_shutting_down()) {
 	dbgprintf("Tried to send IROB chunk, but mc_socket %d is shutting down\n", 
-		  sk->sock);
+		  sock);
 	errno = EPIPE;
 	return CMM_FAILED;
     }
@@ -1390,7 +1386,7 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
     u_long send_labels, recv_labels;
     resume_handler_t resume_handler;
     void *rh_arg;
-    CSocket *csock = NULL;
+    CSocket *csock;
 
     struct irob_chunk_data chunk;
     PendingIROB *pirob = NULL;
@@ -1463,7 +1459,7 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
 {
     if (is_shutting_down()) {
 	dbgprintf("Tried to send default IROB, but mc_socket %d is shutting down\n", 
-		  sk->sock);
+		  sock);
 	errno = EPIPE;
 	return CMM_FAILED;
     }
@@ -1473,7 +1469,7 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
 
     irob_id_t id = next_irob;
 
-    CSocket *csock = NULL;
+    CSocket *csock;
     int ret = get_csock(send_labels, recv_labels, 
                         resume_handler, rh_arg, csock, true);
     if (ret < 0) {
@@ -1542,8 +1538,6 @@ void CMMSocketImpl::remove_if_unneeded(PendingIROB *pirob)
         pthread_mutex_lock(&shutdown_mutex);
 	if (outgoing_irobs.empty()) {
 	    if (shutting_down) {
-		//pthread_cond_signal(&shutdown_cv);
-
                 // make sure a sender thread wakes up 
                 // to send the goodbye-ack
                 pthread_cond_broadcast(&scheduling_state_cv);
@@ -1565,15 +1559,29 @@ CMMSocketImpl::goodbye(bool remote_initiated)
     if (remote_initiated) {
 	remote_shutdown = true;
     }
+    pthread_mutex_unlock(&shutdown_mutex);
+
+    pthread_mutex_lock(&scheduling_state_lock);
+    pthread_cond_broadcast(&scheduling_state_cv);
+    pthread_mutex_unlock(&scheduling_state_lock);
 
     // sender-scheduler thread will send goodbye msg after 
     // all ACKs are received
 
-    while (!remote_shutdown) {
+    pthread_mutex_lock(&shutdown_mutex);
+    while (!remote_shutdown || !goodbye_sent) {
 	pthread_cond_wait(&shutdown_cv, &shutdown_mutex);
     }
     pthread_mutex_unlock(&shutdown_mutex);
     incoming_irobs.shutdown();
+
+    if (!remote_initiated) {
+        // wait for all the csockets to go away
+        PthreadScopedLock lock(&scheduling_state_lock);
+        while (!csock_map->empty()) {
+            pthread_cond_wait(&scheduling_state_cv, &scheduling_state_lock);
+        }
+    }
 }
 
 void 
@@ -1582,7 +1590,7 @@ CMMSocketImpl::goodbye_acked(void)
     pthread_mutex_lock(&shutdown_mutex);
     assert(shutting_down);
     remote_shutdown = true;
-    pthread_cond_signal(&shutdown_cv);
+    pthread_cond_broadcast(&shutdown_cv);
     pthread_mutex_unlock(&shutdown_mutex);
 }
 

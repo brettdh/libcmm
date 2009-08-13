@@ -9,6 +9,18 @@
 #include <netdb.h>
 #include "csocket_sender.h"
 #include "csocket_receiver.h"
+#include "csocket_mapping.h"
+
+CSocketPtr
+CSocket::create(CMMSocketImpl *sk_,
+                struct net_interface local_iface_, 
+                struct net_interface remote_iface_,
+                int accepted_sock)
+{
+    CSocket *new_csock = new CSocket(sk_, local_iface_, 
+                                     remote_iface_, accepted_sock);
+    return new_csock->self_ptr;
+}
 
 CSocket::CSocket(CMMSocketImpl *sk_,
                  struct net_interface local_iface_, 
@@ -16,7 +28,8 @@ CSocket::CSocket(CMMSocketImpl *sk_,
                  int accepted_sock)
     : sk(sk_),
       local_iface(local_iface_), remote_iface(remote_iface_),
-      csock_sendr(NULL), csock_recvr(NULL)
+      csock_sendr(NULL), csock_recvr(NULL),
+      self_ptr(this)
 {
     assert(sk);
     if (accepted_sock == -1) {
@@ -50,19 +63,7 @@ CSocket::CSocket(CMMSocketImpl *sk_,
 
 CSocket::~CSocket()
 {
-    if (osfd > 0) {
-	shutdown(osfd, SHUT_RDWR);
-    }
-
-    if (csock_sendr) {
-	csock_sendr->stop();
-    }
-    if (csock_recvr) {
-	csock_recvr->stop();
-    }
-    delete csock_sendr;
-    delete csock_recvr;
-
+    dbgprintf("CSocket %d is being destroyed\n", osfd);
     if (osfd > 0) {
 	/* if it's a real open socket */
 	close(osfd);
@@ -113,17 +114,13 @@ void
 CSocket::startup_workers()
 {
     if (!csock_sendr && !csock_recvr) {
-	csock_sendr = new CSocketSender(this);
-	csock_recvr = new CSocketReceiver(this);
+	csock_sendr = new CSocketSender(self_ptr);
+	csock_recvr = new CSocketReceiver(self_ptr);
 	csock_sendr->start();
 	csock_recvr->start();
-    }
-}
 
-void
-CSocket::remove()
-{
-    sk->csock_map->delete_csock(this);
+        self_ptr.reset();  // break the cycle
+    }
 }
 
 bool 

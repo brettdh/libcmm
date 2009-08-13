@@ -2,6 +2,7 @@
 #define cmm_socket_private_h
 
 #include "cmm_socket.h"
+#include "csocket.h"
 #include "common.h"
 
 #include "pending_irob.h"
@@ -18,8 +19,9 @@ struct ResumeOperation;
 class CMMSocketImpl;
 typedef boost::shared_ptr<CMMSocketImpl> CMMSocketImplPtr;
 
-class CSocket;
-#include "csocket_mapping.h"
+//class CSocket;
+class CSockMapping;
+//#include "csocket_mapping.h"
 
 struct sockopt {
     void *optval;

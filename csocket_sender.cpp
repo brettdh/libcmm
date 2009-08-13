@@ -5,32 +5,62 @@
 #include "thunks.h"
 #include "pending_irob.h"
 #include "pending_sender_irob.h"
+#include "csocket_mapping.h"
 
-CSocketSender::CSocketSender(CSocket *csock_) : csock(csock_) {}
+CSocketSender::CSocketSender(CSocketPtr csock_) 
+    : csock(csock_), sk(csock_->sk) {}
 
 void
 CSocketSender::Run()
 {
-    pthread_mutex_lock(&csock->sk->scheduling_state_lock);
-    while (1) {
-        if (csock->sk->is_shutting_down()) {
-            if (csock->sk->outgoing_irobs.empty()) {
-                if (!csock->sk->goodbye_sent) {
-                    goodbye();
+    PthreadScopedLock lock(&sk->scheduling_state_lock);
+    try {
+        while (1) {
+            if (csock->csock_recvr == NULL) {
+                throw std::runtime_error("Connection closed");
+            }
+
+            if (sk->is_shutting_down()) {
+                if (sk->outgoing_irobs.empty()) {
+                    if (!sk->goodbye_sent) {
+                        goodbye();
+                    }
+                    PthreadScopedLock lock(&sk->shutdown_mutex);
+                    while (!sk->remote_shutdown) {
+                        pthread_cond_wait(&sk->shutdown_cv,
+                                          &sk->shutdown_mutex);
+                    }
+                    return;
                 }
             }
+            
+            if (schedule_on_my_labels()) {
+                continue;
+            }
+            if (schedule_unlabeled()) {
+                continue;
+            }
+            
+            pthread_cond_wait(&sk->scheduling_state_cv,
+                              &sk->scheduling_state_lock);
+            // something happened; we might be able to do some work
         }
-        
-        if (schedule_on_my_labels()) {
-            continue;
+    } catch (CMMControlException& e) {
+        //csock->remove();
+        sk->csock_map->remove_csock(csock);
+        CSocketPtr replacement = 
+            sk->csock_map->new_csock_with_labels(0,0);
+        if (!replacement) {
+            // this connection is hosed, so make sure everything
+            // gets cleaned up as if we had done a graceful shutdown
+            PthreadScopedLock lock(&sk->shutdown_mutex);
+            sk->shutting_down = true;
+            sk->remote_shutdown = true;
+            sk->goodbye_sent = true;
+            pthread_cond_broadcast(&sk->shutdown_cv);
         }
-        if (schedule_unlabeled()) {
-            continue;
-        }
-
-        pthread_cond_wait(&csock->sk->scheduling_state_cv,
-                          &csock->sk->scheduling_state_lock);
-        // something happened; we might be able to do some work
+        // csock will get cleaned up in Finish()
+        throw;
     }
 }
 
@@ -55,7 +85,7 @@ CSocketSender::schedule_on_my_labels()
 bool
 CSocketSender::schedule_unlabeled()
 {
-    return schedule_work(csock->sk->irob_indexes);
+    return schedule_work(sk->irob_indexes);
 }
 
 bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
@@ -104,7 +134,7 @@ void resume_operation_thunk(ResumeOperation *op)
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
 
-    CSocket *csock =
+    CSocketPtr csock =
         op->sk->csock_map->new_csock_with_labels(psirob->send_labels,
                                                  psirob->recv_labels);
     
@@ -131,22 +161,22 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
         return false;
     }
 
-    CSocket *match = 
-        csock->sk->csock_map->new_csock_with_labels(pirob->send_labels,
+    CSocketPtr match = 
+        sk->csock_map->new_csock_with_labels(pirob->send_labels,
                                                     pirob->recv_labels);
     if (!match) {
         if (psirob->resume_handler) {
-            enqueue_handler(csock->sk->sock,
+            enqueue_handler(sk->sock,
                             pirob->send_labels, pirob->recv_labels, 
                             psirob->resume_handler, psirob->rh_arg);
             pthread_t waiting_thread = pirob->waiting_thread;
             pirob->waiting_thread = (pthread_t)0;
-            csock->sk->signal_completion(waiting_thread, CMM_DEFERRED);
+            sk->signal_completion(waiting_thread, CMM_DEFERRED);
         } else {
-            enqueue_handler(csock->sk->sock,
+            enqueue_handler(sk->sock,
                             pirob->send_labels, pirob->recv_labels,
                             (resume_handler_t)resume_operation_thunk,
-                            new ResumeOperation(csock->sk, data));
+                            new ResumeOperation(sk, data));
         }
         return true;
     } else {
@@ -154,7 +184,7 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
 
         // pass this task to the right thread
         match->irob_indexes.new_irobs.insert(data);
-        pthread_cond_broadcast(&csock->sk->scheduling_state_cv);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
         return true;
     }
 
@@ -166,7 +196,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
 {
     irob_id_t id = data.id;
 
-    PendingIROB *pirob = csock->sk->outgoing_irobs.find(id);
+    PendingIROB *pirob = sk->outgoing_irobs.find(id);
     if (!pirob) {
         // shouldn't get here if it doesn't exist
         assert(0);
@@ -224,15 +254,15 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     size_t bytes = vec[0].iov_len + vec[1].iov_len;
     size_t count = vec[1].iov_base ? 2 : 1;
 
-    pthread_mutex_unlock(&csock->sk->scheduling_state_lock);
+    pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = writev(csock->osfd, vec, count);
-    pthread_mutex_lock(&csock->sk->scheduling_state_lock);
+    pthread_mutex_lock(&sk->scheduling_state_lock);
 
     delete [] deps;
 
     if (rc != (ssize_t)bytes) {
-        csock->sk->irob_indexes.new_irobs.insert(data);
-        pthread_cond_broadcast(&csock->sk->scheduling_state_cv);
+        sk->irob_indexes.new_irobs.insert(data);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
         perror("CSocketSender: writev");
         throw CMMControlException("Socket error", hdr);
     }
@@ -241,16 +271,16 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     pirob->waiting_thread = (pthread_t)0;
 
     if (pirob->is_anonymous()) {
-        csock->sk->signal_completion(waiting_thread, vec[1].iov_len);
+        sk->signal_completion(waiting_thread, vec[1].iov_len);
     } else {
-        csock->sk->signal_completion(waiting_thread, 0);
+        sk->signal_completion(waiting_thread, 0);
     }
 }
 
 void 
 CSocketSender::end_irob(const IROBSchedulingData& data)
 {
-    PendingIROB *pirob = csock->sk->outgoing_irobs.find(data.id);
+    PendingIROB *pirob = sk->outgoing_irobs.find(data.id);
     if (!pirob) {
         // shouldn't get here if it doesn't exist
         assert(0);
@@ -262,20 +292,20 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
     hdr.send_labels = htonl(csock->local_iface.labels);
     hdr.recv_labels = htonl(csock->remote_iface.labels);
 
-    pthread_mutex_unlock(&csock->sk->scheduling_state_lock);
+    pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = write(csock->osfd, &hdr, sizeof(hdr));
-    pthread_mutex_lock(&csock->sk->scheduling_state_lock);
+    pthread_mutex_lock(&sk->scheduling_state_lock);
 
     if (rc != sizeof(hdr)) {
-        csock->sk->irob_indexes.finished_irobs.insert(data);
-        pthread_cond_broadcast(&csock->sk->scheduling_state_cv);
+        sk->irob_indexes.finished_irobs.insert(data);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
         perror("CSocketSender: write");
         throw CMMControlException("Socket error", hdr);
     }
     
     pthread_t waiting_thread = pirob->waiting_thread;
     pirob->waiting_thread = (pthread_t)0;
-    csock->sk->signal_completion(waiting_thread, 0);
+    sk->signal_completion(waiting_thread, 0);
 }
 
 void 
@@ -283,7 +313,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
 {
     irob_id_t id = data.id;
 
-    PendingIROB *pirob = csock->sk->outgoing_irobs.find(id);
+    PendingIROB *pirob = sk->outgoing_irobs.find(id);
     if (!pirob) {
         // shouldn't get here if it doesn't exist
         assert(0);
@@ -315,12 +345,12 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     vec[1].iov_base = chunk.data;
     vec[1].iov_len = chunk.datalen;
 
-    pthread_mutex_unlock(&csock->sk->scheduling_state_lock);
+    pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = writev(csock->osfd, vec, 2);
-    pthread_mutex_lock(&csock->sk->scheduling_state_lock);
+    pthread_mutex_lock(&sk->scheduling_state_lock);
     if (rc != (ssize_t)(sizeof(hdr) + chunk.datalen)) {
-        csock->sk->irob_indexes.new_chunks.insert(data);
-        pthread_cond_broadcast(&csock->sk->scheduling_state_cv);
+        sk->irob_indexes.new_chunks.insert(data);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
         perror("CSocketSender: writev");
         throw CMMControlException("Socket error", hdr);
     }
@@ -329,7 +359,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     assert(psirob);
     pthread_t waiting_thread = psirob->waiting_threads[data.seqno];
     psirob->waiting_threads.erase(data.seqno);
-    csock->sk->signal_completion(waiting_thread, chunk.datalen);
+    sk->signal_completion(waiting_thread, chunk.datalen);
 }
 
 void 
@@ -342,13 +372,13 @@ CSocketSender::new_interface(struct net_interface iface)
 
     hdr.send_labels = hdr.recv_labels = htonl(0);
 
-    pthread_mutex_unlock(&csock->sk->scheduling_state_lock);
+    pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = write(csock->osfd, &hdr, sizeof(hdr));
-    pthread_mutex_lock(&csock->sk->scheduling_state_lock);
+    pthread_mutex_lock(&sk->scheduling_state_lock);
 
     if (rc != sizeof(hdr)) {
-        csock->sk->changed_local_ifaces.insert(iface);
-        pthread_cond_broadcast(&csock->sk->scheduling_state_cv);
+        sk->changed_local_ifaces.insert(iface);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
         perror("CSocketSender: write");
         throw CMMControlException("Socket error", hdr);        
     }
@@ -363,13 +393,13 @@ CSocketSender::down_interface(struct net_interface iface)
 
     hdr.send_labels = hdr.recv_labels = htonl(0);
 
-    pthread_mutex_unlock(&csock->sk->scheduling_state_lock);
+    pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = write(csock->osfd, &hdr, sizeof(hdr));
-    pthread_mutex_lock(&csock->sk->scheduling_state_lock);
+    pthread_mutex_lock(&sk->scheduling_state_lock);
 
     if (rc != sizeof(hdr)) {
-        csock->sk->changed_local_ifaces.insert(iface);
-        pthread_cond_broadcast(&csock->sk->scheduling_state_cv);
+        sk->changed_local_ifaces.insert(iface);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
         perror("CSocketSender: write");
         throw CMMControlException("Socket error", hdr);        
     }
@@ -385,13 +415,13 @@ CSocketSender::ack(const IROBSchedulingData& data)
     hdr.send_labels = htonl(csock->local_iface.labels);
     hdr.recv_labels = htonl(csock->remote_iface.labels);
 
-    pthread_mutex_unlock(&csock->sk->scheduling_state_lock);
+    pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = write(csock->osfd, &hdr, sizeof(hdr));
-    pthread_mutex_lock(&csock->sk->scheduling_state_lock);
+    pthread_mutex_lock(&sk->scheduling_state_lock);
 
     if (rc != sizeof(hdr)) {
-        csock->sk->irob_indexes.waiting_acks.insert(data);
-        pthread_cond_broadcast(&csock->sk->scheduling_state_cv);
+        sk->irob_indexes.waiting_acks.insert(data);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
         perror("CSocketSender: write");
         throw CMMControlException("Socket error", hdr);
     }
@@ -404,24 +434,39 @@ CSocketSender::goodbye()
     hdr.type = htons(CMM_CONTROL_MSG_GOODBYE);
     hdr.send_labels = htonl(csock->local_iface.labels);
     hdr.recv_labels = htonl(csock->remote_iface.labels);
-    
-    csock->sk->goodbye_sent = true;
-    pthread_mutex_unlock(&csock->sk->scheduling_state_lock);
+
+    {
+        PthreadScopedLock lock(&sk->shutdown_mutex);
+        sk->goodbye_sent = true;
+    }
+    pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = write(csock->osfd, &hdr, sizeof(hdr));
-    pthread_mutex_lock(&csock->sk->scheduling_state_lock);
+    pthread_mutex_lock(&sk->scheduling_state_lock);
 
     if (rc != sizeof(hdr)) {
-        csock->sk->goodbye_sent = false;
-        pthread_cond_broadcast(&csock->sk->scheduling_state_cv);
+        {
+            PthreadScopedLock lock(&sk->shutdown_mutex);
+            sk->goodbye_sent = false;
+        }
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
         perror("CSocketSender: write");
         throw CMMControlException("Socket error", hdr);
     }
+
+    PthreadScopedLock lock(&sk->shutdown_mutex);
+    pthread_cond_broadcast(&sk->shutdown_cv);
 }
 
 
 void
 CSocketSender::Finish(void)
 {
-    csock->remove();
-}
+    {
+        PthreadScopedLock lock(&sk->scheduling_state_lock);
+        shutdown(csock->osfd, SHUT_RDWR);
+        //csock->remove();
+        //pthread_cond_broadcast(&sk->scheduling_state_cv);
+    }
 
+    delete this; // the last thing that will ever be done with this
+}

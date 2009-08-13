@@ -4,6 +4,8 @@
 #include "debug.h"
 #include "pending_irob.h"
 #include "pending_receiver_irob.h"
+#include "cmm_socket.private.h"
+#include "csocket_mapping.h"
 
 CSocketReceiver::handler_fn_t CSocketReceiver::handlers[] = {
     &CSocketReceiver::unrecognized_control_msg, /* HELLO not expected */
@@ -17,7 +19,8 @@ CSocketReceiver::handler_fn_t CSocketReceiver::handlers[] = {
     &CSocketReceiver::do_goodbye
 };
 
-CSocketReceiver::CSocketReceiver(CSocket *csock_) : csock(csock_) {}
+CSocketReceiver::CSocketReceiver(CSocketPtr csock_) 
+    : csock(csock_), sk(csock_->sk) {}
 
 void
 CSocketReceiver::unrecognized_control_msg(struct CMMSocketControlHdr hdr)
@@ -43,25 +46,6 @@ CSocketReceiver::Run(void)
         struct CMMSocketControlHdr hdr;
 
 	dbgprintf("About to wait for network messages\n");
-#if 0
-        fd_set readfds;
-        FD_ZERO(&readfds);
-        FD_SET(csock->osfd, &readfds);
-        int rc = select(csock->osfd + 1, &readfds, NULL, NULL, NULL);
-        if (rc < 0) {
-            if (errno == EINTR) {
-                continue;
-            } else {
-		dbgprintf("CSocketReceiver: select failed, errno=%d\n", errno);
-                return;
-            }
-        }
-
-	dbgprintf("Network message incoming\n");
-#endif
-
-	struct timeval begin, end, diff;
-	TIME(begin);
 
         int rc = recv(csock->osfd, &hdr, sizeof(hdr), 0);
         if (rc != sizeof(hdr)) {
@@ -72,22 +56,20 @@ CSocketReceiver::Run(void)
 	dbgprintf("Received message: %s\n", hdr.describe().c_str());
 
         dispatch(hdr);
-
-	TIME(end);
-	TIMEDIFF(begin, end, diff);
-	dbgprintf("Worker-receiver passed message in %lu.%06lu seconds (%s)\n",
-		  diff.tv_sec, diff.tv_usec, hdr.describe().c_str());
     }
 }
 
 void
 CSocketReceiver::Finish(void)
 {
-    /* Whether CSocketSender or CSocketReceiver gets here 
-     * first, the result should be correct.
-     * Everything should only get deleted once, and the
-     * thread-stopping functions are idempotent. */
-    csock->remove();
+    {
+        PthreadScopedLock lock(&sk->scheduling_state_lock);
+        csock->csock_recvr = NULL;
+        //csock->remove();
+        //pthread_cond_broadcast(&sk->scheduling_state_cv);
+    }
+
+    delete this; // the last thing that will ever be done with this
 }
 
 void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
@@ -122,8 +104,8 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
 						 ntohl(hdr.recv_labels));
     
     {
-        PthreadScopedLock lock(&csock->sk->scheduling_state_lock);
-        if (!csock->sk->incoming_irobs.insert(pirob)) {
+        PthreadScopedLock lock(&sk->scheduling_state_lock);
+        if (!sk->incoming_irobs.insert(pirob)) {
             delete pirob;
             throw CMMControlException("Tried to begin IROB that already exists", 
                                   hdr);
@@ -149,10 +131,10 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
 
     irob_id_t id = ntohl(hdr.op.end_irob.id);
     {
-        PthreadScopedLock lock(&csock->sk->scheduling_state_lock);
-        PendingIROB *pirob = csock->sk->incoming_irobs.find(id);
+        PthreadScopedLock lock(&sk->scheduling_state_lock);
+        PendingIROB *pirob = sk->incoming_irobs.find(id);
         if (!pirob) {
-            if (csock->sk->incoming_irobs.past_irob_exists(id)) {
+            if (sk->incoming_irobs.past_irob_exists(id)) {
                 throw CMMControlException("Tried to end committed IROB", hdr);
             } else {
                 throw CMMControlException("Tried to end nonexistent IROB", hdr);
@@ -165,7 +147,7 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
         }
         
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
-        csock->sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
+        sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
     }
 
     //sk->sendr->ack(id);
@@ -207,11 +189,11 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     irob_id_t id = ntohl(hdr.op.irob_chunk.id);
 
     {
-        PthreadScopedLock lock(&csock->sk->scheduling_state_lock);
+        PthreadScopedLock lock(&sk->scheduling_state_lock);
         
-        PendingIROB *pirob = csock->sk->incoming_irobs.find(id);
+        PendingIROB *pirob = sk->incoming_irobs.find(id);
         if (!pirob) {
-            if (csock->sk->incoming_irobs.past_irob_exists(id)) {
+            if (sk->incoming_irobs.past_irob_exists(id)) {
                 throw CMMControlException("Tried to add to committed IROB", hdr);
             } else {
                 throw CMMControlException("Tried to add to nonexistent IROB", hdr);
@@ -236,13 +218,13 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         csock->irob_indexes.waiting_acks.insert(
             IROBSchedulingData(id, chunk.seqno)
             );
-        pthread_cond_broadcast(&csock->sk->scheduling_state_cv);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
     }
     
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Added chunk %d in IROB %d, took %lu.%06lu seconds\n",
-	      chunk.seqno, id, diff.tv_sec, diff.tv_usec);
+	      ntohl(hdr.op.irob_chunk.seqno), id, diff.tv_sec, diff.tv_usec);
 }
 
 void CSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
@@ -281,8 +263,8 @@ void CSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
 						 ntohl(hdr.send_labels),
 						 ntohl(hdr.recv_labels));
     {
-        PthreadScopedLock lock(&csock->sk->scheduling_state_lock);
-        if (!csock->sk->incoming_irobs.insert(pirob)) {
+        PthreadScopedLock lock(&sk->scheduling_state_lock);
+        if (!sk->incoming_irobs.insert(pirob)) {
             delete pirob;
             throw CMMControlException("Tried to add default IROB "
                                       "that already exists", 
@@ -291,10 +273,10 @@ void CSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
         
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
         assert(prirob);
-        csock->sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
+        sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
 
         csock->irob_indexes.waiting_acks.insert(IROBSchedulingData(default_irob.id));
-        pthread_cond_broadcast(&csock->sk->scheduling_state_cv);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
     }
 
     TIME(end);
@@ -309,7 +291,7 @@ CSocketReceiver::do_new_interface(struct CMMSocketControlHdr hdr)
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_NEW_INTERFACE);
     struct net_interface iface = {hdr.op.new_interface.ip_addr,
                                   hdr.op.new_interface.labels};
-    csock->sk->setup(iface, false);
+    sk->setup(iface, false);
 }
 
 void
@@ -317,7 +299,7 @@ CSocketReceiver::do_down_interface(struct CMMSocketControlHdr hdr)
 {
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_DOWN_INTERFACE);
     struct net_interface iface = {hdr.op.down_interface.ip_addr};
-    csock->sk->teardown(iface, false);
+    sk->teardown(iface, false);
 }
 
 void
@@ -327,7 +309,7 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
     TIME(begin);
 
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_ACK);
-    csock->sk->ack_received(ntohl(hdr.op.ack.id), ntohl(hdr.op.ack.seqno));
+    sk->ack_received(ntohl(hdr.op.ack.id), ntohl(hdr.op.ack.seqno));
 
     TIME(end);
     TIMEDIFF(begin, end, diff);
@@ -340,14 +322,15 @@ void
 CSocketReceiver::do_goodbye(struct CMMSocketControlHdr hdr)
 {
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_GOODBYE);
-    if (csock->sk->is_shutting_down()) {
+    if (sk->is_shutting_down()) {
 	/* I initiated the shutdown; this is the "FIN/ACK" */
 	/* at this point, both sides have stopped sending. */
-	csock->sk->goodbye_acked();
+	sk->goodbye_acked();
+        throw CMMThreadFinish();
     } else {
 	/* The other side initiated the shutdown; this is the "FIN" */
 	/* Send the "FIN/ACK" */
-	csock->sk->goodbye(true);
+	sk->goodbye(true);
     }
     /* Note: the senders will still wait for all IROB chunks
      * to be ACK'd before finalizing the shutdown. */

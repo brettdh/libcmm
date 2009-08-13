@@ -7,6 +7,7 @@ class CMMThread {
   public:
     int start();
     void stop();
+    void join();
 
     CMMThread();
     virtual ~CMMThread() {}

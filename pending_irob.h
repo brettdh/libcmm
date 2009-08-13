@@ -115,6 +115,7 @@ PendingIROB::remove_deps_if(Predicate pred)
  */
 class PendingIROBLattice {
   public:
+    PendingIROBLattice();
     bool insert(PendingIROB *pirob);
     PendingIROB * find(irob_id_t id);
     bool erase(irob_id_t id);
