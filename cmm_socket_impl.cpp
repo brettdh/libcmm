@@ -1585,7 +1585,7 @@ CMMSocketImpl::goodbye(bool remote_initiated)
 	pthread_cond_wait(&shutdown_cv, &shutdown_mutex);
     }
     pthread_mutex_unlock(&shutdown_mutex);
-    incoming_irobs.shutdown();
+    //incoming_irobs.shutdown();
 }
 
 void 
