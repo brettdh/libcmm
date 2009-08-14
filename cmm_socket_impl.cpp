@@ -1573,6 +1573,17 @@ CMMSocketImpl::goodbye(bool remote_initiated)
     }
     pthread_mutex_unlock(&shutdown_mutex);
 
+    CSocket *csock;
+    int ret = get_csock(0, 0, NULL, NULL, csock, false);
+    if (ret < 0) {
+        // no socket to send the goodbye; connection must be gone
+        pthread_mutex_lock(&shutdown_mutex);
+        remote_shutdown = true;
+        goodbye_sent = true;
+        pthread_mutex_unlock(&shutdown_mutex);
+        return;
+    }
+
     pthread_mutex_lock(&scheduling_state_lock);
     pthread_cond_broadcast(&scheduling_state_cv);
     pthread_mutex_unlock(&scheduling_state_lock);
