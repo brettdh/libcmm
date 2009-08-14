@@ -1566,6 +1566,7 @@ CMMSocketImpl::goodbye(bool remote_initiated)
 	return;
     }
 
+    pthread_mutex_lock(&scheduling_state_lock);
     pthread_mutex_lock(&shutdown_mutex);
     shutting_down = true; // picked up by sender-scheduler
     if (remote_initiated) {
@@ -1584,7 +1585,6 @@ CMMSocketImpl::goodbye(bool remote_initiated)
         return;
     }
 
-    pthread_mutex_lock(&scheduling_state_lock);
     pthread_cond_broadcast(&scheduling_state_cv);
     pthread_mutex_unlock(&scheduling_state_lock);
 
