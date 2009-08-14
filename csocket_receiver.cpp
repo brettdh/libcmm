@@ -66,7 +66,7 @@ CSocketReceiver::Finish(void)
         PthreadScopedLock lock(&sk->scheduling_state_lock);
         csock->csock_recvr = NULL;
         //csock->remove();
-        //pthread_cond_broadcast(&sk->scheduling_state_cv);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
     }
 
     delete this; // the last thing that will ever be done with this
