@@ -39,6 +39,23 @@ CSocketReceiver::dispatch(struct CMMSocketControlHdr hdr)
     }
 }
 
+static ssize_t 
+read_bytes(int sock, void *buf, size_t count)
+{
+    ssize_t bytes_read = 0;
+    while (bytes_read < (ssize_t)count) {
+	int rc = read(sock, (char*)buf + bytes_read, 
+		      count - bytes_read);
+	if (rc < 0) {
+            return rc;
+	} else if (rc == 0) {
+	    return rc;
+	}
+	bytes_read += rc;
+    }
+    return bytes_read;
+}
+
 void
 CSocketReceiver::Run(void)
 {
@@ -47,7 +64,7 @@ CSocketReceiver::Run(void)
 
 	dbgprintf("About to wait for network messages\n");
 
-        int rc = recv(csock->osfd, &hdr, sizeof(hdr), 0);
+        int rc = read_bytes(csock->osfd, &hdr, sizeof(hdr));
         if (rc != sizeof(hdr)) {
 	    dbgprintf("CSocketReceiver: recv failed, rc = %d, errno=%d\n", rc, errno);
             return;
@@ -83,7 +100,7 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     if (numdeps > 0) {
         irob_id_t *deps = new irob_id_t[numdeps];
         int datalen = numdeps * sizeof(irob_id_t);
-        int rc = recv(csock->osfd, (char*)deps, datalen, 0);
+        int rc = read_bytes(csock->osfd, (char*)deps, datalen);
         if (rc != datalen) {
             if (rc < 0) {
                 dbgprintf("Error %d on socket %d\n", errno, csock->osfd);
@@ -172,7 +189,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     }
     
     char *buf = new char[datalen];
-    int rc = recv(csock->osfd, buf, datalen, MSG_WAITALL);
+    int rc = read_bytes(csock->osfd, buf, datalen);
     if (rc != datalen) {
         if (rc < 0) {
             dbgprintf("Error %d on socket %d\n", errno, csock->osfd);
@@ -240,7 +257,7 @@ void CSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
     }
     
     char *buf = new char[datalen];
-    int rc = recv(csock->osfd, buf, datalen, MSG_WAITALL);
+    int rc = read_bytes(csock->osfd, buf, datalen);
     if (rc != datalen) {
         if (rc < 0) {
             dbgprintf("Error %d on socket %d\n", errno, csock->osfd);
