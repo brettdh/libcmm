@@ -59,18 +59,19 @@
     are still available to connect on
   * where all physical connections are broken and no connections are possible
 
+  * ALSO, think about this in terms of the following options for 
+    failure notification:
+    1) The application wants to ignore failure
+    2) The application wants to be notified immediately
+    3) The application wants to be notified after a timeout
+
 * Make a more interesting test app with actual reordering and constraints.
 
-* BUG: Threads are still not getting cancelled, damnit.  It's now limited
-  to CSocketReceiver threads; pthread_cancel still doesn't always work.
-
--------
-New 7-29-2009
--------
+* Make a regression test suite.
 
 * Get rid of the scheduler threads and just have the sender worker thread
   and the application receiver thread make the scheduling decisions
-  in a procedure call.
+  in a procedure call. (DONE)
 
 * Think about the IROB data structure on the sender and receiver ends,
   especially how to index IROBs.
@@ -94,5 +95,6 @@ New 7-29-2009
 
 * This reasonable assumption makes implementation simpler:
    "IROBs may not depend on future IROBs.  Thus, the IROB IDs form
-    a partial order over all IROBs."
+    a partial order over all IROBs."  (DONE; implemented the IROB
+       data structure as a std::deque wraapper)
 

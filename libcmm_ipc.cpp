@@ -100,6 +100,11 @@ static struct sigaction net_status_change_action;
 static void net_status_change_handler();
 static void *IPCThread(void*);
 
+bool scout_ipc_inited(void)
+{
+    return (scout_mq_fd > 0);
+}
+
 void scout_ipc_init()
 {
     int rc;
@@ -143,8 +148,6 @@ void scout_ipc_init()
     }
 #endif
     
-    rc = pthread_create(&ipc_thread_id, NULL, IPCThread, NULL);
-
     msg.opcode = CMM_MSG_SUBSCRIBE;
     msg.data.pid = getpid();
     rc = send_control_message(&msg);
@@ -156,6 +159,8 @@ void scout_ipc_init()
 	scout_mq_fd = -1;
 	mq_unlink(mq_name);
 	mq_name[0] = '\0';
+    } else {
+        rc = pthread_create(&ipc_thread_id, NULL, IPCThread, NULL);
     }
 }
 

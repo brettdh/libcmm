@@ -329,7 +329,8 @@ CSockMapping::add_connection(int sock,
     
     CSocketPtr new_csock(CSocket::create(sk, local_iface, remote_iface, 
                                          sock));
-
+    
+    new_csock->startup_workers();
     {
 	scoped_rwlock lock(sockset_mutex, true);
 	connected_csocks.insert(new_csock);

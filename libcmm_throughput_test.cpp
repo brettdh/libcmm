@@ -317,9 +317,6 @@ int main(int argc, char *argv[])
 	    usage();
 	}
 
-	int sock = srv_connect(argv[optind]);
-	assert(sock >= 0);
-
 	struct timeval begin, end, diff;
 	
 	char *buf = new char[bytes];
@@ -332,17 +329,10 @@ int main(int argc, char *argv[])
 	    fprintf(stderr, "Sending %d bytes\n", bytes);
 	} else assert(0);
 	
-	TIME(begin);
-	send_bytes(sock, buf, bytes);
-	TIME(end);
-	TIMEDIFF(begin, end, diff);
-	fprintf(stderr, "   In one chunk: %lu.%06lu seconds\n",
-		diff.tv_sec, diff.tv_usec);
+        int sock = -1;
 
-	CLOSE(sock);
-
-	for (int kchunk = 4; kchunk < kbytes; kchunk *= 2) {
-	    sock = srv_connect(argv[optind]);
+	for (int kchunk = 4; kchunk <= kbytes; kchunk *= 2) {
+            sock = srv_connect(argv[optind]);
 	    struct timeval avg_send_time = {0,0};
 	    TIME(begin);
 	    send_bytes_by_chunk(sock, buf, bytes, 1024 * kchunk, &avg_send_time);
@@ -358,7 +348,7 @@ int main(int argc, char *argv[])
 
 #ifndef NOMULTISOCK
 	fprintf(stderr, "  In a single IROB:\n");
-	for (int kchunk = 4; kchunk < kbytes; kchunk *= 2) {
+	for (int kchunk = 4; kchunk <= kbytes; kchunk *= 2) {
 	    sock = srv_connect(argv[optind]);
 	    struct timeval avg_send_time = {0,0};
 	    TIME(begin);

@@ -7,7 +7,7 @@ using std::bind1st;
 
 PendingIROB::PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array,
 			 u_long send_labels_, u_long recv_labels_)
-    : id(id),
+    : id(id_),
       send_labels(send_labels_),
       recv_labels(recv_labels_),
       anonymous(false),

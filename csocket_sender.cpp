@@ -21,11 +21,13 @@ CSocketSender::Run()
             }
 
             if (sk->is_shutting_down()) {
-                if (sk->outgoing_irobs.empty()) {
+                if (csock->irob_indexes.waiting_acks.empty() &&
+                    sk->irob_indexes.waiting_acks.empty()) {
                     if (!sk->goodbye_sent) {
                         goodbye();
                     }
-                    PthreadScopedLock lock(&sk->shutdown_mutex);
+                    lock.release();
+                    PthreadScopedLock shdwn_lock(&sk->shutdown_mutex);
                     while (!sk->remote_shutdown) {
                         pthread_cond_wait(&sk->shutdown_cv,
                                           &sk->shutdown_mutex);
@@ -169,8 +171,9 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
             enqueue_handler(sk->sock,
                             pirob->send_labels, pirob->recv_labels, 
                             psirob->resume_handler, psirob->rh_arg);
-            pthread_t waiting_thread = pirob->waiting_thread;
-            pirob->waiting_thread = (pthread_t)0;
+            pthread_t waiting_thread = psirob->waiting_thread;
+            psirob->waiting_thread = (pthread_t)0;
+            assert(waiting_thread != 0);
             sk->signal_completion(waiting_thread, CMM_DEFERRED);
         } else {
             enqueue_handler(sk->sock,
@@ -267,14 +270,18 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         throw CMMControlException("Socket error", hdr);
     }
 
-    pthread_t waiting_thread = pirob->waiting_thread;
-    pirob->waiting_thread = (pthread_t)0;
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    assert(psirob);
+    pthread_t waiting_thread = psirob->waiting_thread;
+    psirob->waiting_thread = (pthread_t)0;
+    assert(waiting_thread != 0);
 
     if (pirob->is_anonymous()) {
         sk->signal_completion(waiting_thread, vec[1].iov_len);
     } else {
         sk->signal_completion(waiting_thread, 0);
     }
+    sk->remove_if_unneeded(pirob);
 }
 
 void 
@@ -303,9 +310,13 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
         throw CMMControlException("Socket error", hdr);
     }
     
-    pthread_t waiting_thread = pirob->waiting_thread;
-    pirob->waiting_thread = (pthread_t)0;
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    assert(psirob);
+    pthread_t waiting_thread = psirob->waiting_thread;
+    psirob->waiting_thread = (pthread_t)0;
+    assert(waiting_thread != 0);
     sk->signal_completion(waiting_thread, 0);
+    sk->remove_if_unneeded(pirob);
 }
 
 void 
@@ -359,7 +370,9 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     assert(psirob);
     pthread_t waiting_thread = psirob->waiting_threads[data.seqno];
     psirob->waiting_threads.erase(data.seqno);
+    assert(waiting_thread != 0);
     sk->signal_completion(waiting_thread, chunk.datalen);
+    sk->remove_if_unneeded(pirob);
 }
 
 void 

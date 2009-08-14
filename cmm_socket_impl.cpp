@@ -136,20 +136,25 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
 	listener_thread = new ListenerThread(this);
 	listener_thread->start();
     
-        pthread_mutex_lock(&hashmaps_mutex);
-        for (NetInterfaceSet::iterator it = ifaces.begin();
-             it != ifaces.end(); it++) {
-            
-            struct net_interface listener_addr;
-            memset(&listener_addr, 0, sizeof(listener_addr));
-            listener_addr.ip_addr = it->ip_addr;
-            listener_addr.labels = it->labels;
-
-
-            local_ifaces.insert(listener_addr);
+        {
+            PthreadScopedLock scoped_lock(&hashmaps_mutex);
+            CMMSockHash::accessor ac;
+            lock(ac);
+            for (NetInterfaceSet::iterator it = ifaces.begin();
+                 it != ifaces.end(); it++) {
+                
+                struct net_interface listener_addr;
+                memset(&listener_addr, 0, sizeof(listener_addr));
+                listener_addr.ip_addr = it->ip_addr;
+                listener_addr.labels = it->labels;
+                
+                local_ifaces.insert(listener_addr);
+            }
         }
-        pthread_mutex_unlock(&hashmaps_mutex);
         
+        CMMSockHash::accessor ac;
+        lock(ac);
+
         if (bootstrap_sock != -1) {
             /* we are accepting a connection */
             recv_remote_listeners(bootstrap_sock);
@@ -365,11 +370,11 @@ CMMSocketImpl::mc_connect(const struct sockaddr *serv_addr,
         return CMM_FAILED;
     }
 
-    CMMSockHash::accessor ac;
-    if (!cmm_sock_hash.find(ac, sock)) {
-	/* already checked this above */
-	assert(0);
-    }
+//     CMMSockHash::accessor ac;
+//     if (!cmm_sock_hash.find(ac, sock)) {
+// 	/* already checked this above */
+// 	assert(0);
+//     }
     
     int rc = connection_bootstrap(serv_addr, addrlen);
     
@@ -889,6 +894,11 @@ mc_socket_t
 CMMSocketImpl::mc_accept(int listener_sock, 
                          struct sockaddr *addr, socklen_t *addrlen)
 {
+    if (!scout_ipc_inited()) {
+        errno = EPROTO; // XXX: maybe? 
+        return -1;
+    }
+
     VanillaListenerSet::const_accessor ac;
     if (!cmm_listeners.find(ac, listener_sock)) {
         /* pass-through */
@@ -1257,7 +1267,6 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
     PendingSenderIROB *pirob = new PendingSenderIROB(id, numdeps, deps,
                                                      send_labels, recv_labels,
                                                      resume_handler, rh_arg);
-    pirob->waiting_thread = pthread_self();
 
     prepare_app_operation();
 
@@ -1335,8 +1344,10 @@ CMMSocketImpl::end_irob(irob_id_t id)
         PthreadScopedLock lock(&scheduling_state_lock);
         pirob->finish();
         
-        assert(pirob->waiting_thread == 0);
-        pirob->waiting_thread = pthread_self();
+        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+        assert(psirob);
+        assert(psirob->waiting_thread == 0);
+        psirob->waiting_thread = pthread_self();
         
         if (send_labels == 0 && recv_labels == 0) {
             irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
@@ -1485,7 +1496,6 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
         PendingIROB *pirob = new PendingSenderIROB(id, len, data,
 						   send_labels, recv_labels,
                                                    resume_handler, rh_arg);
-        pirob->waiting_thread = pthread_self();
 
         PthreadScopedLock lock(&scheduling_state_lock);
         bool success = outgoing_irobs.insert(pirob);
@@ -1522,7 +1532,7 @@ CMMSocketImpl::ack_received(irob_id_t id, u_long seqno)
     assert(psirob);
 
     psirob->ack(seqno);
-    remove_if_unneeded(pirob);    
+    remove_if_unneeded(pirob);
 }
 
 /* call only with scheduling_state_lock held */
@@ -1531,7 +1541,9 @@ void CMMSocketImpl::remove_if_unneeded(PendingIROB *pirob)
     assert(pirob);
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
-    if (psirob->is_acked() && psirob->is_complete()) {
+    if (psirob->is_acked() && psirob->is_complete() &&
+        psirob->waiting_thread == 0 &&
+        psirob->waiting_threads.empty()) {
         outgoing_irobs.erase(pirob->id);
         delete pirob;
 
@@ -1574,14 +1586,6 @@ CMMSocketImpl::goodbye(bool remote_initiated)
     }
     pthread_mutex_unlock(&shutdown_mutex);
     incoming_irobs.shutdown();
-
-    if (!remote_initiated) {
-        // wait for all the csockets to go away
-        PthreadScopedLock lock(&scheduling_state_lock);
-        while (!csock_map->empty()) {
-            pthread_cond_wait(&scheduling_state_cv, &scheduling_state_lock);
-        }
-    }
 }
 
 void 

@@ -67,6 +67,7 @@ ListenerThread::~ListenerThread()
 {
     shutdown(listener_sock, SHUT_RDWR);
     stop();
+    //join();
     close(listener_sock);
 }
 

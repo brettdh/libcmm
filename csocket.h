@@ -19,6 +19,7 @@ class CSocketReceiver;
 struct ResumeOperation;
 
 #include <boost/shared_ptr.hpp>
+#include <boost/weak_ptr.hpp>
 
 class CSocket;
 typedef boost::shared_ptr<CSocket> CSocketPtr;
@@ -43,6 +44,7 @@ class CSocket {
     bool matches(u_long send_labels, u_long recv_labels);
 
     int phys_connect(void);
+    void startup_workers();
   private:
     // only allow shared_ptr creation
     CSocket(CMMSocketImpl *sk_, 
@@ -50,8 +52,6 @@ class CSocket {
             struct net_interface remote_iface_,
             int accepted_sock);
 
-    void startup_workers();
-  
     friend class CMMSocketImpl;
     friend class CSocketSender;
     friend class CSocketReceiver;
@@ -63,7 +63,7 @@ class CSocket {
 
     // only valid until the worker threads are created;
     // ensures that all CSocket pointers are shared
-    CSocketPtr self_ptr;
+    boost::weak_ptr<CSocket> self_ptr;
 
     // indexes for the sender threads
     IROBSchedulingIndexes irob_indexes;

@@ -16,6 +16,8 @@
 
 void scout_ipc_init(void);
 void scout_ipc_deinit(void);
+
+bool scout_ipc_inited(void);
 //bool scout_net_available(u_long send_labels, u_long recv_labels);
 //void scout_request_update();
 

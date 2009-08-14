@@ -17,9 +17,10 @@ CSocket::create(CMMSocketImpl *sk_,
                 struct net_interface remote_iface_,
                 int accepted_sock)
 {
-    CSocket *new_csock = new CSocket(sk_, local_iface_, 
-                                     remote_iface_, accepted_sock);
-    return new_csock->self_ptr;
+    CSocketPtr new_csock(new CSocket(sk_, local_iface_, 
+                                     remote_iface_, accepted_sock));
+    new_csock->self_ptr = new_csock;
+    return new_csock;
 }
 
 CSocket::CSocket(CMMSocketImpl *sk_,
@@ -28,8 +29,7 @@ CSocket::CSocket(CMMSocketImpl *sk_,
                  int accepted_sock)
     : sk(sk_),
       local_iface(local_iface_), remote_iface(remote_iface_),
-      csock_sendr(NULL), csock_recvr(NULL),
-      self_ptr(this)
+      csock_sendr(NULL), csock_recvr(NULL)
 {
     assert(sk);
     if (accepted_sock == -1) {
@@ -42,7 +42,6 @@ CSocket::CSocket(CMMSocketImpl *sk_,
         sk->set_all_sockopts(osfd);
     } else {
         osfd = accepted_sock;
-	startup_workers();
     }
     
     int on = 1;
@@ -114,12 +113,10 @@ void
 CSocket::startup_workers()
 {
     if (!csock_sendr && !csock_recvr) {
-	csock_sendr = new CSocketSender(self_ptr);
-	csock_recvr = new CSocketReceiver(self_ptr);
+	csock_sendr = new CSocketSender(CSocketPtr(self_ptr));
+	csock_recvr = new CSocketReceiver(CSocketPtr(self_ptr));
 	csock_sendr->start();
 	csock_recvr->start();
-
-        self_ptr.reset();  // break the cycle
     }
 }
 

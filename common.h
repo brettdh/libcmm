@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include "libcmm.h"
 #include <pthread.h>
+#include <cassert>
 
 template <typename IntegerType>
 struct IntegerHashCompare {
@@ -26,10 +27,17 @@ struct net_interface {
 class PthreadScopedLock {
   public:
     explicit PthreadScopedLock(pthread_mutex_t *mutex_) : mutex(mutex_) {
+        assert(mutex);
         pthread_mutex_lock(mutex);
     }
     ~PthreadScopedLock() {
+        if (mutex) {
+            pthread_mutex_unlock(mutex);
+        }
+    }
+    void release() {
         pthread_mutex_unlock(mutex);
+        mutex = NULL;
     }
   private:
     pthread_mutex_t *mutex;

@@ -79,8 +79,6 @@ class PendingIROB {
     bool anonymous;
     bool complete;
 
-    pthread_t waiting_thread;
-
     friend class PendingIROBLattice;
 
     /* if not NULL, points to the lattice that this IROB belongs to. 
