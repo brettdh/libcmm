@@ -109,9 +109,22 @@ ListenerThread::Run()
         if (rc < 0) {
             perror("getsockname");
             close(sock);
-	    close(listener_sock);
-            throw std::runtime_error("Socket error");
+            dbgprintf("Error getting local socket address\n");
+            continue;
         }
+
+        struct CMMSocketControlHdr hdr;
+        rc = recv(sock, &hdr, sizeof(hdr), MSG_WAITALL);
+        if (rc != sizeof(hdr)) {
+            perror("recv");
+            close(sock);
+            dbgprintf("error receiving new_interface data\n");
+            continue;
+        }
+
+        // make sure it's a new_interface msg
+        memcpy(&local_addr.sin_addr, &hdr.op.new_interface.ip_addr, 
+               sizeof(struct in_addr));
 
         try {
             sk->add_connection(sock, 
