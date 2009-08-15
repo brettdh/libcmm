@@ -72,23 +72,14 @@ CSockMapping::CSockMapping(CMMSocketImpl *sk_)
 
 CSockMapping::~CSockMapping()
 {
-#if 0
     scoped_rwlock lock(sockset_mutex, true);
-    CSockSet victims = connected_csocks;
     connected_csocks.clear();
-    lock.release();
-    
-    for (CSockSet::iterator it = victims.begin();
-	 it != victims.end(); it++) {
-	CSocket *victim = *it;
-	delete victim;
-    }
-#endif
 }
 
 bool
 CSockMapping::empty()
 {
+    scoped_rwlock lock(sockset_mutex, true);
     return connected_csocks.empty();
 }
 
