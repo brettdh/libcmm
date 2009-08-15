@@ -300,7 +300,7 @@ void CSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Received default IROB %d, took %lu.%06lu seconds\n",
-	      hdr.op.default_irob.id, diff.tv_sec, diff.tv_usec);
+	      ntohl(hdr.op.default_irob.id), diff.tv_sec, diff.tv_usec);
 }
 
 void
