@@ -4,6 +4,8 @@
 #include <string.h>
 #include "cmm_internal_listener.h"
 #include "debug.h"
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #define INTERNAL_LISTEN_PORT 42424
 
@@ -122,13 +124,24 @@ ListenerThread::Run()
             continue;
         }
 
-        // make sure it's a new_interface msg
-        memcpy(&local_addr.sin_addr, &hdr.op.new_interface.ip_addr, 
+        if (ntohs(hdr.type) != CMM_CONTROL_MSG_NEW_INTERFACE) {
+            dbgprintf("Expected new-interface message on "
+                      "connection start;\n   Got %s\n",
+                      hdr.describe().c_str());
+            close(sock);
+            continue;
+        }
+        struct sockaddr_in true_remote_addr;
+        memcpy(&true_remote_addr.sin_addr, &hdr.op.new_interface.ip_addr, 
                sizeof(struct in_addr));
+        dbgprintf("Adding connection %d from %s (peername %s)\n",
+                  sock, inet_ntoa(true_remote_addr.sin_addr),
+                  inet_ntoa(remote_addr.sin_addr));
 
         try {
             sk->add_connection(sock, 
-                               local_addr.sin_addr, remote_addr.sin_addr);
+                               local_addr.sin_addr, 
+                               true_remote_addr.sin_addr);
         } catch (std::runtime_error& e) {
             dbgprintf("Failed to add connection: %s\n", e.what());
         }
