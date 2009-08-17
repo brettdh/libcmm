@@ -1,0 +1,46 @@
+* Think about and write up a list of sensible ways to handle failures:
+  * where all physical connections are broken, but interfaces
+    are still available to connect on
+  * where all physical connections are broken and no connections are possible
+
+  * ALSO, think about this in terms of the following options for 
+    failure notification:
+    1) The application wants to ignore failure
+    2) The application wants to be notified immediately
+    3) The application wants to be notified after a timeout
+
+
+1) Scenario: The app wants to send bytes with label X, and a suitable 
+             network is available now.
+     Result: The bytes are sent, and the call returns successfully.
+
+2) Scenario: The app wants to send bytes with label X, but no suitable
+             network is currently available.  The application provided
+             a thunk with this call.
+     Result: The thunk is registered and the call returns DEFERRED.
+             The thunk will be called when a suitable network becomes
+             available.
+
+3) Scenario: 2), except that the application did not provide a thunk.
+     Result: We could imagine one of the following:
+             a) The operation returns failure immediately.
+             b) The operation blocks indefinitely, until a suitable network
+                becomes available.
+             c) Same as b), but with an application-provided timeout.
+
+   Presumably, different applications might wish to choose among these
+   behaviors rather than being forced into any one of them.  How, then,
+   should we allow the application to make this choice?
+
+   First crack at this (not quite right):
+     - b) is the default.
+     - The application can get a) by using the O_NONBLOCK fcntl or by 
+       using the MSG_DONTWAIT send flag.
+     - The application can get c) by using blocking I/O and setting
+       the SO_SNDTIMEO socket option.
+   Positives of this approach:
+     - It leverages interfaces that already exist.
+   Why is it not quite right?
+     - It hijacks the common meaning of "non-blocking I/O."  The application
+       may want immediate failure notification but blocking I/O for sends
+       that can succeed now.

@@ -1,43 +1,5 @@
 *** TODO ***
 
-* (DONE)Implement IROB API
-  * (DONE) App-facing functions
-  * (DONE) IROB traffic decoration at sender
-  * (DONE) IROB header stripping, buffering, etc. at receiver
-* (DONE) Implement send ops as anonymous IROBs
-
-* (DONE) Implement opaque send failure
-   (i.e. if a send fails, automatically retry, thunking/blocking
-    as appropriate)
-
-* (DONE) Switch over from signal-based IPC to pure message passing
-   (This involves a dedicated IPC thread in the lib.
-    The thread will be responsible for spawning/managing
-    worker threads that execute thunks.)
-   (Update: actually, all we need is one thread that reads from the 
-    message queue, calling into the code that updates the interfaces
-    map and fires thunks as appropriate.)
-  * (DONE) Make sure this is thread-safe. (Tenative conclusion: it is.)
-
-* (DONE) Implement multi-threaded receiver subsystem
-  * (DONE) One thread per csocket
-  * (DONE) One scheduler thread per multi-socket
-
-* (DONE) Implement thread that listens for connections on internal listener socket
-  * Maybe the receiver thread can have this job?
-    * But that thread is blocking on its message queue.
-  * (DONE) Probably makes sense to have a dedicated thread that just selects
-           on the listener socket in a loop.
-
-
-* Implement recv, blocking and ordering incoming bytes according to
-  dependency information. (DONE, I think.)
-  * (DONE, I think.) Also, sanity-check the locking discipline.
-
-* (DONE) Make it all compile!
-
-* (DONE) Try out the simple test app!
-
 * Look through and make sure all the error-handling looks right; i.e.
   when connectivity with the remote host is lost, all the data structures
   and threads associated with the multi-socket are cleaned up
