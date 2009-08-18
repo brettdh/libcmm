@@ -10,10 +10,12 @@ class IntSet {
     IntSet();
     void insert(long num);
     bool contains(long num) const;
+    void erase(long num);
     //void print(void) const;
 
     /* returns the number of unique ints insert()ed. */
     size_t size(void) const;
+    bool empty(void) const;
   private:
     std::vector<bool> pos_vec;
     std::vector<bool> neg_vec;

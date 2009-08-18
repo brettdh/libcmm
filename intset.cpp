@@ -10,11 +10,11 @@ void IntSet::insert(long num)
 {
     if (!contains(num)) {
         ++size_;
-    }
-    if (num >= 0) {
-        insert_vec(pos_vec, num);
-    } else {
-        insert_vec(neg_vec, -num);
+        if (num >= 0) {
+            insert_vec(pos_vec, num);
+        } else {
+            insert_vec(neg_vec, -num);
+        }
     }
 }
 void IntSet::insert_vec(std::vector<bool>& vec, long num)
@@ -60,8 +60,27 @@ IntSet::print(void) const
 }
 #endif
 
+void
+IntSet::erase(long num)
+{
+    if (contains(num)) {
+        if (num >= 0) {
+            pos_vec[num] = false;
+        } else { 
+            neg_vec[-num] = false;
+        }
+        --size_;
+    }
+}
+
 size_t
 IntSet::size(void) const
 {
     return size_;
+}
+
+bool
+IntSet::empty(void) const
+{
+    return (size() == 0);
 }

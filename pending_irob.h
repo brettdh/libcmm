@@ -9,6 +9,7 @@
 #include "intset.h"
 #include <functional>
 #include <string.h>
+#include <boost/pool/pool_alloc.hpp>
 
 /* Terminology:
  *  An IROB is _pending_ if the application has not yet received all of its
@@ -66,7 +67,8 @@ class PendingIROB {
     u_long send_labels;
     u_long recv_labels;
 
-    typedef std::set<irob_id_t> irob_id_set;
+    typedef std::set<irob_id_t, std::less<irob_id_t>,
+                     boost::fast_pool_allocator<irob_id_t> > irob_id_set;
 
     /* same here; host byte order */
     irob_id_set deps;
@@ -74,7 +76,8 @@ class PendingIROB {
     /* IROBs that depend on me */
     irob_id_set dependents;
 
-    std::deque<struct irob_chunk_data> chunks;
+    std::deque<struct irob_chunk_data,
+               boost::pool_allocator<struct irob_chunk_data> > chunks;
 
     bool anonymous;
     bool complete;
