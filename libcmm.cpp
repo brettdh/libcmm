@@ -122,7 +122,7 @@ static void libcmm_deinit(void)
 {
 #ifdef CMM_TIMING
     {
-        printf("Exiting; %u PendingIROBs still exist\n",
+        printf("Exiting; %d PendingIROBs still exist\n",
                PendingIROB::objs());
 
 	tbb::mutex::scoped_lock(timing_mutex);

@@ -6,7 +6,7 @@ using std::mem_fun_ref;
 using std::bind1st;
 
 static pthread_mutex_t count_mutex = PTHREAD_MUTEX_INITIALIZER;
-size_t PendingIROB::obj_count = 0;
+ssize_t PendingIROB::obj_count = 0;
 
 PendingIROB::PendingIROB()
 {
@@ -62,7 +62,7 @@ PendingIROB::~PendingIROB()
     --obj_count;
 }
 
-size_t
+ssize_t
 PendingIROB::objs()
 {
     PthreadScopedLock lock(&count_mutex);
