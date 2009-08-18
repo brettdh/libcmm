@@ -5,10 +5,12 @@
 using std::mem_fun_ref;
 using std::bind1st;
 
+static pthread_mutex_t count_mutex = PTHREAD_MUTEX_INITIALIZER;
 size_t PendingIROB::obj_count = 0;
 
 PendingIROB::PendingIROB()
 {
+    PthreadScopedLock lock(&count_mutex);
     ++obj_count;
 }
 
@@ -56,12 +58,14 @@ PendingIROB::~PendingIROB()
         delete [] chunk.data;
     }
 
+    PthreadScopedLock lock(&count_mutex);
     --obj_count;
 }
 
 size_t
 PendingIROB::objs()
 {
+    PthreadScopedLock lock(&count_mutex);
     return obj_count;
 }
 

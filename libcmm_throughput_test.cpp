@@ -38,6 +38,16 @@ using std::min;
 #include <unistd.h>
 
 #define LISTEN_PORT 4242
+static int listen_sock = -1;
+static bool running = true;
+
+void handle_term(int sig)
+{
+    running = false;
+    if (listen_sock > 0) {
+        shutdown(listen_sock, SHUT_RDWR);
+    }
+}
 
 void handle_error(const char *str, int sock = -1)
 {
@@ -282,9 +292,10 @@ int main(int argc, char *argv[])
     }
 
     signal(SIGPIPE, SIG_IGN);
+    signal(SIGINT, handle_term);
 
     if (receiver) {
-	int listen_sock = socket(PF_INET, SOCK_STREAM, 0);
+	listen_sock = socket(PF_INET, SOCK_STREAM, 0);
 	if (listen_sock < 0) handle_error("socket");
 
 	int on = 1;
@@ -306,7 +317,7 @@ int main(int argc, char *argv[])
 	if (rc < 0) handle_error("listen");
 
 	do {
-	    int sock = ACCEPT(listen_sock, (struct sockaddr *)&addr, &addrlen);
+            int sock = ACCEPT(listen_sock, (struct sockaddr *)&addr, &addrlen);
 	    if (sock < 0) handle_error("accept", sock);
 
 	    printf("Accepted connection %d\n", sock);
@@ -338,7 +349,7 @@ int main(int argc, char *argv[])
 	    calc_avg_time(total_read_time, total_reads, &avg_time);
 	    printf("Average read() time: %lu.%06lu\n",
 		   avg_time.tv_sec, avg_time.tv_usec);
-	} while (1);
+	} while (running);
 
 	close(listen_sock);
     } else {
