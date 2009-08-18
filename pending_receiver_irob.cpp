@@ -25,6 +25,12 @@ PendingReceiverIROB::PendingReceiverIROB(struct default_irob_data default_irob,
     partial_chunk.datalen = 0;
 }
 
+PendingReceiverIROB::~PendingReceiverIROB()
+{
+    // XXX: make sure there are no races here
+    delete [] partial_chunk.data;
+}
+
 bool
 PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
 {
@@ -109,6 +115,12 @@ PendingReceiverIROBLattice::PendingReceiverIROBLattice()
 {
     pthread_mutex_init(&ready_mutex, NULL);
     pthread_cond_init(&ready_cv, NULL);
+}
+
+PendingReceiverIROBLattice::~PendingReceiverIROBLattice()
+{
+    // XXX: make sure there are no races here
+    delete partially_read_irob;
 }
 
 /* There's a race on partially_read_irob between get_ready_irob and 

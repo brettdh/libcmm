@@ -18,7 +18,7 @@ class PendingReceiverIROB : public PendingIROB {
 			u_long send_labels, u_long recv_labels);
     PendingReceiverIROB(struct default_irob_data data,
 			u_long send_labels, u_long recv_labels);
-    
+    virtual ~PendingReceiverIROB();
     bool add_chunk(struct irob_chunk_data&); /* host byte order */
 
     /* have all the deps been satisfied? 
@@ -50,6 +50,7 @@ class PendingReceiverIROB : public PendingIROB {
 class PendingReceiverIROBLattice : public PendingIROBLattice {
   public:
     PendingReceiverIROBLattice();
+    virtual ~PendingReceiverIROBLattice();
 
     ssize_t recv(void *buf, size_t len, int flags, u_long *recv_labels);
 

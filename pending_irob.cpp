@@ -125,6 +125,14 @@ PendingIROBLattice::PendingIROBLattice()
 {
 }
 
+PendingIROBLattice::~PendingIROBLattice()
+{
+    // XXX: make sure there are no races here
+    for (size_t i = 0; i < pending_irobs.size(); i++) {
+        delete pending_irobs[i];
+    }
+}
+
 bool
 PendingIROBLattice::insert(PendingIROB *pirob)
 {
