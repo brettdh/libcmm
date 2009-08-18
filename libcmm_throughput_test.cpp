@@ -52,7 +52,8 @@ void usage()
 {
     fprintf(stderr, "Usage:\n");
     fprintf(stderr, "   receiver:  throughput_test -l\n");
-    fprintf(stderr, "     sender:  throughput_test <host> < -b <bytes> | -k <kbytes> | -m <mbytes> >\n");
+    fprintf(stderr, "     sender:  throughput_test <host> < -b <bytes> | -k <kbytes> | -m <mbytes> > [-c minchunksize]\n");
+    fprintf(stderr, "              (default minchunksize is 64 bytes; always specify in bytes)\n");
     exit(-1);
 }
 
@@ -146,6 +147,34 @@ void send_bytes_by_chunk_one_irob(int sock, char *buf, size_t bytes, size_t chun
 }
 #endif
 
+typedef void (*send_chunk_fn_t)(int, char *, size_t, size_t,
+                                struct timeval *);
+
+int srv_connect(const char *hostname);
+
+void run_all_chunksizes(const char *hostname, int minchunksize, 
+                        char *buf, int bytes,
+                        send_chunk_fn_t send_chunk_fn)
+{
+    struct timeval begin, end, diff;
+	
+    for (int chunk = minchunksize; chunk <= bytes; chunk *= 2) {
+        int sock = srv_connect(hostname);
+        struct timeval avg_send_time = {0,0};
+        TIME(begin);
+        send_chunk_fn(sock, buf, bytes, chunk, &avg_send_time);
+        TIME(end);
+        
+        CLOSE(sock);
+        
+        TIMEDIFF(begin, end, diff);
+        fprintf(stderr, "   In %d%s chunks: %lu.%06lu seconds (each send avg %lu.%06lu seconds)\n", 
+                chunk<1024?chunk:chunk/1024, chunk<1024?"B":"K",
+                diff.tv_sec, diff.tv_usec,
+                avg_send_time.tv_sec, avg_send_time.tv_usec);
+    }
+}
+
 int get_int_from_string(const char *str, const char *name)
 {
     errno = 0;
@@ -200,6 +229,7 @@ int main(int argc, char *argv[])
     bool receiver = false;
     char ch;
     int mbytes = 0, kbytes = 0, bytes = 0;
+    int minchunksize = 64;
     while ((ch = getopt(argc, argv, "lb:k:m:")) != -1) {
 	switch (ch) {
 	case 'l':
@@ -317,8 +347,6 @@ int main(int argc, char *argv[])
 	    usage();
 	}
 
-	struct timeval begin, end, diff;
-	
 	char *buf = new char[bytes];
 	memset(buf, 'Q', bytes);
 	if (mbytes > 0) {
@@ -329,39 +357,13 @@ int main(int argc, char *argv[])
 	    fprintf(stderr, "Sending %d bytes\n", bytes);
 	} else assert(0);
 	
-        int sock = -1;
-
-	for (int kchunk = 4; kchunk <= kbytes; kchunk *= 2) {
-            sock = srv_connect(argv[optind]);
-	    struct timeval avg_send_time = {0,0};
-	    TIME(begin);
-	    send_bytes_by_chunk(sock, buf, bytes, 1024 * kchunk, &avg_send_time);
-	    TIME(end);
-
-	    CLOSE(sock);
-
-	    TIMEDIFF(begin, end, diff);
-	    fprintf(stderr, "   In %dK chunks: %lu.%06lu seconds (each send avg %lu.%06lu seconds)\n", 
-		    kchunk, diff.tv_sec, diff.tv_usec,
-		    avg_send_time.tv_sec, avg_send_time.tv_usec);
-	}
+        run_all_chunksizes(argv[optind], minchunksize, buf, bytes,
+                           send_bytes_by_chunk);
 
 #ifndef NOMULTISOCK
 	fprintf(stderr, "  In a single IROB:\n");
-	for (int kchunk = 4; kchunk <= kbytes; kchunk *= 2) {
-	    sock = srv_connect(argv[optind]);
-	    struct timeval avg_send_time = {0,0};
-	    TIME(begin);
-	    send_bytes_by_chunk_one_irob(sock, buf, bytes, 1024 * kchunk, &avg_send_time);
-	    TIME(end);
-	    
-	    CLOSE(sock);
-
-	    TIMEDIFF(begin, end, diff);
-	    fprintf(stderr, "   In %dK chunks: %lu.%06lu seconds (each send avg %lu.%06lu seconds)\n", 
-		    kchunk, diff.tv_sec, diff.tv_usec,
-		    avg_send_time.tv_sec, avg_send_time.tv_usec);
-	}	
+        run_all_chunksizes(argv[optind], minchunksize, buf, bytes,
+                           send_bytes_by_chunk_one_irob);
 #endif
 
 	delete [] buf;
