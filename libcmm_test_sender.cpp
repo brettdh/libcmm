@@ -116,7 +116,7 @@ void *BackgroundPing(struct th_arg * arg)
 	    int rc = send(shared_sock, &ch, sizeof(ch), 0);
 #else
 	    int rc = cmm_send(shared_sock, &ch, sizeof(ch), 0,
-			      CONNMGR_LABEL_BACKGROUND, 0,
+			      CMM_LABEL_BACKGROUND, 0,
 			      (resume_handler_t)resume_bg_sends, arg);
 	    if (rc == CMM_DEFERRED) {
 		bg_send = false;
@@ -148,7 +148,7 @@ void resume_ondemand(struct th_arg *arg)
     if (strlen(arg->ch.data) > 0) {
 	fprintf(stderr, "Resumed; sending thunked ondemand message\n");
 	int rc = cmm_send(shared_sock, arg->ch.data, sizeof(arg->ch), 0,
-                          CONNMGR_LABEL_ONDEMAND, 0, 
+                          CMM_LABEL_ONDEMAND, 0, 
                           (resume_handler_t)resume_ondemand, arg);
 	if (rc < 0) {
 	    if (rc == CMM_DEFERRED) {
@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
 	exit(-1);
     }
 
-    rc = srv_connect(hostname, CONNMGR_LABEL_ONDEMAND);
+    rc = srv_connect(hostname, CMM_LABEL_ONDEMAND);
     if (rc < 0) {
 #ifndef NOMULTISOCK
 	if (rc == CMM_DEFERRED) {
@@ -277,7 +277,7 @@ int main(int argc, char *argv[])
 	rc = send(shared_sock, new_args->ch.data, sizeof(new_args->ch), 0);
 #else
 	rc = cmm_send(shared_sock, new_args->ch.data, sizeof(new_args->ch), 0,
-		      CONNMGR_LABEL_ONDEMAND, 0, 
+		      CMM_LABEL_ONDEMAND, 0, 
 		      (resume_handler_t)resume_ondemand, new_args);
 	if (rc == CMM_DEFERRED) {
 	    fprintf(stderr, "Deferred\n");

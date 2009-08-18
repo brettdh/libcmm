@@ -42,5 +42,32 @@
      - It leverages interfaces that already exist.
    Why is it not quite right?
      - It hijacks the common meaning of "non-blocking I/O."  The application
-       may want immediate failure notification but blocking I/O for sends
+       may want immediate failure notification AND blocking I/O for sends
        that can succeed now.
+   However, it might still make sense to apply the SO_SNDTIMEO option for
+     a blocking timeout, since this is defined as the "timeout until
+     reporting an error" in socket(7).
+
+   Failing this, then, how should applications communicate the failure 
+     semantics they desire?
+
+   Second crack:
+     - b) is the default.
+     - The application can get c) by using blocking I/O and SO_SNDTIMEO.
+     - The application can get a) by OR-ing a special label into the
+       send_labels bits (perhaps CMM_LABEL_FAILFAST).
+     - NOTE: if the application uses non-blocking I/O with the multisocket,
+       only a) makes sense, so it will be the default (and only) behavior
+       in this case.
+   Positives of this approach:
+     - It fits into the API we already have.
+     - It leverages another API that already exists, without bending
+       the semantics of that API.
+     - It lets the application specify per-operation failure semantics;
+       one can be block-until-success, the next can be fail-fast, etc.
+   Negatives of this approach:
+     - The FAILFAST label differs from the labels we have defined so far.
+       Labels such as FG/BG and SMALL/LARGE describe their traffic;
+       FAILFAST describes programming semantics -- but those semantics
+       are coupled with multi-socket operations, so maybe it's alright
+       to have this kind of "meta-label."

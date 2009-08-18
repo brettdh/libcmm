@@ -52,8 +52,8 @@ typedef std::vector<struct net_interface> IfaceList;
 typedef std::map<in_addr_t, struct net_interface> NetInterfaceMap;
 static NetInterfaceMap net_interfaces;
 
-#define UP_LABELS (CONNMGR_LABEL_BACKGROUND|CONNMGR_LABEL_ONDEMAND)
-#define DOWN_LABELS (CONNMGR_LABEL_ONDEMAND)
+#define UP_LABELS (CMM_LABEL_BACKGROUND|CMM_LABEL_ONDEMAND)
+#define DOWN_LABELS (CMM_LABEL_ONDEMAND)
 
 // #define FG_IP_ADDRESS "10.0.0.42"
 // #define BG_IP_ADDRESS "10.0.0.2"
@@ -407,8 +407,8 @@ int main(int argc, char *argv[])
 
     /* Add the interfaces, wizard-of-oz-style */
     struct net_interface ifs[2] = {
-        {{0}, CONNMGR_LABEL_ONDEMAND},
-        {{0}, CONNMGR_LABEL_BACKGROUND}
+        {{0}, CMM_LABEL_ONDEMAND},
+        {{0}, CMM_LABEL_BACKGROUND}
     };
     const char *ifnames[2] = {fg_iface_name, bg_iface_name};
 
