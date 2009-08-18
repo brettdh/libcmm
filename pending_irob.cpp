@@ -5,6 +5,13 @@
 using std::mem_fun_ref;
 using std::bind1st;
 
+size_t PendingIROB::obj_count = 0;
+
+PendingIROB::PendingIROB()
+{
+    ++obj_count;
+}
+
 PendingIROB::PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array,
 			 u_long send_labels_, u_long recv_labels_)
     : id(id_),
@@ -48,6 +55,14 @@ PendingIROB::~PendingIROB()
         chunks.pop_front();
         delete [] chunk.data;
     }
+
+    --obj_count;
+}
+
+size_t
+PendingIROB::objs()
+{
+    return obj_count;
 }
 
 bool

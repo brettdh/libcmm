@@ -55,7 +55,12 @@ class PendingIROB {
     /* has all the data arrived? */
     bool is_complete(void) const;
 
+    // number of PendingIROBs in existence
+    static size_t objs();
   protected:
+    PendingIROB();
+    static size_t obj_count;
+
     friend class CMMSocketImpl;
     friend class CSocketSender;
     friend class CSocketReceiver;

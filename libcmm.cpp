@@ -21,6 +21,7 @@ using std::auto_ptr;
 
 #include "libcmm.h"
 #include "libcmm_ipc.h"
+#include "pending_irob.h"
 
 #include "cmm_timing.h"
 
@@ -121,6 +122,9 @@ static void libcmm_deinit(void)
 {
 #ifdef CMM_TIMING
     {
+        printf("Exiting; %u PendingIROBs still exist\n",
+               PendingIROB::objs());
+
 	tbb::mutex::scoped_lock(timing_mutex);
 	
 	if (timing_file) {
