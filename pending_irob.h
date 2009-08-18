@@ -58,7 +58,6 @@ class PendingIROB {
     // number of PendingIROBs in existence
     static ssize_t objs();
   protected:
-    PendingIROB();
     static ssize_t obj_count;
 
     friend class CMMSocketImpl;
