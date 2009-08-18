@@ -1,0 +1,4 @@
+# Move to Makeconf.local to enable
+
+DEBUG_FLAGS:=-g #-DCMM_DEBUG
+OPT_FLAGS:=

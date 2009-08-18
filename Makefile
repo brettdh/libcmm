@@ -1,4 +1,10 @@
-CXXFLAGS:=-Wall -Werror -I. -fpic -m32 -g -DCMM_DEBUG 
+ifeq ($(wildcard Makeconf.local),Makeconf.local)
+include Makeconf.local
+else
+DEBUG_FLAGS:=-g -DCMM_DEBUG
+endif
+
+CXXFLAGS:=-Wall -Werror -I. -fpic -m32 $(DEBUG_FLAGS) $(OPT_FLAGS)
 LIBTBB:=-ltbb_debug
 LDFLAGS:=-L. -m32 
 LIBS:=$(LIBTBB) -lrt
