@@ -60,3 +60,4 @@
     a partial order over all IROBs."  (DONE; implemented the IROB
        data structure as a std::deque wraapper)
 
+* XXX IMPORTANT!!!: make sure that recv doesn't return 0 prematurely.
