@@ -178,7 +178,8 @@ void run_all_chunksizes(const char *hostname, int minchunksize,
         CLOSE(sock);
         
         TIMEDIFF(begin, end, diff);
-        fprintf(stderr, "   In %d%s chunks: %lu.%06lu seconds (each send avg %lu.%06lu seconds)\n", 
+        fprintf(stderr, "   In %d%s chunks: %lu.%06lu seconds "
+                "(each send avg %lu.%06lu seconds)\n", 
                 chunk<1024?chunk:chunk/1024, chunk<1024?"B":"K",
                 diff.tv_sec, diff.tv_usec,
                 avg_send_time.tv_sec, avg_send_time.tv_usec);
