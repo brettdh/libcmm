@@ -1,0 +1,52 @@
+\documentclass[10pt]{article}
+\usepackage{fullpage}
+
+\begin{document}
+
+\begin{figure*}[t]
+\begin{small}
+\begin{center}
+\begin{tabular}{|lll|} \hline
+{\bf Name} & {\bf Arguments} & {\bf Return} \\
+\hline
+\multicolumn{3}{|l|}{\tt // creating and accepting connections} \\
+{\tt mc\_socket} & {\tt (IN family, IN type, IN protocol);} & File descriptor\\
+{\tt mc\_connect} & {\tt (IN msock, IN remote\_addr, IN addrlen); } & Success/failure\\
+{\tt mc\_listen} & {\tt (IN listen\_sock, IN backlog); } & Success/failure\\
+{\tt mc\_accept} & {\tt (IN listen\_sock, OUT remote\_addr, OUT addrlen); } & File descriptor\\
+& & \\
+\multicolumn{3}{|l|}{\tt // terminating connections} \\
+{\tt mc\_shutdown} & {\tt (IN msock, IN shutdown\_flags);} & Success/failure\\
+{\tt mc\_close} & {\tt (IN msock);} & Success/failure\\
+& & \\
+\multicolumn{3}{|l|}{\tt // sending and receiving data} \\
+{\tt mc\_send} & {\tt (IN msock, IN buf, IN len, IN flags, }& \# bytes sent\\
+               & {\tt ~IN send\_labels, IN recv\_labels,}& \\
+               & {\tt ~IN resume\_handler\_fn, IN rh\_arg); } & \\
+{\tt mc\_recv} & {\tt (IN msock, IN buf, IN len, IN flags, OUT recv\_labels);}& \# bytes received\\
+ & & \\
+\multicolumn{3}{|l|}{\tt // sending data with custom ordering constraints} \\
+{\tt mc\_begin\_irob} & {\tt (IN msock, IN numdeps, IN deps\_array,}& IROB ID \\
+                      & {\tt ~IN send\_labels, IN recv\_labels,}& \\ 
+                      & {\tt ~IN resume\_handler\_fn, IN rh\_arg); } & \\
+{\tt mc\_irob\_send} & {\tt (IN irob\_id, IN buf, IN len, IN flags);} & \# bytes sent \\
+{\tt mc\_end\_irob} & {\tt (IN irob\_id); }&  Success/failure\\
+ & & \\
+\multicolumn{3}{|l|}{\tt // other common socket operations} \\
+{\tt mc\_select} & {\tt (IN nfds, IN/OUT read\_fdset, IN/OUT write\_fdset, } & \# of ready FDs\\
+                 & {\tt ~IN/OUT xcpt\_fdset, IN timeout); } & \\
+{\tt mc\_getsockopt} & {\tt (IN msock, IN optlevel, IN optname, } & Success/failure\\
+                     & {\tt ~OUT optval, OUT optlen); } & \\
+{\tt mc\_setsockopt} & {\tt (IN msock, IN optlevel, IN optname, } & Success/failure\\
+                     & {\tt ~IN optval, IN optlen); } & \\
+{\tt // etc.} & &\\
+\hline
+\end{tabular}
+\end{center}
+\end{small}
+\caption{Multi-socket API}
+\label{fig:api}
+\end{figure*}
+
+~
+\end{document}
