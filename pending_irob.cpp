@@ -154,6 +154,14 @@ PendingIROBLattice::insert(PendingIROB *pirob)
 
     correct_deps(pirob);
 
+    for (PendingIROB::irob_id_set::iterator it = pirob->deps.begin();
+         it != pirob->deps.end(); it++) {
+        PendingIROB *dep = find(*it);
+        if (dep) {
+            dep->add_dependent(pirob->id);
+        }
+    }
+
     return true;
 }
 
