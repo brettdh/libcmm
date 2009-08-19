@@ -352,10 +352,8 @@ void
 CSockMapping::join_to_all_workers()
 {
     vector<pthread_t> workers;
-    {
-        scoped_rwlock lock(sockset_mutex, true);
-        (void)for_each(get_worker_tids(workers));
-    }
+    (void)for_each(get_worker_tids(workers));
+
     void **ret = NULL;
     std::for_each(workers.begin(), workers.end(),
                   bind2nd(ptr_fun(pthread_join), ret));
