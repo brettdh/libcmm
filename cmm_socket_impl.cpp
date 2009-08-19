@@ -134,7 +134,10 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
     /* TODO: non-blocking considerations? */
     try {
 	listener_thread = new ListenerThread(this);
-	listener_thread->start();
+	int rc = listener_thread->start();
+        if (rc != 0) {
+            throw rc;
+        }
     
         {
             PthreadScopedLock scoped_lock(&hashmaps_mutex);

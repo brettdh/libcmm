@@ -62,8 +62,9 @@ CMMThread::start()
     struct thread_arg *arg = new struct thread_arg(this);
 
     int rc = pthread_create(&tid, NULL, ThreadFn, arg);
-    if (rc < 0) {
-	return rc;
+    if (rc != 0) {
+        dbgprintf("Failed to create thread! rc=%d\n", rc);
+        return rc;
     }
 
     pthread_mutex_lock(&arg->starter_mutex);

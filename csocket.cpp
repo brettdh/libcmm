@@ -127,8 +127,14 @@ CSocket::startup_workers()
     if (!csock_sendr && !csock_recvr) {
 	csock_sendr = new CSocketSender(CSocketPtr(self_ptr));
 	csock_recvr = new CSocketReceiver(CSocketPtr(self_ptr));
-	csock_sendr->start();
-	csock_recvr->start();
+	int rc = csock_sendr->start();
+        if (rc != 0) {
+            throw std::runtime_error("Failed to create csocket_sender thread!")
+        }
+	rc = csock_recvr->start();
+        if (rc != 0) {
+            throw std::runtime_error("Failed to create csocket_receiver thread!")
+        }
     }
 }
 
