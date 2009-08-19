@@ -23,6 +23,11 @@
 
 struct ResumeOperation;
 
+/* typedef std::set<irob_id_t, std::less<irob_id_t>, */
+/*                  boost::fast_pool_allocator<irob_id_t> > irob_id_set; */
+
+typedef std::set<irob_id_t> irob_id_set;
+
 class PendingIROB {
   public:
     PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array,
@@ -45,9 +50,9 @@ class PendingIROB {
 
     void add_dependent(irob_id_t id);
     
-    /* returns true if this IROB directly or transitively 
+    /* returns true if this IROB directly
      * depends on that IROB. */
-    //bool depends_on(irob_id_t id);
+    bool depends_on(irob_id_t id);
 
     /* is this IROB "anonymous", depending on all in-flight IROBs? */
     bool is_anonymous(void) const;
@@ -71,17 +76,15 @@ class PendingIROB {
     u_long send_labels;
     u_long recv_labels;
 
-    typedef std::set<irob_id_t, std::less<irob_id_t>,
-                     boost::fast_pool_allocator<irob_id_t> > irob_id_set;
-
     /* same here; host byte order */
     irob_id_set deps;
 
     /* IROBs that depend on me */
     irob_id_set dependents;
 
-    std::deque<struct irob_chunk_data,
-               boost::pool_allocator<struct irob_chunk_data> > chunks;
+/*     std::deque<struct irob_chunk_data, */
+/*                boost::pool_allocator<struct irob_chunk_data> > chunks; */
+    std::deque<struct irob_chunk_data> chunks;
 
     bool anonymous;
     bool complete;
@@ -129,6 +132,7 @@ class PendingIROBLattice {
     bool past_irob_exists(irob_id_t id) const;
 
     bool empty();// { return pending_irobs.empty(); }
+    void clear();
     
     /* returns true if first depends on second. */
     //bool depends_on(PendingIROB *first, PendingIROB *second);
@@ -145,6 +149,16 @@ class PendingIROBLattice {
     //                        pending_irobs[i]->id == i + offset))
     std::deque<PendingIROB *> pending_irobs;
     size_t offset;
+
+    // the last anonymous IROB added to the set, if any, and
+    //  if it hasn't been erased.
+    // NULL otherwise.
+    PendingIROB *last_anon_irob;
+    
+    // If a new IROB depended upon all IROBs in this set, it would
+    //  transitively depend on all prior IROBs.
+    // This set contains no anonymous IROB IDs; see last_anon_irob.
+    irob_id_set min_dominator_set;
 
     /* In a sender, this means IROBs that have been sent and ACK'd.
      * In a receiver, this means IROBs that have been received by the app. */

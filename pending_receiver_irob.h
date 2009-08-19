@@ -96,7 +96,7 @@ PendingReceiverIROBLattice::release_dependents(PendingReceiverIROB *pirob,
                                                Predicate is_ready)
 {
     assert(pirob);
-    for (PendingIROB::irob_id_set::iterator it = pirob->dependents.begin();
+    for (irob_id_set::iterator it = pirob->dependents.begin();
          it != pirob->dependents.end(); it++) {
         
         PendingIROB *pi = this->find(*it);

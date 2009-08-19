@@ -2,6 +2,8 @@
 #include "debug.h"
 #include "timeops.h"
 #include <functional>
+#include <vector>
+using std::vector; using std::max;
 using std::mem_fun_ref;
 using std::bind1st;
 
@@ -120,8 +122,16 @@ PendingIROB::is_anonymous(void) const
     return anonymous;
 }
 
+bool 
+PendingIROB::depends_on(PendingIROB *that)
+{
+    assert(that);
+    return (deps.count(that->id) == 1);
+}
+
+
 PendingIROBLattice::PendingIROBLattice()
-    : offset(0)
+    : offset(0), last_anon_irob(NULL)
 {
 }
 
@@ -154,7 +164,7 @@ PendingIROBLattice::insert(PendingIROB *pirob)
 
     correct_deps(pirob);
 
-    for (PendingIROB::irob_id_set::iterator it = pirob->deps.begin();
+    for (irob_id_set::iterator it = pirob->deps.begin();
          it != pirob->deps.end(); it++) {
         PendingIROB *dep = find(*it);
         if (dep) {
@@ -166,10 +176,59 @@ PendingIROBLattice::insert(PendingIROB *pirob)
 }
 
 void
+PendingIROBLattice::clear()
+{
+    pending_irobs.clear();
+    min_dominator_set.clear();
+    last_anon_irob = NULL;
+}
+
+void
 PendingIROBLattice::correct_deps(PendingIROB *pirob)
 {
     /* 1) If pirob is anonymous, add deps on all pending IROBs. */
     /* 2) Otherwise, add deps on all pending anonymous IROBs. */
+    /* we keep around a min-dominator set of IROBs; that is, 
+     * the minimal set of IROBs that the next anonymous IROB
+     * must depend on. */
+
+    pirob->remove_deps_if(bind1st(mem_fun_ref(&IntSet::contains), 
+                                  past_irobs));
+
+    if (pirob->is_anonymous()) {
+        if (last_anon_irob && min_dominator_set.empty()) {
+            pirob->add_dep(last_anon_irob->id);
+        } else {
+            pirob->deps.insert(min_dominator_set.begin(),
+                               min_dominator_set.end());
+            min_dominator_set.clear();
+        }
+        last_anon_irob = pirob;
+    } else {
+        // this IROB dominates its deps, so remove them from
+        // the min_dominator_set before inserting it
+        vector<irob_id_t> isect(max(pirob->deps.size(), 
+                                    min_dominator_set.size()));
+        vector<irob_id_t>::iterator the_end = 
+            set_intersection(pirob->deps.begin(), pirob->deps.end(),
+                             min_dominator_set.begin(), 
+                             min_dominator_set.end(),
+                             isect.begin());
+        
+        if (last_anon_irob && isect.begin() == the_end) {
+            pirob->add_dep(last_anon_irob->id);
+        } // otherwise, it already depends on something 
+        // that depends on the last_anon_irob
+
+        for (vector<irob_id_t>::iterator it = isect.begin(); 
+             it != the_end; ++it) {
+            min_dominator_set.erase(*it);
+        }
+        
+        min_dominator_set.insert(pirob->id);
+    }
+
+#if 0
     for (size_t i = 0; i < pending_irobs.size(); i++) {
 	if (pending_irobs[i] == pirob) continue;
 	
@@ -178,6 +237,7 @@ PendingIROBLattice::correct_deps(PendingIROB *pirob)
 	    pirob->add_dep(i);
 	}
     }
+#endif
 
     /* 3) Remove already-satisfied deps. */
     pirob->remove_deps_if(bind1st(mem_fun_ref(&IntSet::contains), 
@@ -205,6 +265,10 @@ PendingIROBLattice::erase(irob_id_t id)
         return false;
     }
     past_irobs.insert(id);
+    min_dominator_set.erase(id);
+    if (last_anon_irob && last_anon_irob->id == id) {
+        last_anon_irob = NULL;
+    }
     pending_irobs[index] = NULL; // caller must free it
     while (!pending_irobs.empty() && pending_irobs[0] == NULL) {
         pending_irobs.pop_front();

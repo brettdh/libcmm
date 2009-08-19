@@ -244,7 +244,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         if (numdeps > 0) {
             deps = new irob_id_t[numdeps];
             int i = 0;
-            for (PendingIROB::irob_id_set::iterator it = pirob->deps.begin();
+            for (irob_id_set::iterator it = pirob->deps.begin();
                  it != pirob->deps.end(); it++) {
                 deps[i++] = htonl(*it);
             }
