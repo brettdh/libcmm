@@ -16,33 +16,33 @@
 {\tt mc\_listen} & {\tt (IN listen\_sock, IN backlog); } & Success/failure\\
 {\tt mc\_accept} & {\tt (IN listen\_sock, OUT remote\_addr, OUT addrlen); } & File descriptor,\\
 & & ~~or error code\\
-& & \\
+\hline
 \multicolumn{3}{|l|}{\tt // terminating connections} \\
 {\tt mc\_shutdown} & {\tt (IN msock, IN shutdown\_flags);} & Success/failure\\
 {\tt mc\_close} & {\tt (IN msock);} & Success/failure\\
-& & \\
+\hline
 \multicolumn{3}{|l|}{\tt // sending and receiving data} \\
 {\tt mc\_send} & {\tt (IN msock, IN buf, IN len, IN flags, }& \# bytes sent,\\
-               & {\tt ~IN send\_labels, IN recv\_labels,}& ~~or error code\\
-               & {\tt ~IN resume\_handler\_fn, IN rh\_arg); } & \\
+                      & {\tt ~IN send\_labels, IN recv\_labels, IN resume\_handler\_fn, IN rh\_arg); } & ~~or error code\\ 
 {\tt mc\_recv} & {\tt (IN msock, IN buf, IN len, IN flags, OUT recv\_labels);}& \# bytes received,\\
  & & ~~or error code\\
- & & \\
+\hline
+\multicolumn{3}{|l|}{\tt // cancelling registered thunks} \\
+{\tt mc\_thunk\_cancel} & {\tt (IN send\_labels, IN recv\_labels, } & Success/failure\\
+                       & {\tt ~IN resume\_handler\_fn, IN rh\_arg);}& \\ 
+\hline
 \multicolumn{3}{|l|}{\tt // sending data with custom ordering constraints} \\
 {\tt mc\_begin\_irob} & {\tt (IN msock, IN numdeps, IN deps\_array,}& IROB ID, \\
-                      & {\tt ~IN send\_labels, IN recv\_labels,}& ~~or error code\\ 
-                      & {\tt ~IN resume\_handler\_fn, IN rh\_arg); } & \\
+                      & {\tt ~IN send\_labels, IN recv\_labels, IN resume\_handler\_fn, IN rh\_arg); } & ~~or error code\\ 
 {\tt mc\_irob\_send} & {\tt (IN irob\_id, IN buf, IN len, IN flags);} & \# bytes sent, \\
  & & ~~or error code\\
 {\tt mc\_end\_irob} & {\tt (IN irob\_id); }&  Success/failure\\
- & & \\
+\hline
 \multicolumn{3}{|l|}{\tt // other common socket operations} \\
 {\tt mc\_select} & {\tt (IN nfds, IN/OUT read\_fdset, IN/OUT write\_fdset, } & \# of ready FDs,\\
                 & {\tt ~IN/OUT xcpt\_fdset, IN timeout); } & ~~or error code\\
-{\tt mc\_getsockopt} & {\tt (IN msock, IN optlevel, IN optname, } & Success/failure\\
-                     & {\tt ~OUT optval, OUT optlen); } & \\
-{\tt mc\_setsockopt} & {\tt (IN msock, IN optlevel, IN optname, } & Success/failure\\
-                     & {\tt ~IN optval, IN optlen); } & \\
+{\tt mc\_getsockopt} & {\tt (IN msock, IN optlevel, IN optname, OUT optval, OUT optlen); } & Success/failure\\
+{\tt mc\_setsockopt} & {\tt (IN msock, IN optlevel, IN optname, IN optval, IN optlen); } & Success/failure\\
 {\tt // etc.} & &\\
 \hline
 \end{tabular}
@@ -52,5 +52,5 @@
 \label{fig:api}
 \end{figure*}
 
-~
+
 \end{document}
