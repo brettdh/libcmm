@@ -162,6 +162,22 @@ typedef void (*send_chunk_fn_t)(int, char *, size_t, size_t,
 
 int srv_connect(const char *hostname);
 
+ssize_t read_bytes(int sock, void *buf, size_t count)
+{
+    ssize_t bytes_read = 0;
+    while (bytes_read < (ssize_t)count) {
+	int rc = READ(sock, (char*)buf + bytes_read, 
+		      count - bytes_read);
+	if (rc < 0) {
+	    handle_error("read", sock);
+	} else if (rc == 0) {
+	    return rc;
+	}
+	bytes_read += rc;
+    }
+    return bytes_read;
+}
+
 void run_all_chunksizes(const char *hostname, int minchunksize, 
                         char *buf, int bytes,
                         send_chunk_fn_t send_chunk_fn)
@@ -170,9 +186,15 @@ void run_all_chunksizes(const char *hostname, int minchunksize,
 	
     for (int chunk = minchunksize; chunk <= bytes; chunk *= 2) {
         int sock = srv_connect(hostname);
+
+        int net_bytes = htonl(bytes);
+        send_bytes(sock, (char*)&net_bytes, sizeof(net_bytes));
+
         struct timeval avg_send_time = {0,0};
         TIME(begin);
         send_chunk_fn(sock, buf, bytes, chunk, &avg_send_time);
+        int done = 0;
+        read_bytes(sock, (char*)&done, sizeof(done));
         TIME(end);
         
         CLOSE(sock);
@@ -195,22 +217,6 @@ int get_int_from_string(const char *str, const char *name)
 	usage();
     }
     return val;
-}
-
-ssize_t read_bytes(int sock, void *buf, size_t count)
-{
-    ssize_t bytes_read = 0;
-    while (bytes_read < (ssize_t)count) {
-	int rc = READ(sock, (char*)buf + bytes_read, 
-		      count - bytes_read);
-	if (rc < 0) {
-	    handle_error("read", sock);
-	} else if (rc == 0) {
-	    return rc;
-	}
-	bytes_read += rc;
-    }
-    return bytes_read;
 }
 
 int srv_connect(const char *hostname)
@@ -327,21 +333,26 @@ int main(int argc, char *argv[])
 
 	    timerclear(&total_read_time);
 
-	    do {
-		const int chunksize = 4096;
-		char buf[chunksize];
-
-		struct timeval begin, end, diff;
-		TIME(begin);
-		rc = read_bytes(sock, buf, chunksize);
-		TIME(end);
-		TIMEDIFF(begin, end, diff);
-		timeradd(&total_read_time, &diff, &total_read_time);
-		total_reads++;
-		if (rc != chunksize) {
-		    break;
-		}
-	    } while (1);
+            int bytes = 0;
+            rc = read_bytes(sock, &bytes, sizeof(bytes));
+            bytes = ntohl(bytes);
+            if (bytes <= 0) {
+                break;
+            }
+            char *buf = new char[bytes];
+            
+            struct timeval begin, end, diff;
+            TIME(begin);
+            rc = read_bytes(sock, buf, bytes);
+            TIME(end);
+            delete [] buf;
+            TIMEDIFF(begin, end, diff);
+            timeradd(&total_read_time, &diff, &total_read_time);
+            total_reads++;
+            if (rc == bytes) {
+                int done = 0xFFFFFFFF;
+                send_bytes(sock, (char*)&done, sizeof(done));
+            }
 
 	    CLOSE(sock);
 	    printf("Closed connection %d\n", sock);
