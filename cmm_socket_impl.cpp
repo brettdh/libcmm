@@ -1597,6 +1597,8 @@ CMMSocketImpl::goodbye(bool remote_initiated)
     }
     pthread_mutex_unlock(&shutdown_mutex);
     //incoming_irobs.shutdown();
+
+    csock_map->join_to_all_workers();
 }
 
 void 

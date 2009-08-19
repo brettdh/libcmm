@@ -478,6 +478,7 @@ CSocketSender::Finish(void)
         PthreadScopedLock lock(&sk->scheduling_state_lock);
         shutdown(csock->osfd, SHUT_RDWR);
         sk->csock_map->remove_csock(csock);
+        csock->csock_sendr = NULL;
         //pthread_cond_broadcast(&sk->scheduling_state_cv);
     }
 

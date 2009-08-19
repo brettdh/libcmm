@@ -52,6 +52,7 @@ class CSocket {
             struct net_interface remote_iface_,
             int accepted_sock);
 
+    friend class CSockMapping;
     friend class CMMSocketImpl;
     friend class CSocketSender;
     friend class CSocketReceiver;

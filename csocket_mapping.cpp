@@ -1,5 +1,7 @@
 #include "csocket_mapping.h"
 #include "csocket.h"
+#include "csocket_sender.h"
+#include "csocket_receiver.h"
 #include "signals.h"
 #include "debug.h"
 #include <memory>
@@ -7,6 +9,9 @@
 #include <vector>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <functional>
+using std::bind2nd;
+using std::ptr_fun;
 
 #include "cmm_socket.private.h"
 
@@ -327,4 +332,31 @@ CSockMapping::add_connection(int sock,
 	connected_csocks.insert(new_csock);
     }
     signal_selecting_threads();
+}
+
+struct CSockMapping::get_worker_tids {
+    vector<pthread_t>& workers;
+    get_worker_tids(vector<pthread_t>& w) : workers(w) {}
+    int operator()(CSocketPtr csock) {
+        if (csock->csock_sendr) {
+            workers.push_back(csock->csock_sendr->tid);
+        }
+        if (csock->csock_recvr) {
+            workers.push_back(csock->csock_recvr->tid);
+        }
+        return 0;
+    }
+};
+
+void
+CSockMapping::join_to_all_workers()
+{
+    vector<pthread_t> workers;
+    {
+        scoped_rwlock lock(sockset_mutex, true);
+        (void)for_each(get_worker_tids(workers));
+    }
+    void **ret = NULL;
+    std::for_each(workers.begin(), workers.end(),
+                  bind2nd(ptr_fun(pthread_join), ret));
 }

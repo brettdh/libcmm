@@ -44,6 +44,10 @@ class CSockMapping {
 
     void teardown(struct net_interface iface, bool local);
 
+    // only call when shutting down.
+    // waits (pthread_join) for all workers to exit.
+    void join_to_all_workers();
+
     CSockMapping(CMMSocketImpl *sk);
     ~CSockMapping();
 
@@ -57,6 +61,8 @@ class CSockMapping {
     CMMSocketImpl *sk;  /* XXX: janky.  Remove later? */
     CSockSet connected_csocks;
     tbb::queuing_rw_mutex sockset_mutex;
+
+    struct get_worker_tids;
 
     bool get_local_iface(u_long label, struct net_interface& iface);
     bool get_remote_iface(u_long label, struct net_interface& iface);

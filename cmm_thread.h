@@ -11,6 +11,8 @@ class CMMThread {
 
     CMMThread();
     virtual ~CMMThread() {}
+
+    pthread_t tid;
   protected:
     virtual void Run(void) = 0;
 
@@ -19,7 +21,6 @@ class CMMThread {
      * exception. */
     virtual void Finish(void) {}
 
-    pthread_t tid;
     bool running;
 
     friend void *ThreadFn(void *);
