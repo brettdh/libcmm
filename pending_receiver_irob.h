@@ -113,9 +113,7 @@ PendingReceiverIROBLattice::release_dependents(PendingReceiverIROB *pirob,
 
 class ReadyIROB {
   public:
-    bool operator()(PendingIROB *pi) {
-        assert(pi);
-        PendingReceiverIROB *pirob = dynamic_cast<PendingReceiverIROB*>(pi);
+    bool operator()(PendingReceiverIROB *pirob) {
         assert(pirob);
         return (pirob->is_complete() && pirob->is_released());
     }
