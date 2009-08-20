@@ -156,13 +156,6 @@ PendingReceiverIROBLattice::get_ready_irob()
 }
 
 void
-PendingReceiverIROBLattice::partially_read(PendingReceiverIROB *pirob)
-{
-    assert(partially_read_irob == NULL);
-    partially_read_irob = pirob;
-}
-
-void
 PendingReceiverIROBLattice::shutdown()
 {
     /* This will cause further recvs to return 0 (EOF). */
@@ -237,13 +230,8 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
             release_dependents(pirob, ReadyIROB());
             delete pirob;
         } else {
-            partially_read(pirob);
-        }
-
-        if (!pirob->is_complete()) {
-            // XXX: may need to handle this case, and this is 
-            // not the right way to do it
-            break;
+            assert(partially_read_irob == NULL);
+            partially_read_irob = pirob;
         }
     }
     TIME(end);
