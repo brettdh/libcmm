@@ -132,11 +132,12 @@ PendingIROB::depends_on(irob_id_t that)
 PendingIROBLattice::PendingIROBLattice()
     : offset(0), last_anon_irob(NULL)
 {
+    pthread_mutex_init(&membership_lock, NULL);
 }
 
 PendingIROBLattice::~PendingIROBLattice()
 {
-    // XXX: make sure there are no races here
+    PthreadScopedLock lock(&membership_lock);
     for (size_t i = 0; i < pending_irobs.size(); i++) {
         delete pending_irobs[i];
     }
@@ -145,6 +146,8 @@ PendingIROBLattice::~PendingIROBLattice()
 bool
 PendingIROBLattice::insert(PendingIROB *pirob)
 {
+    PthreadScopedLock lock(&membership_lock);
+
     assert(pirob);
     if (past_irobs.contains(pirob->id)) {
         return false;
@@ -177,6 +180,8 @@ PendingIROBLattice::insert(PendingIROB *pirob)
 void
 PendingIROBLattice::clear()
 {
+    PthreadScopedLock lock(&membership_lock);
+
     pending_irobs.clear();
     min_dominator_set.clear();
     last_anon_irob = NULL;
@@ -246,6 +251,8 @@ PendingIROBLattice::correct_deps(PendingIROB *pirob)
 PendingIROB *
 PendingIROBLattice::find(irob_id_t id)
 {
+    PthreadScopedLock lock(&membership_lock);
+
     //TimeFunctionBody timer("pending_irobs.find(accessor)");
     size_t index = id - offset;
     if (index < 0 || index >= pending_irobs.size()) {
@@ -257,6 +264,8 @@ PendingIROBLattice::find(irob_id_t id)
 bool
 PendingIROBLattice::erase(irob_id_t id)
 {
+    PthreadScopedLock lock(&membership_lock);
+
     //TimeFunctionBody timer("pending_irobs.erase(const_accessor)");
     size_t index = id - offset;
     if (index < 0 || index >= pending_irobs.size() ||
@@ -289,14 +298,16 @@ PendingIROBLattice::erase(irob_id_t id)
 }
 
 bool 
-PendingIROBLattice::past_irob_exists(irob_id_t id) const
+PendingIROBLattice::past_irob_exists(irob_id_t id)
 {
+    PthreadScopedLock lock(&membership_lock);
     return past_irobs.contains(id);
 }
 
 bool 
 PendingIROBLattice::empty()
 {
+    PthreadScopedLock lock(&membership_lock);
     return pending_irobs.empty(); 
 }
 
@@ -313,31 +324,3 @@ IROBSchedulingData::operator<(const IROBSchedulingData& other) const
     //  any added scheduling hints
     return (id < other.id) || (seqno < other.seqno);
 }
-
-#if 0
-void
-PendingIROBLattice::add_deps(struct node *pos)
-{
-    PendingIROB *pirob = pos->pirob;
-    for (std::set<irob_id_t>::iterator it = pirob->deps.begin();
-         it != pirob->deps.end(); it++) {
-        irob_id_t id = *it;
-        if (nodes.find(id) != nodes.end()) {
-            
-        }
-    }
-}
-
-/* returns true if first depends on second. */
-bool 
-PendingIROBLattice::depends_on(PendingIROB *first, PendingIROB *second)
-{
-    
-}
-
-void 
-PendingIROBLattice::for_each_dep(PendingIROB *dependent, iter_fn_t fn)
-{
-    
-}
-#endif

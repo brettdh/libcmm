@@ -129,7 +129,7 @@ class PendingIROBLattice {
     PendingIROB * find(irob_id_t id);
     bool erase(irob_id_t id);
 
-    bool past_irob_exists(irob_id_t id) const;
+    bool past_irob_exists(irob_id_t id);
 
     bool empty();// { return pending_irobs.empty(); }
     void clear();
@@ -149,6 +149,7 @@ class PendingIROBLattice {
     //                        pending_irobs[i]->id == i + offset))
     std::deque<PendingIROB *> pending_irobs;
     size_t offset;
+    pthread_mutex_t membership_lock;
 
     // the last anonymous IROB added to the set, if any, and
     //  if it hasn't been erased.
