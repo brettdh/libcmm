@@ -204,6 +204,7 @@ CMMSocketImpl::create(int family, int type, int protocol)
         CMMSocketImplPtr tmp(new CMMSocketImpl(family, type, protocol));
 	new_sock = tmp->sock;
         new_sk = tmp;
+        new_sk->csock_map = new CSockMapping(new_sk);
     } catch (int oserr) {
 	return oserr;
     }
@@ -327,7 +328,8 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
 
     non_blocking=0;
 
-    csock_map = new CSockMapping(this);
+    csock_map = NULL;
+    //csock_map = new CSockMapping(this);
     pthread_mutex_init(&shutdown_mutex, NULL);
     pthread_cond_init(&shutdown_cv, NULL);
     pthread_mutex_init(&scheduling_state_lock, NULL);

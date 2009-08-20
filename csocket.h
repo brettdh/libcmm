@@ -3,6 +3,7 @@
 
 #include "tbb/concurrent_queue.h"
 #include "cmm_socket_control.h"
+#include "cmm_socket.private.h"
 #include <map>
 #include <set>
 
@@ -27,13 +28,13 @@ typedef boost::shared_ptr<CSocket> CSocketPtr;
 class CSocket {
   public:
     int osfd;
-    CMMSocketImpl *sk;
+    CMMSocketImplPtr sk;
     //CMMSocketSender *sendr;
     //CMMSocketReceiver *recvr;
     struct net_interface local_iface;
     struct net_interface remote_iface;
 
-    static CSocketPtr create(CMMSocketImpl *sk_, 
+    static CSocketPtr create(boost::weak_ptr<CMMSocketImpl> sk_, 
                              struct net_interface local_iface_,
                              struct net_interface remote_iface_,
                              int accepted_sock = -1);
@@ -47,7 +48,7 @@ class CSocket {
     void startup_workers();
   private:
     // only allow shared_ptr creation
-    CSocket(CMMSocketImpl *sk_, 
+    CSocket(boost::weak_ptr<CMMSocketImpl> sk_, 
             struct net_interface local_iface_,
             struct net_interface remote_iface_,
             int accepted_sock);

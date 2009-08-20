@@ -12,7 +12,7 @@
 #include "csocket_mapping.h"
 
 CSocketPtr
-CSocket::create(CMMSocketImpl *sk_,
+CSocket::create(boost::weak_ptr<CMMSocketImpl> sk_,
                 struct net_interface local_iface_, 
                 struct net_interface remote_iface_,
                 int accepted_sock)
@@ -23,7 +23,7 @@ CSocket::create(CMMSocketImpl *sk_,
     return new_csock;
 }
 
-CSocket::CSocket(CMMSocketImpl *sk_,
+CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
                  struct net_interface local_iface_, 
                  struct net_interface remote_iface_,
                  int accepted_sock)

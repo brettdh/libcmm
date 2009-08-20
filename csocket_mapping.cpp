@@ -69,7 +69,7 @@ class BothLabelsMatch : public LabelMatch {
     RemoteLabelMatch remote_match;
 };
     
-CSockMapping::CSockMapping(CMMSocketImpl *sk_)
+CSockMapping::CSockMapping(CMMSocketImplPtr sk_)
     : sk(sk_)
 {
     /* empty */
@@ -106,7 +106,7 @@ struct push_osfd {
 void
 CSockMapping::get_real_fds(mcSocketOsfdPairList &osfd_list)
 {
-    (void)for_each(push_osfd(sk->sock, osfd_list));
+    (void)for_each(push_osfd(CMMSocketImplPtr(sk)->sock, osfd_list));
 }
 
 struct get_victim_csocks {
@@ -201,13 +201,13 @@ CSockMapping::get_iface(const NetInterfaceSet& ifaces, u_long label,
 bool
 CSockMapping::get_local_iface(u_long label, struct net_interface& iface)
 {
-    return get_iface(sk->local_ifaces, label, iface);
+    return get_iface(CMMSocketImplPtr(sk)->local_ifaces, label, iface);
 }
 
 bool
 CSockMapping::get_remote_iface(u_long label, struct net_interface& iface)
 {
-    return get_iface(sk->remote_ifaces, label, iface);
+    return get_iface(CMMSocketImplPtr(sk)->remote_ifaces, label, iface);
 }
 
 CSocketPtr 
@@ -251,7 +251,7 @@ CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label)
     // to interrupt any select() in progress, adding the new osfd
     dbgprintf("Interrupting any selects() in progress to add osfd %d "
 	      "to multi-socket %d\n",
-	      csock->osfd, sk->sock);
+	      csock->osfd, CMMSocketImplPtr(sk)->sock);
     signal_selecting_threads();
     
     return csock;
@@ -298,14 +298,14 @@ bool
 CSockMapping::get_local_iface_by_addr(struct in_addr addr,
                                       struct net_interface& iface)
 {
-    return get_iface_by_addr(sk->local_ifaces, addr, iface);
+    return get_iface_by_addr(CMMSocketImplPtr(sk)->local_ifaces, addr, iface);
 }
 
 bool
 CSockMapping::get_remote_iface_by_addr(struct in_addr addr, 
                                       struct net_interface& iface)
 {
-    return get_iface_by_addr(sk->remote_ifaces, addr, iface);
+    return get_iface_by_addr(CMMSocketImplPtr(sk)->remote_ifaces, addr, iface);
 }
 
 void

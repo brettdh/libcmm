@@ -8,7 +8,7 @@
 #include "csocket_mapping.h"
 
 CSocketSender::CSocketSender(CSocketPtr csock_) 
-    : csock(csock_), sk(csock_->sk) {}
+  : csock(csock_), sk(get_pointer(csock_->sk)) {}
 
 void
 CSocketSender::Run()

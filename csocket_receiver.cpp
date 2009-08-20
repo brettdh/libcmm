@@ -20,7 +20,7 @@ CSocketReceiver::handler_fn_t CSocketReceiver::handlers[] = {
 };
 
 CSocketReceiver::CSocketReceiver(CSocketPtr csock_) 
-    : csock(csock_), sk(csock_->sk) {}
+    : csock(csock_), sk(get_pointer(csock_->sk)) {}
 
 void
 CSocketReceiver::unrecognized_control_msg(struct CMMSocketControlHdr hdr)

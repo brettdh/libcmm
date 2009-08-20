@@ -48,7 +48,7 @@ class CSockMapping {
     // waits (pthread_join) for all workers to exit.
     void join_to_all_workers();
 
-    CSockMapping(CMMSocketImpl *sk);
+    CSockMapping(CMMSocketImplPtr sk);
     ~CSockMapping();
 
     /* Functor must define int operator()(CSocketPtr), 
@@ -58,7 +58,7 @@ class CSockMapping {
   private:
     //CSockLabelMap csocks_by_send_label;
     //CSockLabelMap csocks_by_recv_label;
-    CMMSocketImpl *sk;  /* XXX: janky.  Remove later? */
+    boost::weak_ptr<CMMSocketImpl> sk;  /* XXX: janky.  Remove later? */
     CSockSet connected_csocks;
     tbb::queuing_rw_mutex sockset_mutex;
 
