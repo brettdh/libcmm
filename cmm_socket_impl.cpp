@@ -1566,6 +1566,7 @@ void
 CMMSocketImpl::goodbye(bool remote_initiated)
 {
     if (is_shutting_down()) {
+        csock_map->join_to_all_workers();
 	return;
     }
 
@@ -1585,6 +1586,8 @@ CMMSocketImpl::goodbye(bool remote_initiated)
         remote_shutdown = true;
         goodbye_sent = true;
         pthread_mutex_unlock(&shutdown_mutex);
+
+        csock_map->join_to_all_workers();
         return;
     }
 

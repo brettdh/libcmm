@@ -211,6 +211,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     // at this point, we know that this task is ours
 
     struct CMMSocketControlHdr hdr;
+    memset(&hdr, 0, sizeof(hdr));
     hdr.send_labels = htonl(pirob->send_labels);
     hdr.recv_labels = htonl(pirob->recv_labels);
 
@@ -422,6 +423,7 @@ void
 CSocketSender::ack(const IROBSchedulingData& data)
 {
     struct CMMSocketControlHdr hdr;
+    memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_ACK);
     hdr.op.ack.id = htonl(data.id);
     hdr.op.ack.seqno = htonl(data.seqno);
@@ -444,6 +446,7 @@ void
 CSocketSender::goodbye()
 {
     struct CMMSocketControlHdr hdr;
+    memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_GOODBYE);
     hdr.send_labels = htonl(csock->local_iface.labels);
     hdr.recv_labels = htonl(csock->remote_iface.labels);

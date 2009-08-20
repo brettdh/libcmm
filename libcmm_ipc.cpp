@@ -109,6 +109,7 @@ void scout_ipc_init()
 {
     int rc;
     struct cmm_msg msg;
+    memset(&msg, 0, sizeof(msg));
 
     int len = snprintf(mq_name, MAX_PROC_MQ_NAMELEN-1, 
 		       SCOUT_PROC_MQ_NAME_FMT, getpid());
@@ -168,6 +169,7 @@ void scout_ipc_deinit(void)
 {
     if (scout_mq_fd > 0) {
 	struct cmm_msg msg;
+        memset(&msg, 0, sizeof(msg));
 	msg.opcode = CMM_MSG_UNSUBSCRIBE;
 	msg.data.pid = getpid();
 	int rc = send_control_message(&msg);
