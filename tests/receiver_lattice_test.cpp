@@ -1,0 +1,86 @@
+#include <cppunit/Test.h>
+#include <cppunit/TestAssert.h>
+#include <cppunit/TestSuite.h>
+#include <cppunit/TestCaller.h>
+#include "receiver_lattice_test.h"
+#include <sstream>
+using std::ostringstream;
+
+CppUnit::Test *
+ReceiverLatticeTest::suite()
+{
+    CppUnit::TestSuite *testSuite = new CppUnit::TestSuite("ReceiverLatticeTest");
+    testSuite->addTest(new CppUnit::TestCaller<ReceiverLatticeTest>(
+                           "testReceive", 
+                           &ReceiverLatticeTest::testReceive));
+    return testSuite;
+}
+
+void
+ReceiverLatticeTest::setUp()
+{
+    struct default_irob_data default_irob;
+
+    pirobs = new PendingReceiverIROBLattice();
+
+    int *new_int = (int*)new char[sizeof(int)];
+    *new_int = 0;
+    default_irob.id = 0;
+    default_irob.datalen = sizeof(int);
+    default_irob.data = (char*)new_int;
+    pirob_array[0] = new PendingReceiverIROB(default_irob, 0, 0);
+
+    new_int = (int*)new char[sizeof(int)];
+    *new_int = 1;
+    default_irob.id = 1;
+    default_irob.datalen = sizeof(int);
+    default_irob.data = (char*)new_int;
+    pirob_array[1] = new PendingReceiverIROB(default_irob, 0, 0);
+
+    new_int = (int*)new char[sizeof(int)];
+    *new_int = 2;
+    default_irob.id = 2;
+    default_irob.datalen = sizeof(int);
+    default_irob.data = (char*)new_int;
+    pirob_array[2] = new PendingReceiverIROB(default_irob, 0, 0);
+    
+    new_int = (int*)new char[sizeof(int)];
+    *new_int = 3;
+    default_irob.id = 3;
+    default_irob.datalen = sizeof(int);
+    default_irob.data = (char*)new_int;
+    pirob_array[3] = new PendingReceiverIROB(default_irob, 0, 0);
+}
+
+void
+ReceiverLatticeTest::tearDown()
+{
+    pirobs->clear();
+    delete pirobs;
+}
+
+void
+ReceiverLatticeTest::assert_insert(irob_id_t id, PendingReceiverIROB *pirob)
+{
+    CPPUNIT_ASSERT(pirobs->insert(pirob) == true);
+    CPPUNIT_ASSERT(pirobs->find(id) == pirob);
+}
+
+void 
+ReceiverLatticeTest::testReceive()
+{
+    for (int i = 0; i < 4; i++) {
+        assert_insert(i, pirob_array[i]);
+    }
+    
+    pirobs->release_if_ready(pirob_array[0], ReadyIROB());
+
+    for (int i = 0; i < 4; i++) {
+        int num = -1;
+        u_long labels = 42;
+        ssize_t rc = pirobs->recv((void*)&num, sizeof(int), 0, &labels);
+        CPPUNIT_ASSERT(rc == sizeof(int));
+        CPPUNIT_ASSERT(num == i);
+        CPPUNIT_ASSERT(labels == 0);
+    }
+}

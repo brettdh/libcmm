@@ -14,6 +14,7 @@
 
 class PendingReceiverIROB : public PendingIROB {
   public:
+    // ints in the data structs should be in host byte order
     PendingReceiverIROB(struct begin_irob_data data,
 			u_long send_labels, u_long recv_labels);
     PendingReceiverIROB(struct default_irob_data data,
@@ -105,7 +106,7 @@ PendingReceiverIROBLattice::release_dependents(PendingReceiverIROB *pirob,
         }
         PendingReceiverIROB *dependent = dynamic_cast<PendingReceiverIROB*>(pi);
         assert(dependent);
-        dependent->dep_satisfied(pirob->id);
+        //dependent->dep_satisfied(pirob->id);
         release_if_ready(dependent, is_ready);
     }
 }

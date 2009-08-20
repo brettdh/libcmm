@@ -10,6 +10,7 @@ class LatticeTest : public CppUnit::TestFixture {
     void setUp();
     void tearDown();
 
-    void assert_insert(PendingIROB *pirob);
+    void assert_insert(irob_id_t id, PendingIROB *pirob);
     void testLatticeStructure();
+    void testRemoval();
 };

@@ -16,6 +16,5 @@ class PendingIROBLatticeTest : public CppUnit::TestFixture {
     void testInsert();
     void testErase();
     void testHoles();
-
-    void testLatticeStructure();
+    void testDependencies();
 };

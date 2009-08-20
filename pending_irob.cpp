@@ -123,10 +123,9 @@ PendingIROB::is_anonymous(void) const
 }
 
 bool 
-PendingIROB::depends_on(PendingIROB *that)
+PendingIROB::depends_on(irob_id_t that)
 {
-    assert(that);
-    return (deps.count(that->id) == 1);
+    return (deps.count(that) == 1);
 }
 
 
@@ -269,11 +268,23 @@ PendingIROBLattice::erase(irob_id_t id)
     if (last_anon_irob && last_anon_irob->id == id) {
         last_anon_irob = NULL;
     }
+    PendingIROB *victim = pending_irobs[index];
     pending_irobs[index] = NULL; // caller must free it
     while (!pending_irobs.empty() && pending_irobs[0] == NULL) {
         pending_irobs.pop_front();
         offset++;
     }
+
+    for (irob_id_set::iterator it = victim->dependents.begin();
+         it != victim->dependents.end(); it++) {
+        
+        PendingIROB *dependent = this->find(*it);
+        if (dependent == NULL) {
+            continue;
+        }
+        dependent->dep_satisfied(id);
+    }
+
     return true;
 }
 

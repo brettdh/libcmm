@@ -17,6 +17,9 @@ PendingIROBLatticeTest::suite()
     testSuite->addTest(new CppUnit::TestCaller<PendingIROBLatticeTest>(
                            "testHoles", 
                            &PendingIROBLatticeTest::testHoles));
+    testSuite->addTest(new CppUnit::TestCaller<PendingIROBLatticeTest>(
+                           "testDependencies", 
+                           &PendingIROBLatticeTest::testDependencies));
     return testSuite;
 }
 
@@ -107,4 +110,26 @@ PendingIROBLatticeTest::testHoles()
     CPPUNIT_ASSERT(pirobs->find(2) == NULL);
     
     CPPUNIT_ASSERT(pirobs->empty() == true);
+}
+
+void
+PendingIROBLatticeTest::testDependencies()
+{
+    CPPUNIT_ASSERT(pirobs->insert(pirob0) == true);
+    CPPUNIT_ASSERT(pirobs->find(0) == pirob0);
+    CPPUNIT_ASSERT(pirobs->insert(pirob1) == true);
+    CPPUNIT_ASSERT(pirobs->find(1) == pirob1);
+    CPPUNIT_ASSERT(pirobs->insert(pirob2) == true);
+    CPPUNIT_ASSERT(pirobs->find(2) == pirob2);
+
+    CPPUNIT_ASSERT(pirob2->depends_on(1) == true);
+    CPPUNIT_ASSERT(pirob1->depends_on(0) == true);
+    CPPUNIT_ASSERT(pirob2->depends_on(0) == false);
+    CPPUNIT_ASSERT(pirob2->depends_on(0) == false);
+    CPPUNIT_ASSERT(pirob0->depends_on(1) == false);
+    CPPUNIT_ASSERT(pirob0->depends_on(2) == false);
+    CPPUNIT_ASSERT(pirob1->depends_on(2) == false);
+    CPPUNIT_ASSERT(pirob0->depends_on(0) == false);
+    CPPUNIT_ASSERT(pirob1->depends_on(1) == false);
+    CPPUNIT_ASSERT(pirob2->depends_on(2) == false);
 }
