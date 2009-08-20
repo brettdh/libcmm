@@ -194,8 +194,8 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
     struct timeval begin, end, diff;
     TIME(begin);
 
-    ssize_t bytes_ready = 0;
-    while ((size_t)bytes_ready < len) {
+    ssize_t bytes_passed = 0;
+    while ((size_t)bytes_passed < len) {
 	struct timeval one_begin, one_end, one_diff;
 	TIME(one_begin);
         PendingReceiverIROB *pirob = get_ready_irob();
@@ -224,28 +224,7 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
         assert(pirob->is_released());
         assert(pirob->is_complete()); /* XXX: see get_next_irob */
 
-        ssize_t bytes = pirob->numbytes();
-        assert(bytes > 0);
-        bytes_ready += bytes;
-
-        pirobs.push_back(pirob);
-
-        if (!pirob->is_complete()) {
-            break;
-        }
-    }
-    TIME(end);
-    TIMEDIFF(begin, end, diff);
-    dbgprintf("recv: gathering bytes took %lu.%06lu seconds\n", 
-	      diff.tv_sec, diff.tv_usec);
-
-    TIME(begin);
-
-    ssize_t bytes_passed = 0;
-    bool partial_irob = false;
-    for (size_t i = 0; i < pirobs.size(); i++) {
-        PendingReceiverIROB *pirob = pirobs[i];
-        if (i == 0) {
+        if (bytes_passed == 0) {
             if (recv_labels) {
                 *recv_labels = pirob->send_labels;
             }
@@ -258,23 +237,20 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
             release_dependents(pirob, ReadyIROB());
             delete pirob;
         } else {
-            if (!pirob->is_complete()) {
-                /* This should still be the last one in the list,
-                 * since it MUST finish before any IROB can be
-                 * passed to the application. */
-            }
-            /* this should be true for at most the last IROB
-             * in the vector */
-            assert(!partial_irob);
-            partial_irob = true;
             partially_read(pirob);
         }
-    }
 
+        if (!pirob->is_complete()) {
+            // XXX: may need to handle this case, and this is 
+            // not the right way to do it
+            break;
+        }
+    }
     TIME(end);
     TIMEDIFF(begin, end, diff);
-    dbgprintf("recv: Copying bytes took %lu.%06lu seconds\n",
+    dbgprintf("recv: gathering and copying bytes took %lu.%06lu seconds\n", 
 	      diff.tv_sec, diff.tv_usec);
+
     dbgprintf("Passing %d bytes to application\n", bytes_passed);
     return bytes_passed;
 }

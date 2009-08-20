@@ -13,6 +13,9 @@ ReceiverLatticeTest::suite()
     testSuite->addTest(new CppUnit::TestCaller<ReceiverLatticeTest>(
                            "testReceive", 
                            &ReceiverLatticeTest::testReceive));
+    testSuite->addTest(new CppUnit::TestCaller<ReceiverLatticeTest>(
+                           "testMultiIROBReceive", 
+                           &ReceiverLatticeTest::testMultiIROBReceive));
     return testSuite;
 }
 
@@ -82,5 +85,24 @@ ReceiverLatticeTest::testReceive()
         CPPUNIT_ASSERT(rc == sizeof(int));
         CPPUNIT_ASSERT(num == i);
         CPPUNIT_ASSERT(labels == 0);
+    }
+}
+
+void
+ReceiverLatticeTest::testMultiIROBReceive()
+{
+    for (int i = 0; i < 4; i++) {
+        assert_insert(i, pirob_array[i]);
+    }
+    
+    pirobs->release_if_ready(pirob_array[0], ReadyIROB());
+
+    int buf[4];
+    u_long labels = 42;
+    ssize_t rc = pirobs->recv((void*)buf, sizeof(int) * 4, 0, &labels);
+    CPPUNIT_ASSERT(rc == sizeof(int) * 4);
+    CPPUNIT_ASSERT(labels == 0);
+    for (int i = 0; i < 4; i++) {
+        CPPUNIT_ASSERT(buf[i] == i);
     }
 }

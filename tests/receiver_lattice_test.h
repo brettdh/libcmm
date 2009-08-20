@@ -12,4 +12,5 @@ class ReceiverLatticeTest : public CppUnit::TestFixture {
 
     void assert_insert(irob_id_t id, PendingReceiverIROB *pirob);
     void testReceive();
+    void testMultiIROBReceive();
 };

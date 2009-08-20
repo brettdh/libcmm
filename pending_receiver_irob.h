@@ -106,7 +106,7 @@ PendingReceiverIROBLattice::release_dependents(PendingReceiverIROB *pirob,
         }
         PendingReceiverIROB *dependent = dynamic_cast<PendingReceiverIROB*>(pi);
         assert(dependent);
-        //dependent->dep_satisfied(pirob->id);
+        //dependent->dep_satisfied(pirob->id); // now done in erase()
         release_if_ready(dependent, is_ready);
     }
 }
