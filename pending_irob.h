@@ -143,6 +143,9 @@ class PendingIROBLattice {
     //void for_each_dep(PendingIROB *dependent, iter_fn_t fn);
 
   private:
+    // must hold membership_lock
+    PendingIROB *find_locked(irob_id_t id);
+    
     // Invariant: pending_irobs.empty() || 
     //            (pending_irobs[0] != NULL &&
     //             forall_i>0(pending_irobs[i] == NULL || 

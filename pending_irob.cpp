@@ -168,7 +168,7 @@ PendingIROBLattice::insert(PendingIROB *pirob)
 
     for (irob_id_set::iterator it = pirob->deps.begin();
          it != pirob->deps.end(); it++) {
-        PendingIROB *dep = find(*it);
+        PendingIROB *dep = find_locked(*it);
         if (dep) {
             dep->add_dependent(pirob->id);
         }
@@ -253,6 +253,12 @@ PendingIROBLattice::find(irob_id_t id)
 {
     PthreadScopedLock lock(&membership_lock);
 
+    return find_locked(id);
+}
+
+PendingIROB *
+PendingIROBLattice::find_locked(irob_id_t id)
+{
     //TimeFunctionBody timer("pending_irobs.find(accessor)");
     size_t index = id - offset;
     if (index < 0 || index >= pending_irobs.size()) {
@@ -287,7 +293,7 @@ PendingIROBLattice::erase(irob_id_t id)
     for (irob_id_set::iterator it = victim->dependents.begin();
          it != victim->dependents.end(); it++) {
         
-        PendingIROB *dependent = this->find(*it);
+        PendingIROB *dependent = this->find_locked(*it);
         if (dependent == NULL) {
             continue;
         }
