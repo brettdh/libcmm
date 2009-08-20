@@ -277,9 +277,9 @@ void CSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
     default_irob.id = ntohl(hdr.op.default_irob.id);
     default_irob.datalen = ntohl(hdr.op.default_irob.datalen);
     /* modify data structures */
-    PendingIROB *pirob = new PendingReceiverIROB(default_irob,
-						 ntohl(hdr.send_labels),
-						 ntohl(hdr.recv_labels));
+    PendingReceiverIROB *pirob = new PendingReceiverIROB(default_irob,
+                                                         ntohl(hdr.send_labels),
+                                                         ntohl(hdr.recv_labels));
     {
         PthreadScopedLock lock(&sk->scheduling_state_lock);
         if (!sk->incoming_irobs.insert(pirob)) {
@@ -289,9 +289,9 @@ void CSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
                                       hdr);
         }
         
-        PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
-        assert(prirob);
-        sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
+        //PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
+        //assert(prirob);
+        sk->incoming_irobs.release_if_ready(pirob, ReadyIROB());
 
         csock->irob_indexes.waiting_acks.insert(IROBSchedulingData(default_irob.id));
         pthread_cond_broadcast(&sk->scheduling_state_cv);
