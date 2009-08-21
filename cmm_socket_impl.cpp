@@ -57,6 +57,7 @@ void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
     memset(&new_listener.ip_addr, 0, sizeof(new_listener.ip_addr));
     new_listener.ip_addr = hdr.op.new_interface.ip_addr;
     new_listener.labels = ntohl(hdr.op.new_interface.labels);
+    
     remote_ifaces.insert(new_listener);
     dbgprintf("Got new remote interface %s with labels %lu\n",
 	      inet_ntoa(new_listener.ip_addr), new_listener.labels);
@@ -139,24 +140,22 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
             throw rc;
         }
     
-        {
-            PthreadScopedLock scoped_lock(&hashmaps_mutex);
-            CMMSockHash::accessor ac;
-            lock(ac);
-            for (NetInterfaceSet::iterator it = ifaces.begin();
-                 it != ifaces.end(); it++) {
-                
-                struct net_interface listener_addr;
-                memset(&listener_addr, 0, sizeof(listener_addr));
-                listener_addr.ip_addr = it->ip_addr;
-                listener_addr.labels = it->labels;
-                
-                local_ifaces.insert(listener_addr);
-            }
-        }
-        
+        PthreadScopedLock scoped_lock(&hashmaps_mutex);
         CMMSockHash::accessor ac;
         lock(ac);
+        for (NetInterfaceSet::iterator it = ifaces.begin();
+             it != ifaces.end(); it++) {
+            
+            struct net_interface listener_addr;
+            memset(&listener_addr, 0, sizeof(listener_addr));
+            listener_addr.ip_addr = it->ip_addr;
+            listener_addr.labels = it->labels;
+            
+            local_ifaces.insert(listener_addr);
+        }
+        
+        //CMMSockHash::accessor ac;
+        //lock(ac);
 
         if (bootstrap_sock != -1) {
             /* we are accepting a connection */
@@ -208,7 +207,8 @@ CMMSocketImpl::create(int family, int type, int protocol)
     } catch (int oserr) {
 	return oserr;
     }
-
+    
+    PthreadScopedLock lock(&hashmaps_mutex);
     CMMSockHash::accessor ac;
     if (cmm_sock_hash.insert(ac, new_sock)) {
 	ac->second = new_sk;
