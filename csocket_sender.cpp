@@ -33,7 +33,9 @@ CSocketSender::Run()
             }
             
             if (csock->csock_recvr == NULL) {
-                throw std::runtime_error("Connection closed");
+                if (sk->goodbye_sent) {
+                    throw std::runtime_error("Connection closed");
+                }
             }
 
             if (schedule_on_my_labels()) {
