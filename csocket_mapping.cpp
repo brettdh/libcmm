@@ -19,7 +19,7 @@ using std::auto_ptr;
 using std::pair;
 using std::vector;
 
-#include "tbb/spin_rw_mutex.h"
+#include "pthread_util.h"
 
 class LabelMatch {
   public:
@@ -72,19 +72,19 @@ class BothLabelsMatch : public LabelMatch {
 CSockMapping::CSockMapping(CMMSocketImplPtr sk_)
     : sk(sk_)
 {
-    /* empty */
+    pthread_rwlock_init(&sockset_mutex, NULL);
 }
 
 CSockMapping::~CSockMapping()
 {
-    scoped_rwlock lock(sockset_mutex, true);
+    PthreadScopedRWLock lock(&sockset_mutex, true);
     connected_csocks.clear();
 }
 
 bool
 CSockMapping::empty()
 {
-    scoped_rwlock lock(sockset_mutex, true);
+    PthreadScopedRWLock lock(&sockset_mutex, true);
     return connected_csocks.empty();
 }
 
@@ -139,7 +139,7 @@ CSockMapping::teardown(struct net_interface iface, bool local)
     vector<CSocketPtr> victims;
     (void)for_each(get_victim_csocks(iface, victims, local));
 
-    scoped_rwlock lock(sockset_mutex, true);
+    PthreadScopedRWLock lock(&sockset_mutex, true);
     while (!victims.empty()) {
         CSocketPtr victim = victims.back();
         victims.pop_back();
@@ -201,13 +201,19 @@ CSockMapping::get_iface(const NetInterfaceSet& ifaces, u_long label,
 bool
 CSockMapping::get_local_iface(u_long label, struct net_interface& iface)
 {
-    return get_iface(CMMSocketImplPtr(sk)->local_ifaces, label, iface);
+    CMMSocketImplPtr skp(sk);
+
+    PthreadScopedLock lock(&skp->hashmaps_mutex);
+    return get_iface(skp->local_ifaces, label, iface);
 }
 
 bool
 CSockMapping::get_remote_iface(u_long label, struct net_interface& iface)
 {
-    return get_iface(CMMSocketImplPtr(sk)->remote_ifaces, label, iface);
+    CMMSocketImplPtr skp(sk);
+
+    PthreadScopedLock lock(&skp->hashmaps_mutex);
+    return get_iface(skp->remote_ifaces, label, iface);
 }
 
 CSocketPtr 
@@ -245,7 +251,7 @@ CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label)
     }
 
     {
-	scoped_rwlock lock(sockset_mutex, true);
+	PthreadScopedRWLock lock(&sockset_mutex, true);
 	connected_csocks.insert(csock);
     }
     // to interrupt any select() in progress, adding the new osfd
@@ -261,7 +267,7 @@ void
 CSockMapping::remove_csock(CSocketPtr victim)
 {
     assert(victim);
-    scoped_rwlock lock(sockset_mutex, true);
+    PthreadScopedRWLock lock(&sockset_mutex, true);
     connected_csocks.erase(victim);
     // CSockets are reference-counted by the 
     // CSocketSender and CSocketReceiver objects,
@@ -298,14 +304,20 @@ bool
 CSockMapping::get_local_iface_by_addr(struct in_addr addr,
                                       struct net_interface& iface)
 {
-    return get_iface_by_addr(CMMSocketImplPtr(sk)->local_ifaces, addr, iface);
+    CMMSocketImplPtr skp(sk);
+
+    PthreadScopedLock lock(&skp->hashmaps_mutex);
+    return get_iface_by_addr(skp->local_ifaces, addr, iface);
 }
 
 bool
 CSockMapping::get_remote_iface_by_addr(struct in_addr addr, 
                                       struct net_interface& iface)
 {
-    return get_iface_by_addr(CMMSocketImplPtr(sk)->remote_ifaces, addr, iface);
+    CMMSocketImplPtr skp(sk);
+
+    PthreadScopedLock lock(&skp->hashmaps_mutex);
+    return get_iface_by_addr(skp->remote_ifaces, addr, iface);
 }
 
 void
@@ -328,7 +340,7 @@ CSockMapping::add_connection(int sock,
     
     new_csock->startup_workers();
     {
-	scoped_rwlock lock(sockset_mutex, true);
+	PthreadScopedRWLock lock(&sockset_mutex, true);
 	connected_csocks.insert(new_csock);
     }
     signal_selecting_threads();

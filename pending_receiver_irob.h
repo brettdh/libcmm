@@ -11,6 +11,7 @@
 #include "tbb/concurrent_queue.h"
 #include <queue>
 #include <cassert>
+#include "debug.h"
 
 class PendingReceiverIROB : public PendingIROB {
   public:
@@ -87,6 +88,7 @@ PendingReceiverIROBLattice::release_if_ready(PendingReceiverIROB *pirob,
 {
     if (is_ready(pirob)) {
         /* TODO: smarter strategy for ordering ready IROBs. */
+        dbgprintf("Releasing IROB %d\n", pirob->id);
         enqueue(pirob);
     }
 }

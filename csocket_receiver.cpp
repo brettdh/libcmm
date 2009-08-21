@@ -6,6 +6,7 @@
 #include "pending_receiver_irob.h"
 #include "cmm_socket.private.h"
 #include "csocket_mapping.h"
+#include "pthread_util.h"
 
 CSocketReceiver::handler_fn_t CSocketReceiver::handlers[] = {
     &CSocketReceiver::unrecognized_control_msg, /* HELLO not expected */

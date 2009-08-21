@@ -6,6 +6,7 @@
 #include "pending_irob.h"
 #include "pending_sender_irob.h"
 #include "csocket_mapping.h"
+#include "pthread_util.h"
 
 CSocketSender::CSocketSender(CSocketPtr csock_) 
   : csock(csock_), sk(get_pointer(csock_->sk)) {}

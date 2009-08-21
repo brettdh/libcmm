@@ -7,6 +7,8 @@ using std::vector; using std::max;
 using std::mem_fun_ref;
 using std::bind1st;
 
+#include "pthread_util.h"
+
 static pthread_mutex_t count_mutex = PTHREAD_MUTEX_INITIALIZER;
 ssize_t PendingIROB::obj_count = 0;
 
@@ -141,6 +143,8 @@ PendingIROBLattice::~PendingIROBLattice()
     for (size_t i = 0; i < pending_irobs.size(); i++) {
         delete pending_irobs[i];
     }
+    pending_irobs.clear();
+    offset = 0;
 }
 
 bool
@@ -153,11 +157,20 @@ PendingIROBLattice::insert(PendingIROB *pirob)
         return false;
     }
 
-    //TimeFunctionBody timer("pending_irobs.insert");
+    if (pending_irobs.empty()) {
+        offset = pirob->id;
+    }
 
     size_t index = pirob->id - offset;
-    if (index < pending_irobs.size() && pending_irobs[index] != NULL) {
+
+    if (index >= 0 && index < pending_irobs.size() && 
+        pending_irobs[index] != NULL) {
         return false;
+    }
+    while (index < 0) {
+        pending_irobs.push_front(NULL);
+        --offset;
+        index = pirob->id - offset;
     }
     if (pending_irobs.size() <= index) {
         pending_irobs.resize(index+1, NULL);

@@ -136,6 +136,8 @@ PendingReceiverIROBLattice::get_ready_irob()
         }
         pirob = partially_read_irob;
         partially_read_irob = NULL;
+        dbgprintf("get_ready_irob: returning partially-read IROB %d\n", 
+                  pirob->id);
     } else {
         /* TODO: nonblocking */
 	struct timeval begin, end, diff;
@@ -151,6 +153,8 @@ PendingReceiverIROBLattice::get_ready_irob()
 	TIMEDIFF(begin, end, diff);
 	dbgprintf("recv: spent %lu.%06lu seconds blocked on the IROB queue\n",
 		  diff.tv_sec, diff.tv_usec);
+        dbgprintf("get_ready_irob: returning IROB %d from the queue\n", 
+                  pirob->id);
     }
     return pirob;
 }

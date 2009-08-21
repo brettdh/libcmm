@@ -24,25 +24,6 @@ struct net_interface {
     }
 };
 
-class PthreadScopedLock {
-  public:
-    explicit PthreadScopedLock(pthread_mutex_t *mutex_) : mutex(mutex_) {
-        assert(mutex);
-        pthread_mutex_lock(mutex);
-    }
-    ~PthreadScopedLock() {
-        if (mutex) {
-            pthread_mutex_unlock(mutex);
-        }
-    }
-    void release() {
-        pthread_mutex_unlock(mutex);
-        mutex = NULL;
-    }
-  private:
-    pthread_mutex_t *mutex;
-};
-
 typedef std::set<struct net_interface> NetInterfaceSet;
 
 typedef std::vector<std::pair<mc_socket_t, int> > mcSocketOsfdPairList;

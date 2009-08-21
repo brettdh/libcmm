@@ -6,9 +6,7 @@
 #include <netinet/in.h>
 #include <sys/types.h>
 #include "common.h"
-
-#include "tbb/queuing_rw_mutex.h"
-typedef tbb::queuing_rw_mutex::scoped_lock scoped_rwlock;
+#include "pthread_util.h"
 
 #include "csocket.h"
 
@@ -60,7 +58,7 @@ class CSockMapping {
     //CSockLabelMap csocks_by_recv_label;
     boost::weak_ptr<CMMSocketImpl> sk;  /* XXX: janky.  Remove later? */
     CSockSet connected_csocks;
-    tbb::queuing_rw_mutex sockset_mutex;
+    pthread_rwlock_t sockset_mutex;
 
     struct get_worker_tids;
 
@@ -82,7 +80,7 @@ class CSockMapping {
 template <typename Functor>
 int CSockMapping::for_each(Functor f)
 {
-    scoped_rwlock lock(sockset_mutex, false);
+    PthreadScopedRWLock lock(&sockset_mutex, false);
     for (CSockSet::iterator it = connected_csocks.begin();
 	 it != connected_csocks.end(); it++) {
 	CSocketPtr csock = *it;
@@ -98,7 +96,7 @@ template <typename Predicate>
 CSocketPtr 
 CSockMapping::find_csock(Predicate pred)
 {
-    scoped_rwlock lock(sockset_mutex, false);
+    PthreadScopedRWLock lock(&sockset_mutex, false);
     CSockSet::const_iterator it = find_if(connected_csocks.begin(), 
 					  connected_csocks.end(), 
 					  pred);

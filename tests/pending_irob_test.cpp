@@ -79,6 +79,13 @@ PendingIROBLatticeTest::testErase()
     CPPUNIT_ASSERT(pirobs->find(1) == NULL);
     
     CPPUNIT_ASSERT(pirobs->empty() == true);
+
+    PendingIROB *pirob42 = new PendingIROB(42, 20, new char[20], 0, 0);
+    CPPUNIT_ASSERT(pirobs->insert(pirob42) == true);
+    CPPUNIT_ASSERT(pirobs->find(42) == pirob42);
+    CPPUNIT_ASSERT(pirobs->erase(42) == true);
+    CPPUNIT_ASSERT(pirobs->find(42) == NULL);
+    delete pirob42;
 }
 
 void 
