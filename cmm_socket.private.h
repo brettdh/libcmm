@@ -242,6 +242,7 @@ class CMMSocketImpl : public CMMSocket {
 
     // unlabeled IROB actions; can be picked up by any csocket
     IROBSchedulingIndexes irob_indexes;
+    bool sending_goodbye;
 
     int non_blocking; /* 1 if non blocking, 0 otherwise */
 

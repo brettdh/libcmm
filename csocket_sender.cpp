@@ -19,8 +19,13 @@ CSocketSender::Run()
             if (sk->is_shutting_down()) {
                 if (csock->irob_indexes.waiting_acks.empty() &&
                     sk->irob_indexes.waiting_acks.empty()) {
-                    if (!sk->goodbye_sent) {
-                        goodbye();
+                    {
+                        PthreadScopedLock shdwn_lock(&sk->shutdown_mutex);
+                        if (!sk->goodbye_sent && !sk->sending_goodbye) {
+                            shdwn_lock.release();
+                            sk->sending_goodbye = true;
+                            goodbye();
+                        }
                     }
                     lock.release();
                     PthreadScopedLock shdwn_lock(&sk->shutdown_mutex);
@@ -453,25 +458,19 @@ CSocketSender::goodbye()
     hdr.send_labels = htonl(csock->local_iface.labels);
     hdr.recv_labels = htonl(csock->remote_iface.labels);
 
-    {
-        PthreadScopedLock lock(&sk->shutdown_mutex);
-        sk->goodbye_sent = true;
-    }
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = write(csock->osfd, &hdr, sizeof(hdr));
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
     if (rc != sizeof(hdr)) {
-        {
-            PthreadScopedLock lock(&sk->shutdown_mutex);
-            sk->goodbye_sent = false;
-        }
         pthread_cond_broadcast(&sk->scheduling_state_cv);
         perror("CSocketSender: write");
         throw CMMControlException("Socket error", hdr);
     }
 
     PthreadScopedLock lock(&sk->shutdown_mutex);
+    sk->goodbye_sent = true;
+
     pthread_cond_broadcast(&sk->shutdown_cv);
 }
 
