@@ -341,6 +341,7 @@ CMMSocketImpl::~CMMSocketImpl()
 {
     delete csock_map;
 
+    listener_thread->stop();
     delete listener_thread;
     
     //free(remote_addr);

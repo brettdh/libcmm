@@ -65,7 +65,8 @@ ListenerThread::ListenerThread(CMMSocketImpl *sk_)
               ntohs(listen_port));
 }
 
-ListenerThread::~ListenerThread()
+void
+ListenerThread::stop()
 {
     shutdown(listener_sock, SHUT_RDWR);
     //stop();
