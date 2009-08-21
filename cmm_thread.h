@@ -22,6 +22,8 @@ class CMMThread {
     virtual void Finish(void) {}
 
     bool running;
+    pthread_mutex_t starter_mutex;
+    pthread_cond_t starter_cv;
 
     friend void *ThreadFn(void *);
     friend void ThreadCleanup(void *);

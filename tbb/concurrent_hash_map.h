@@ -37,7 +37,8 @@
 #include "tbb_stddef.h"
 #include "cache_aligned_allocator.h"
 #include "tbb_allocator.h"
-#include "spin_rw_mutex.h"
+//#include "spin_rw_mutex.h"
+#include "queuing_rw_mutex.h"
 #include "atomic.h"
 #if TBB_USE_PERFORMANCE_WARNINGS
 #include <typeinfo>
@@ -57,9 +58,12 @@ namespace internal {
     class hash_map_base {
     public:
         // Mutex types for each layer of the container
-        typedef spin_rw_mutex node_mutex_t;
-        typedef spin_rw_mutex chain_mutex_t;
-        typedef spin_rw_mutex segment_mutex_t;
+        //typedef spin_rw_mutex node_mutex_t;
+        //typedef spin_rw_mutex chain_mutex_t;
+        //typedef spin_rw_mutex segment_mutex_t;
+        typedef queuing_rw_mutex node_mutex_t;
+        typedef queuing_rw_mutex chain_mutex_t;
+        typedef queuing_rw_mutex segment_mutex_t;
 
         //! Type of a hash code.
         typedef internal::hashcode_t hashcode_t;

@@ -3,30 +3,17 @@
 #include <stdexcept>
 #include <pthread.h>
 #include <assert.h>
-
-struct thread_arg {
-    CMMThread *thread;
-    pthread_mutex_t starter_mutex;
-    pthread_cond_t starter_cv;
-
-    thread_arg(CMMThread *thread_) : thread(thread_) {
-	pthread_mutex_init(&starter_mutex, NULL);
-	pthread_cond_init(&starter_cv, NULL);
-    }
-};
+#include "pthread_util.h"
 
 void
 ThreadCleanup(void * arg)
 {
-    struct thread_arg *th_arg = (struct thread_arg *)arg;
-    assert(th_arg);
-
-    CMMThread *thread = (CMMThread *)th_arg->thread;
+    CMMThread *thread = (CMMThread *)arg;
     assert(thread);
+    pthread_mutex_lock(&thread->starter_mutex);
     thread->running = false;
+    pthread_mutex_unlock(&thread->starter_mutex);
     thread->Finish();
-
-    delete th_arg;
 }
 
 void *
@@ -34,15 +21,13 @@ ThreadFn(void * arg)
 {
     pthread_cleanup_push(ThreadCleanup, arg);
 
-    struct thread_arg *th_arg = (struct thread_arg *)arg;
-    assert(th_arg);
-    CMMThread *thread = th_arg->thread;
+    CMMThread *thread = (CMMThread*)arg;
     assert(thread);
     try {
-	pthread_mutex_lock(&th_arg->starter_mutex);
+	pthread_mutex_lock(&thread->starter_mutex);
         thread->running = true;
-	pthread_cond_signal(&th_arg->starter_cv);
-	pthread_mutex_unlock(&th_arg->starter_mutex);
+	pthread_cond_signal(&thread->starter_cv);
+	pthread_mutex_unlock(&thread->starter_mutex);
 
         thread->Run();
 	dbgprintf("Thread %08x exited normally.\n", pthread_self());
@@ -59,19 +44,17 @@ ThreadFn(void * arg)
 int
 CMMThread::start()
 {
-    struct thread_arg *arg = new struct thread_arg(this);
-
-    int rc = pthread_create(&tid, NULL, ThreadFn, arg);
+    int rc = pthread_create(&tid, NULL, ThreadFn, this);
     if (rc != 0) {
         dbgprintf("Failed to create thread! rc=%d\n", rc);
         return rc;
     }
 
-    pthread_mutex_lock(&arg->starter_mutex);
+    pthread_mutex_lock(&starter_mutex);
     while (!running) {
-	pthread_cond_wait(&arg->starter_cv, &arg->starter_mutex);
+	pthread_cond_wait(&starter_cv, &starter_mutex);
     }
-    pthread_mutex_unlock(&arg->starter_mutex);
+    pthread_mutex_unlock(&starter_mutex);
 
     return 0;
 }
@@ -79,12 +62,16 @@ CMMThread::start()
 CMMThread::CMMThread()
     : tid(0), running(false)
 {
+    pthread_mutex_init(&starter_mutex, NULL);
+    pthread_cond_init(&starter_cv, NULL);
 }
 
 void
 CMMThread::stop()
 {
+    PthreadScopedLock lock(&starter_mutex);
     if (running) {
+        lock.release();
         if (pthread_cancel(tid) == 0) {
             pthread_join(tid, NULL);
         }
@@ -94,7 +81,9 @@ CMMThread::stop()
 void
 CMMThread::join()
 {
+    PthreadScopedLock lock(&starter_mutex);
     if (running) {
+        lock.release();
         pthread_join(tid, NULL);
     }
 }
