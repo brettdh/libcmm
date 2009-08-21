@@ -16,10 +16,6 @@ CSocketSender::Run()
     PthreadScopedLock lock(&sk->scheduling_state_lock);
     try {
         while (1) {
-            if (csock->csock_recvr == NULL) {
-                throw std::runtime_error("Connection closed");
-            }
-
             if (sk->is_shutting_down()) {
                 if (csock->irob_indexes.waiting_acks.empty() &&
                     sk->irob_indexes.waiting_acks.empty()) {
@@ -36,6 +32,10 @@ CSocketSender::Run()
                 }
             }
             
+            if (csock->csock_recvr == NULL) {
+                throw std::runtime_error("Connection closed");
+            }
+
             if (schedule_on_my_labels()) {
                 continue;
             }
