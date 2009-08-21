@@ -153,8 +153,12 @@ PendingReceiverIROBLattice::get_ready_irob()
 	TIMEDIFF(begin, end, diff);
 	dbgprintf("recv: spent %lu.%06lu seconds blocked on the IROB queue\n",
 		  diff.tv_sec, diff.tv_usec);
-        dbgprintf("get_ready_irob: returning IROB %d from the queue\n", 
-                  pirob->id);
+        if (pirob) {
+            dbgprintf("get_ready_irob: returning IROB %d from the queue\n", 
+                      pirob->id);
+        } else {
+            dbgprintf("get_ready_irob: returning NULL\n");
+        }
     }
     return pirob;
 }

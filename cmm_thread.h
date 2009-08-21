@@ -3,6 +3,10 @@
 
 #include <pthread.h>
 
+extern pthread_key_t thread_name_key;
+#define MAX_NAME_LEN 20
+void set_thread_name(const char *name);
+
 class CMMThread {
   public:
     int start();

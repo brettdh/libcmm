@@ -5,6 +5,9 @@
 #include <assert.h>
 #include "pthread_util.h"
 
+pthread_key_t thread_name_key;
+static pthread_once_t key_once = PTHREAD_ONCE_INIT;
+
 void
 ThreadCleanup(void * arg)
 {
@@ -14,6 +17,27 @@ ThreadCleanup(void * arg)
     thread->running = false;
     pthread_mutex_unlock(&thread->starter_mutex);
     thread->Finish();
+}
+
+static void delete_name_string(void *arg)
+{
+    char *name_str = (char*)arg;
+    delete [] name_str;
+}
+
+static void make_key()
+{
+    (void)pthread_key_create(&thread_name_key, delete_name_string);
+}
+
+void set_thread_name(const char *name)
+{
+    (void) pthread_once(&key_once, make_key);
+
+    assert(name);
+    char *name_str = new char[MAX_NAME_LEN+1];
+    memset(name_str, 0, MAX_NAME_LEN+1);
+    strncpy(name_str, name, MAX_NAME_LEN);
 }
 
 void *
