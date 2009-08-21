@@ -463,11 +463,12 @@ CSocketSender::goodbye()
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
     if (rc != sizeof(hdr)) {
+        sk->sending_goodbye = false;
         pthread_cond_broadcast(&sk->scheduling_state_cv);
         perror("CSocketSender: write");
         throw CMMControlException("Socket error", hdr);
     }
-
+    
     PthreadScopedLock lock(&sk->shutdown_mutex);
     sk->goodbye_sent = true;
 

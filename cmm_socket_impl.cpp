@@ -305,6 +305,7 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
       shutting_down(false),
       remote_shutdown(false),
       goodbye_sent(false),
+      sending_goodbye(false),
       next_irob(0)
 {
     /* reserve a dummy OS file descriptor for this mc_socket. */
