@@ -68,8 +68,8 @@ ListenerThread::ListenerThread(CMMSocketImpl *sk_)
 ListenerThread::~ListenerThread()
 {
     shutdown(listener_sock, SHUT_RDWR);
-    stop();
-    //join();
+    //stop();
+    join();
     close(listener_sock);
 }
 
