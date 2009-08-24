@@ -152,13 +152,16 @@ PendingReceiverIROBLattice::get_ready_irob()
                 return NULL;
             }
 	    pthread_cond_wait(&sk->scheduling_state_cv, &sk->scheduling_state_lock);
-            if (!pop_item(ready_irobs, ready_irob_id)) {
-                assert(0);
-            }
-            pi = find(ready_irob_id);
-            if (!pi) {
-                dbgprintf("Looks like IROB %d was already received; "
-                          "ignoring\n", ready_irob_id);
+
+            while (!ready_irobs.empty()) {
+                if (!pop_item(ready_irobs, ready_irob_id)) {
+                    assert(0);
+                }
+                pi = find(ready_irob_id);
+                if (!pi) {
+                    dbgprintf("Looks like IROB %d was already received; "
+                              "ignoring\n", ready_irob_id);
+                }
             }
 	}
 	TIME(end);
