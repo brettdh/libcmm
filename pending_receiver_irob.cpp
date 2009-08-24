@@ -130,6 +130,7 @@ PendingReceiverIROB *
 PendingReceiverIROBLattice::get_ready_irob()
 {
     irob_id_t ready_irob_id = -1;
+    PendingIROB *pi = NULL;
     PendingReceiverIROB *pirob = NULL;
     if (partially_read_irob) {
         if (!partially_read_irob->is_complete()) {
@@ -144,29 +145,31 @@ PendingReceiverIROBLattice::get_ready_irob()
         /* TODO: nonblocking */
 	struct timeval begin, end, diff;
 	TIME(begin);
-        while (ready_irobs.empty()) {
+        while (ready_irobs.empty() && pi == NULL) {
             if (sk->is_shutting_down()) {
                 dbgprintf("get_ready_irob: returning NULL\n");
                 return NULL;
             }
 	    pthread_cond_wait(&sk->scheduling_state_cv, &sk->scheduling_state_lock);
+            if (!pop_item(ready_irobs, ready_irob_id)) {
+                assert(0);
+            }
+            pi = find(ready_irob_id);
+            if (!pi) {
+                dbgprintf("Looks like IROB %d was already received; "
+                          "ignoring\n", ready_irob_id);
+            }
 	}
-	if (!pop_item(ready_irobs, ready_irob_id)) {
-            assert(0);
-        }
 	TIME(end);
 	TIMEDIFF(begin, end, diff);
-	dbgprintf("recv: spent %lu.%06lu seconds blocked on the IROB queue\n",
+	dbgprintf("recv: spent %lu.%06lu seconds waiting for a ready IROB\n",
 		  diff.tv_sec, diff.tv_usec);
-        
-        if (ready_irob_id >= 0) {
-            PendingIROB *pi = find(ready_irob_id);
-            assert(pi);
-            pirob = dynamic_cast<PendingReceiverIROB*>(pi);
-            assert(pirob);
-        }
 
-        dbgprintf("get_ready_irob: returning IROB %d from the queue\n", 
+        assert(pi);
+        pirob = dynamic_cast<PendingReceiverIROB*>(pi);
+        assert(pirob);
+
+        dbgprintf("get_ready_irob: returning IROB %d\n", 
                   pirob->id);
     }
     return pirob;
