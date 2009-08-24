@@ -146,22 +146,22 @@ PendingReceiverIROBLattice::get_ready_irob()
         /* TODO: nonblocking */
 	struct timeval begin, end, diff;
 	TIME(begin);
-        while (ready_irobs.empty() && pi == NULL) {
-            if (sk->is_shutting_down()) {
-                dbgprintf("get_ready_irob: returning NULL\n");
-                return NULL;
+        while (pi == NULL) {
+            while (ready_irobs.empty()) {
+                if (sk->is_shutting_down()) {
+                    dbgprintf("get_ready_irob: returning NULL\n");
+                    return NULL;
+                }
+                pthread_cond_wait(&sk->scheduling_state_cv, &sk->scheduling_state_lock);
             }
-	    pthread_cond_wait(&sk->scheduling_state_cv, &sk->scheduling_state_lock);
 
-            while (!ready_irobs.empty()) {
-                if (!pop_item(ready_irobs, ready_irob_id)) {
-                    assert(0);
-                }
-                pi = find(ready_irob_id);
-                if (!pi) {
-                    dbgprintf("Looks like IROB %d was already received; "
-                              "ignoring\n", ready_irob_id);
-                }
+            if (!pop_item(ready_irobs, ready_irob_id)) {
+                assert(0);
+            }
+            pi = find(ready_irob_id);
+            if (!pi) {
+                dbgprintf("Looks like IROB %d was already received; "
+                          "ignoring\n", ready_irob_id);
             }
 	}
 	TIME(end);
