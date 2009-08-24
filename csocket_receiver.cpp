@@ -87,7 +87,7 @@ CSocketReceiver::Finish(void)
     {
         PthreadScopedLock lock(&sk->scheduling_state_lock);
         csock->csock_recvr = NULL;
-        sk->incoming_irobs.shutdown();
+        //sk->incoming_irobs.shutdown();
         //csock->remove();
         pthread_cond_broadcast(&sk->scheduling_state_cv);
     }

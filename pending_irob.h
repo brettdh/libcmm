@@ -15,7 +15,7 @@
  *  An IROB is _pending_ if the application has not yet received all of its
  *    bytes.
  *  An IROB is _complete_ if all of the data has arrived in our library.
- *  An IROB is _released_ if it is _complete_ AND all of its
+ *  An IROB is _ready_ if it is _complete_ AND all of its
  *    dependencies have been satisfied.
  *  Once an IROB has been received in its entirety by the application,
  *    it is no longer pending and this data structure is destroyed.

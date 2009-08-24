@@ -118,6 +118,7 @@ class CMMSocketImpl : public CMMSocket {
     friend class CSockMapping;
     friend class CSocketSender;
     friend class CSocketReceiver;
+    friend class PendingReceiverIROBLattice;
 
     static pthread_mutex_t hashmaps_mutex;
     static CMMSockHash cmm_sock_hash;

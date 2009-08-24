@@ -2,6 +2,7 @@
 #include "pending_receiver_irob.h"
 #include "debug.h"
 #include "timeops.h"
+#include "cmm_socket.private.h"
 #include <algorithm>
 #include <vector>
 using std::min; using std::vector;
@@ -47,7 +48,7 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
 }
 
 bool 
-PendingReceiverIROB::is_released(void)
+PendingReceiverIROB::is_ready(void)
 {
     return deps.empty();
 }
@@ -110,11 +111,9 @@ PendingReceiverIROB::numbytes()
     return num_bytes;
 }
 
-PendingReceiverIROBLattice::PendingReceiverIROBLattice()
-    : partially_read_irob(NULL)
+PendingReceiverIROBLattice::PendingReceiverIROBLattice(CMMSocketImpl *sk_)
+    : sk(sk_), partially_read_irob(NULL)
 {
-    pthread_mutex_init(&ready_mutex, NULL);
-    pthread_cond_init(&ready_cv, NULL);
 }
 
 PendingReceiverIROBLattice::~PendingReceiverIROBLattice()
@@ -123,11 +122,14 @@ PendingReceiverIROBLattice::~PendingReceiverIROBLattice()
     delete partially_read_irob;
 }
 
-/* There's a race on partially_read_irob between get_ready_irob and 
+/* REQ: call with scheduling_state_lock held
+ *
+ * There's a race on partially_read_irob between get_ready_irob and 
  * partially_read below, but they are only called sequentially. */
 PendingReceiverIROB *
 PendingReceiverIROBLattice::get_ready_irob()
 {
+    irob_id_t ready_irob_id = -1;
     PendingReceiverIROB *pirob = NULL;
     if (partially_read_irob) {
         if (!partially_read_irob->is_complete()) {
@@ -142,41 +144,41 @@ PendingReceiverIROBLattice::get_ready_irob()
         /* TODO: nonblocking */
 	struct timeval begin, end, diff;
 	TIME(begin);
-	pthread_mutex_lock(&ready_mutex);
         while (ready_irobs.empty()) {
-	    pthread_cond_wait(&ready_cv, &ready_mutex);
+            if (sk->is_shutting_down()) {
+                dbgprintf("get_ready_irob: returning NULL\n");
+                return NULL;
+            }
+	    pthread_cond_wait(&sk->scheduling_state_cv, &sk->scheduling_state_lock);
 	}
-	pirob = ready_irobs.front();
-	ready_irobs.pop();
-	pthread_mutex_unlock(&ready_mutex);
+	if (!pop_item(ready_irobs, ready_irob_id)) {
+            assert(0);
+        }
 	TIME(end);
 	TIMEDIFF(begin, end, diff);
 	dbgprintf("recv: spent %lu.%06lu seconds blocked on the IROB queue\n",
 		  diff.tv_sec, diff.tv_usec);
-        if (pirob) {
-            dbgprintf("get_ready_irob: returning IROB %d from the queue\n", 
-                      pirob->id);
-        } else {
-            dbgprintf("get_ready_irob: returning NULL\n");
+        
+        if (ready_irob_id >= 0) {
+            PendingIROB *pi = find(ready_irob_id);
+            assert(pi);
+            pirob = dynamic_cast<PendingReceiverIROB*>(pi);
+            assert(pirob);
         }
+
+        dbgprintf("get_ready_irob: returning IROB %d from the queue\n", 
+                  pirob->id);
     }
     return pirob;
 }
 
 void
-PendingReceiverIROBLattice::shutdown()
+PendingReceiverIROBLattice::release(irob_id_t id)
 {
-    /* This will cause further recvs to return 0 (EOF). */
-    enqueue(NULL);
-}
-
-void
-PendingReceiverIROBLattice::enqueue(PendingReceiverIROB *pirob)
-{
-    pthread_mutex_lock(&ready_mutex);
-    ready_irobs.push(pirob);
-    pthread_cond_signal(&ready_cv);
-    pthread_mutex_unlock(&ready_mutex);
+    pthread_mutex_lock(&sk->scheduling_state_lock);
+    ready_irobs.insert(id);
+    pthread_cond_signal(&sk->scheduling_state_cv);
+    pthread_mutex_unlock(&sk->scheduling_state_lock);
 }
 
 /* This is where all the scheduling logic happens. 
@@ -218,11 +220,11 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
         /* after the IROB is returned here, no other thread will
          * unsafely modify it.
          * XXX: this will not be true if we allow get_next_irob
-         * to return released, incomplete IROBs.
+         * to return ready, incomplete IROBs.
          * We could fix that by simply having a sentinel chunk
          * on the queue of chunks. */
 
-        assert(pirob->is_released());
+        assert(pirob->is_ready());
         assert(pirob->is_complete()); /* XXX: see get_next_irob */
 
         if (bytes_passed == 0) {

@@ -78,18 +78,6 @@ CSocketSender::Run()
     }
 }
 
-template <typename ItemType, typename ContainerType>
-static bool pop_item(ContainerType& container, ItemType& item)
-{
-    if (container.empty()) {
-        return false;
-    }
-    
-    item = *container.begin();
-    container.erase(container.begin());
-    return true;
-}
-
 bool
 CSocketSender::schedule_on_my_labels()
 {

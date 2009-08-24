@@ -49,4 +49,16 @@ void multimap_erase(MapType& the_map, const typename MapType::value_type& value)
     }
 }
 
+template <typename ItemType, typename ContainerType>
+bool pop_item(ContainerType& container, ItemType& item)
+{
+    if (container.empty()) {
+        return false;
+    }
+    
+    item = *container.begin();
+    container.erase(container.begin());
+    return true;
+}
+
 #endif

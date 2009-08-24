@@ -25,7 +25,7 @@ class PendingReceiverIROB : public PendingIROB {
 
     /* have all the deps been satisfied? 
      * (only meaningful on the receiver side) */
-    bool is_released(void);
+    bool is_ready(void);
 
     /* Read the next len bytes into buf. 
      * After this call, the first len bytes cannot be re-read. */
@@ -49,16 +49,18 @@ class PendingReceiverIROB : public PendingIROB {
     ssize_t num_bytes;
 };
 
+class CMMSocketImpl;
+
 class PendingReceiverIROBLattice : public PendingIROBLattice {
   public:
-    PendingReceiverIROBLattice();
+    PendingReceiverIROBLattice(CMMSocketImpl *sk);
     virtual ~PendingReceiverIROBLattice();
 
     ssize_t recv(void *buf, size_t len, int flags, u_long *recv_labels);
 
     /* First take: this won't ever return an incomplete IROB. 
      *  (we may want to loosen this restriction in the future) */
-    /* Hard rule: this won't ever return an unreleased IROB. */
+    /* Hard rule: this won't ever return a non-ready IROB. */
     PendingReceiverIROB *get_ready_irob();
 
     template <typename Predicate>
@@ -70,13 +72,12 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
     void partially_read(PendingReceiverIROB *pirob);
     
     /* signify that the socket has been shut down for reading. */
-    void shutdown(); 
+    void shutdown();
   private:
+    CMMSocketImpl *sk; // for scheduling state locks
     /* for now, pass IROBs to the app in the order in which they are released */
-    std::queue<PendingReceiverIROB*> ready_irobs;
-    void enqueue(PendingReceiverIROB *pirob);
-    pthread_mutex_t ready_mutex;
-    pthread_cond_t ready_cv;
+    std::set<irob_id_t> ready_irobs;
+    void release(irob_id_t id);
 
     PendingReceiverIROB *partially_read_irob;
 };
@@ -89,7 +90,7 @@ PendingReceiverIROBLattice::release_if_ready(PendingReceiverIROB *pirob,
     if (is_ready(pirob)) {
         /* TODO: smarter strategy for ordering ready IROBs. */
         dbgprintf("Releasing IROB %d\n", pirob->id);
-        enqueue(pirob);
+        release(pirob->id);
     }
 }
 
@@ -117,7 +118,7 @@ class ReadyIROB {
   public:
     bool operator()(PendingReceiverIROB *pirob) {
         assert(pirob);
-        return (pirob->is_complete() && pirob->is_released());
+        return (pirob->is_complete() && pirob->is_ready());
     }
 };
 
