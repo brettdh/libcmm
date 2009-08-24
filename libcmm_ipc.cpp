@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <signal.h>
 #include "libcmm_ipc.h"
+#include "cmm_thread.h"
 #include <set>
 using std::set;
 
@@ -241,6 +242,9 @@ static void net_status_change_handler(void)
 
 static void *IPCThread(void *arg)
 {
+    char name[MAX_NAME_LEN+1] = "IPCThread";
+    set_thread_name(name);
+
     while (1) {
         fd_set readfds;
         FD_ZERO(&readfds);

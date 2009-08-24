@@ -14,6 +14,10 @@ CSocketSender::CSocketSender(CSocketPtr csock_)
 void
 CSocketSender::Run()
 {
+    char name[MAX_NAME_LEN+1];
+    sprintf(name, "CSockSender %5d", csock->osfd);
+    set_thread_name(name);
+
     PthreadScopedLock lock(&sk->scheduling_state_lock);
     try {
         while (1) {

@@ -40,7 +40,7 @@ vanilla_throughput_test: vanilla_throughput_test.o
 vanilla_%.o: libcmm_%.cpp
 	$(CXX) $(CXXFLAGS) -DNOMULTISOCK $(LDFLAGS) -c -o $@ $<
 
-conn_scout: libcmm_scout.o cdf_sampler.o debug.o
+conn_scout: libcmm_scout.o cdf_sampler.o debug.o cmm_thread.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -o $@ $^
 
 libcmm.so: libcmm.o libcmm_ipc.o cmm_socket.o cmm_socket_impl.o \

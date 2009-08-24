@@ -5,6 +5,7 @@
 
 extern pthread_key_t thread_name_key;
 #define MAX_NAME_LEN 20
+char * get_thread_name();
 void set_thread_name(const char *name);
 
 class CMMThread {

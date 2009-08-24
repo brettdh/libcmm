@@ -60,6 +60,10 @@ read_bytes(int sock, void *buf, size_t count)
 void
 CSocketReceiver::Run(void)
 {
+    char name[MAX_NAME_LEN+1];
+    sprintf(name, "CSockReceiver %5d", csock->osfd);
+    set_thread_name(name);
+
     while (1) {
         struct CMMSocketControlHdr hdr;
 

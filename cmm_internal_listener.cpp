@@ -83,6 +83,7 @@ ListenerThread::port() const
 void
 ListenerThread::Run()
 {
+    set_thread_name("Listener");
     while (1) {
         fd_set readfds;
         FD_ZERO(&readfds);
