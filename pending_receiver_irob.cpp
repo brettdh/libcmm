@@ -3,6 +3,7 @@
 #include "debug.h"
 #include "timeops.h"
 #include "cmm_socket.private.h"
+#include "pthread_util.h"
 #include <algorithm>
 #include <vector>
 using std::min; using std::vector;
@@ -175,19 +176,18 @@ PendingReceiverIROBLattice::get_ready_irob()
     return pirob;
 }
 
+// must call with scheduling_state_lock held
 void
 PendingReceiverIROBLattice::release(irob_id_t id)
 {
-    pthread_mutex_lock(&sk->scheduling_state_lock);
+    //pthread_mutex_lock(&sk->scheduling_state_lock);
     ready_irobs.insert(id);
     pthread_cond_signal(&sk->scheduling_state_cv);
-    pthread_mutex_unlock(&sk->scheduling_state_lock);
+    //pthread_mutex_unlock(&sk->scheduling_state_lock);
 }
 
 /* This is where all the scheduling logic happens. 
  * This function decides how to pass IROB data to the application. 
- *
- * REQ: call with scheduling_state_lock held
  */
 /* TODO: nonblocking mode */
 ssize_t
@@ -199,6 +199,9 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
     
     struct timeval begin, end, diff;
     TIME(begin);
+
+    PthreadScopedLock lock(&sk->scheduling_state_lock);
+    // will be released while waiting for bytes to arrive
 
     ssize_t bytes_passed = 0;
     while ((size_t)bytes_passed < len) {
@@ -213,11 +216,11 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
             // XXX: for now assume we're shutting down; we need a sentinel
             // to differentiate this from non-blocking read with no ready data
             
-	    //if (sk->is_shutting_down()) {
-            return 0;
-            //} else {
-	        //assert(0); /* XXX: nonblocking case may return NULL */
-            //}
+	    if (sk->is_shutting_down()) {
+                return 0;
+            } else {
+	        assert(0); /* XXX: nonblocking case may return NULL */
+            }
 	}
 
         /* after the IROB is returned here, no other thread will

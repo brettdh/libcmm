@@ -63,9 +63,11 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
     /* Hard rule: this won't ever return a non-ready IROB. */
     PendingReceiverIROB *get_ready_irob();
 
+    // must call with sk->scheduling_state_lock held
     template <typename Predicate>
     void release_if_ready(PendingReceiverIROB *pirob, Predicate is_ready);
 
+    // must call with sk->scheduling_state_lock held
     template <typename Predicate>
     void release_dependents(PendingReceiverIROB *pirob, Predicate is_ready);
 
@@ -77,6 +79,8 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
     CMMSocketImpl *sk; // for scheduling state locks
     /* for now, pass IROBs to the app in the order in which they are released */
     std::set<irob_id_t> ready_irobs;
+
+    // must call with sk->scheduling_state_lock held
     void release(irob_id_t id);
 
     PendingReceiverIROB *partially_read_irob;
