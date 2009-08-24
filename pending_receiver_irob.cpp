@@ -185,7 +185,7 @@ PendingReceiverIROBLattice::release(irob_id_t id)
 {
     //pthread_mutex_lock(&sk->scheduling_state_lock);
     ready_irobs.insert(id);
-    pthread_cond_signal(&sk->scheduling_state_cv);
+    pthread_cond_broadcast(&sk->scheduling_state_cv);
     //pthread_mutex_unlock(&sk->scheduling_state_lock);
 }
 
