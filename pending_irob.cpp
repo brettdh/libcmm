@@ -139,12 +139,15 @@ PendingIROBLattice::PendingIROBLattice()
 
 PendingIROBLattice::~PendingIROBLattice()
 {
-    PthreadScopedLock lock(&membership_lock);
-    for (size_t i = 0; i < pending_irobs.size(); i++) {
-        delete pending_irobs[i];
+    {
+        PthreadScopedLock lock(&membership_lock);
+        for (size_t i = 0; i < pending_irobs.size(); i++) {
+            delete pending_irobs[i];
+        }
+        pending_irobs.clear();
+        offset = 0;
     }
-    pending_irobs.clear();
-    offset = 0;
+    pthread_mutex_destroy(&membership_lock);
 }
 
 bool

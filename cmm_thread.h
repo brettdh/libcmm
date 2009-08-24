@@ -15,7 +15,7 @@ class CMMThread {
     void join();
 
     CMMThread();
-    virtual ~CMMThread() {}
+    virtual ~CMMThread();
 
     pthread_t tid;
   protected:

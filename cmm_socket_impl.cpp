@@ -347,6 +347,11 @@ CMMSocketImpl::~CMMSocketImpl()
     
     //free(remote_addr);
     close(sock);
+
+    pthread_mutex_destroy(&shutdown_mutex);
+    pthread_cond_destroy(&shutdown_cv);
+    pthread_mutex_destroy(&scheduling_state_lock);
+    pthread_cond_destroy(&scheduling_state_cv);
 }
 
 int 

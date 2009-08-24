@@ -112,6 +112,12 @@ CMMThread::CMMThread()
     pthread_cond_init(&starter_cv, NULL);
 }
 
+CMMThread::~CMMThread()
+{
+    pthread_mutex_destroy(&starter_mutex);
+    pthread_cond_destroy(&starter_cv);
+}
+
 void
 CMMThread::stop()
 {

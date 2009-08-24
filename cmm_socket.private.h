@@ -192,6 +192,10 @@ class CMMSocketImpl : public CMMSocket {
 	    pthread_mutex_init(&mutex, NULL);
 	    pthread_cond_init(&cv, NULL);
 	}
+        ~AppThread() {
+            pthread_mutex_destroy(&mutex);
+            pthread_cond_destroy(&cv);
+        }
     };
     
     // For blocking and waking up application threads as needed
