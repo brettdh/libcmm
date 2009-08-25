@@ -90,7 +90,11 @@ ThreadFn(void * arg)
 int
 CMMThread::start()
 {
-    int rc = pthread_create(&tid, NULL, ThreadFn, this);
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setstacksize(&attr, 1024*1024);
+
+    int rc = pthread_create(&tid, &attr, ThreadFn, this);
     if (rc != 0) {
         dbgprintf("Failed to create thread! rc=%d\n", rc);
         return rc;
