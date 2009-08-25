@@ -174,6 +174,9 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
         
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
         sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
+
+        csock->irob_indexes.waiting_acks.insert(IROBSchedulingData(id));
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
     }
 
     //sk->sendr->ack(id);
@@ -241,10 +244,9 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
                       chunk.seqno, id);
         }
 
-        csock->irob_indexes.waiting_acks.insert(
-            IROBSchedulingData(id, chunk.seqno)
-            );
-        pthread_cond_broadcast(&sk->scheduling_state_cv);
+//         IROBScheduingData sched_data(id, chunk.seqno);
+//         csock->irob_indexes.waiting_acks.insert(sched_data);
+//         pthread_cond_broadcast(&sk->scheduling_state_cv);
     }
     
     TIME(end);
