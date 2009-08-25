@@ -40,6 +40,7 @@ ListenerThread::ListenerThread(CMMSocketImpl *sk_)
 	    }
 	}
     } while (rc < 0);
+
     if (rc < 0) {
 	perror("bind");
 	dbgprintf("Listener failed to bind!\n");

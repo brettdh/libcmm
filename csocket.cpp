@@ -83,7 +83,7 @@ CSocket::phys_connect()
     remote_addr.sin_port = sk->remote_listener_port;
     
     int rc = bind(osfd, (struct sockaddr *)&local_addr, 
-		  sizeof(local_addr));
+              sizeof(local_addr));
     if (rc < 0) {
 	perror("bind");
 	dbgprintf("Failed to bind osfd %d to %s:%d\n",
