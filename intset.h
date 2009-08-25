@@ -1,8 +1,10 @@
 #ifndef intset_h_incl
 #define intset_h_incl
 
-#include <vector>
+#include <boost/dynamic_bitset.hpp>
 #include <sys/types.h>
+
+
 
 /* (more) space-efficient set of unsigned long integers. */
 class IntSet {
@@ -17,12 +19,12 @@ class IntSet {
     size_t size(void) const;
     bool empty(void) const;
   private:
-    std::vector<bool> pos_vec;
-    std::vector<bool> neg_vec;
+    boost::dynamic_bitset<> pos_vec;
+    boost::dynamic_bitset<> neg_vec;
     size_t size_;
 
-    void insert_vec(std::vector<bool>& vec, long num);
-    bool contains_vec(const std::vector<bool>& vec, long num) const;
+    void insert_vec(boost::dynamic_bitset<>& vec, long num);
+    bool contains_vec(const boost::dynamic_bitset<>& vec, long num) const;
 };
 
 #endif

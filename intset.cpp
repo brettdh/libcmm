@@ -17,11 +17,11 @@ void IntSet::insert(long num)
         }
     }
 }
-void IntSet::insert_vec(std::vector<bool>& vec, long num)
+void IntSet::insert_vec(boost::dynamic_bitset<>& vec, long num)
 {
     assert(num >= 0);
     if ((size_t)num >= vec.size()) {
-        vec.insert(vec.end(), num - vec.size(), false);
+        vec.resize(num);
         vec.push_back(true);
         assert(vec.size() == ((size_t)num + 1));
     } else {
@@ -38,7 +38,7 @@ bool IntSet::contains(long num) const
     }
 }
 
-bool IntSet::contains_vec(const std::vector<bool>& vec, long num) const
+bool IntSet::contains_vec(const boost::dynamic_bitset<>& vec, long num) const
 {
     assert(num >= 0);
     if ((size_t)num >= vec.size()) {
