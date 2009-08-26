@@ -15,7 +15,8 @@ void
 CSocketSender::Run()
 {
     char name[MAX_NAME_LEN+1];
-    sprintf(name, "CSockSender %5d", csock->osfd);
+    memset(name, 0, MAX_NAME_LEN+1);
+    snprintf(name, MAX_NAME_LEN, "CSockSender %d", csock->osfd);
     set_thread_name(name);
 
     PthreadScopedLock lock(&sk->scheduling_state_lock);
@@ -479,6 +480,9 @@ CSocketSender::Finish(void)
         csock->csock_sendr = NULL;
         //pthread_cond_broadcast(&sk->scheduling_state_cv);
     }
+    // nobody will pthread_join to the sender now, so detach
+    //  to make sure the memory gets reclaimed
+    pthread_detach(pthread_self());
 
     delete this; // the last thing that will ever be done with this
 }

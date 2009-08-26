@@ -61,7 +61,8 @@ void
 CSocketReceiver::Run(void)
 {
     char name[MAX_NAME_LEN+1];
-    sprintf(name, "CSockReceiver %5d", csock->osfd);
+    memset(name, 0, MAX_NAME_LEN+1);
+    snprintf(name, MAX_NAME_LEN, "CSockReceiver %d", csock->osfd);
     set_thread_name(name);
 
     while (1) {

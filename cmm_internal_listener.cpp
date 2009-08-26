@@ -26,7 +26,7 @@ ListenerThread::ListenerThread(CMMSocketImpl *sk_)
     int rc = setsockopt(listener_sock, SOL_SOCKET, SO_REUSEADDR,
                         (char *) &on, sizeof(on));
     if (rc < 0) {
-        dbgprintf("Cannot reuse socket address");
+        dbgprintf("Cannot reuse socket address\n");
     }
     
     do {
@@ -74,7 +74,7 @@ ListenerThread::stop()
     shutdown(listener_sock, SHUT_RDWR);
     //stop();
     join();
-    close(listener_sock);
+    //close(listener_sock);
 }
 
 in_port_t
@@ -105,9 +105,11 @@ ListenerThread::Run()
         int sock = accept(listener_sock,
                           (struct sockaddr *)&remote_addr, &addrlen);
         if (sock < 0) {
-	    dbgprintf("Listener socket closed, listener thread exiting\n");
+            dbgprintf("Listener socket shutdown, listener thread exiting,"
+                      " errno=%d\n",errno);
 	    close(listener_sock);
-            throw std::runtime_error("Socket error");
+            //throw std::runtime_error("Socket error");
+            return;
         }
 
         struct sockaddr_in local_addr;

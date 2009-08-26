@@ -280,18 +280,17 @@ CMMSocketImpl::lookup_by_irob(irob_id_t id)
 int
 CMMSocketImpl::mc_close(mc_socket_t sock)
 {
-    pthread_mutex_lock(&hashmaps_mutex);
     CMMSockHash::accessor ac;
     if (cmm_sock_hash.find(ac, sock)) {
 	CMMSocketImplPtr sk(ac->second);
 	sk->goodbye(false);
+        pthread_mutex_lock(&hashmaps_mutex);
 	cmm_sock_hash.erase(ac);
         /* the CMMSocket object gets destroyed by the shared_ptr. */
         /* moved the rest of the cleanup to the destructor */
         pthread_mutex_unlock(&hashmaps_mutex);
 	return 0;
     } else {
-        pthread_mutex_unlock(&hashmaps_mutex);
 	fprintf(stderr, "Warning: cmm_close()ing a socket that's not "
 		"in my hash\n");
 	errno = EBADF;
@@ -1157,11 +1156,11 @@ CMMSocketImpl::net_available(mc_socket_t sock,
 void 
 CMMSocketImpl::lock(CMMSockHash::const_accessor& ac)
 {
-    dbgprintf("Begin: read-lock msocket %d\n", sock);
+    //dbgprintf("Begin: read-lock msocket %d\n", sock);
     if (!cmm_sock_hash.find(ac, sock)) {
         assert(0);
     }
-    dbgprintf("End: read-lock msocket %d\n", sock);
+    //dbgprintf("End: read-lock msocket %d\n", sock);
     assert(get_pointer(ac->second) == this);
 }
 
@@ -1170,11 +1169,11 @@ CMMSocketImpl::lock(CMMSockHash::const_accessor& ac)
 void 
 CMMSocketImpl::lock(CMMSockHash::accessor& ac)
 {
-    dbgprintf("Begin: write-lock msocket %d\n", sock);
+    //dbgprintf("Begin: write-lock msocket %d\n", sock);
     if (!cmm_sock_hash.find(ac, sock)) {
         assert(0);
     }
-    dbgprintf("End: write-lock msocket %d\n", sock);
+    //dbgprintf("End: write-lock msocket %d\n", sock);
     assert(get_pointer(ac->second) == this);
 }
 

@@ -65,6 +65,7 @@ CSocket::~CSocket()
     dbgprintf("CSocket %d is being destroyed\n", osfd);
     if (osfd > 0) {
 	/* if it's a real open socket */
+        assert(csock_sendr == NULL && csock_recvr == NULL);
 	close(osfd);
     }    
 }
