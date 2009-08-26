@@ -463,7 +463,7 @@ CSocketSender::send_acks(const IROBSchedulingData& data,
     }
     
     size_t datalen = vec[0].iov_len + vec[1].iov_len;
-    printf("About to send %d ACKs\n", ack_count);
+    dbgprintf("About to send %d ACKs\n", ack_count + 1);
 
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = writev(csock->osfd, vec, numvecs);
