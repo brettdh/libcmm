@@ -63,9 +63,9 @@ struct down_interface_data {
 };
 
 struct ack_data {
-    irob_id_t id;
-    u_long seqno; /* since IROB seqnos start at 1, a seqno of 0 here means
-                   * that the entire IROB is ACK'd. */
+    size_t num_acks; // this many acks follow the header
+    irob_id_t id; // the first of potentially many ACKs
+    // (it's common for large IROBs to only send one ACK at a time)
 };
 
 struct CMMSocketControlHdr {

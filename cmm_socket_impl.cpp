@@ -1531,7 +1531,7 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
 }
 
 void
-CMMSocketImpl::ack_received(irob_id_t id, u_long seqno)
+CMMSocketImpl::ack_received(irob_id_t id)
 {
     PthreadScopedLock lock(&scheduling_state_lock);
     PendingIROB *pirob = outgoing_irobs.find(id);
@@ -1543,7 +1543,7 @@ CMMSocketImpl::ack_received(irob_id_t id, u_long seqno)
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
 
-    psirob->ack(seqno);
+    psirob->ack();
     remove_if_unneeded(pirob);
 }
 

@@ -176,7 +176,7 @@ class CMMSocketImpl : public CMMSocket {
     
     /* These are called by the receiver when their associated messages
      * are received. */
-    void ack_received(irob_id_t id, u_long seqno);
+    void ack_received(irob_id_t id);
     void goodbye_acked(void);
     
     bool is_shutting_down(void);

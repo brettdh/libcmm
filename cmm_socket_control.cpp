@@ -86,10 +86,8 @@ CMMSocketControlHdr::describe() const
         stream << "IP: " << inet_ntoa(op.down_interface.ip_addr);        
         break;
     case CMM_CONTROL_MSG_ACK:
+        stream << "num_acks: " << ntohl(op.ack.num_acks) << " ";
         stream << "IROB: " << ntohl(op.ack.id);
-        if (ntohl(op.ack.seqno) != INVALID_IROB_SEQNO) {
-            stream << " seqno: " << ntohl(op.ack.seqno);
-        }
         break;
     case CMM_CONTROL_MSG_GOODBYE:
 	break;

@@ -112,8 +112,8 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
         did_something = true;
     }
     
-    if (!indexes.waiting_acks.empty()) {
-        send_acks(indexes);
+    if (pop_item(indexes.waiting_acks, data)) {
+        send_acks(data, indexes);
         did_something = true;
     }
 
@@ -421,49 +421,61 @@ CSocketSender::down_interface(struct net_interface iface)
 }
 
 void 
-CSocketSender::send_acks(IROBSchedulingIndexes& indexes)
+CSocketSender::send_acks(const IROBSchedulingData& data, 
+                         IROBSchedulingIndexes& indexes)
 {
     const size_t MAX_ACKS = 150;
-    struct CMMSocketControlHdr ack_hdrs[MAX_ACKS];
-    memset(ack_hdrs, 0, MAX_ACKS * sizeof(struct CMMSocketControlHdr));
+    struct CMMSocketControlHdr hdr;
+    memset(&hdr, 0, sizeof(hdr));
+    hdr.type = htons(CMM_CONTROL_MSG_ACK);
+    hdr.send_labels = htonl(csock->local_iface.labels);
+    hdr.recv_labels = htonl(csock->remote_iface.labels);
+    hdr.op.ack.id = htonl(data.id);
+    
+    irob_id_t acked_irobs[MAX_ACKS];
+    memset(acked_irobs, 0, MAX_ACKS * sizeof(irob_id_t));
     
     size_t ack_count = 0;
     std::set<IROBSchedulingData>::iterator head = indexes.waiting_acks.begin();
     std::set<IROBSchedulingData>::iterator it = head;
     while (ack_count < MAX_ACKS && it != indexes.waiting_acks.end()) {
-        const struct IROBSchedulingData data = *it++;
+        acked_irobs[ack_count] = htonl(it->id);
 
-        ack_hdrs[ack_count].type = htons(CMM_CONTROL_MSG_ACK);
-        ack_hdrs[ack_count].op.ack.id = htonl(data.id);
-        ack_hdrs[ack_count].op.ack.seqno = htonl(data.seqno);
-        ack_hdrs[ack_count].send_labels = htonl(csock->local_iface.labels);
-        ack_hdrs[ack_count].recv_labels = htonl(csock->remote_iface.labels);
-
+        ++it;
         ++ack_count;
     }
-    assert(head != it);
+
     std::vector<IROBSchedulingData> tmp(head, it);
     indexes.waiting_acks.erase(head, it);
+
+    hdr.op.ack.num_acks = htonl(ack_count);
+
+    int numvecs = 1;
+    struct iovec vec[2];
+    vec[0].iov_base = &hdr;
+    vec[0].iov_len = sizeof(hdr);
+    vec[1].iov_base = NULL;
+    vec[1].iov_len = 0;
+    if (ack_count > 0) {
+        numvecs = 2;
+        vec[1].iov_base = acked_irobs;
+        vec[1].iov_len = ack_count * sizeof(irob_id_t);
+    }
     
-    size_t datalen = ack_count * sizeof(struct CMMSocketControlHdr);
+    size_t datalen = vec[0].iov_len + vec[1].iov_len;
+    printf("About to send %d ACKs\n", ack_count);
 
     pthread_mutex_unlock(&sk->scheduling_state_lock);
-    int rc = write(csock->osfd, (char*)ack_hdrs, datalen);
+    int rc = writev(csock->osfd, vec, numvecs);
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
     if (rc != (int)datalen) {
-        // re-insert all ACKs that weren't completely sent
-        size_t acks_sent = 0;
-        if (rc > 0) {
-            acks_sent = rc / sizeof(struct CMMSocketControlHdr);
-        }
-        assert(acks_sent < ack_count);
-        sk->irob_indexes.waiting_acks.insert(tmp.begin() + acks_sent,
-                                             tmp.end());
+        // re-insert all ACKs
+        sk->irob_indexes.waiting_acks.insert(tmp.begin(), tmp.end());
 
         pthread_cond_broadcast(&sk->scheduling_state_cv);
         perror("CSocketSender: write");
-        throw CMMControlException("Socket error", ack_hdrs[acks_sent]);
+        throw CMMControlException("Socket error", hdr);
     }
 }
 

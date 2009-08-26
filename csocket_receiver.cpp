@@ -338,12 +338,33 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
     TIME(begin);
 
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_ACK);
-    sk->ack_received(ntohl(hdr.op.ack.id), ntohl(hdr.op.ack.seqno));
+    sk->ack_received(ntohl(hdr.op.ack.id));
+    size_t num_acks = ntohl(hdr.op.ack.num_acks);
+    if (num_acks > 0) {
+        irob_id_t *acked_irobs = new irob_id_t[num_acks];
+        int datalen = num_acks * sizeof(irob_id_t);
+        int rc = read_bytes(csock->osfd, (char*)acked_irobs, datalen);
+        if (rc != datalen) {
+            if (rc < 0) {
+                dbgprintf("Error %d on socket %d\n", errno, csock->osfd);
+            } else {
+                dbgprintf("Expected %d bytes after header, received %d\n", 
+                          datalen, rc);
+            }
+            delete [] acked_irobs;
+            throw CMMControlException("Socket error", hdr);
+        }
+
+        for (size_t i = 0; i < num_acks; i++) {
+            sk->ack_received(ntohl(acked_irobs[i]));
+        }
+        delete [] acked_irobs;
+    }
 
     TIME(end);
     TIMEDIFF(begin, end, diff);
-    dbgprintf("Receiver got ACK for IROB %d chunk %d, took %lu.%06lu seconds\n",
-	      ntohl(hdr.op.ack.id), ntohl(hdr.op.ack.seqno), 
+    dbgprintf("Receiver got ACK for IROB %d and %u others, took %lu.%06lu seconds\n",
+	      ntohl(hdr.op.ack.id), num_acks,
 	      diff.tv_sec, diff.tv_usec);
 }
 
