@@ -60,7 +60,7 @@
     a partial order over all IROBs."  (DONE; implemented the IROB
        data structure as a std::deque wraapper)
 
-* XXX IMPORTANT!!!: make sure that recv doesn't return 0 prematurely.
+* Figure out which threads are not getting cleaned up, and why.
 
 * Get rid of recv_labels for cmm_send and the like.  A label applies to
   a connection, not an interface.  This has implications which will 
