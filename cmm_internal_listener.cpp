@@ -33,20 +33,22 @@ ListenerThread::ListenerThread(CMMSocketImpl *sk_)
 	rc = bind(listener_sock, 
 		  (struct sockaddr *)&bind_addr, sizeof(bind_addr));
 	if (rc < 0) {
-	    if (bind_addr.sin_port == htons(INTERNAL_LISTEN_PORT)) {
-		bind_addr.sin_port = htons(ntohs(bind_addr.sin_port) + 1);
-	    } else {
-		break;
-	    }
+            //if (bind_addr.sin_port == htons(INTERNAL_LISTEN_PORT)) {
+            bind_addr.sin_port = htons(ntohs(bind_addr.sin_port) + 1);
+            //} else {
+            //break;
+            //}
 	}
     } while (rc < 0);
-
+    
     if (rc < 0) {
 	perror("bind");
 	dbgprintf("Listener failed to bind!\n");
 	close(listener_sock);
 	throw rc;
     }
+    dbgprintf("Listener bound to port %d\n", ntohs(bind_addr.sin_port));
+
     socklen_t addrlen = sizeof(bind_addr);
     rc = getsockname(listener_sock, 
                      (struct sockaddr *)&bind_addr, &addrlen);
