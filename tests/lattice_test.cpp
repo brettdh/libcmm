@@ -1,23 +1,11 @@
 #include <cppunit/Test.h>
 #include <cppunit/TestAssert.h>
-#include <cppunit/TestSuite.h>
-#include <cppunit/TestCaller.h>
+#include <cppunit/extensions/HelperMacros.h>
 #include "lattice_test.h"
 #include <sstream>
 using std::ostringstream;
 
-CppUnit::Test *
-LatticeTest::suite()
-{
-    CppUnit::TestSuite *testSuite = new CppUnit::TestSuite("LatticeTest");
-    testSuite->addTest(new CppUnit::TestCaller<LatticeTest>(
-                           "testLatticeStructure", 
-                           &LatticeTest::testLatticeStructure));
-    testSuite->addTest(new CppUnit::TestCaller<LatticeTest>(
-                           "testRemoval", 
-                           &LatticeTest::testRemoval));
-    return testSuite;
-}
+CPPUNIT_TEST_SUITE_REGISTRATION(LatticeTest);
 
 void
 LatticeTest::setUp()

@@ -280,6 +280,7 @@ CMMSocketImpl::lookup_by_irob(irob_id_t id)
 int
 CMMSocketImpl::mc_close(mc_socket_t sock)
 {
+    VanillaListenerSet::const_accessor listener_ac;
     CMMSockHash::accessor ac;
     if (cmm_sock_hash.find(ac, sock)) {
 	CMMSocketImplPtr sk(ac->second);
@@ -290,6 +291,12 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
         /* moved the rest of the cleanup to the destructor */
         pthread_mutex_unlock(&hashmaps_mutex);
 	return 0;
+    } else if (cmm_listeners.find(listener_ac, sock)) {
+        pthread_mutex_lock(&hashmaps_mutex);
+        cmm_listeners.erase(listener_ac);
+        pthread_mutex_unlock(&hashmaps_mutex);
+        close(sock);
+        return 0;
     } else {
 	fprintf(stderr, "Warning: cmm_close()ing a socket that's not "
 		"in my hash\n");

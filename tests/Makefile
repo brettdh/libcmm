@@ -1,10 +1,10 @@
 CXXFLAGS:=-Wall -Werror -I. -I.. -m32 -g -DCMM_UNIT_TESTING #-DCMM_DEBUG 
 LDFLAGS:=-L. -L.. -lcppunit -ldl -ltbb
 
-all: run_tests
+all: run_unit_tests run_lib_tests
 
-test: run_tests
-	./run_tests
+test: run_unit_tests
+	./run_unit_tests
 
 %.o: %.cpp %.h
 	g++ $(CXXFLAGS) -c -o $@ $<
@@ -27,9 +27,13 @@ pending_receiver_irob.o: ../pending_receiver_irob.cpp ../pending_receiver_irob.h
 TESTOBJS := pending_irob_test.o lattice_test.o intset_test.o receiver_lattice_test.o
 SUPPORTOBJS := pending_irob.o intset.o debug.o pending_receiver_irob.o
 
-run_tests: run_tests.o $(TESTOBJS) $(SUPPORTOBJS)
+run_unit_tests: run_all_tests.o $(TESTOBJS) $(SUPPORTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
 
+LIBTESTOBJS:=data_integrity_test.o
+
+run_lib_tests: run_all_tests.o $(LIBTESTOBJS)
+	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
 
 clean:
-	rm -f *.o *~ run_tests
+	rm -f *.o *~ run_unit_tests run_lib_tests

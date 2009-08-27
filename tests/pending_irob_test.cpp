@@ -1,27 +1,9 @@
 #include <cppunit/Test.h>
 #include <cppunit/TestAssert.h>
-#include <cppunit/TestSuite.h>
-#include <cppunit/TestCaller.h>
+#include <cppunit/extensions/HelperMacros.h>
 #include "pending_irob_test.h"
 
-CppUnit::Test *
-PendingIROBLatticeTest::suite()
-{
-    CppUnit::TestSuite *testSuite = new CppUnit::TestSuite("PendingIROBLattice_Test");
-    testSuite->addTest(new CppUnit::TestCaller<PendingIROBLatticeTest>(
-                           "testInsert", 
-                           &PendingIROBLatticeTest::testInsert));
-    testSuite->addTest(new CppUnit::TestCaller<PendingIROBLatticeTest>(
-                           "testErase", 
-                           &PendingIROBLatticeTest::testErase));
-    testSuite->addTest(new CppUnit::TestCaller<PendingIROBLatticeTest>(
-                           "testHoles", 
-                           &PendingIROBLatticeTest::testHoles));
-    testSuite->addTest(new CppUnit::TestCaller<PendingIROBLatticeTest>(
-                           "testDependencies", 
-                           &PendingIROBLatticeTest::testDependencies));
-    return testSuite;
-}
+CPPUNIT_TEST_SUITE_REGISTRATION(PendingIROBLatticeTest);
 
 void 
 PendingIROBLatticeTest::setUp()

@@ -1,23 +1,11 @@
 #include <cppunit/Test.h>
 #include <cppunit/TestAssert.h>
-#include <cppunit/TestSuite.h>
-#include <cppunit/TestCaller.h>
+#include <cppunit/extensions/HelperMacros.h>
 #include "receiver_lattice_test.h"
 #include <sstream>
 using std::ostringstream;
 
-CppUnit::Test *
-ReceiverLatticeTest::suite()
-{
-    CppUnit::TestSuite *testSuite = new CppUnit::TestSuite("ReceiverLatticeTest");
-    testSuite->addTest(new CppUnit::TestCaller<ReceiverLatticeTest>(
-                           "testReceive", 
-                           &ReceiverLatticeTest::testReceive));
-    testSuite->addTest(new CppUnit::TestCaller<ReceiverLatticeTest>(
-                           "testMultiIROBReceive", 
-                           &ReceiverLatticeTest::testMultiIROBReceive));
-    return testSuite;
-}
+CPPUNIT_TEST_SUITE_REGISTRATION(ReceiverLatticeTest);
 
 void
 ReceiverLatticeTest::setUp()

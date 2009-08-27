@@ -1,22 +1,8 @@
 #include <cppunit/Test.h>
 #include <cppunit/TestAssert.h>
-#include <cppunit/TestSuite.h>
-#include <cppunit/TestCaller.h>
 #include "intset_test.h"
 
-CppUnit::Test *
-IntSetTest::suite()
-{
-    CppUnit::TestSuite *testSuite = new CppUnit::TestSuite("IntSet_Test");
-    testSuite->addTest(new CppUnit::TestCaller<IntSetTest>(
-                           "testInsert", 
-                           &IntSetTest::testInsert));
-    testSuite->addTest(new CppUnit::TestCaller<IntSetTest>(
-                           "testErase", 
-                           &IntSetTest::testErase));
-
-    return testSuite;
-}
+CPPUNIT_TEST_SUITE_REGISTRATION(IntSetTest);
 
 void 
 IntSetTest::setUp()

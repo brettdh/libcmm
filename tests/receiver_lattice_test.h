@@ -1,12 +1,17 @@
 #include <cppunit/TestFixture.h>
+#include <cppunit/extensions/HelperMacros.h>
 #include "pending_receiver_irob.h"
 
 class ReceiverLatticeTest : public CppUnit::TestFixture {
     PendingReceiverIROBLattice *pirobs;
     PendingReceiverIROB *pirob_array[4];
-  public:
-    static CppUnit::Test *suite();
 
+    CPPUNIT_TEST_SUITE(ReceiverLatticeTest);
+    CPPUNIT_TEST(testReceive);
+    CPPUNIT_TEST(testMultiIROBReceive);
+    CPPUNIT_TEST_SUITE_END();
+
+  public:
     void setUp();
     void tearDown();
 
