@@ -1,5 +1,7 @@
-CXXFLAGS:=-Wall -Werror -I. -I.. -m32 -g #-DCMM_DEBUG 
+CXXFLAGS:=-Wall -Werror -I. -I.. -m32 -g -DCMM_UNIT_TESTING #-DCMM_DEBUG 
 LDFLAGS:=-L. -L.. -lcppunit -ldl -ltbb
+
+all: run_tests
 
 test: run_tests
 	./run_tests
@@ -22,8 +24,8 @@ pending_irob.o: ../pending_irob.cpp ../pending_irob.h
 pending_receiver_irob.o: ../pending_receiver_irob.cpp ../pending_receiver_irob.h
 	g++ $(CXXFLAGS) -c -o $@ $<
 
-TESTOBJS := pending_irob_test.o lattice_test.o intset_test.o
-SUPPORTOBJS := pending_irob.o intset.o debug.o
+TESTOBJS := pending_irob_test.o lattice_test.o intset_test.o receiver_lattice_test.o
+SUPPORTOBJS := pending_irob.o intset.o debug.o pending_receiver_irob.o
 
 run_tests: run_tests.o $(TESTOBJS) $(SUPPORTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)

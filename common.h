@@ -6,7 +6,6 @@
 #include <map>
 #include <netinet/in.h>
 #include "libcmm.h"
-#include <pthread.h>
 #include <cassert>
 
 template <typename IntegerType>

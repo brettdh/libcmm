@@ -24,7 +24,7 @@ ReceiverLatticeTest::setUp()
 {
     struct default_irob_data default_irob;
 
-    pirobs = new PendingReceiverIROBLattice();
+    pirobs = new PendingReceiverIROBLattice(NULL);
 
     int *new_int = (int*)new char[sizeof(int)];
     *new_int = 0;

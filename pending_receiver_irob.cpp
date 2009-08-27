@@ -147,13 +147,16 @@ PendingReceiverIROBLattice::get_ready_irob()
 	struct timeval begin, end, diff;
 	TIME(begin);
         while (pi == NULL) {
+#ifndef CMM_UNIT_TESTING
             while (ready_irobs.empty()) {
+                assert(sk);
                 if (sk->is_shutting_down()) {
                     dbgprintf("get_ready_irob: returning NULL\n");
                     return NULL;
                 }
                 pthread_cond_wait(&sk->scheduling_state_cv, &sk->scheduling_state_lock);
             }
+#endif
 
             if (!pop_item(ready_irobs, ready_irob_id)) {
                 assert(0);
@@ -183,10 +186,10 @@ PendingReceiverIROBLattice::get_ready_irob()
 void
 PendingReceiverIROBLattice::release(irob_id_t id)
 {
-    //pthread_mutex_lock(&sk->scheduling_state_lock);
     ready_irobs.insert(id);
+#ifndef CMM_UNIT_TESTING
     pthread_cond_broadcast(&sk->scheduling_state_cv);
-    //pthread_mutex_unlock(&sk->scheduling_state_lock);
+#endif
 }
 
 /* This is where all the scheduling logic happens. 
@@ -203,8 +206,10 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
     struct timeval begin, end, diff;
     TIME(begin);
 
+#ifndef CMM_UNIT_TESTING
     PthreadScopedLock lock(&sk->scheduling_state_lock);
     // will be released while waiting for bytes to arrive
+#endif
 
     ssize_t bytes_passed = 0;
     while ((size_t)bytes_passed < len) {
@@ -219,11 +224,16 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
             // XXX: for now assume we're shutting down; we need a sentinel
             // to differentiate this from non-blocking read with no ready data
             
+#ifdef CMM_UNIT_TESTING
+            return 0;
+#else
+            assert(sk);
 	    if (sk->is_shutting_down()) {
                 return 0;
             } else {
 	        assert(0); /* XXX: nonblocking case may return NULL */
             }
+#endif
 	}
 
         /* after the IROB is returned here, no other thread will
