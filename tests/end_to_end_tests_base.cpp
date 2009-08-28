@@ -116,15 +116,18 @@ EndToEndTestsBase::startSender()
     handle_error(send_sock < 0, "cmm_socket");
 
     struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     
+    printf("Looking up %s\n", hostname);
     struct hostent *he = gethostbyname(hostname);
     if (!he) {
         herror("gethostbyname");
         exit(EXIT_FAILURE);
     }
-    
+
     memcpy(&addr.sin_addr, he->h_addr, he->h_length);
+    printf("Resolved %s to %s\n", hostname, inet_ntoa(addr.sin_addr));
     addr.sin_port = htons(TEST_PORT);
 
     socklen_t addrlen = sizeof(addr);

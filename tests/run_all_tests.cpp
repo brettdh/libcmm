@@ -4,7 +4,7 @@
 using CppUnit::TestFactoryRegistry;
 
 bool g_receiver = false;
-char *g_hostname = "localhost";
+char *g_hostname = (char*)"localhost";
 
 int main(int argc, char *argv[])
 {
