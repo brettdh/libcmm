@@ -1,3 +1,6 @@
+#ifndef receiver_lattice_test_h_incl
+#define receiver_lattice_test_h_incl
+
 #include <cppunit/TestFixture.h>
 #include <cppunit/extensions/HelperMacros.h>
 #include "pending_receiver_irob.h"
@@ -19,3 +22,5 @@ class ReceiverLatticeTest : public CppUnit::TestFixture {
     void testReceive();
     void testMultiIROBReceive();
 };
+
+#endif

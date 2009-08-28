@@ -1,3 +1,6 @@
+#ifndef lattice_test_h_incl
+#define lattice_test_h_incl
+
 #include <cppunit/TestFixture.h>
 #include <cppunit/extensions/HelperMacros.h>
 #include "pending_irob.h"
@@ -20,3 +23,5 @@ class LatticeTest : public CppUnit::TestFixture {
     void testLatticeStructure();
     void testRemoval();
 };
+
+#endif

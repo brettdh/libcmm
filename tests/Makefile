@@ -1,10 +1,10 @@
 CXXFLAGS:=-Wall -Werror -I. -I.. -m32 -g -DCMM_UNIT_TESTING #-DCMM_DEBUG 
 LDFLAGS:=-L. -L.. -lcppunit -ldl -ltbb
 
-all: run_unit_tests run_lib_tests
+all: run_unit_tests run_lib_tests run_remote_tests
 
-test: run_unit_tests
-	./run_unit_tests
+test: run_unit_tests run_lib_tests
+	./run_unit_tests; ./run_lib_tests
 
 %.o: %.cpp %.h
 	g++ $(CXXFLAGS) -c -o $@ $<
@@ -30,10 +30,14 @@ SUPPORTOBJS := pending_irob.o intset.o debug.o pending_receiver_irob.o
 run_unit_tests: run_all_tests.o $(TESTOBJS) $(SUPPORTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
 
-LIBTESTOBJS:=end_to_end_tests_forked.o
+LIBTESTOBJS:=end_to_end_tests_base.o end_to_end_tests_forked.o
 
 run_lib_tests: run_all_tests.o $(LIBTESTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
 
+SPLITTESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o
+run_remote_tests: run_all_tests.o $(SPLITTESTOBJS)
+	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
+
 clean:
-	rm -f *.o *~ run_unit_tests run_lib_tests
+	rm -f *.o *~ run_unit_tests run_lib_tests run_remote_tests

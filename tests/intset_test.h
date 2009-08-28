@@ -1,3 +1,6 @@
+#ifndef intset_test_h_incl
+#define intset_test_h_incl
+
 #include <cppunit/TestFixture.h>
 #include <cppunit/extensions/HelperMacros.h>
 #include "intset.h"
@@ -17,3 +20,5 @@ class IntSetTest : public CppUnit::TestFixture {
     void testInsert();
     void testErase();
 };
+
+#endif

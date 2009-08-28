@@ -1,3 +1,6 @@
+#ifndef pending_irob_test_h_incl
+#define pending_irob_test_h_incl
+
 #include <cppunit/TestFixture.h>
 #include <cppunit/extensions/HelperMacros.h>
 #include "pending_irob.h"
@@ -25,3 +28,5 @@ class PendingIROBLatticeTest : public CppUnit::TestFixture {
     void testHoles();
     void testDependencies();
 };
+
+#endif

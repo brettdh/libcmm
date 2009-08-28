@@ -1,14 +1,12 @@
+#ifndef end_to_end_tests_forked_h_incl
+#define end_to_end_tests_forked_h_incl
+
 #include <cppunit/TestFixture.h>
-#include <libcmm.h>
+#include <cppunit/extensions/HelperMacros.h>
+#include "end_to_end_tests_base.h"
 
-class EndToEndTestsForked : public CppUnit::TestFixture {
-    pid_t scout_pid;
+class EndToEndTestsForked : public EndToEndTestsBase {
     static pid_t receiver_pid; // 0 if it's me
-
-    static int listen_sock;
-    mc_socket_t read_sock;
-
-    mc_socket_t send_sock;
 
     CPPUNIT_TEST_SUITE(EndToEndTestsForked);
     CPPUNIT_TEST(testRandomBytesReceivedCorrectly);
@@ -16,17 +14,14 @@ class EndToEndTestsForked : public CppUnit::TestFixture {
     CPPUNIT_TEST(testOrderingReverse);
     CPPUNIT_TEST_SUITE_END();
 
-  public:
-    void setUp();
-    void tearDown();
-
   protected:
-    void startReceiver();
-    void startSender();
+    virtual void chooseRole();
+    virtual bool isReceiver();
+    virtual void waitForReceiver();
 
-    void receiverAssertIntsSorted(int nums[], size_t n);
-
-    void testRandomBytesReceivedCorrectly();
+    //void testRandomBytesReceivedCorrectly();
     void testOrderingSimple();
     void testOrderingReverse();
 };
+
+#endif
