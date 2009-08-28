@@ -225,11 +225,11 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
             // to differentiate this from non-blocking read with no ready data
             
 #ifdef CMM_UNIT_TESTING
-            return 0;
+            return bytes_passed;
 #else
             assert(sk);
 	    if (sk->is_shutting_down()) {
-                return 0;
+                return bytes_passed;
             } else {
 	        assert(0); /* XXX: nonblocking case may return NULL */
             }

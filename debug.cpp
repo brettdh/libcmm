@@ -6,16 +6,32 @@
 #include "cmm_thread.h"
 
 #ifdef CMM_DEBUG
+static void vdbgprintf(bool plain, const char *fmt, va_list ap)
+{
+    if (!plain) {
+        struct timeval now;
+        TIME(now);
+        fprintf(stderr, "[%lu.%06lu][%d][%s] ",
+                now.tv_sec, now.tv_usec, getpid(), 
+                get_thread_name());
+    }
+    
+    vfprintf(stderr, fmt, ap);
+}
+
 void dbgprintf(const char *fmt, ...)
 {
-    struct timeval now;
-    TIME(now);
-    fprintf(stderr, "[%lu.%06lu][%s] ",
-	    now.tv_sec, now.tv_usec, get_thread_name());
-
     va_list ap;
     va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
+    vdbgprintf(false, fmt, ap);
+    va_end(ap);
+}
+
+void dbgprintf_plain(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vdbgprintf(true, fmt, ap);
     va_end(ap);
 }
 #endif

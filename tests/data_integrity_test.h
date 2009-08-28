@@ -3,7 +3,7 @@
 
 class DataIntegrityTest : public CppUnit::TestFixture {
     pid_t scout_pid;
-    pid_t receiver_pid; // 0 if it's me
+    static pid_t receiver_pid; // 0 if it's me
 
     static int listen_sock;
     mc_socket_t read_sock;
@@ -13,6 +13,7 @@ class DataIntegrityTest : public CppUnit::TestFixture {
     CPPUNIT_TEST_SUITE(DataIntegrityTest);
     CPPUNIT_TEST(testRandomBytesReceivedCorrectly);
     CPPUNIT_TEST(testOrderingSimple);
+    CPPUNIT_TEST(testOrderingReverse);
     CPPUNIT_TEST_SUITE_END();
 
   public:
@@ -27,4 +28,5 @@ class DataIntegrityTest : public CppUnit::TestFixture {
 
     void testRandomBytesReceivedCorrectly();
     void testOrderingSimple();
+    void testOrderingReverse();
 };

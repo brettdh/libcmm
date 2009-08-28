@@ -259,6 +259,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     size_t bytes = vec[0].iov_len + vec[1].iov_len;
     size_t count = vec[1].iov_base ? 2 : 1;
 
+    dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = writev(csock->osfd, vec, count);
     pthread_mutex_lock(&sk->scheduling_state_lock);
@@ -301,6 +302,7 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
     hdr.send_labels = htonl(csock->local_iface.labels);
     hdr.recv_labels = htonl(csock->remote_iface.labels);
 
+    dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = write(csock->osfd, &hdr, sizeof(hdr));
     pthread_mutex_lock(&sk->scheduling_state_lock);
@@ -358,6 +360,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     vec[1].iov_base = chunk.data;
     vec[1].iov_len = chunk.datalen;
 
+    dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = writev(csock->osfd, vec, 2);
     pthread_mutex_lock(&sk->scheduling_state_lock);
@@ -387,6 +390,7 @@ CSocketSender::new_interface(struct net_interface iface)
 
     hdr.send_labels = hdr.recv_labels = htonl(0);
 
+    dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = write(csock->osfd, &hdr, sizeof(hdr));
     pthread_mutex_lock(&sk->scheduling_state_lock);
@@ -408,6 +412,7 @@ CSocketSender::down_interface(struct net_interface iface)
 
     hdr.send_labels = hdr.recv_labels = htonl(0);
 
+    dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = write(csock->osfd, &hdr, sizeof(hdr));
     pthread_mutex_lock(&sk->scheduling_state_lock);
@@ -488,6 +493,7 @@ CSocketSender::goodbye()
     hdr.send_labels = htonl(csock->local_iface.labels);
     hdr.recv_labels = htonl(csock->remote_iface.labels);
 
+    dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = write(csock->osfd, &hdr, sizeof(hdr));
     pthread_mutex_lock(&sk->scheduling_state_lock);

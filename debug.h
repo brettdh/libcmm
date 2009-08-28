@@ -9,8 +9,10 @@
 
 #ifdef CMM_DEBUG
 CDECL void dbgprintf(const char *format, ...);
+CDECL void dbgprintf_plain(const char *format, ...);
 #else
 #define dbgprintf(...)
+#define dbgprintf_plain(...)
 #endif
 
 #endif

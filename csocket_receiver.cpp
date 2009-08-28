@@ -121,6 +121,9 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
             throw CMMControlException("Socket error", hdr);
         }
         hdr.op.begin_irob.deps = deps;
+        for (int i = 0; i < numdeps; ++i) {
+            deps[i] = ntohl(deps[i]);
+        }
     }
 
     hdr.op.begin_irob.id = ntohl(hdr.op.begin_irob.id);
@@ -382,6 +385,6 @@ CSocketReceiver::do_goodbye(struct CMMSocketControlHdr hdr)
 	/* Send the "FIN/ACK" */
 	sk->goodbye(true);
     }
-    /* Note: the senders will still wait for all IROB chunks
-     * to be ACK'd before finalizing the shutdown. */
+    /* Note: the senders will still wait for all waiting ACKs
+     * to be sent before finalizing the shutdown. */
 }

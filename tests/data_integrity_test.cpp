@@ -20,6 +20,7 @@ CPPUNIT_TEST_SUITE_REGISTRATION(DataIntegrityTest);
 static const short TEST_PORT = 9876;
 
 static bool forked = false;
+pid_t DataIntegrityTest::receiver_pid = -1;
 int DataIntegrityTest::listen_sock = -1;
 
 static void handle_error(bool condition, const char *msg)
@@ -46,7 +47,7 @@ void
 DataIntegrityTest::setUp()
 {
     int rc = -1;
-    rc = system("ps aux | grep -v grep | grep conn_scout");
+    rc = system("ps aux | grep -v grep | grep conn_scout > /dev/null");
     if (rc != 0) {
         fprintf(stderr, "conn_scout is not running; please start it first.\n");
         exit(EXIT_FAILURE);
@@ -263,6 +264,34 @@ DataIntegrityTest::testOrderingSimple()
                               0, 0, NULL, NULL);
             CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending integers", 
                                          (int)sizeof(nums[i]), rc);
+        }
+    }
+}
+
+void
+DataIntegrityTest::testOrderingReverse()
+{
+    const size_t NUMINTS = 10;
+    int nums[NUMINTS] = {
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+    };
+
+    if (receiver_pid == 0) {
+        receiverAssertIntsSorted(nums, NUMINTS);
+    } else {
+        irob_id_t irobs[NUMINTS];
+        irobs[0] = begin_irob(send_sock, 0, NULL, 0, 0, NULL, NULL);
+        CPPUNIT_ASSERT_MESSAGE("begin_irob succeeds", irobs[0] >= 0);
+        for (size_t i = 1; i < NUMINTS; ++i) {
+            irobs[i] = begin_irob(send_sock, 1, &irobs[i-1], 0, 0, NULL, NULL);
+            CPPUNIT_ASSERT_MESSAGE("begin_irob succeeds", irobs[i] >= 0);
+        }
+        for (int i = (int)NUMINTS - 1; i >= 0; --i) {
+            int rc = irob_send(irobs[i], (char*)&irobs[i], sizeof(irobs[i]), 0);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("irob_send succeeds", 
+                                         (int)sizeof(irobs[i]), rc);
+            rc = end_irob(irobs[i]);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("end_irob succeeds", 0, rc);
         }
     }
 }

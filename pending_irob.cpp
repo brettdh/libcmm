@@ -182,13 +182,18 @@ PendingIROBLattice::insert(PendingIROB *pirob)
 
     correct_deps(pirob);
 
+    dbgprintf("Adding IROB %d as dependent of: [ ", pirob->id);
     for (irob_id_set::iterator it = pirob->deps.begin();
          it != pirob->deps.end(); it++) {
         PendingIROB *dep = find_locked(*it);
         if (dep) {
+            dbgprintf_plain("%ld ", dep->id);
             dep->add_dependent(pirob->id);
+        } else {
+            dbgprintf_plain("(%ld) ", *it);
         }
     }
+    dbgprintf_plain("]\n");
 
     return true;
 }
@@ -306,16 +311,20 @@ PendingIROBLattice::erase(irob_id_t id)
         offset++;
     }
 
+    dbgprintf("Notifying dependents of IROB %d's release: [ ", id);
     for (irob_id_set::iterator it = victim->dependents.begin();
          it != victim->dependents.end(); it++) {
         
         PendingIROB *dependent = this->find_locked(*it);
         if (dependent == NULL) {
+            dbgprintf_plain("(%ld) ", *it);
             continue;
         }
+        dbgprintf_plain("%ld ", dependent->id);
         dependent->dep_satisfied(id);
     }
-
+    dbgprintf_plain("]\n");
+    
     return true;
 }
 

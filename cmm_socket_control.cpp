@@ -57,10 +57,10 @@ CMMSocketControlHdr::describe() const
       break;
     case CMM_CONTROL_MSG_BEGIN_IROB:
         stream << "IROB: " << ntohl(op.begin_irob.id) << " ";
-        stream << "numdeps: " << op.begin_irob.numdeps;
+        stream << "numdeps: " << ntohl(op.begin_irob.numdeps);
         if (op.begin_irob.deps) {
             stream << " [ ";
-            for (int i = 0; i < op.begin_irob.numdeps; i++) {
+            for (size_t i = 0; i < ntohl(op.begin_irob.numdeps); i++) {
 		stream << ntohl(op.begin_irob.deps[i]) << " ";
             }
             stream << "]";
