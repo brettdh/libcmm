@@ -79,6 +79,7 @@ TBB_LIBS:=libtbbmalloc_debug.so libtbbmalloc.so.2 libtbb_debug.so \
 
 .hdrinstall: libcmm.h
 	install libcmm.h /usr/local/include/
+	install libcmm_irob.h /usr/local/include/
 	-touch .hdrinstall
 
 .bininstall: conn_scout
