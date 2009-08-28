@@ -16,7 +16,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-static const short TEST_PORT = 9876;
+static const short TEST_PORT = 4242;
 
 bool EndToEndTestsBase::static_inited = false;
 int EndToEndTestsBase::listen_sock = -1;
