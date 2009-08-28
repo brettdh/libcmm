@@ -30,7 +30,7 @@ SUPPORTOBJS := pending_irob.o intset.o debug.o pending_receiver_irob.o
 run_unit_tests: run_all_tests.o $(TESTOBJS) $(SUPPORTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
 
-LIBTESTOBJS:=data_integrity_test.o
+LIBTESTOBJS:=end_to_end_tests_forked.o
 
 run_lib_tests: run_all_tests.o $(LIBTESTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl

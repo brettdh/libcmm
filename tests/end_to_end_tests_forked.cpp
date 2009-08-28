@@ -1,5 +1,5 @@
 #include <cppunit/extensions/HelperMacros.h>
-#include "data_integrity_test.h"
+#include "end_to_end_tests_forked.h"
 #include <errno.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -15,13 +15,13 @@
 #include <libcmm.h>
 #include <libcmm_irob.h>
 
-CPPUNIT_TEST_SUITE_REGISTRATION(DataIntegrityTest);
+CPPUNIT_TEST_SUITE_REGISTRATION(EndToEndTestsForked);
 
 static const short TEST_PORT = 9876;
 
 static bool forked = false;
-pid_t DataIntegrityTest::receiver_pid = -1;
-int DataIntegrityTest::listen_sock = -1;
+pid_t EndToEndTestsForked::receiver_pid = -1;
+int EndToEndTestsForked::listen_sock = -1;
 
 static void handle_error(bool condition, const char *msg)
 {
@@ -44,7 +44,7 @@ ssize_t read_bytes(int fd, void *buf, size_t count)
 }
 
 void 
-DataIntegrityTest::setUp()
+EndToEndTestsForked::setUp()
 {
     int rc = -1;
     rc = system("ps aux | grep -v grep | grep conn_scout > /dev/null");
@@ -105,7 +105,7 @@ DataIntegrityTest::setUp()
 }
 
 void 
-DataIntegrityTest::tearDown()
+EndToEndTestsForked::tearDown()
 {
     if (receiver_pid == 0) {
         cmm_close(read_sock);
@@ -115,7 +115,7 @@ DataIntegrityTest::tearDown()
 }
 
 void
-DataIntegrityTest::startReceiver()
+EndToEndTestsForked::startReceiver()
 {
     struct sockaddr_in addr;
     socklen_t addrlen = sizeof(addr);
@@ -128,7 +128,7 @@ DataIntegrityTest::startReceiver()
 }
 
 void
-DataIntegrityTest::startSender()
+EndToEndTestsForked::startSender()
 {
     send_sock = cmm_socket(PF_INET, SOCK_STREAM, 0);
     handle_error(send_sock < 0, "cmm_socket");
@@ -149,7 +149,7 @@ DataIntegrityTest::startSender()
 }
 
 void 
-DataIntegrityTest::testRandomBytesReceivedCorrectly()
+EndToEndTestsForked::testRandomBytesReceivedCorrectly()
 {
     if (receiver_pid == 0) {
         int bytes = -1;
@@ -234,21 +234,24 @@ static bool is_sorted(const int nums[], size_t n)
 }
 
 void
-DataIntegrityTest::receiverAssertIntsSorted(int nums[], size_t n)
+EndToEndTestsForked::receiverAssertIntsSorted(int nums[], size_t n)
 {
     int rc = cmm_read(read_sock, nums, n*sizeof(int), NULL);
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiving integers",
                                  (int)(n*sizeof(int)), rc);
     
+    printf("Received 10 integers, checking sorting\n");
     for (size_t i = 0; i < n; ++i) {
         nums[i] = ntohl(nums[i]);
     }
     CPPUNIT_ASSERT_MESSAGE("Integers are sorted least-to-greatest",
                            is_sorted(nums, n));
+
+    printf("Received integers in correct order.\n");
 }
 
 void
-DataIntegrityTest::testOrderingSimple()
+EndToEndTestsForked::testOrderingSimple()
 {
     const size_t NUMINTS = 10;
     int nums[NUMINTS] = {
@@ -258,6 +261,7 @@ DataIntegrityTest::testOrderingSimple()
     if (receiver_pid == 0) {
         receiverAssertIntsSorted(nums, NUMINTS);
     } else {
+        printf("Sending 10 sorted integers, in order\n");
         for (size_t i = 0; i < NUMINTS; i++) {
             nums[i] = htonl(nums[i]);
             int rc = cmm_send(send_sock, &nums[i], sizeof(nums[i]), 0,
@@ -269,7 +273,7 @@ DataIntegrityTest::testOrderingSimple()
 }
 
 void
-DataIntegrityTest::testOrderingReverse()
+EndToEndTestsForked::testOrderingReverse()
 {
     const size_t NUMINTS = 10;
     int nums[NUMINTS] = {
@@ -279,6 +283,9 @@ DataIntegrityTest::testOrderingReverse()
     if (receiver_pid == 0) {
         receiverAssertIntsSorted(nums, NUMINTS);
     } else {
+        printf("Sending 10 sorted integers, ordered by "
+               "IROBs, sending in reverse order\n");
+
         irob_id_t irobs[NUMINTS];
         irobs[0] = begin_irob(send_sock, 0, NULL, 0, 0, NULL, NULL);
         CPPUNIT_ASSERT_MESSAGE("begin_irob succeeds", irobs[0] >= 0);
