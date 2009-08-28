@@ -9,6 +9,7 @@ class EndToEndTestsRemote : public EndToEndTestsBase {
     static bool is_receiver;
   
     CPPUNIT_TEST_SUITE(EndToEndTestsRemote);
+    CPPUNIT_TEST(testRandomBytesReceivedCorrectly);
     CPPUNIT_TEST_SUITE_END();
 
   protected:
