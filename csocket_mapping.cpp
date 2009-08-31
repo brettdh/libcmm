@@ -21,15 +21,19 @@ using std::vector;
 
 #include "pthread_util.h"
 
-class LabelMatch {
+class LocalLabelMatch {
   public:
-    LabelMatch(u_long label_) : label(label_) {}
-    virtual bool operator()(CSocket *csock) { return label == 0; };
-    virtual bool operator()(CSocketPtr csock) { return label == 0; };
-    virtual ~LabelMatch() {}
-  protected:
+    LocalLabelMatch(u_long label_) : label(label_) {}
+    bool operator()(CSocket *csock) {
+        return (label == 0) || (csock->local_iface.labels & label);
+    }
+    bool operator()(CSocketPtr csock) {
+        return operator()(get_pointer(csock));
+    }
+  private:
     u_long label;
 };
+
     
 CSockMapping::CSockMapping(CMMSocketImplPtr sk_)
     : sk(sk_)
@@ -113,14 +117,14 @@ CSockMapping::teardown(struct net_interface iface, bool local)
 CSocketPtr 
 CSockMapping::csock_with_labels(u_long send_label)
 {
-    return find_csock(LabelMatch(send_label));
+    return find_csock(LocalLabelMatch(send_label));
 }
 
 bool
 CSockMapping::csock_matches(CSocket *csock, 
                             u_long send_label)
 {
-    return LabelMatch(send_label)(csock);
+    return LocalLabelMatch(send_label)(csock);
 }
 
 class IfaceMatch {
