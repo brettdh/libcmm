@@ -415,6 +415,7 @@ int main(int argc, char *argv[])
     size_t num_ifs = 2;
     if (!bg_iface_name) {
 	num_ifs = 1;
+        ifs[0].labels = 0; // only available interface, so use it for everything
     }
 
     for (size_t i = 0; i < num_ifs; i++) {

@@ -25,7 +25,16 @@ class LocalLabelMatch {
   public:
     LocalLabelMatch(u_long label_) : label(label_) {}
     bool operator()(CSocket *csock) {
-        return (label == 0) || (csock->local_iface.labels & label);
+        // XXX: temporary hack to match up request/response pairs.
+        // At the receiver with only one network interface,
+        //  the iface's has no labels of its own, so it inherits
+        //  the labels of the sender.
+        // Eventually, the wizard-of-oz scout will be replaced
+        //  with a scout that will make this unnecessary.
+        return ((label == 0) 
+                || (csock->local_iface.labels & label)
+                || (csock->local_iface.labels == 0 &&
+                    csock->remote_iface.labels & label));
     }
     bool operator()(CSocketPtr csock) {
         return operator()(get_pointer(csock));
