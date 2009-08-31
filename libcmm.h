@@ -157,7 +157,7 @@ int cmm_shutdown(mc_socket_t sock, int how);
  * that match this handler.
  * If deleter is non-NULL, it will be called on the handler's arg. */
 /* returns the number of thunks cancelled. */
-int cmm_thunk_cancel(u_long label, 
+int cmm_thunk_cancel(mc_socket_t sock, u_long label, 
 		     void (*handler)(void*), void *arg,
 		     void (*deleter)(void*));
 
