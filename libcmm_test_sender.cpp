@@ -19,6 +19,7 @@ using tbb::atomic;
 #include <sys/time.h>
 #include <time.h>
 #include "timeops.h"
+#include "pthread_util.h"
 
 void thread_sleep(int seconds)
 {
@@ -44,10 +45,12 @@ static const char *HOST = "141.212.110.97";
 static atomic<bool> bg_send;
 static atomic<bool> running;
 #ifdef NOMULTISOCK
-static atomic<int> shared_sock;
+int shared_sock;
 #else
-static atomic<mc_socket_t> shared_sock;
+mc_socket_t shared_sock;
 #endif
+static pthread_mutex_t socket_lock = PTHREAD_MUTEX_INITIALIZER;
+
 static struct sockaddr_in srv_addr;
 
 
@@ -112,6 +115,7 @@ void *BackgroundPing(struct th_arg * arg)
 	if (bg_send) {
 	    snprintf(writeptr, sizeof(ch) - strlen(ch.data) - 1, "%d", count++);
 
+            PthreadScopedLock lock(&socket_lock);
 #ifdef NOMULTISOCK
 	    int rc = send(shared_sock, &ch, sizeof(ch), 0);
 #else
@@ -147,6 +151,7 @@ void resume_ondemand(struct th_arg *arg)
 {
     if (strlen(arg->ch.data) > 0) {
 	fprintf(stderr, "Resumed; sending thunked ondemand message\n");
+        PthreadScopedLock lock(&socket_lock);
 	int rc = cmm_send(shared_sock, arg->ch.data, sizeof(arg->ch), 0,
                           CMM_LABEL_ONDEMAND, 
                           (resume_handler_t)resume_ondemand, arg);
@@ -250,11 +255,11 @@ int main(int argc, char *argv[])
     signal(SIGINT, handle_term);
     signal(SIGPIPE, SIG_IGN);
 
-//     pthread_t tid;
-//     rc = pthread_create(&tid, NULL, (void *(*)(void*)) BackgroundPing, &args);
-//     if (rc < 0) {
-// 	fprintf(stderr, "Failed to start background thread\n");
-//     }
+    pthread_t tid;
+    rc = pthread_create(&tid, NULL, (void *(*)(void*)) BackgroundPing, &args);
+    if (rc < 0) {
+        fprintf(stderr, "Failed to start background thread\n");
+    }
 
     while (running) {
 	struct th_arg *new_args = args.clone();
@@ -270,6 +275,7 @@ int main(int argc, char *argv[])
 	    }
 	}
 
+        PthreadScopedLock lock(&socket_lock);
 	fprintf(stderr, "Attempting to send message\n");
 	struct timeval begin, end, diff;
 	TIME(begin);
@@ -305,11 +311,18 @@ int main(int argc, char *argv[])
     }
 
 #ifdef NOMULTISOCK
+    shutdown(shared_sock, SHUT_RDWR);
+#else
+    cmm_shutdown(shared_sock, SHUT_RDWR);
+#endif
+
+    pthread_join(tid, NULL);
+
+#ifdef NOMULTISOCK
     close(shared_sock);
 #else
     cmm_close(shared_sock);
-#endif
-    //pthread_join(tid, NULL);
+#endif    
 
     return 0;
 }
