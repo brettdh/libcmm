@@ -22,12 +22,10 @@ class CSockMapping {
   public:
     // return true iff csock is suitable for these labels.
     bool csock_matches(CSocket *csock, 
-                       u_long send_label, u_long recv_label);
+                       u_long send_label);
 
-    CSocketPtr csock_with_send_label(u_long label);
-    CSocketPtr csock_with_recv_label(u_long label);
-    CSocketPtr csock_with_labels(u_long send_label, u_long recv_label);
-    CSocketPtr new_csock_with_labels(u_long send_label, u_long recv_label);
+    CSocketPtr csock_with_labels(u_long send_label);
+    CSocketPtr new_csock_with_labels(u_long send_label);
     void remove_csock(CSocketPtr csock); // only removes, doesn't delete
 
     bool empty();
@@ -55,7 +53,6 @@ class CSockMapping {
     int for_each(Functor f);
   private:
     //CSockLabelMap csocks_by_send_label;
-    //CSockLabelMap csocks_by_recv_label;
     boost::weak_ptr<CMMSocketImpl> sk;  /* XXX: janky.  Remove later? */
     CSockSet connected_csocks;
     pthread_rwlock_t sockset_mutex;

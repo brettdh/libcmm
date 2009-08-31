@@ -69,15 +69,15 @@ class CMMSocketImpl : public CMMSocket {
     virtual int mc_connect(const struct sockaddr *serv_addr,
                            socklen_t addrlen);
     virtual ssize_t mc_send(const void *buf, size_t len, int flags,
-                            u_long send_labels, u_long recv_labels, 
+                            u_long send_labels, 
                             resume_handler_t resume_handler, void *arg);
     virtual int mc_writev(const struct iovec *vec, int count,
-                          u_long send_labels, u_long recv_labels, 
+                          u_long send_labels, 
                           resume_handler_t resume_handler, void *arg);
     virtual int mc_shutdown(int how);
 
     virtual irob_id_t mc_begin_irob(int numdeps, const irob_id_t *deps, 
-                                    u_long send_labels, u_long recv_labels,
+                                    u_long send_labels, 
                                     resume_handler_t rh, void *rh_arg);
     virtual int mc_end_irob(irob_id_t id);
     virtual ssize_t mc_irob_send(irob_id_t id, 
@@ -107,7 +107,7 @@ class CMMSocketImpl : public CMMSocket {
     virtual ~CMMSocketImpl();
 
     static bool net_available(mc_socket_t sock, 
-                              u_long send_labels, u_long recv_labels);
+                              u_long send_labels);
     
     void add_connection(int sock, 
                         struct in_addr local_addr,
@@ -160,18 +160,18 @@ class CMMSocketImpl : public CMMSocket {
     // and other data that the network threads are monitoring
     int begin_irob(irob_id_t next_irob, 
                    int numdeps, const irob_id_t *deps,
-		   u_long send_labels, u_long recv_labels,
+		   u_long send_labels, 
                    resume_handler_t resume_handler, void *rh_arg);
     int end_irob(irob_id_t id);
     long irob_chunk(irob_id_t, const void *buf, size_t len, int flags);
     int default_irob(irob_id_t next_irob, 
 		     const void *buf, size_t len, int flags,
-		     u_long send_labels, u_long recv_labels,
+		     u_long send_labels, 
 		     resume_handler_t resume_handler, void *arg);
     void new_interface(struct in_addr ip_addr, u_long labels);
     void down_interface(struct in_addr ip_addr);
     void ack(irob_id_t id, u_long seqno, 
-	     u_long ack_send_labels, u_long ack_recv_labels);
+	     u_long ack_send_labels);
     void goodbye(bool remote_initiated);
     
     /* These are called by the receiver when their associated messages
@@ -215,9 +215,9 @@ class CMMSocketImpl : public CMMSocket {
     friend void unblock_thread_thunk(BlockingRequest *req);
     friend void resume_operation_thunk(ResumeOperation *op);
 
-    void wait_for_labels(u_long send_labels, u_long recv_labels);
+    void wait_for_labels(u_long send_labels);
 
-    int get_csock(u_long send_labels, u_long recv_labels,
+    int get_csock(u_long send_labels, 
                   resume_handler_t resume_handler, void *rh_arg,
                   CSocket *& csock, bool blocking);
 
@@ -265,7 +265,7 @@ class CMMSocketImpl : public CMMSocket {
     static int make_mc_fd_set(fd_set *fds, 
                               const mcSocketOsfdPairList &osfd_list);
 
-    bool net_available(u_long send_labels, u_long recv_labels);
+    bool net_available(u_long send_labels);
 
     /* shortcut utility functions for hashtable-based rwlocking.  */
 
@@ -292,15 +292,15 @@ class CMMSocketPassThrough : public CMMSocket {
     virtual int mc_connect(const struct sockaddr *serv_addr,
                            socklen_t addrlen);
     virtual ssize_t mc_send(const void *buf, size_t len, int flags,
-                            u_long send_labels, u_long recv_labels, 
+                            u_long send_labels, 
                             resume_handler_t resume_handler, void *arg);
     virtual int mc_writev(const struct iovec *vec, int count,
-                          u_long send_labels, u_long recv_labels, 
+                          u_long send_labels, 
                           resume_handler_t resume_handler, void *arg);
     virtual int mc_shutdown(int how);
 
     virtual irob_id_t mc_begin_irob(int numdeps, const irob_id_t *deps, 
-                                    u_long send_labels, u_long recv_labels,
+                                    u_long send_labels, 
                                     resume_handler_t rh, void *rh_arg);
     virtual int mc_end_irob(irob_id_t id);
     virtual ssize_t mc_irob_send(irob_id_t id, 

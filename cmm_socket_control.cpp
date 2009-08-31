@@ -48,7 +48,6 @@ CMMSocketControlHdr::describe() const
     std::ostringstream stream;
     stream << "Type: " << type_str() << " ";
     stream << "Send labels: " << ntohl(send_labels) << " ";
-    stream << "Recv labels: " << ntohl(recv_labels) << " ";
 
     switch (ntohs(type)) {
     case CMM_CONTROL_MSG_HELLO:

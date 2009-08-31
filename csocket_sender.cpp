@@ -64,7 +64,7 @@ CSocketSender::Run()
         //csock->remove();
         sk->csock_map->remove_csock(csock);
         CSocketPtr replacement = 
-            sk->csock_map->new_csock_with_labels(0,0);
+            sk->csock_map->new_csock_with_labels(0);
         if (!replacement) {
             // this connection is hosed, so make sure everything
             // gets cleaned up as if we had done a graceful shutdown
@@ -138,8 +138,7 @@ void resume_operation_thunk(ResumeOperation *op)
     assert(psirob);
 
     CSocketPtr csock =
-        op->sk->csock_map->new_csock_with_labels(psirob->send_labels,
-                                                 psirob->recv_labels);
+        op->sk->csock_map->new_csock_with_labels(psirob->send_labels);
     
     IROBSchedulingIndexes& indexes = (csock 
                                       ? csock->irob_indexes 
@@ -160,17 +159,16 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
 
-    if (csock->matches(pirob->send_labels, pirob->recv_labels)) {
+    if (csock->matches(pirob->send_labels)) {
         return false;
     }
 
     CSocketPtr match = 
-        sk->csock_map->new_csock_with_labels(pirob->send_labels,
-                                                    pirob->recv_labels);
+        sk->csock_map->new_csock_with_labels(pirob->send_labels);
     if (!match) {
         if (psirob->resume_handler) {
             enqueue_handler(sk->sock,
-                            pirob->send_labels, pirob->recv_labels, 
+                            pirob->send_labels, 
                             psirob->resume_handler, psirob->rh_arg);
             pthread_t waiting_thread = psirob->waiting_thread;
             psirob->waiting_thread = (pthread_t)0;
@@ -178,7 +176,7 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
             sk->signal_completion(waiting_thread, CMM_DEFERRED);
         } else {
             enqueue_handler(sk->sock,
-                            pirob->send_labels, pirob->recv_labels,
+                            pirob->send_labels, 
                             (resume_handler_t)resume_operation_thunk,
                             new ResumeOperation(sk, data));
         }
@@ -214,7 +212,6 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     struct CMMSocketControlHdr hdr;
     memset(&hdr, 0, sizeof(hdr));
     hdr.send_labels = htonl(pirob->send_labels);
-    hdr.recv_labels = htonl(pirob->recv_labels);
 
     irob_id_t *deps = NULL;
 
@@ -300,7 +297,6 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
     hdr.type = htons(CMM_CONTROL_MSG_END_IROB);
     hdr.op.end_irob.id = htonl(data.id);
     hdr.send_labels = htonl(csock->local_iface.labels);
-    hdr.recv_labels = htonl(csock->remote_iface.labels);
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
@@ -342,7 +338,6 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     struct CMMSocketControlHdr hdr;
     hdr.type = htons(CMM_CONTROL_MSG_IROB_CHUNK);
     hdr.send_labels = htonl(pirob->send_labels);
-    hdr.recv_labels = htonl(pirob->recv_labels);
 
     // chunks start at seqno==1; chunk N is at pirob->chunks[N-1]
     assert(pirob->chunks.size() >= data.seqno);
@@ -388,7 +383,7 @@ CSocketSender::new_interface(struct net_interface iface)
     hdr.op.new_interface.ip_addr = iface.ip_addr;
     hdr.op.new_interface.labels = htonl(iface.labels);
 
-    hdr.send_labels = hdr.recv_labels = htonl(0);
+    hdr.send_labels = htonl(0);
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
@@ -410,7 +405,7 @@ CSocketSender::down_interface(struct net_interface iface)
     hdr.type = htons(CMM_CONTROL_MSG_DOWN_INTERFACE);
     hdr.op.down_interface.ip_addr = iface.ip_addr;
 
-    hdr.send_labels = hdr.recv_labels = htonl(0);
+    hdr.send_labels = htonl(0);
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
@@ -434,7 +429,6 @@ CSocketSender::send_acks(const IROBSchedulingData& data,
     memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_ACK);
     hdr.send_labels = htonl(csock->local_iface.labels);
-    hdr.recv_labels = htonl(csock->remote_iface.labels);
     hdr.op.ack.id = htonl(data.id);
     
     irob_id_t acked_irobs[MAX_ACKS];
@@ -491,7 +485,6 @@ CSocketSender::goodbye()
     memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_GOODBYE);
     hdr.send_labels = htonl(csock->local_iface.labels);
-    hdr.recv_labels = htonl(csock->remote_iface.labels);
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);

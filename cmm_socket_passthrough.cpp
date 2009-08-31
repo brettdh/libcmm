@@ -8,7 +8,7 @@ CMMSocketPassThrough::CMMSocketPassThrough(mc_socket_t sock_)
 
 ssize_t 
 CMMSocketPassThrough::mc_send(const void *buf, size_t len, int flags,
-                              u_long send_labels, u_long recv_labels,
+                              u_long send_labels, 
                               resume_handler_t rh, void *arg)
 {
     return send(sock, buf, len, flags);
@@ -16,7 +16,7 @@ CMMSocketPassThrough::mc_send(const void *buf, size_t len, int flags,
 
 int 
 CMMSocketPassThrough::mc_writev(const struct iovec *vec, int count,
-                                u_long send_labels, u_long recv_labels,
+                                u_long send_labels, 
                                 resume_handler_t rh, void *arg)
 {
     return writev(sock, vec, count);
@@ -80,7 +80,7 @@ CMMSocketPassThrough::check_label(u_long label, resume_handler_t fn, void *arg)
 
 irob_id_t
 CMMSocketPassThrough::mc_begin_irob(int numdeps, const irob_id_t *deps, 
-                                    u_long send_labels, u_long recv_labels,
+                                    u_long send_labels, 
                                     resume_handler_t rh, void *rh_arg)
 {
     errno = EBADF;

@@ -108,7 +108,6 @@ CSocket::phys_connect()
     struct CMMSocketControlHdr hdr;
     hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
     hdr.send_labels = 0;
-    hdr.recv_labels = 0;
     hdr.op.new_interface.ip_addr = local_iface.ip_addr;
     hdr.op.new_interface.labels = htonl(local_iface.labels);
     rc = send(osfd, &hdr, sizeof(hdr), 0);
@@ -140,7 +139,7 @@ CSocket::startup_workers()
 }
 
 bool 
-CSocket::matches(u_long send_labels, u_long recv_labels)
+CSocket::matches(u_long send_labels)
 {
-    return sk->csock_map->csock_matches(this, send_labels, recv_labels);
+    return sk->csock_map->csock_matches(this, send_labels);
 }

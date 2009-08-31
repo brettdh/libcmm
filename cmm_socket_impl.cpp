@@ -661,7 +661,7 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 
 ssize_t 
 CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
-		       u_long send_labels, u_long recv_labels,
+		       u_long send_labels, 
 		       resume_handler_t resume_handler, void *arg)
 {
     if ((ssize_t)len < 0) {
@@ -686,7 +686,7 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
     CMMSockHash::const_accessor read_ac;
     lock(read_ac);
     int rc = default_irob(id, buf, len, flags,
-                          send_labels, recv_labels, 
+                          send_labels, 
                           resume_handler, arg);
 
     TIME(end);
@@ -699,7 +699,7 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
 
 int 
 CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
-			 u_long send_labels, u_long recv_labels,
+			 u_long send_labels, 
                          resume_handler_t resume_handler, void *arg)
 {
     int rc;
@@ -731,7 +731,7 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
     labels = set_superior_label(sock, labels);	
 #endif
 
-    irob_id_t id = mc_begin_irob(-1, NULL, send_labels, recv_labels, 
+    irob_id_t id = mc_begin_irob(-1, NULL, send_labels, 
                                  resume_handler, arg);
     if (id < 0) {
         return id;
@@ -778,7 +778,7 @@ CMMSocketImpl::mc_shutdown(int how)
 
 irob_id_t 
 CMMSocketImpl::mc_begin_irob(int numdeps, const irob_id_t *deps, 
-                             u_long send_labels, u_long recv_labels,
+                             u_long send_labels, 
                              resume_handler_t rh, void *rh_arg)
 {
     irob_id_t id = -1;
@@ -790,7 +790,7 @@ CMMSocketImpl::mc_begin_irob(int numdeps, const irob_id_t *deps,
     CMMSockHash::const_accessor read_ac;
     lock(read_ac);
     int rc = begin_irob(id, numdeps, deps, 
-                        send_labels, recv_labels,
+                        send_labels, 
                         rh, rh_arg);
     if (rc < 0) {
         return rc;
@@ -973,7 +973,7 @@ CMMSocketImpl::mc_getsockopt(int level, int optname,
         assert(0);
     }
 
-    CSocketPtr csock = csock_map->csock_with_labels(0, 0);
+    CSocketPtr csock = csock_map->csock_with_labels(0);
     if (csock) {
 	return getsockopt(csock->osfd, level, optname, optval, optlen);
     } else {
@@ -1067,7 +1067,7 @@ CMMSocketImpl::mc_getpeername(struct sockaddr *address,
 	// return getpeername(sock, address, address_len);
     }
 
-    CSocketPtr csock = csock_map->csock_with_labels(0,0);
+    CSocketPtr csock = csock_map->csock_with_labels(0);
     if (!csock) {
         /* XXX: maybe instead create a connection and then proceed */
         errno = ENOTCONN;
@@ -1125,7 +1125,7 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
 
 /* only called with read accessor held on this */
 bool
-CMMSocketImpl::net_available(u_long send_labels, u_long recv_labels)
+CMMSocketImpl::net_available(u_long send_labels)
 {
     bool local_found = false;
     for (NetInterfaceSet::const_iterator it = local_ifaces.begin();
@@ -1138,25 +1138,23 @@ CMMSocketImpl::net_available(u_long send_labels, u_long recv_labels)
     if (!local_found) {
         return false;
     }
-    for (NetInterfaceSet::const_iterator it = remote_ifaces.begin();
-         it != remote_ifaces.end(); it++) { 
-        if (recv_labels == 0 || it->labels & recv_labels) {
-            return true;
-        }
+    if (!remote_ifaces.empty()) {
+        return true;
     }
+
     return false;
 }
 
 bool 
 CMMSocketImpl::net_available(mc_socket_t sock, 
-                             u_long send_labels, u_long recv_labels)
+                             u_long send_labels)
 {
     CMMSockHash::const_accessor read_ac;
     if (!cmm_sock_hash.find(read_ac, sock)) {
         return false;
     }
     CMMSocketImplPtr sk = read_ac->second;;
-    return sk->net_available(send_labels, recv_labels);
+    return sk->net_available(send_labels);
 }
 
 /* grab a readlock on this socket with the accessor. */
@@ -1211,11 +1209,11 @@ void unblock_thread_thunk(BlockingRequest *breq)
 }
 
 void 
-CMMSocketImpl::wait_for_labels(u_long send_labels, u_long recv_labels)
+CMMSocketImpl::wait_for_labels(u_long send_labels)
 {
     // pseudo-thunk to block this until it's ready to send
     prepare_app_operation();
-    enqueue_handler(sock, send_labels, recv_labels,
+    enqueue_handler(sock, send_labels, 
                     (resume_handler_t)unblock_thread_thunk, 
                     new BlockingRequest(this, pthread_self()));
     (void)wait_for_completion();
@@ -1223,23 +1221,22 @@ CMMSocketImpl::wait_for_labels(u_long send_labels, u_long recv_labels)
 }
 
 int
-CMMSocketImpl::get_csock(u_long send_labels, u_long recv_labels,
+CMMSocketImpl::get_csock(u_long send_labels, 
                          resume_handler_t resume_handler, void *rh_arg,
                          CSocket *& csock, bool blocking)
 {
     try {
-        csock = get_pointer(csock_map->new_csock_with_labels(send_labels, recv_labels));
+        csock = get_pointer(csock_map->new_csock_with_labels(send_labels));
         if (!csock) {
             if (resume_handler) {
-                enqueue_handler(sock, send_labels, recv_labels, 
+                enqueue_handler(sock, send_labels, 
                                 resume_handler, rh_arg);
                 return CMM_DEFERRED;
             } else {
                 if (blocking) {
                     while (!csock) {
-                        wait_for_labels(send_labels, recv_labels);
-                        csock = get_pointer(csock_map->new_csock_with_labels(send_labels, 
-                                                                             recv_labels));
+                        wait_for_labels(send_labels);
+                        csock = get_pointer(csock_map->new_csock_with_labels(send_labels));
                     }
                     return 0;
                 } else {
@@ -1261,7 +1258,7 @@ CMMSocketImpl::get_csock(u_long send_labels, u_long recv_labels,
 int
 CMMSocketImpl::begin_irob(irob_id_t next_irob, 
                             int numdeps, const irob_id_t *deps,
-                            u_long send_labels, u_long recv_labels,
+                            u_long send_labels, 
                             resume_handler_t resume_handler, void *rh_arg)
 {
     if (is_shutting_down()) {
@@ -1277,14 +1274,14 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
     irob_id_t id = next_irob;
 
     CSocket *csock;
-    int ret = get_csock(send_labels, recv_labels, resume_handler, rh_arg,
+    int ret = get_csock(send_labels, resume_handler, rh_arg,
                         csock, true);
     if (ret < 0) {
         return ret;
     }
 
     PendingSenderIROB *pirob = new PendingSenderIROB(id, numdeps, deps,
-                                                     send_labels, recv_labels,
+                                                     send_labels, 
                                                      resume_handler, rh_arg);
 
     prepare_app_operation();
@@ -1329,7 +1326,7 @@ CMMSocketImpl::end_irob(irob_id_t id)
 
     CSocket *csock;
     PendingIROB *pirob = NULL;
-    u_long send_labels, recv_labels;
+    u_long send_labels;
     {
         PthreadScopedLock lock(&scheduling_state_lock);
 
@@ -1344,15 +1341,14 @@ CMMSocketImpl::end_irob(irob_id_t id)
             return -1;
         }
         send_labels = pirob->send_labels;
-        recv_labels = pirob->recv_labels;
     }
 
     // prefer the IROB's labels, but fall back to any connection
-    int ret = get_csock(send_labels, recv_labels, 
+    int ret = get_csock(send_labels,
                         NULL, NULL, csock, false);
     if (ret < 0) {
-        send_labels = recv_labels = 0;
-        ret = get_csock(0, 0, NULL, NULL, csock, true);
+        send_labels = 0;
+        ret = get_csock(0, NULL, NULL, csock, true);
         if (ret < 0) {
             return ret;
         }
@@ -1368,7 +1364,7 @@ CMMSocketImpl::end_irob(irob_id_t id)
         assert(psirob->waiting_thread == 0);
         psirob->waiting_thread = pthread_self();
         
-        if (send_labels == 0 && recv_labels == 0) {
+        if (send_labels == 0) {
             irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
         } else {
             csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
@@ -1413,7 +1409,7 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
     struct timeval begin, end, diff;
     TIME(begin);
 
-    u_long send_labels, recv_labels;
+    u_long send_labels;
     resume_handler_t resume_handler;
     void *rh_arg;
     CSocket *csock;
@@ -1438,12 +1434,11 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
         psirob = dynamic_cast<PendingSenderIROB*>(pirob);
         assert(psirob);
         send_labels = psirob->send_labels;
-        recv_labels = psirob->recv_labels;
         resume_handler = psirob->resume_handler;
         rh_arg = psirob->rh_arg;
     }
 
-    int ret = get_csock(send_labels, recv_labels, 
+    int ret = get_csock(send_labels,
                        resume_handler, rh_arg, csock, true);
     if (ret < 0) {
         return ret;
@@ -1463,7 +1458,7 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 
 	psirob->add_chunk(chunk); /* writes correct seqno into struct */
 
-        if (send_labels == 0 && recv_labels == 0) {
+        if (send_labels == 0) {
             // unlabeled send; let any thread pick it up
             irob_indexes.new_chunks.insert(IROBSchedulingData(id, chunk.seqno));
         } else {
@@ -1484,7 +1479,7 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 int
 CMMSocketImpl::default_irob(irob_id_t next_irob, 
 			      const void *buf, size_t len, int flags,
-			      u_long send_labels, u_long recv_labels,
+			      u_long send_labels,
 			      resume_handler_t resume_handler, void *rh_arg)
 {
     if (is_shutting_down()) {
@@ -1500,7 +1495,7 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
     irob_id_t id = next_irob;
 
     CSocket *csock;
-    int ret = get_csock(send_labels, recv_labels, 
+    int ret = get_csock(send_labels, 
                         resume_handler, rh_arg, csock, true);
     if (ret < 0) {
         return ret;
@@ -1513,14 +1508,14 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
     prepare_app_operation();
     {
         PendingIROB *pirob = new PendingSenderIROB(id, len, data,
-						   send_labels, recv_labels,
+						   send_labels, 
                                                    resume_handler, rh_arg);
 
         PthreadScopedLock lock(&scheduling_state_lock);
         bool success = outgoing_irobs.insert(pirob);
         assert(success);
 
-        if (send_labels == 0 && recv_labels == 0) {
+        if (send_labels == 0) {
             irob_indexes.new_irobs.insert(IROBSchedulingData(id));
         } else {
             csock->irob_indexes.new_irobs.insert(IROBSchedulingData(id));
@@ -1595,7 +1590,7 @@ CMMSocketImpl::goodbye(bool remote_initiated)
     pthread_mutex_unlock(&shutdown_mutex);
 
     CSocket *csock;
-    int ret = get_csock(0, 0, NULL, NULL, csock, false);
+    int ret = get_csock(0, NULL, NULL, csock, false);
     if (ret < 0) {
         // no socket to send the goodbye; connection must be gone
         pthread_mutex_lock(&shutdown_mutex);

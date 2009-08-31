@@ -265,20 +265,20 @@ static u_long set_superior_label(mc_socket_t sock, u_long label)
 /*** CMM socket function wrappers ***/
 
 ssize_t cmm_send(mc_socket_t sock, const void *buf, size_t len, int flags,
-		 u_long send_labels, u_long recv_labels, 
+		 u_long send_labels, 
                  void (*resume_handler)(void*), void *arg)
 {
     return CMMSocket::lookup(sock)->mc_send(buf, len, flags,
-					    send_labels, recv_labels,
+					    send_labels, 
                                             resume_handler, arg);
 }
 
 int cmm_writev(mc_socket_t sock, const struct iovec *vec, int count,
-               u_long send_labels, u_long recv_labels, 
+               u_long send_labels, 
                void (*resume_handler)(void*), void *arg)
 {
     return CMMSocket::lookup(sock)->mc_writev(vec, count,
-                                              send_labels, recv_labels,
+                                              send_labels, 
                                               resume_handler, arg);
 }
 
@@ -375,9 +375,9 @@ int cmm_close(mc_socket_t sock)
 }
 
 /* if deleter is non-NULL, it will be called on the handler's arg. */
-int cmm_thunk_cancel(mc_socket_t sock, u_long send_labels, u_long recv_labels, 
+int cmm_thunk_cancel(mc_socket_t sock, u_long send_labels,
 		     void (*handler)(void*), void *arg,
 		     void (*deleter)(void*))
 {
-    return cancel_thunk(sock, send_labels, recv_labels, handler, arg, deleter);
+    return cancel_thunk(sock, send_labels, handler, arg, deleter);
 }

@@ -30,7 +30,7 @@ using std::min;
 #define CONNECT cmm_connect
 #define ACCEPT cmm_accept
 #define LISTEN cmm_listen
-#define SEND(fd, buf, len, flags) cmm_send(fd, buf, len, flags, 0, 0, NULL, NULL)
+#define SEND(fd, buf, len, flags) cmm_send(fd, buf, len, flags, 0, NULL, NULL)
 #define READ(fd, buf, len) cmm_read(fd, buf, len, NULL)
 #define CLOSE cmm_close
 #endif
@@ -126,7 +126,7 @@ void send_bytes_by_chunk_one_irob(int sock, char *buf, size_t bytes, size_t chun
     struct timeval total_time = {0, 0};
     int count = 0;
     size_t bytes_sent = 0;
-    irob_id_t irob = begin_irob(sock, 0, NULL, 0, 0, NULL, NULL);
+    irob_id_t irob = begin_irob(sock, 0, NULL, 0, NULL, NULL);
     if (irob < 0) {
 	handle_error("begin_irob", sock);
     }

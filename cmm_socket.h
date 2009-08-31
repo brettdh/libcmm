@@ -52,16 +52,16 @@ class CMMSocket {
                               const void *optval, socklen_t optlen) = 0;
 
     virtual ssize_t mc_send(const void *buf, size_t len, int flags,
-                            u_long send_labels, u_long recv_labels, 
+                            u_long send_labels, 
                             resume_handler_t resume_handler, void *arg) = 0;
     virtual int mc_writev(const struct iovec *vec, int count,
-                          u_long send_labels, u_long recv_labels, 
+                          u_long send_labels, 
                           resume_handler_t resume_handler, void *arg) = 0;
 
     virtual int mc_shutdown(int how) = 0;
     
     virtual irob_id_t mc_begin_irob(int numdeps, const irob_id_t *deps, 
-                                    u_long send_labels, u_long recv_labels,
+                                    u_long send_labels, 
                                     resume_handler_t rh, void *rh_arg) = 0;
     virtual int mc_end_irob(irob_id_t id) = 0;
     virtual ssize_t mc_irob_send(irob_id_t id, 

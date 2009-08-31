@@ -42,7 +42,7 @@ class CSocket {
     //void send(CMMSocketRequest req);
     //void remove(void);
 
-    bool matches(u_long send_labels, u_long recv_labels);
+    bool matches(u_long send_labels);
 
     int phys_connect(void);
     void startup_workers();

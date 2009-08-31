@@ -9,18 +9,18 @@
 using std::min; using std::vector;
 
 PendingReceiverIROB::PendingReceiverIROB(struct begin_irob_data begin_irob,
-					 u_long send_labels, u_long recv_labels)
+					 u_long send_labels)
     : PendingIROB(begin_irob.id, begin_irob.numdeps, begin_irob.deps,
-                  send_labels, recv_labels), offset(0), num_bytes(0)
+                  send_labels), offset(0), num_bytes(0)
 {
     partial_chunk.data = NULL;
     partial_chunk.datalen = 0;
 }
 
 PendingReceiverIROB::PendingReceiverIROB(struct default_irob_data default_irob,
-					 u_long send_labels, u_long recv_labels)
+					 u_long send_labels)
     : PendingIROB(default_irob.id, default_irob.datalen, default_irob.data,
-                  send_labels, recv_labels), offset(0),
+                  send_labels), offset(0),
       num_bytes(default_irob.datalen)
 {
     partial_chunk.data = NULL;

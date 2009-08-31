@@ -13,10 +13,9 @@ static pthread_mutex_t count_mutex = PTHREAD_MUTEX_INITIALIZER;
 ssize_t PendingIROB::obj_count = 0;
 
 PendingIROB::PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array,
-			 u_long send_labels_, u_long recv_labels_)
+			 u_long send_labels_)
     : id(id_),
       send_labels(send_labels_),
-      recv_labels(recv_labels_),
       anonymous(false),
       complete(false)
 {
@@ -34,10 +33,9 @@ PendingIROB::PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array
 }
 
 PendingIROB::PendingIROB(irob_id_t id_, size_t datalen, char *data,
-			 u_long send_labels_, u_long recv_labels_)
+			 u_long send_labels_)
     : id(id_), 
       send_labels(send_labels_), 
-      recv_labels(recv_labels_),
       anonymous(true), 
       complete(false)
 {

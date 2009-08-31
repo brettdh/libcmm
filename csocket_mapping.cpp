@@ -30,44 +30,6 @@ class LabelMatch {
   protected:
     u_long label;
 };
-
-class LocalLabelMatch : public LabelMatch {
-  public:
-    LocalLabelMatch(u_long label_) : LabelMatch(label_) {}
-    virtual bool operator()(CSocket *csock) {
-        return (label == 0) || (csock->local_iface.labels & label);
-    }
-    virtual bool operator()(CSocketPtr csock) {
-        return operator()(get_pointer(csock));
-    }
-};
-
-class RemoteLabelMatch : public LabelMatch {
-  public:
-    RemoteLabelMatch(u_long label_) : LabelMatch(label_) {}
-    virtual bool operator()(CSocket *csock) {
-        return (label == 0) || (csock->remote_iface.labels & label);
-    }
-    virtual bool operator()(CSocketPtr csock) {
-        return operator()(get_pointer(csock));
-    }
-};
-
-class BothLabelsMatch : public LabelMatch {
-  public:
-    BothLabelsMatch(u_long send_label, u_long recv_label)
-        : LabelMatch(0), /* ignored */
-          local_match(send_label), remote_match(recv_label) {}
-    virtual bool operator()(CSocket *csock) {
-        return local_match(csock) && remote_match(csock);
-    }
-    virtual bool operator()(CSocketPtr csock) {
-        return operator()(get_pointer(csock));
-    }
-  private:
-    LocalLabelMatch local_match;
-    RemoteLabelMatch remote_match;
-};
     
 CSockMapping::CSockMapping(CMMSocketImplPtr sk_)
     : sk(sk_)
@@ -149,28 +111,16 @@ CSockMapping::teardown(struct net_interface iface, bool local)
 }
 
 CSocketPtr 
-CSockMapping::csock_with_send_label(u_long label)
+CSockMapping::csock_with_labels(u_long send_label)
 {
-    return find_csock(LocalLabelMatch(label));
-}
-
-CSocketPtr 
-CSockMapping::csock_with_recv_label(u_long label)
-{
-    return find_csock(RemoteLabelMatch(label));
-}
-
-CSocketPtr 
-CSockMapping::csock_with_labels(u_long send_label, u_long recv_label)
-{
-    return find_csock(BothLabelsMatch(send_label, recv_label));
+    return find_csock(LabelMatch(send_label));
 }
 
 bool
 CSockMapping::csock_matches(CSocket *csock, 
-                            u_long send_label, u_long recv_label)
+                            u_long send_label)
 {
-    return BothLabelsMatch(send_label, recv_label)(csock);
+    return LabelMatch(send_label)(csock);
 }
 
 class IfaceMatch {
@@ -217,10 +167,10 @@ CSockMapping::get_remote_iface(u_long label, struct net_interface& iface)
 }
 
 CSocketPtr 
-CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label)
+CSockMapping::new_csock_with_labels(u_long send_label)
 {
     {
-        CSocketPtr csock = csock_with_labels(send_label, recv_label);
+        CSocketPtr csock = csock_with_labels(send_label);
         if (csock) {
             return csock;
         }
@@ -228,7 +178,7 @@ CSockMapping::new_csock_with_labels(u_long send_label, u_long recv_label)
 
     struct net_interface local_iface, remote_iface;
     if (!(get_local_iface(send_label, local_iface) &&
-          get_remote_iface(recv_label, remote_iface))) {
+          get_remote_iface(0, remote_iface))) { // pick any remote iface
         /* one of the desired labels wasn't available */
         return CSocketPtr();
     }

@@ -61,12 +61,7 @@ typedef void (*resume_handler_t)(void* arg);
 
 /* sending operations.
  *
- * send_labels specify desired characteristics of local interfaces;
- *  recv_labels, of remote interfaces.  In one general case,
- *  recv_labels allow request/response applications to send responses
- *  via the same channel on which the corresponding request was
- *  received.  (See cmm_read below, which records the sender's
- *  labels.)
+ * send_labels specify desired characteristics of network connections.
  *
  * These functions create "anonymous" IROBs (see libcmm_irob.h) that depend
  *  upon all other IROBs currently in flight. Additionally, all IROBs 
@@ -79,10 +74,10 @@ typedef void (*resume_handler_t)(void* arg);
  *  potential performance gains by reordering.
  */
 ssize_t cmm_send(mc_socket_t sock, const void *buf, size_t len, int flags,
-		 u_long send_labels, u_long recv_labels, 
+		 u_long send_labels, 
                  resume_handler_t handler, void *arg);
 int cmm_writev(mc_socket_t sock, const struct iovec *vector, int count,
-               u_long send_labels, u_long recv_labels, 
+               u_long send_labels, 
                resume_handler_t handler, void *arg);
 
 /* receiving operations.

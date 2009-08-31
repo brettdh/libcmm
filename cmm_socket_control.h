@@ -71,7 +71,6 @@ struct ack_data {
 struct CMMSocketControlHdr {
     short type;
     u_long send_labels;
-    u_long recv_labels;
     short msgtype() { return type; }
     void settype(short t) { type = t; }
     union {

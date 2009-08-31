@@ -9,10 +9,10 @@ void
 PendingIROBLatticeTest::setUp()
 {
     pirobs = new PendingIROBLattice();
-    pirob0 = new PendingIROB(0, 20, new char[20], 0, 0);
-    pirob1 = new PendingIROB(1, 20, new char[20], 0, 0);
-    pirob2 = new PendingIROB(2, 20, new char[20], 0, 0);
-    pirob3 = new PendingIROB(3, 20, new char[20], 0, 0);
+    pirob0 = new PendingIROB(0, 20, new char[20], 0);
+    pirob1 = new PendingIROB(1, 20, new char[20], 0);
+    pirob2 = new PendingIROB(2, 20, new char[20], 0);
+    pirob3 = new PendingIROB(3, 20, new char[20], 0);
 }
 
 void 
@@ -62,7 +62,7 @@ PendingIROBLatticeTest::testErase()
     
     CPPUNIT_ASSERT(pirobs->empty() == true);
 
-    PendingIROB *pirob42 = new PendingIROB(42, 20, new char[20], 0, 0);
+    PendingIROB *pirob42 = new PendingIROB(42, 20, new char[20], 0);
     CPPUNIT_ASSERT(pirobs->insert(pirob42) == true);
     CPPUNIT_ASSERT(pirobs->find(42) == pirob42);
     CPPUNIT_ASSERT(pirobs->erase(42) == true);

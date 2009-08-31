@@ -19,28 +19,28 @@ ReceiverLatticeTest::setUp()
     default_irob.id = 0;
     default_irob.datalen = sizeof(int);
     default_irob.data = (char*)new_int;
-    pirob_array[0] = new PendingReceiverIROB(default_irob, 0, 0);
+    pirob_array[0] = new PendingReceiverIROB(default_irob, 0);
 
     new_int = (int*)new char[sizeof(int)];
     *new_int = 1;
     default_irob.id = 1;
     default_irob.datalen = sizeof(int);
     default_irob.data = (char*)new_int;
-    pirob_array[1] = new PendingReceiverIROB(default_irob, 0, 0);
+    pirob_array[1] = new PendingReceiverIROB(default_irob, 0);
 
     new_int = (int*)new char[sizeof(int)];
     *new_int = 2;
     default_irob.id = 2;
     default_irob.datalen = sizeof(int);
     default_irob.data = (char*)new_int;
-    pirob_array[2] = new PendingReceiverIROB(default_irob, 0, 0);
+    pirob_array[2] = new PendingReceiverIROB(default_irob, 0);
     
     new_int = (int*)new char[sizeof(int)];
     *new_int = 3;
     default_irob.id = 3;
     default_irob.datalen = sizeof(int);
     default_irob.data = (char*)new_int;
-    pirob_array[3] = new PendingReceiverIROB(default_irob, 0, 0);
+    pirob_array[3] = new PendingReceiverIROB(default_irob, 0);
 }
 
 void

@@ -130,8 +130,7 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     hdr.op.begin_irob.numdeps = ntohl(hdr.op.begin_irob.numdeps);
 
     PendingIROB *pirob = new PendingReceiverIROB(hdr.op.begin_irob,
-						 ntohl(hdr.send_labels),
-						 ntohl(hdr.recv_labels));
+						 ntohl(hdr.send_labels));
     
     {
         PthreadScopedLock lock(&sk->scheduling_state_lock);
@@ -292,8 +291,7 @@ void CSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
     default_irob.datalen = ntohl(hdr.op.default_irob.datalen);
     /* modify data structures */
     PendingReceiverIROB *pirob = new PendingReceiverIROB(default_irob,
-                                                         ntohl(hdr.send_labels),
-                                                         ntohl(hdr.recv_labels));
+                                                         ntohl(hdr.send_labels));
     {
         PthreadScopedLock lock(&sk->scheduling_state_lock);
         if (!sk->incoming_irobs.insert(pirob)) {

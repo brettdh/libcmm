@@ -31,9 +31,9 @@ typedef std::set<irob_id_t> irob_id_set;
 class PendingIROB {
   public:
     PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array,
-		u_long send_labels, u_long recv_labels);
+		u_long send_labels);
     PendingIROB(irob_id_t id_, size_t datalen, char *data,
-		u_long send_labels, u_long recv_labels);
+		u_long send_labels);
     virtual ~PendingIROB();
 
     /* return true on success; false if action is invalid */
@@ -74,7 +74,6 @@ class PendingIROB {
     /* all integers here are in host byte order */
     irob_id_t id;
     u_long send_labels;
-    u_long recv_labels;
 
     /* same here; host byte order */
     irob_id_set deps;
@@ -182,7 +181,6 @@ struct IROBSchedulingData {
     irob_id_t id;
     u_long seqno; // may be INVALID_IROB_SEQNO
     //u_long send_labels;
-    //u_long recv_labels;
     // add scheduling hints later
 };
 

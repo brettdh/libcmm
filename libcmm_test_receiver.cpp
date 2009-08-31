@@ -89,7 +89,7 @@ void * Worker(void * arg)
         rc = send(sock, &ch, sizeof(ch), 0);
 #else
         rc = cmm_send(sock, &ch, sizeof(ch), 0, 
-                      0, sender_labels, NULL, NULL);
+                      sender_labels, NULL, NULL);
 #endif
 	TIME(end);
         if (rc != sizeof(ch)) {

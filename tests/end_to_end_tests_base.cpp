@@ -189,11 +189,11 @@ EndToEndTestsBase::testRandomBytesReceivedCorrectly()
         
         printf("Sending %d random bytes and digest\n", bytes);
         int nbytes = htonl(bytes);
-        rc = cmm_send(send_sock, &nbytes, sizeof(nbytes), 0, 0, 0, NULL, NULL);
+        rc = cmm_send(send_sock, &nbytes, sizeof(nbytes), 0, 0, NULL, NULL);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending message size", 
                                      (int)sizeof(nbytes), rc);
         
-        rc = cmm_send(send_sock, buf, bytes, 0, 0, 0, NULL, NULL);
+        rc = cmm_send(send_sock, buf, bytes, 0, 0, NULL, NULL);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending message", bytes, rc);
         
         unsigned char my_digest[SHA_DIGEST_LENGTH];
@@ -202,7 +202,7 @@ EndToEndTestsBase::testRandomBytesReceivedCorrectly()
                                      (unsigned char*)my_digest, result);
         
         rc = cmm_send(send_sock, my_digest, SHA_DIGEST_LENGTH, 0, 
-                      0, 0, NULL, NULL);
+                      0, NULL, NULL);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending digest", SHA_DIGEST_LENGTH, rc);
 
         printf("Sender finished.\n");

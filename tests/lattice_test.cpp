@@ -13,17 +13,17 @@ LatticeTest::setUp()
     pirobs = new PendingIROBLattice();
 
     irob_id_t id = 0;
-    pirob_array[0] = new PendingIROB(0, 0, NULL, 0, 0);
-    pirob_array[1] = new PendingIROB(1, 1, &id, 0, 0);
-    pirob_array[2] = new PendingIROB(2, 1, &id, 0, 0);
-    pirob_array[3] = new PendingIROB(3, 0, NULL, 0, 0);
-    pirob_array[4] = new PendingIROB(4, 20, new char[20], 0, 0);
-    pirob_array[5] = new PendingIROB(5, 0, NULL, 0, 0);
-    pirob_array[6] = new PendingIROB(6, 0, NULL, 0, 0);
+    pirob_array[0] = new PendingIROB(0, 0, NULL, 0);
+    pirob_array[1] = new PendingIROB(1, 1, &id, 0);
+    pirob_array[2] = new PendingIROB(2, 1, &id, 0);
+    pirob_array[3] = new PendingIROB(3, 0, NULL, 0);
+    pirob_array[4] = new PendingIROB(4, 20, new char[20], 0);
+    pirob_array[5] = new PendingIROB(5, 0, NULL, 0);
+    pirob_array[6] = new PendingIROB(6, 0, NULL, 0);
     id = 6;
-    pirob_array[7] = new PendingIROB(7, 1, &id, 0, 0);
-    pirob_array[8] = new PendingIROB(8, 20, new char[20], 0, 0);
-    pirob_array[9] = new PendingIROB(9, 20, new char[20], 0, 0);
+    pirob_array[7] = new PendingIROB(7, 1, &id, 0);
+    pirob_array[8] = new PendingIROB(8, 20, new char[20], 0);
+    pirob_array[9] = new PendingIROB(9, 20, new char[20], 0);
 }
 
 void
