@@ -287,9 +287,9 @@ class CMMSocketImpl : public CMMSocket {
     /* shortcut utility functions for hashtable-based rwlocking.  */
 
     /* grab a readlock on this socket with the accessor. */
-    void lock(CMMSockHash::const_accessor& ac);
+    void read_lock(CMMSockHash::const_accessor& ac);
     /* grab a writelock on this socket with the accessor. */
-    void lock(CMMSockHash::accessor& ac);
+    void write_lock(CMMSockHash::accessor& ac);
 };
 
 class CMMSocketPassThrough : public CMMSocket {

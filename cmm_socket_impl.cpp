@@ -142,7 +142,7 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
     
         PthreadScopedLock scoped_lock(&hashmaps_mutex);
         CMMSockHash::accessor ac;
-        lock(ac);
+        write_lock(ac);
         for (NetInterfaceSet::iterator it = ifaces.begin();
              it != ifaces.end(); it++) {
             
@@ -155,7 +155,7 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
         }
         
         //CMMSockHash::accessor ac;
-        //lock(ac);
+        //write_lock(ac);
 
         if (bootstrap_sock != -1) {
             /* we are accepting a connection */
@@ -739,11 +739,11 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
     irob_id_t id = -1;
     {
         CMMSockHash::accessor write_ac;
-        lock(write_ac);
+        write_lock(write_ac);
         id = next_irob++;
     }
     CMMSockHash::const_accessor read_ac;
-    lock(read_ac);
+    read_lock(read_ac);
 
     int rc = default_irob(id, buf, len, flags,
                           send_labels, 
@@ -795,11 +795,11 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
     irob_id_t id = -1;
     {
         CMMSockHash::accessor write_ac;
-        lock(write_ac);
+        write_lock(write_ac);
         id = next_irob++;
     }
     CMMSockHash::const_accessor read_ac;
-    lock(read_ac);
+    read_lock(read_ac);
 
     dbgprintf("Calling default_irob with %d bytes\n", total_bytes);
     int rc = default_irob_writev(id, vec, count, total_bytes,
@@ -849,11 +849,11 @@ CMMSocketImpl::mc_begin_irob(int numdeps, const irob_id_t *deps,
     irob_id_t id = -1;
     {
         CMMSockHash::accessor write_ac;
-        lock(write_ac);
+        write_lock(write_ac);
         id = next_irob++;
     }
     CMMSockHash::const_accessor read_ac;
-    lock(read_ac);
+    read_lock(read_ac);
     int rc = begin_irob(id, numdeps, deps, 
                         send_labels, 
                         rh, rh_arg);
@@ -873,7 +873,7 @@ int
 CMMSocketImpl::mc_end_irob(irob_id_t id)
 {
     CMMSockHash::const_accessor read_ac;
-    lock(read_ac);
+    read_lock(read_ac);
     int rc = end_irob(id);
     if (rc == 0) {
 	irob_sock_hash.erase(id);
@@ -886,7 +886,7 @@ CMMSocketImpl::mc_irob_send(irob_id_t id,
                             const void *buf, size_t len, int flags)
 {
     CMMSockHash::const_accessor read_ac;
-    lock(read_ac);
+    read_lock(read_ac);
     return irob_chunk(id, buf, len, flags);
 }
 
@@ -1031,7 +1031,7 @@ int
 CMMSocketImpl::mc_read(void *buf, size_t count, u_long *recv_labels)
 {
     CMMSockHash::const_accessor ac;
-    lock(ac);
+    read_lock(ac);
 
     struct timeval begin, end, diff;
     TIME(begin);
@@ -1191,8 +1191,8 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
 void
 CMMSocketImpl::teardown(struct net_interface iface, bool local)
 {
-    CMMSockHash::accessor read_ac;
-    lock(read_ac);
+    CMMSockHash::accessor ac;
+    write_lock(ac);
     
     csock_map->teardown(iface, local);
 
@@ -1242,7 +1242,7 @@ CMMSocketImpl::net_available(mc_socket_t sock,
 
 /* grab a readlock on this socket with the accessor. */
 void 
-CMMSocketImpl::lock(CMMSockHash::const_accessor& ac)
+CMMSocketImpl::read_lock(CMMSockHash::const_accessor& ac)
 {
     //dbgprintf("Begin: read-lock msocket %d\n", sock);
     if (!cmm_sock_hash.find(ac, sock)) {
@@ -1255,7 +1255,7 @@ CMMSocketImpl::lock(CMMSockHash::const_accessor& ac)
 
 /* grab a writelock on this socket with the accessor. */
 void 
-CMMSocketImpl::lock(CMMSockHash::accessor& ac)
+CMMSocketImpl::write_lock(CMMSockHash::accessor& ac)
 {
     //dbgprintf("Begin: write-lock msocket %d\n", sock);
     if (!cmm_sock_hash.find(ac, sock)) {
