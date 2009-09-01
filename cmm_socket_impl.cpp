@@ -304,10 +304,9 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
         close(sock);
         return 0;
     } else {
-	fprintf(stderr, "Warning: cmm_close()ing a socket that's not "
-		"in my hash\n");
-	errno = EBADF;
-	return -1;
+	dbgprintf("Warning: cmm_close()ing a socket that's not "
+                  "in my hash\n");
+        return close(sock);
     }
 }
 
