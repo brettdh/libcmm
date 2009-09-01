@@ -746,9 +746,11 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
     }
     CMMSockHash::const_accessor read_ac;
     lock(read_ac);
-    int rc = default_irob(id, vec, count, total_bytes,
-                          send_labels, 
-                          resume_handler, arg);
+
+    dbgprintf("Calling default_irob with %d bytes\n", total_bytes);
+    int rc = default_irob_writev(id, vec, count, total_bytes,
+                                 send_labels, 
+                                 resume_handler, arg);
 
     TIME(end);
     TIMEDIFF(begin, end, diff);
@@ -1532,10 +1534,11 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
 }
 
 int
-CMMSocketImpl::default_irob(irob_id_t next_irob, 
-                            struct iovec *vec, int count, ssize_t total_bytes,
-                            u_long send_labels,
-                            resume_handler_t resume_handler, void *rh_arg)
+CMMSocketImpl::default_irob_writev(irob_id_t next_irob, 
+                                   const struct iovec *vec, int count, 
+                                   ssize_t total_bytes,
+                                   u_long send_labels,
+                                   resume_handler_t resume_handler, void *rh_arg)
 {
     struct timeval begin, end, diff;
     TIME(begin);
@@ -1555,6 +1558,7 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
     }
     assert(bytes_copied == total_bytes);
 
+    dbgprintf("Calling send_default_irob with %d bytes\n", total_bytes);
     rc = send_default_irob(next_irob, csock, data, total_bytes, 
                            send_labels, resume_handler, rh_arg);
 

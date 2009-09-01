@@ -169,10 +169,11 @@ class CMMSocketImpl : public CMMSocket {
 		     const void *buf, size_t len, int flags,
 		     u_long send_labels, 
 		     resume_handler_t resume_handler, void *arg);
-    int default_irob(irob_id_t next_irob, 
-                     struct iovec *vec, int count, ssize_t total_bytes,
-                     u_long send_labels,
-                     resume_handler_t resume_handler, void *rh_arg);
+    int default_irob_writev(irob_id_t next_irob, 
+                            const struct iovec *vec, int count, 
+                            ssize_t total_bytes,
+                            u_long send_labels,
+                            resume_handler_t resume_handler, void *rh_arg);
     int validate_default_irob(u_long send_labels,
                               resume_handler_t resume_handler, void *rh_arg,
                               CSocket *& csock);
