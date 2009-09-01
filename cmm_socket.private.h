@@ -146,6 +146,8 @@ class CMMSocketImpl : public CMMSocket {
 
     mc_socket_t sock; /* file-descriptor handle for this multi-socket */
 
+    int select_pipe[2]; /* pipe for waking up read-selects */
+
     CSockMapping *csock_map;
 
     NetInterfaceSet local_ifaces;
@@ -273,9 +275,10 @@ class CMMSocketImpl : public CMMSocket {
 
     irob_id_t next_irob;
 
+    void get_fds_for_select(mcSocketOsfdPairList &osfd_list, bool reading);
     static int make_real_fd_set(int nfds, fd_set *fds,
                                 mcSocketOsfdPairList &osfd_list, 
-                                int *maxosfd);
+                                int *maxosfd, bool reading);
     static int make_mc_fd_set(fd_set *fds, 
                               const mcSocketOsfdPairList &osfd_list);
 

@@ -123,6 +123,13 @@ PendingReceiverIROBLattice::~PendingReceiverIROBLattice()
     delete partially_read_irob;
 }
 
+bool
+PendingReceiverIROBLattice::data_is_ready()
+{
+    PthreadScopedLock lock(&sk->scheduling_state_lock);
+    return (!ready_irobs.empty());
+}
+
 /* REQ: call with scheduling_state_lock held
  *
  * There's a race on partially_read_irob between get_ready_irob and 
@@ -186,6 +193,10 @@ PendingReceiverIROBLattice::get_ready_irob()
 void
 PendingReceiverIROBLattice::release(irob_id_t id)
 {
+    if (ready_irobs.empty()) {
+        char c = 42; // value will be ignored
+        (void)write(sk->select_pipe[1], &c, 1);
+    }
     ready_irobs.insert(id);
 #ifndef CMM_UNIT_TESTING
     pthread_cond_broadcast(&sk->scheduling_state_cv);

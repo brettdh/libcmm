@@ -62,6 +62,8 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
     /* Hard rule: this won't ever return a non-ready IROB. */
     PendingReceiverIROB *get_ready_irob();
 
+    bool data_is_ready();
+
     // must call with sk->scheduling_state_lock held
     template <typename Predicate>
     void release_if_ready(PendingReceiverIROB *pirob, Predicate is_ready);

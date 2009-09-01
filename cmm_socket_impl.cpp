@@ -310,6 +310,12 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
     }
 }
 
+static void
+set_non_blocking(int fd)
+{
+    int flags = fcntl(fd, F_GETFL);
+    (void)fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+}
 
 CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
     : listener_thread(NULL),
@@ -326,6 +332,14 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
 	/* invalid params, or no more FDs/memory left. */
 	throw sock; /* :-) */
     }
+
+    int rc = pipe(select_pipe);
+    if (rc < 0) { 
+        close(sock);
+        throw rc;
+    }
+    set_non_blocking(select_pipe[0]);
+    set_non_blocking(select_pipe[1]);
 
     /* so we can identify this FD as a mc_socket later */
     /* XXX: This won't work when we yank out Juggler. */
@@ -433,6 +447,23 @@ CMMSocketImpl::set_all_sockopts(int osfd)
     return 0;
 }
 
+void
+CMMSocketImpl::get_fds_for_select(mcSocketOsfdPairList &osfd_list,
+                                  bool reading)
+{
+    if (reading) {
+        osfd_list.push_back(make_pair(sock, select_pipe[0]));
+        if (incoming_irobs.data_is_ready()) {
+            // select can return now, so make sure it does
+            char c = 42; // value will be ignored
+            int rc = write(select_pipe[1], &c, 1);
+            assert(rc == 1);
+        }
+    } else {
+        csock_map->get_real_fds(osfd_list);
+    }
+}
+
 /* assume the fds in mc_fds are mc_socket_t's.  
  * add the real osfds to os_fds, and
  * also put them in osfd_list, so we can iterate through them. 
@@ -440,7 +471,7 @@ CMMSocketImpl::set_all_sockopts(int osfd)
 int 
 CMMSocketImpl::make_real_fd_set(int nfds, fd_set *fds,
 				mcSocketOsfdPairList &osfd_list, 
-				int *maxosfd)
+				int *maxosfd, bool reading = false)
 {
     if (!fds) {
 	return 0;
@@ -461,7 +492,7 @@ CMMSocketImpl::make_real_fd_set(int nfds, fd_set *fds,
 	    FD_CLR(s, fds);
 	    CMMSocketImplPtr sk = ac->second;
 	    assert(sk);
-	    sk->csock_map->get_real_fds(osfd_list);
+	    sk->get_fds_for_select(osfd_list, reading);
 	    if (osfd_list.size() == 0) {
 #if 0
 		/* XXX: what about the nonblocking case? */
@@ -541,13 +572,6 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
 
     fprintf(stderr, "libcmm: mc_select: making real fd_sets\n");
 
-    if (readfds) {
-	tmp_readfds = *readfds;
-	rc = make_real_fd_set(nfds, &tmp_readfds, readosfd_list, &maxosfd);
-        if (rc < 0) {
-            return -1;
-        }
-    }
     if (writefds) {
 	tmp_writefds = *writefds;
 	rc = make_real_fd_set(nfds, &tmp_writefds, writeosfd_list, &maxosfd);
@@ -560,6 +584,13 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
 	rc = make_real_fd_set(nfds, &tmp_exceptfds, exceptosfd_list,&maxosfd);
         if (rc < 0) {
           return -1;
+        }
+    }
+    if (readfds) {
+	tmp_readfds = *readfds;
+	rc = make_real_fd_set(nfds, &tmp_readfds, readosfd_list, &maxosfd, true);
+        if (rc < 0) {
+            return -1;
         }
     }
 
@@ -578,10 +609,33 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
     }
 
     /* map osfds back to mc_sockets, and correct for duplicates */
-    rc -= make_mc_fd_set(&tmp_readfds, readosfd_list);
     rc -= make_mc_fd_set(&tmp_writefds, writeosfd_list);
     rc -= make_mc_fd_set(&tmp_exceptfds, exceptosfd_list);
-
+    int read_fd_count = make_mc_fd_set(&tmp_readfds, readosfd_list);
+    rc -= read_fd_count;
+    if (read_fd_count > 0) {
+        for (int i = 0; i < nfds - 1; ++i) {
+            if (FD_ISSET(i, &tmp_readfds)) {
+                CMMSockHash::const_accessor ac;
+                if (!cmm_sock_hash.find(ac, i)) {
+                    /* This must be a real file descriptor, 
+                     * not a mc_socket.  Skip it. */
+                    continue;
+                }
+                
+                CMMSocketImplPtr sk = ac->second;
+                assert(sk);
+                char junk;
+                int ret = read(sk->select_pipe[0], &junk, 1);
+                if (ret != 1) {
+                    // someone else got this select; a read might block.
+                    // but then again, multiple threads selecting on
+                    // the same socket is iffy to begin with
+                }
+            }
+        }
+    }
+    
     if (readfds)   { *readfds   = tmp_readfds;   }
     if (writefds)  { *writefds  = tmp_writefds;  }
     if (exceptfds) { *exceptfds = tmp_exceptfds; }
