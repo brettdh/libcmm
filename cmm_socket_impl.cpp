@@ -196,6 +196,12 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
 mc_socket_t
 CMMSocketImpl::create(int family, int type, int protocol)
 {
+    if (family != PF_INET) {
+        // TODO: remove this restriction and support 
+        // more socket types.
+        return socket(family, type, protocol);
+    }
+
     CMMSocketImplPtr new_sk;
     mc_socket_t new_sock = -1;
     try {
@@ -896,10 +902,28 @@ CMMSocketImpl::interface_down(struct net_interface down_iface)
 int 
 CMMSocketImpl::mc_listen(int listener_sock, int backlog)
 {
-    int rc = listen(listener_sock, backlog);
-    if (rc < 0) {
-        return rc;
+    struct sockaddr addr;
+    socklen_t len = sizeof(addr);
+    int gsn_rc = getsockname(listener_sock, (struct sockaddr *)&addr, &len);
+    if (gsn_rc < 0) {
+        dbgprintf("mc_listen: getsockname failed, errno=%d\n", errno);
+        if (errno != ENOTSOCK) {
+            errno = EBADF;
+        }
+        return -1;
+    } else {
+        int rc = listen(listener_sock, backlog);
+        if (rc < 0) {
+            return rc;
+        }
+
+        if (addr.sa_family != AF_INET) {
+            // do pass-through for all other socket types,
+            // since we only support AF_INET right now
+            return rc;
+        }
     }
+
     pthread_mutex_lock(&hashmaps_mutex);
     {
         VanillaListenerSet::const_accessor ac;
