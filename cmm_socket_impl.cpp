@@ -690,6 +690,7 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
     }
     CMMSockHash::const_accessor read_ac;
     lock(read_ac);
+
     int rc = default_irob(id, buf, len, flags,
                           send_labels, 
                           resume_handler, arg);
@@ -707,8 +708,6 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
 			 u_long send_labels, 
                          resume_handler_t resume_handler, void *arg)
 {
-    int rc;
-    
     if (count < 0) {
 	errno = EINVAL;
 	return -1;
@@ -736,22 +735,27 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
     labels = set_superior_label(sock, labels);	
 #endif
 
-    irob_id_t id = mc_begin_irob(-1, NULL, send_labels, 
-                                 resume_handler, arg);
-    if (id < 0) {
-        return id;
-    }
+    struct timeval begin, end, diff;
+    TIME(begin);
     
-    int bytes = mc_irob_writev(id, vec, count);
-    if (bytes != total_bytes) {
-        return bytes;
+    irob_id_t id = -1;
+    {
+        CMMSockHash::accessor write_ac;
+        lock(write_ac);
+        id = next_irob++;
     }
+    CMMSockHash::const_accessor read_ac;
+    lock(read_ac);
+    int rc = default_irob(id, vec, count, total_bytes,
+                          send_labels, 
+                          resume_handler, arg);
 
-    rc = mc_end_irob(id);
-    if (rc < 0) {
-        return rc;
-    }
-    return bytes;
+    TIME(end);
+    TIMEDIFF(begin, end, diff);
+    dbgprintf("mc_writev (%d bytes) took %lu.%06lu seconds, start-to-finish\n", 
+	      rc, diff.tv_sec, diff.tv_usec);
+    
+    return rc;
 }
 
 struct shutdown_each {
@@ -1501,9 +1505,71 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 
 int
 CMMSocketImpl::default_irob(irob_id_t next_irob, 
-			      const void *buf, size_t len, int flags,
-			      u_long send_labels,
-			      resume_handler_t resume_handler, void *rh_arg)
+                            const void *buf, size_t len, int flags,
+                            u_long send_labels,
+                            resume_handler_t resume_handler, void *rh_arg)
+{
+    struct timeval begin, end, diff;
+    TIME(begin);
+
+    CSocket *csock = NULL;
+    int rc = validate_default_irob(send_labels, resume_handler, rh_arg, csock);
+    if (rc < 0) {
+        return rc;
+    }
+
+    char *data = new char[len];
+    memcpy(data, buf, len);
+    rc = send_default_irob(next_irob, csock, data, len, 
+                           send_labels, resume_handler, rh_arg);
+    
+    TIME(end);
+    TIMEDIFF(begin, end, diff);
+    dbgprintf("Completed request in %lu.%06lu seconds (default_irob_send)\n",
+	      diff.tv_sec, diff.tv_usec);
+
+    return rc;
+}
+
+int
+CMMSocketImpl::default_irob(irob_id_t next_irob, 
+                            struct iovec *vec, int count, ssize_t total_bytes,
+                            u_long send_labels,
+                            resume_handler_t resume_handler, void *rh_arg)
+{
+    struct timeval begin, end, diff;
+    TIME(begin);
+
+    CSocket *csock = NULL;
+    int rc = validate_default_irob(send_labels, resume_handler, rh_arg, csock);
+    if (rc < 0) {
+        return rc;
+    }
+
+    char *data = new char[total_bytes];
+    ssize_t bytes_copied = 0;
+    for (int i = 0; i < count; ++i) {
+        memcpy(data + bytes_copied, vec[i].iov_base, vec[i].iov_len);
+        bytes_copied += vec[i].iov_len;
+        assert(bytes_copied <= total_bytes);
+    }
+    assert(bytes_copied == total_bytes);
+
+    rc = send_default_irob(next_irob, csock, data, total_bytes, 
+                           send_labels, resume_handler, rh_arg);
+
+    TIME(end);
+    TIMEDIFF(begin, end, diff);
+    dbgprintf("Completed request in %lu.%06lu seconds (default_irob_writev)\n",
+	      diff.tv_sec, diff.tv_usec);
+
+    return rc;
+}
+
+int
+CMMSocketImpl::validate_default_irob(u_long send_labels,
+                                     resume_handler_t resume_handler, void *rh_arg,
+                                     CSocket *& csock)
 {
     if (is_shutting_down()) {
 	dbgprintf("Tried to send default IROB, but mc_socket %d is shutting down\n", 
@@ -1512,25 +1578,24 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
 	return CMM_FAILED;
     }
 
-    struct timeval begin, end, diff;
-    TIME(begin);
-
-    irob_id_t id = next_irob;
-
-    CSocket *csock;
-    int ret = get_csock(send_labels, 
-                        resume_handler, rh_arg, csock, true);
+    int ret = get_csock(send_labels, resume_handler, rh_arg, csock, true);
     if (ret < 0) {
         return ret;
     }
     assert(csock);
 
-    char *data = new char[len];
-    memcpy(data, buf, len);
+    return 0;
+}
 
+int
+CMMSocketImpl::send_default_irob(irob_id_t id, CSocket *csock,
+                                 char *buf, size_t len,
+                                 u_long send_labels,
+                                 resume_handler_t resume_handler, void *rh_arg)
+{
     prepare_app_operation();
     {
-        PendingIROB *pirob = new PendingSenderIROB(id, len, data,
+        PendingIROB *pirob = new PendingSenderIROB(id, len, buf,
 						   send_labels, 
                                                    resume_handler, rh_arg);
 
@@ -1547,10 +1612,6 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
     }
     
     long rc = wait_for_completion();
-    TIME(end);
-    TIMEDIFF(begin, end, diff);
-    dbgprintf("Completed request in %lu.%06lu seconds (default_irob)\n",
-	      diff.tv_sec, diff.tv_usec);
 
     return rc;
 }

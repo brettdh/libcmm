@@ -164,10 +164,23 @@ class CMMSocketImpl : public CMMSocket {
                    resume_handler_t resume_handler, void *rh_arg);
     int end_irob(irob_id_t id);
     long irob_chunk(irob_id_t, const void *buf, size_t len, int flags);
+
     int default_irob(irob_id_t next_irob, 
 		     const void *buf, size_t len, int flags,
 		     u_long send_labels, 
 		     resume_handler_t resume_handler, void *arg);
+    int default_irob(irob_id_t next_irob, 
+                     struct iovec *vec, int count, ssize_t total_bytes,
+                     u_long send_labels,
+                     resume_handler_t resume_handler, void *rh_arg);
+    int validate_default_irob(u_long send_labels,
+                              resume_handler_t resume_handler, void *rh_arg,
+                              CSocket *& csock);
+    int send_default_irob(irob_id_t id, CSocket *csock,
+                          char *buf, size_t len,
+                          u_long send_labels,
+                          resume_handler_t resume_handler, void *rh_arg);
+
     void new_interface(struct in_addr ip_addr, u_long labels);
     void down_interface(struct in_addr ip_addr);
     void ack(irob_id_t id, u_long seqno, 
