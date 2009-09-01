@@ -165,7 +165,7 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
             /* we are connecting */
             assert(remote_addr);
 
-            bootstrap_sock = socket(PF_INET, SOCK_STREAM, 0);
+            bootstrap_sock = socket(sock_family, sock_type, sock_protocol);
             if (bootstrap_sock < 0) {
                 throw bootstrap_sock;
             }

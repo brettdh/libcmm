@@ -75,6 +75,8 @@ CSocket::phys_connect()
 {
     struct sockaddr_in local_addr, remote_addr;
     
+    // XXX-TODO: don't assume it's an inet socket
+
     local_addr.sin_family = AF_INET;
     local_addr.sin_addr = local_iface.ip_addr;
     local_addr.sin_port = 0;
