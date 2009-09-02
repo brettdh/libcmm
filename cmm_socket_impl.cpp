@@ -461,6 +461,9 @@ CMMSocketImpl::get_fds_for_select(mcSocketOsfdPairList &osfd_list,
             assert(rc == 1);
             dbgprintf("read-selecting on msocket %d, which has data ready\n",
                       sock);
+        } else {
+            dbgprintf("read-selecting on msocket %d, no data ready yet\n",
+                      sock);
         }
     } else {
         csock_map->get_real_fds(osfd_list);
@@ -558,7 +561,7 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
 			 fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 			 struct timeval *timeout)
 {
-    int maxosfd = nfds;
+    int maxosfd = nfds - 1;
     int rc;
 
     /* these lists will be populated with the mc_socket mappings
@@ -597,7 +600,7 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
         }
     }
 
-    dbgprintf("libcmm: about to call select()\n");
+    dbgprintf("libcmm: about to call select(), maxosfd=%d\n", maxosfd);
 
     unblock_select_signals();
     rc = select(maxosfd + 1, &tmp_readfds, &tmp_writefds, &tmp_exceptfds, 
