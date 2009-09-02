@@ -44,8 +44,15 @@ CSocketSender::Run()
             }
             
             if (csock->csock_recvr == NULL) {
-                if (sk->goodbye_sent) {
+                dbgprintf("Hmm, the receiver died.  Checking why.\n");
+                if (sk->is_shutting_down() && sk->goodbye_sent) {
                     throw std::runtime_error("Connection closed");
+                } else {
+                    struct CMMSocketControlHdr hdr;
+                    hdr.type = htons(CMM_CONTROL_MSG_GOODBYE);
+                    throw CMMControlException("Receiver died due to "
+                                              "socket error; "
+                                              "sender is quitting", hdr);
                 }
             }
 
@@ -63,9 +70,13 @@ CSocketSender::Run()
     } catch (CMMControlException& e) {
         //csock->remove();
         sk->csock_map->remove_csock(csock);
-        CSocketPtr replacement = 
-            sk->csock_map->new_csock_with_labels(0);
-        if (!replacement) {
+        CSocketPtr replacement = sk->csock_map->new_csock_with_labels(0);
+        if (replacement) {
+            // pass off any work I didn't get to finish; it will
+            //  be passed to the correct thread or deferred
+            //  as appropriate
+            replacement->irob_indexes = csock->irob_indexes;
+        } else {
             // this connection is hosed, so make sure everything
             // gets cleaned up as if we had done a graceful shutdown
             PthreadScopedLock lock(&sk->shutdown_mutex);

@@ -73,8 +73,8 @@ int get_reply(mc_socket_t sock)
     int s_rc = select(sock+1, &readfds, NULL, NULL, NULL);
 #else
     /* XXX: make sure this is working properly. */
-    //int s_rc = cmm_select(sock+1, &readfds, NULL, NULL, NULL);
-    int s_rc = 1;
+    int s_rc = cmm_select(sock+1, &readfds, NULL, NULL, NULL);
+    //int s_rc = 1;
 #endif
     if (s_rc < 0) {
 	return s_rc;

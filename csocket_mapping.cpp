@@ -34,7 +34,8 @@ class LocalLabelMatch {
         return ((label == 0) 
                 || (csock->local_iface.labels & label)
                 || (csock->local_iface.labels == 0 &&
-                    csock->remote_iface.labels & label));
+                    ((csock->remote_iface.labels == 0) ||
+                     (csock->remote_iface.labels & label))));
     }
     bool operator()(CSocketPtr csock) {
         return operator()(get_pointer(csock));
@@ -140,7 +141,9 @@ class IfaceMatch {
   public:
     IfaceMatch(u_long label_) : label(label_) {}
     bool operator()(struct net_interface iface) {
-        return (label == 0) || (iface.labels & label);
+        return ((label == 0) 
+                || (iface.labels == 0)
+                || (iface.labels & label));;
     }
   private:
     u_long label;
