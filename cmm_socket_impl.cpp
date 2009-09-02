@@ -286,7 +286,7 @@ CMMSocketImpl::lookup_by_irob(irob_id_t id)
 int
 CMMSocketImpl::mc_close(mc_socket_t sock)
 {
-    VanillaListenerSet::const_accessor listener_ac;
+    VanillaListenerSet::accessor listener_ac;
     CMMSockHash::accessor ac;
     if (cmm_sock_hash.find(ac, sock)) {
 	CMMSocketImplPtr sk(ac->second);
@@ -985,7 +985,7 @@ CMMSocketImpl::mc_listen(int listener_sock, int backlog)
 
     pthread_mutex_lock(&hashmaps_mutex);
     {
-        VanillaListenerSet::const_accessor ac;
+        VanillaListenerSet::accessor ac;
         (void)cmm_listeners.insert(ac, listener_sock);
     }
     pthread_mutex_unlock(&hashmaps_mutex);

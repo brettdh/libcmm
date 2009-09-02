@@ -194,8 +194,10 @@ void
 PendingReceiverIROBLattice::release(irob_id_t id)
 {
     if (ready_irobs.empty()) {
+#ifndef CMM_UNIT_TESTING
         char c = 42; // value will be ignored
         (void)write(sk->select_pipe[1], &c, 1);
+#endif
     }
     ready_irobs.insert(id);
 #ifndef CMM_UNIT_TESTING

@@ -37,16 +37,20 @@ typedef std::map<int, struct sockopt> SockOptNames;
 typedef std::map<int, SockOptNames> SockOptHash;
 
 #include "tbb/concurrent_hash_map.h"
-typedef tbb::concurrent_hash_map<mc_socket_t, 
-                                 CMMSocketImplPtr, 
-                                 IntegerHashCompare<mc_socket_t> > CMMSockHash;
+/* typedef tbb::concurrent_hash_map<mc_socket_t,  */
+/*                                  CMMSocketImplPtr,  */
+/*                                  IntegerHashCompare<mc_socket_t> > CMMSockHash; */
+#include "pthread_util.h"
+typedef LockingMap<mc_socket_t, CMMSocketImplPtr> CMMSockHash;
 
-typedef tbb::concurrent_hash_map<irob_id_t, mc_socket_t, 
-                                 IntegerHashCompare<irob_id_t> > IROBSockHash;
+/* typedef tbb::concurrent_hash_map<irob_id_t, mc_socket_t,  */
+/*                                  IntegerHashCompare<irob_id_t> > IROBSockHash; */
+typedef LockingMap<irob_id_t, mc_socket_t> IROBSockHash;
 
-typedef tbb::concurrent_hash_map<int, 
-                                 void*, /* unused; keys only, no values */
-                                 IntegerHashCompare<int> > VanillaListenerSet;
+/* typedef tbb::concurrent_hash_map<int,  */
+/*                                  void*, /\* unused; keys only, no values *\/ */
+/*                                  IntegerHashCompare<int> > VanillaListenerSet; */
+typedef LockingMap<int, void*> VanillaListenerSet;
 
 typedef std::map<in_addr_t, struct net_interface> NetInterfaceMap;
 
