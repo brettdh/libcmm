@@ -290,10 +290,10 @@ int cmm_select(mc_socket_t nfds,
     do {
         rc = CMMSocket::mc_select(nfds, readfds, writefds, exceptfds, timeout);
         if (rc < 0 && errno == EINTR) {
-            fprintf(stderr, "Select interrupted by signal; retrying "
+            dbgprintf("Select interrupted by signal; retrying "
                     "(inside libcmm)\n");
         } else {
-            fprintf(stderr, "mc_select returned %d, errno=%d\n", rc, errno);
+            dbgprintf("mc_select returned %d, errno=%d\n", rc, errno);
         }
     } while (rc < 0 && errno == EINTR);
     return rc;

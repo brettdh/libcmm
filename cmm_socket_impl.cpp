@@ -570,7 +570,7 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
     FD_ZERO(&tmp_writefds);
     FD_ZERO(&tmp_exceptfds);
 
-    fprintf(stderr, "libcmm: mc_select: making real fd_sets\n");
+    dbgprintf("libcmm: mc_select: making real fd_sets\n");
 
     if (writefds) {
 	tmp_writefds = *writefds;
@@ -594,14 +594,14 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
         }
     }
 
-    fprintf(stderr, "libcmm: about to call select()\n");
+    dbgprintf("libcmm: about to call select()\n");
 
     unblock_select_signals();
     rc = select(maxosfd + 1, &tmp_readfds, &tmp_writefds, &tmp_exceptfds, 
 		timeout);
     block_select_signals();
 
-    fprintf(stderr, "libcmm: returned from select()\n");
+    dbgprintf("libcmm: returned from select()\n");
     
     if (rc < 0) {
 	/* select does not modify the fd_sets if failure occurs */
@@ -1121,8 +1121,8 @@ CMMSocketImpl::mc_setsockopt(int level, int optname,
 
     rc = setsockopt(sock, level, optname, optval, optlen);
     if (rc < 0) {
-        fprintf(stderr, "warning: failed setting socket option on "
-                "dummy socket\n");
+        dbgprintf("warning: failed setting socket option on "
+                  "dummy socket\n");
     }
 
     /* inserts if not present */
