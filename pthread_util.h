@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <boost/shared_ptr.hpp>
 #include <map>
+#include "debug.h"
 
 class PthreadScopedLock {
   public:
@@ -80,8 +81,7 @@ class LockingMap {
         }
         void release() {
             if (my_node) {
-                printf("[THREAD_DEBUG][%08lx] Releasing lock %p\n",
-                       pthread_self(), &my_node->lock);
+                //dbgprintf("Releasing lock %p\n", &my_node->lock);
                 pthread_rwlock_unlock(&my_node->lock);
                 my_node.reset();
             }
@@ -193,8 +193,7 @@ bool LockingMap<KeyType,ValueType>::insert(accessor& ac, const KeyType& key)
         target->val.first = key;
     }
 
-    printf("[THREAD_DEBUG][%08lx] Grabbing writelock %p\n",
-           pthread_self(), &target->lock);
+    //dbgprintf("Grabbing writelock %p\n", &target->lock);
     pthread_rwlock_wrlock(&target->lock);
     ac.my_node = target;
 
@@ -213,8 +212,7 @@ bool LockingMap<KeyType,ValueType>::find(const_accessor& ac, const KeyType& key)
 
         target = the_map[key];
     }
-    printf("[THREAD_DEBUG][%08lx] Grabbing readlock %p\n",
-           pthread_self(), &target->lock);
+    //dbgprintf("Grabbing readlock %p\n", &target->lock);
     pthread_rwlock_rdlock(&target->lock);
     ac.my_node = target;
 
@@ -233,8 +231,7 @@ bool LockingMap<KeyType,ValueType>::find(accessor& ac, const KeyType& key)
         
         target = the_map[key];
     }
-    printf("[THREAD_DEBUG][%08lx] Grabbing writelock %p\n",
-           pthread_self(), &target->lock);
+    //dbgprintf("Grabbing writelock %p\n", &target->lock);
     pthread_rwlock_wrlock(&target->lock);
     ac.my_node = target;
 
