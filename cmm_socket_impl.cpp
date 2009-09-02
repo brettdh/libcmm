@@ -1396,7 +1396,12 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
     long rc = wait_for_completion();
     if (rc < 0) {
         PthreadScopedLock lock(&scheduling_state_lock);
+        PendingIROB *pirob = outgoing_irobs.find(id);
         outgoing_irobs.erase(id);
+        delete pirob;
+        if (is_shutting_down() && outgoing_irobs.empty()) {
+            pthread_cond_broadcast(&scheduling_state_cv);
+        }
     }
     TIME(end);
     TIMEDIFF(begin, end, diff);
@@ -1685,6 +1690,15 @@ CMMSocketImpl::send_default_irob(irob_id_t id, CSocket *csock,
     }
     
     long rc = wait_for_completion();
+    if (rc < 0) {
+        PthreadScopedLock lock(&scheduling_state_lock);
+        PendingIROB *pirob = outgoing_irobs.find(id);
+        outgoing_irobs.erase(id);
+        delete pirob;
+        if (is_shutting_down() && outgoing_irobs.empty()) {
+            pthread_cond_broadcast(&scheduling_state_cv);
+        }
+    }
 
     return rc;
 }

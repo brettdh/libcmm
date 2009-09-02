@@ -23,8 +23,10 @@ CSocketSender::Run()
     try {
         while (1) {
             if (sk->is_shutting_down()) {
-                if (csock->irob_indexes.waiting_acks.empty() &&
-                    sk->irob_indexes.waiting_acks.empty()) {
+                if (csock->irob_indexes.waiting_acks.empty()
+                    && sk->irob_indexes.waiting_acks.empty()
+                    && sk->outgoing_irobs.empty()) {
+
                     {
                         PthreadScopedLock shdwn_lock(&sk->shutdown_mutex);
                         if (!sk->goodbye_sent && !sk->sending_goodbye) {
