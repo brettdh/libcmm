@@ -127,7 +127,7 @@ bool
 PendingReceiverIROBLattice::data_is_ready()
 {
     PthreadScopedLock lock(&sk->scheduling_state_lock);
-    return (!ready_irobs.empty());
+    return (partially_read_irob || !ready_irobs.empty());
 }
 
 /* REQ: call with scheduling_state_lock held
