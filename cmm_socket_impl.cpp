@@ -1030,8 +1030,9 @@ CMMSocketImpl::mc_accept(int listener_sock,
 int 
 CMMSocketImpl::mc_read(void *buf, size_t count, u_long *recv_labels)
 {
-    CMMSockHash::const_accessor ac;
-    read_lock(ac);
+    //CMMSockHash::const_accessor ac;
+    //read_lock(ac);
+    // Not needed; incoming_irobs.recv is thread-safe.
 
     struct timeval begin, end, diff;
     TIME(begin);
