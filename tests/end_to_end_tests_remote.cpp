@@ -52,6 +52,7 @@ EndToEndTestsRemote::testDefaultIROBOrdering()
             u_long label = ((i % 2 == 0) 
                             ? CMM_LABEL_ONDEMAND 
                             : CMM_LABEL_BACKGROUND);
+            nums[i] = htonl(nums[i]);
             int rc = cmm_send(send_sock, &nums[i], sizeof(nums[i]), 0,
                               label, NULL, NULL);
             CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending integers", 
