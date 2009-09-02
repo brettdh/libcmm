@@ -612,35 +612,33 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
     }
 
     /* map osfds back to mc_sockets, and correct for duplicates */
+    rc -= make_mc_fd_set(&tmp_readfds, readosfd_list);
     rc -= make_mc_fd_set(&tmp_writefds, writeosfd_list);
     rc -= make_mc_fd_set(&tmp_exceptfds, exceptosfd_list);
-    int read_fd_count = make_mc_fd_set(&tmp_readfds, readosfd_list);
-    rc -= read_fd_count;
-    if (read_fd_count > 0) {
-        for (int i = 0; i < nfds - 1; ++i) {
-            if (FD_ISSET(i, &tmp_readfds)) {
-                CMMSockHash::accessor ac;
-                if (!cmm_sock_hash.find(ac, i)) {
-                    /* This must be a real file descriptor, 
-                     * not a mc_socket.  Skip it. */
-                    continue;
-                }
-                
-                CMMSocketImplPtr sk = ac->second;
-                assert(sk);
-                char junk[64];
-                int bytes_cleared = 0;
-                dbgprintf("Emptying select pipe for msocket %d\n", i);
-                int ret = read(sk->select_pipe[0], &junk, 64);
-                while (ret > 0) {
-                    bytes_cleared += ret;
-                    // empty the pipe so future select()s have to
-                    //  check the incoming_irobs structure
-                    ret = read(sk->select_pipe[0], &junk, 64);
-                }
-                dbgprintf("Cleared out %d bytes for msocket %d\n",
-                          bytes_cleared, i);
+
+    for (int i = 0; i < nfds - 1; ++i) {
+        if (FD_ISSET(i, &tmp_readfds)) {
+            CMMSockHash::accessor ac;
+            if (!cmm_sock_hash.find(ac, i)) {
+                /* This must be a real file descriptor, 
+                 * not a mc_socket.  Skip it. */
+                continue;
             }
+            
+            CMMSocketImplPtr sk = ac->second;
+            assert(sk);
+            char junk[64];
+            int bytes_cleared = 0;
+            dbgprintf("Emptying select pipe for msocket %d\n", i);
+            int ret = read(sk->select_pipe[0], &junk, 64);
+            while (ret > 0) {
+                bytes_cleared += ret;
+                // empty the pipe so future select()s have to
+                //  check the incoming_irobs structure
+                ret = read(sk->select_pipe[0], &junk, 64);
+            }
+            dbgprintf("Cleared out %d bytes for msocket %d\n",
+                      bytes_cleared, i);
         }
     }
     
