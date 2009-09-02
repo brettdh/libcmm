@@ -465,6 +465,8 @@ CMMSocketImpl::get_fds_for_select(mcSocketOsfdPairList &osfd_list,
             dbgprintf("read-selecting on msocket %d, no data ready yet\n",
                       sock);
         }
+        dbgprintf("Swapped msocket fd %d for select_pipe input, fd %d\n",
+                  sock, select_pipe[0]);
     } else {
         csock_map->get_real_fds(osfd_list);
     }
@@ -484,7 +486,7 @@ CMMSocketImpl::make_real_fd_set(int nfds, fd_set *fds,
     }
 
     //fprintf(stderr, "DBG: about to check fd_set %p for mc_sockets\n", fds);
-    for (mc_socket_t s = nfds - 1; s > 0; s--) {
+    for (mc_socket_t s = nfds - 1; s >= 0; s--) {
         //fprintf(stderr, "DBG: checking fd %d\n", s);
 	if (FD_ISSET(s, fds)) {
             //fprintf(stderr, "DBG: fd %d is set\n", s);
@@ -547,6 +549,8 @@ CMMSocketImpl::make_mc_fd_set(fd_set *fds,
                 dups++;
             } else {
                 FD_SET(osfd_list[j].first, fds);
+                dbgprintf("Mapped osfd %d back to msocket %d\n",
+                          osfd_list[j].second, osfd_list[j].first);
             }
 	}
     }
@@ -619,8 +623,9 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
     rc -= make_mc_fd_set(&tmp_writefds, writeosfd_list);
     rc -= make_mc_fd_set(&tmp_exceptfds, exceptosfd_list);
 
-    for (int i = 0; i < nfds - 1; ++i) {
+    for (int i = 0; i < nfds; ++i) {
         if (FD_ISSET(i, &tmp_readfds)) {
+            dbgprintf("SELECT_DEBUG fd %d is set in tmp_readfds\n", i);
             CMMSockHash::accessor ac;
             if (!cmm_sock_hash.find(ac, i)) {
                 /* This must be a real file descriptor, 
