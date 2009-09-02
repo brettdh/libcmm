@@ -616,7 +616,7 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
     if (read_fd_count > 0) {
         for (int i = 0; i < nfds - 1; ++i) {
             if (FD_ISSET(i, &tmp_readfds)) {
-                CMMSockHash::const_accessor ac;
+                CMMSockHash::accessor ac;
                 if (!cmm_sock_hash.find(ac, i)) {
                     /* This must be a real file descriptor, 
                      * not a mc_socket.  Skip it. */
@@ -625,12 +625,12 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
                 
                 CMMSocketImplPtr sk = ac->second;
                 assert(sk);
-                char junk;
-                int ret = read(sk->select_pipe[0], &junk, 1);
-                if (ret != 1) {
-                    // someone else got this select; a read might block.
-                    // but then again, multiple threads selecting on
-                    // the same socket is iffy to begin with
+                char junk[64];
+                int ret = read(sk->select_pipe[0], &junk, 64);
+                while (ret > 0) {
+                    // empty the pipe so future select()s have to
+                    //  check the incoming_irobs structure
+                    ret = read(sk->select_pipe[0], &junk, 64);
                 }
             }
         }
