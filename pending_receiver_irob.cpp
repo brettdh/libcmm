@@ -197,6 +197,8 @@ PendingReceiverIROBLattice::release(irob_id_t id)
 #ifndef CMM_UNIT_TESTING
         char c = 42; // value will be ignored
         (void)write(sk->select_pipe[1], &c, 1);
+        dbgprintf("waking selectors for msocket %d\n",
+                  sk->sock);
 #endif
     }
     ready_irobs.insert(id);

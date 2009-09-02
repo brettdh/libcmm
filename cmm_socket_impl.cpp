@@ -314,7 +314,8 @@ static void
 set_non_blocking(int fd)
 {
     int flags = fcntl(fd, F_GETFL);
-    (void)fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    int rc = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    assert(rc == 0);
 }
 
 CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
@@ -458,6 +459,8 @@ CMMSocketImpl::get_fds_for_select(mcSocketOsfdPairList &osfd_list,
             char c = 42; // value will be ignored
             int rc = write(select_pipe[1], &c, 1);
             assert(rc == 1);
+            dbgprintf("read-selecting on msocket %d, which has data ready\n",
+                      sock);
         }
     } else {
         csock_map->get_real_fds(osfd_list);
@@ -626,12 +629,17 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
                 CMMSocketImplPtr sk = ac->second;
                 assert(sk);
                 char junk[64];
+                int bytes_cleared = 0;
+                dbgprintf("Emptying select pipe for msocket %d\n", i);
                 int ret = read(sk->select_pipe[0], &junk, 64);
                 while (ret > 0) {
+                    bytes_cleared += ret;
                     // empty the pipe so future select()s have to
                     //  check the incoming_irobs structure
                     ret = read(sk->select_pipe[0], &junk, 64);
                 }
+                dbgprintf("Cleared out %d bytes for msocket %d\n",
+                          bytes_cleared, i);
             }
         }
     }
