@@ -88,13 +88,14 @@ static void thunk_fn(void *arg)
     PthreadScopedLock lock(&th_arg->mutex);
 
     int rc = 0;
-    while (rc == 0 && next < n) {
-        rc = cmm_send(sock, &nums[next], sizeof(int), 0, 
+    while (rc == 0 && th_arg->next < th_arg->n) {
+        rc = cmm_send(th_arg->sock, 
+                      &th_arg->nums[th_arg->next], sizeof(int), 0, 
                       CMM_LABEL_BACKGROUND, thunk_fn, arg);
         if (rc >= 0) {
             CPPUNIT_ASSERT_EQUAL_MESSAGE("Integer sent",
                                          (int)sizeof(int), rc);
-            next++;
+            th_arg->next++;
             rc = 0;
         } else {
             CPPUNIT_ASSERT_EQUAL_MESSAGE("Deferred, not failed",
