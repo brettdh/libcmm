@@ -97,6 +97,7 @@ static void thunk_fn(void *arg)
                                          (int)sizeof(int), rc);
             th_arg->next++;
             rc = 0;
+            sleep(1);
         } else {
             CPPUNIT_ASSERT_EQUAL_MESSAGE("Deferred, not failed",
                                          CMM_DEFERRED, rc);
