@@ -32,7 +32,7 @@ class CSockMapping {
     
     void add_connection(int sock, 
                         struct in_addr local_addr,
-                        struct in_addr remote_addr);
+                        struct net_interface remote_iface);
 
     /* append <mc_socket_t,osfd> pairs to this vector for each 
      * such mapping in this mc_socket. */

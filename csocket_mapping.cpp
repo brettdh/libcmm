@@ -289,15 +289,19 @@ CSockMapping::get_remote_iface_by_addr(struct in_addr addr,
 void
 CSockMapping::add_connection(int sock, 
                              struct in_addr local_addr, 
-                             struct in_addr remote_addr)
+                             struct net_interface remote_iface)
 {
     dbgprintf("Adding new connection on %s from %s\n",
-	      inet_ntoa(local_addr), inet_ntoa(remote_addr));
-    struct net_interface local_iface, remote_iface;
-    if (!get_local_iface_by_addr(local_addr, local_iface) ||
-        !get_remote_iface_by_addr(remote_addr, remote_iface)) {
-        assert(0); /* XXX: valid? only creating a CSocket here
-                    * if a connection has arrived on this iface pair */
+	      inet_ntoa(local_addr), inet_ntoa(remote_iface.ip_addr));
+    struct net_interface local_iface;
+    if (!get_local_iface_by_addr(local_addr, local_iface)) {
+        assert(0); /* should always know about my own interfaces
+                    * before anyone else does */
+    }
+    struct net_interface dummy;
+    if (!get_remote_iface_by_addr(remote_iface.ip_addr, dummy)) {
+        CMMSocketImplPtr skp(sk);
+        skp->setup(remote_iface, false);
     }
     
     

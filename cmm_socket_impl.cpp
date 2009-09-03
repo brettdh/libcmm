@@ -123,9 +123,9 @@ void CMMSocketImpl::send_local_listeners(int bootstrap_sock)
 void 
 CMMSocketImpl::add_connection(int sock, 
                               struct in_addr local_addr,
-                              struct in_addr remote_addr)
+                              struct net_interface remote_iface)
 {
-    csock_map->add_connection(sock, local_addr, remote_addr);
+    csock_map->add_connection(sock, local_addr, remote_iface);
 }
 
 int

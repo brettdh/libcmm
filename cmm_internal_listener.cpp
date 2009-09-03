@@ -138,6 +138,10 @@ ListenerThread::Run()
             close(sock);
             continue;
         }
+
+        struct net_interface remote_iface = { hdr.op.new_interface.ip_addr, 
+                                              ntohl(hdr.op.new_interface.labels) };
+
         struct sockaddr_in true_remote_addr;
         memcpy(&true_remote_addr.sin_addr, &hdr.op.new_interface.ip_addr, 
                sizeof(struct in_addr));
@@ -148,7 +152,7 @@ ListenerThread::Run()
         try {
             sk->add_connection(sock, 
                                local_addr.sin_addr, 
-                               true_remote_addr.sin_addr);
+                               remote_iface);
         } catch (std::runtime_error& e) {
             dbgprintf("Failed to add connection: %s\n", e.what());
         }

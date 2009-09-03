@@ -115,7 +115,7 @@ class CMMSocketImpl : public CMMSocket {
     
     void add_connection(int sock, 
                         struct in_addr local_addr,
-                        struct in_addr remote_addr);
+                        struct net_interface remote_iface);
     
   private:
     friend class CSocket;
