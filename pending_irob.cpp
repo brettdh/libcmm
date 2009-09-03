@@ -140,7 +140,7 @@ PendingIROBLattice::~PendingIROBLattice()
 }
 
 bool
-PendingIROBLattice::insert(PendingIROB *pirob)
+PendingIROBLattice::insert(PendingIROB *pirob, bool infer_deps)
 {
     PthreadScopedLock lock(&membership_lock);
 
@@ -169,7 +169,7 @@ PendingIROBLattice::insert(PendingIROB *pirob)
     }
     pending_irobs[index] = pirob;
 
-    correct_deps(pirob);
+    correct_deps(pirob, infer_deps);
 
     dbgprintf("Adding IROB %d as dependent of: [ ", pirob->id);
     for (irob_id_set::iterator it = pirob->deps.begin();
@@ -198,7 +198,7 @@ PendingIROBLattice::clear()
 }
 
 void
-PendingIROBLattice::correct_deps(PendingIROB *pirob)
+PendingIROBLattice::correct_deps(PendingIROB *pirob, bool infer_deps)
 {
     /* 1) If pirob is anonymous, add deps on all pending IROBs. */
     /* 2) Otherwise, add deps on all pending anonymous IROBs. */
@@ -209,49 +209,43 @@ PendingIROBLattice::correct_deps(PendingIROB *pirob)
     pirob->remove_deps_if(bind1st(mem_fun_ref(&IntSet::contains), 
                                   past_irobs));
 
-    if (pirob->is_anonymous()) {
-        if (last_anon_irob && min_dominator_set.empty()) {
-            pirob->add_dep(last_anon_irob->id);
+    if (infer_deps) {
+        // skip this at the receiver. The sender infers and
+        //  communicates deps; the receiver enforces them.
+
+        if (pirob->is_anonymous()) {
+            if (last_anon_irob && min_dominator_set.empty()) {
+                pirob->add_dep(last_anon_irob->id);
+            } else {
+                pirob->deps.insert(min_dominator_set.begin(),
+                                   min_dominator_set.end());
+                min_dominator_set.clear();
+            }
+            last_anon_irob = pirob;
         } else {
-            pirob->deps.insert(min_dominator_set.begin(),
-                               min_dominator_set.end());
-            min_dominator_set.clear();
+            // this IROB dominates its deps, so remove them from
+            // the min_dominator_set before inserting it
+            vector<irob_id_t> isect(max(pirob->deps.size(), 
+                                        min_dominator_set.size()));
+            vector<irob_id_t>::iterator the_end = 
+                set_intersection(pirob->deps.begin(), pirob->deps.end(),
+                                 min_dominator_set.begin(), 
+                                 min_dominator_set.end(),
+                                 isect.begin());
+            
+            if (last_anon_irob && isect.begin() == the_end) {
+                pirob->add_dep(last_anon_irob->id);
+            } // otherwise, it already depends on something 
+            // that depends on the last_anon_irob
+            
+            for (vector<irob_id_t>::iterator it = isect.begin(); 
+                 it != the_end; ++it) {
+                min_dominator_set.erase(*it);
+            }
+            
+            min_dominator_set.insert(pirob->id);
         }
-        last_anon_irob = pirob;
-    } else {
-        // this IROB dominates its deps, so remove them from
-        // the min_dominator_set before inserting it
-        vector<irob_id_t> isect(max(pirob->deps.size(), 
-                                    min_dominator_set.size()));
-        vector<irob_id_t>::iterator the_end = 
-            set_intersection(pirob->deps.begin(), pirob->deps.end(),
-                             min_dominator_set.begin(), 
-                             min_dominator_set.end(),
-                             isect.begin());
-        
-        if (last_anon_irob && isect.begin() == the_end) {
-            pirob->add_dep(last_anon_irob->id);
-        } // otherwise, it already depends on something 
-        // that depends on the last_anon_irob
-
-        for (vector<irob_id_t>::iterator it = isect.begin(); 
-             it != the_end; ++it) {
-            min_dominator_set.erase(*it);
-        }
-        
-        min_dominator_set.insert(pirob->id);
     }
-
-#if 0
-    for (size_t i = 0; i < pending_irobs.size(); i++) {
-	if (pending_irobs[i] == pirob) continue;
-	
-	if (pending_irobs[i] &&
-            (pirob->is_anonymous() || pending_irobs[i]->is_anonymous())) {
-	    pirob->add_dep(i);
-	}
-    }
-#endif
 
     /* 3) Remove already-satisfied deps. */
     pirob->remove_deps_if(bind1st(mem_fun_ref(&IntSet::contains), 

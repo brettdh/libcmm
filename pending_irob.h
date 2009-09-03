@@ -122,7 +122,7 @@ class PendingIROBLattice {
   public:
     PendingIROBLattice();
     virtual ~PendingIROBLattice();
-    bool insert(PendingIROB *pirob);
+    bool insert(PendingIROB *pirob, bool infer_deps = true);
     PendingIROB * find(irob_id_t id);
     bool erase(irob_id_t id);
 
@@ -168,7 +168,7 @@ class PendingIROBLattice {
     /* 1) If pirob is anonymous, add deps on all pending IROBs.
      * 2) Otherwise, add deps on all pending anonymous IROBs.
      * 3) Remove already-satisfied deps. */
-    void correct_deps(PendingIROB *pirob);
+    void correct_deps(PendingIROB *pirob, bool infer_deps);
 
 };
 

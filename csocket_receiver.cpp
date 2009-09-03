@@ -165,7 +165,7 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     
     {
         PthreadScopedLock lock(&sk->scheduling_state_lock);
-        if (!sk->incoming_irobs.insert(pirob)) {
+        if (!sk->incoming_irobs.insert(pirob, false)) {
             delete pirob;
             throw CMMControlException("Tried to begin IROB that already exists", 
                                   hdr);
@@ -292,7 +292,7 @@ void CSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
                                                          ntohl(hdr.send_labels));
     {
         PthreadScopedLock lock(&sk->scheduling_state_lock);
-        if (!sk->incoming_irobs.insert(pirob)) {
+        if (!sk->incoming_irobs.insert(pirob, false)) {
             delete pirob;
             throw CMMControlException("Tried to add default IROB "
                                       "that already exists", 

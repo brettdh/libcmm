@@ -10,37 +10,23 @@ CPPUNIT_TEST_SUITE_REGISTRATION(ReceiverLatticeTest);
 void
 ReceiverLatticeTest::setUp()
 {
-    struct default_irob_data default_irob;
-
     pirobs = new PendingReceiverIROBLattice(NULL);
 
     int *new_int = (int*)new char[sizeof(int)];
     *new_int = 0;
-    default_irob.id = 0;
-    default_irob.datalen = sizeof(int);
-    default_irob.data = (char*)new_int;
-    pirob_array[0] = new PendingReceiverIROB(default_irob, 0);
+    pirob_array[0] = new PendingReceiverIROB(0, 0, NULL, sizeof(int), (char*)new_int, 0);
 
     new_int = (int*)new char[sizeof(int)];
     *new_int = 1;
-    default_irob.id = 1;
-    default_irob.datalen = sizeof(int);
-    default_irob.data = (char*)new_int;
-    pirob_array[1] = new PendingReceiverIROB(default_irob, 0);
+    pirob_array[1] = new PendingReceiverIROB(1, 0, NULL, sizeof(int), (char*)new_int, 0);
 
     new_int = (int*)new char[sizeof(int)];
     *new_int = 2;
-    default_irob.id = 2;
-    default_irob.datalen = sizeof(int);
-    default_irob.data = (char*)new_int;
-    pirob_array[2] = new PendingReceiverIROB(default_irob, 0);
+    pirob_array[2] = new PendingReceiverIROB(2, 0, NULL, sizeof(int), (char*)new_int, 0);
     
     new_int = (int*)new char[sizeof(int)];
     *new_int = 3;
-    default_irob.id = 3;
-    default_irob.datalen = sizeof(int);
-    default_irob.data = (char*)new_int;
-    pirob_array[3] = new PendingReceiverIROB(default_irob, 0);
+    pirob_array[3] = new PendingReceiverIROB(3, 0, NULL, sizeof(int), (char*)new_int, 0);
 }
 
 void
