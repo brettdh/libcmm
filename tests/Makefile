@@ -1,7 +1,7 @@
 CXXFLAGS:=-Wall -Werror -I. -I.. -m32 -g -DCMM_UNIT_TESTING #-DCMM_DEBUG 
 LDFLAGS:=-L. -L.. -lcppunit -ldl -ltbb
 
-all: run_unit_tests run_lib_tests run_remote_tests
+all: run_unit_tests run_lib_tests run_remote_tests run_thunk_tests
 
 test: run_unit_tests run_lib_tests
 	./run_unit_tests; ./run_lib_tests
@@ -35,9 +35,13 @@ LIBTESTOBJS:=end_to_end_tests_base.o end_to_end_tests_forked.o
 run_lib_tests: run_all_tests.o $(LIBTESTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
 
-REMOTETESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o
+REMOTETESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o remote_tests.o
 run_remote_tests: run_all_tests.o $(REMOTETESTOBJS)
+	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
+
+THUNKTESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o thunk_tests.o
+run_thunk_tests: run_all_tests.o $(THUNKTESTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl -pthread
 
 clean:
-	rm -f *.o *~ run_unit_tests run_lib_tests run_remote_tests
+	rm -f *.o *~ run_unit_tests run_lib_tests run_remote_tests run_thunk_tests

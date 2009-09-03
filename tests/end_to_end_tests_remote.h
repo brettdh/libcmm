@@ -8,18 +8,11 @@
 class EndToEndTestsRemote : public EndToEndTestsBase {
     static bool is_receiver;
   
-    CPPUNIT_TEST_SUITE(EndToEndTestsRemote);
-    CPPUNIT_TEST(testRandomBytesReceivedCorrectly);
-    CPPUNIT_TEST(testDefaultIROBOrdering);
-    CPPUNIT_TEST(testThunks);
-    CPPUNIT_TEST_SUITE_END();
-
   protected:
     virtual void chooseRole();
     virtual bool isReceiver();
     
     void testDefaultIROBOrdering();
-    void testThunks();
 };
 
 #endif
