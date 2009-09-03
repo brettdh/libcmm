@@ -250,8 +250,8 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         hdr.type = htons(CMM_CONTROL_MSG_DEFAULT_IROB);
         hdr.op.default_irob.id = htonl(id);
         
+        hdr.op.default_irob.numdeps = htonl(numdeps);
         if (numdeps > 0) {
-            hdr.op.default_irob.numdeps = htonl(numdeps);
             vec[count].iov_base = deps;
             vec[count].iov_len = numdeps * sizeof(irob_id_t);
             count++;
