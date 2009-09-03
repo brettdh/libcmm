@@ -60,7 +60,7 @@ class LockingMap {
         pair_type val;
         pthread_rwlock_t lock;
 
-        node() {
+        node(const KeyType& key) : val(key, ValueType()) {
             pthread_rwlock_init(&lock, NULL);
         }
     };
@@ -133,27 +133,62 @@ class LockingMap {
             return result;
         }
         
-        iterator() : valid(false), the_map(NULL) {}
+        iterator() : valid(false), my_map(NULL) {}
+        ~iterator() {
+            while (!member_locks.empty()) {
+                // just to be 100% sure about the destruction order
+                member_locks.pop_back();
+            }
+        }
+                
       private:
         friend class LockingMap;
+        typedef boost::shared_ptr<PthreadScopedRWLock> LockPtr;
+        
+        iterator(LockingMap *my_map_, bool locked_ = false, bool writer = false)
+            : valid(false), locked(locked_),
+              my_map(my_map_) {
+            if (locked) {
+                // holds readlock until the last copy of
+                //  this iterator is destroyed
+                LockPtr lock(new PthreadScopedRWLock(&my_map->membership_lock, 
+                                                     false));
+                my_lock = lock;
 
-        iterator(MapType* the_map_) : valid(false), the_map(the_map_) {}
+                // also holds all of the node locks
+                for (typename MapType::iterator it = my_map->the_map.begin(); 
+                     it != my_map->the_map.end(); ++it) {
+                    PthreadScopedRWLock *member_lock = NULL;
+                    member_lock = new PthreadScopedRWLock(&it->second->lock, 
+                                                          writer);
+                    LockPtr lockp(member_lock);
+                    member_locks.push_back(lockp);
+                }
+            }
+        }
+
         void update();
 
         bool valid;
+        bool locked;
         NodePtr item;
         typename MapType::iterator my_iter;
-        MapType* the_map;
+        LockingMap* my_map;
+        LockPtr my_lock;
+        std::vector<LockPtr> member_locks;
     };
 
-    iterator begin() {
-        iterator it(&the_map);
+    // if calling with locked == true, make sure not to call 
+    //  on this map again until the first iterator returned
+    //  from here is destroyed, along with all copies.
+    iterator begin(bool locked = false, bool writer = false) {
+        iterator it(this, locked, writer);
         it.my_iter = the_map.begin();
         it.update();
         return it;
     }
     iterator end() {
-        iterator it(&the_map);
+        iterator it(this);
         it.my_iter = the_map.end();
         return it;
     }
@@ -166,7 +201,7 @@ class LockingMap {
 template <typename KeyType, typename ValueType>
 void LockingMap<KeyType,ValueType>::iterator::update()
 {
-    if (my_iter != the_map->end()) {
+    if (my_iter != my_map->the_map.end()) {
         item = my_iter->second;
         assert(my_iter->second);
         valid = true;
@@ -188,9 +223,8 @@ bool LockingMap<KeyType,ValueType>::insert(accessor& ac, const KeyType& key)
         if (the_map.find(key) != the_map.end()) {
             return false;
         }
-        the_map[key] = NodePtr(new struct node);
+        the_map[key] = NodePtr(new struct node(key));
         target = the_map[key];
-        target->val.first = key;
     }
 
     //dbgprintf("Grabbing writelock %p\n", &target->lock);
