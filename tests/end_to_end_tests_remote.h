@@ -11,6 +11,7 @@ class EndToEndTestsRemote : public EndToEndTestsBase {
     CPPUNIT_TEST_SUITE(EndToEndTestsRemote);
     CPPUNIT_TEST(testRandomBytesReceivedCorrectly);
     CPPUNIT_TEST(testDefaultIROBOrdering);
+    CPPUNIT_TEST(testThunks);
     CPPUNIT_TEST_SUITE_END();
 
   protected:
