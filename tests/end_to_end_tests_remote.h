@@ -18,6 +18,7 @@ class EndToEndTestsRemote : public EndToEndTestsBase {
     virtual bool isReceiver();
     
     void testDefaultIROBOrdering();
+    void testThunks();
 };
 
 #endif
