@@ -42,7 +42,7 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
 bool 
 PendingReceiverIROB::is_ready(void)
 {
-    return deps.empty();
+    return !placeholder && deps.empty();
 }
 
 ssize_t 

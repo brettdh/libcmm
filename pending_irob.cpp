@@ -18,8 +18,6 @@ PendingIROB::PendingIROB(irob_id_t id_)
       complete(false),
       placeholder(true)
 {
-    deps.insert(-1); // so that it never gets passed to the app
-
     /* this placeholder PendingIROB will be replaced by 
        the real one, when it arrives. */
 }
