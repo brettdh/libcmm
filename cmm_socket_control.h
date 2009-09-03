@@ -25,8 +25,6 @@ struct hello_data {
 struct begin_irob_data {
     irob_id_t id;
     int numdeps;
-    irob_id_t *deps; /* NULL in network messages
-                      * Allocated and used at receiver */
     /* dep array follows header in network msg */
 };
 
@@ -45,9 +43,8 @@ struct irob_chunk_data {
 
 struct default_irob_data {
     irob_id_t id;
+    int numdeps;
     size_t datalen;
-    char *data; /* NULL in network messages
-                 * Allocated and used at receiver */
     /* followed by datalen bytes of application data */
 };
 
@@ -86,8 +83,6 @@ struct CMMSocketControlHdr {
 
     /* for use with exceptions and debug information. */
     std::string describe() const;
-
-    void cleanup();
   private:
     const char *type_str() const;
 };
@@ -97,18 +92,5 @@ class CMMControlException : public std::runtime_error {
     CMMControlException(const std::string&, struct CMMSocketControlHdr);
     struct CMMSocketControlHdr hdr;
 };
-
-#if 0
-/* for passing between request-handling threads. */
-struct CMMSocketRequest {
-    pthread_t requester_tid;
-    struct CMMSocketControlHdr hdr;
-
-    short msgtype() { return hdr.msgtype(); }
-    void settype(short t) { hdr.settype(t); }
-    std::string describe() const;
-    void cleanup() { hdr.cleanup(); }
-};
-#endif
 
 #endif

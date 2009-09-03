@@ -99,20 +99,17 @@ CSocketReceiver::Finish(void)
     delete this; // the last thing that will ever be done with this
 }
 
-void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
+static irob_id_t *
+read_deps_array(int fd, int numdeps, struct CMMSocketControlHdr& hdr)
 {
-    struct timeval begin, end, diff;
-    TIME(begin);
-
-    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_BEGIN_IROB);
-    int numdeps = ntohl(hdr.op.begin_irob.numdeps);
+    irob_id_t *deps = NULL;
     if (numdeps > 0) {
-        irob_id_t *deps = new irob_id_t[numdeps];
+        deps = new irob_id_t[numdeps];
         int datalen = numdeps * sizeof(irob_id_t);
-        int rc = read_bytes(csock->osfd, (char*)deps, datalen);
+        int rc = read_bytes(fd, (char*)deps, datalen);
         if (rc != datalen) {
             if (rc < 0) {
-                dbgprintf("Error %d on socket %d\n", errno, csock->osfd);
+                dbgprintf("Error %d on socket %d\n", errno, fd);
             } else {
                 dbgprintf("Expected %d bytes after header, received %d\n", 
                           datalen, rc);
@@ -120,16 +117,50 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
             delete [] deps;
             throw CMMControlException("Socket error", hdr);
         }
-        hdr.op.begin_irob.deps = deps;
+
         for (int i = 0; i < numdeps; ++i) {
             deps[i] = ntohl(deps[i]);
         }
     }
+    return deps;
+}
 
-    hdr.op.begin_irob.id = ntohl(hdr.op.begin_irob.id);
-    hdr.op.begin_irob.numdeps = ntohl(hdr.op.begin_irob.numdeps);
+static char *
+read_data_buffer(int fd, int datalen, struct CMMSocketControlHdr& hdr)
+{
+    if (datalen <= 0) {
+        throw CMMControlException("Expected data with header, got none", hdr);
+    }
+    
+    char *buf = new char[datalen];
+    int rc = read_bytes(fd, buf, datalen);
+    if (rc != datalen) {
+        if (rc < 0) {
+            dbgprintf("Error %d on socket %d\n", errno, fd);
+        } else {
+            dbgprintf("Expected %d bytes after header, received %d\n", 
+                      datalen, rc);
+        }
+        delete [] buf;
+        throw CMMControlException("Socket error", hdr);
+    }
 
-    PendingIROB *pirob = new PendingReceiverIROB(hdr.op.begin_irob,
+    dbgprintf("Successfully got %d data bytes\n", datalen);
+    return buf;
+}
+
+void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
+{
+    struct timeval begin, end, diff;
+    TIME(begin);
+
+    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_BEGIN_IROB);
+    int numdeps = ntohl(hdr.op.begin_irob.numdeps);
+    irob_id_t *deps = read_deps_array(csock->osfd, numdeps, hdr);
+
+    irob_id_t id = ntohl(hdr.op.begin_irob.id);
+
+    PendingIROB *pirob = new PendingReceiverIROB(id, numdeps, deps, 0, NULL,
 						 ntohl(hdr.send_labels));
     
     {
@@ -141,14 +172,14 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
         }
     }
 
-    if (hdr.op.begin_irob.numdeps > 0) {
-        delete [] hdr.op.begin_irob.deps;
+    if (numdeps > 0) {
+        delete [] deps;
     }
 
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Receiver began IROB %d, took %lu.%06lu seconds\n",
-	      hdr.op.begin_irob.id, diff.tv_sec, diff.tv_usec);
+	      id, diff.tv_sec, diff.tv_usec);
 }
 
 void
@@ -198,23 +229,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
 
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_IROB_CHUNK);
     int datalen = ntohl(hdr.op.irob_chunk.datalen);
-    if (datalen <= 0) {
-        throw CMMControlException("Expected data with header, got none", hdr);
-    }
-    
-    char *buf = new char[datalen];
-    int rc = read_bytes(csock->osfd, buf, datalen);
-    if (rc != datalen) {
-        if (rc < 0) {
-            dbgprintf("Error %d on socket %d\n", errno, csock->osfd);
-        } else {
-            dbgprintf("Expected %d bytes after header, received %d\n", 
-                      datalen, rc);
-        }
-        delete [] buf;
-        throw CMMControlException("Socket error", hdr);
-    }
-    dbgprintf("Successfully got %d data bytes\n", datalen);
+    char *buf = read_data_buffer(csock->osfd, datalen, hdr);
 
     hdr.op.irob_chunk.data = buf;
 
@@ -264,33 +279,16 @@ void CSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
     TIME(begin);
 
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_DEFAULT_IROB);
+
+    int numdeps = ntohl(hdr.op.default_irob.numdeps);
+    irob_id_t *deps = read_deps_array(csock->osfd, numdeps, hdr);
+
     int datalen = ntohl(hdr.op.default_irob.datalen);
-    if (datalen <= 0) {
-        throw CMMControlException("Expected data with header, got none", hdr);
-    }
-    
-    char *buf = new char[datalen];
-    int rc = read_bytes(csock->osfd, buf, datalen);
-    if (rc != datalen) {
-        if (rc < 0) {
-            dbgprintf("Error %d on socket %d\n", errno, csock->osfd);
-        } else {
-            dbgprintf("Expected %d bytes after header, received %d\n", 
-                      datalen, rc);
-        }
-        delete [] buf;
-        throw CMMControlException("Socket error", hdr);
-    }
-    dbgprintf("Successfully got %d data bytes\n", datalen);
+    char *buf = read_data_buffer(csock->osfd, datalen, hdr);
 
-    hdr.op.default_irob.data = buf;
-
-    struct default_irob_data default_irob = hdr.op.default_irob;
-
-    default_irob.id = ntohl(hdr.op.default_irob.id);
-    default_irob.datalen = ntohl(hdr.op.default_irob.datalen);
+    irob_id_t id = ntohl(hdr.op.default_irob.id);
     /* modify data structures */
-    PendingReceiverIROB *pirob = new PendingReceiverIROB(default_irob,
+    PendingReceiverIROB *pirob = new PendingReceiverIROB(id, numdeps, deps, datalen, buf,
                                                          ntohl(hdr.send_labels));
     {
         PthreadScopedLock lock(&sk->scheduling_state_lock);
@@ -305,14 +303,14 @@ void CSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
         //assert(prirob);
         sk->incoming_irobs.release_if_ready(pirob, ReadyIROB());
 
-        csock->irob_indexes.waiting_acks.insert(IROBSchedulingData(default_irob.id));
+        csock->irob_indexes.waiting_acks.insert(IROBSchedulingData(id));
         pthread_cond_broadcast(&sk->scheduling_state_cv);
     }
 
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Received default IROB %d, took %lu.%06lu seconds\n",
-	      ntohl(hdr.op.default_irob.id), diff.tv_sec, diff.tv_usec);
+	      id, diff.tv_sec, diff.tv_usec);
 }
 
 void

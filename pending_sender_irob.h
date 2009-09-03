@@ -23,9 +23,7 @@
 class PendingSenderIROB : public PendingIROB {
   public:
     PendingSenderIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array,
-		      u_long send_labels, 
-		      resume_handler_t resume_handler, void *rh_arg);
-    PendingSenderIROB(irob_id_t id_, size_t datalen, char *data,
+                      size_t datalen, char *data,
 		      u_long send_labels, 
                       resume_handler_t resume_handler, void *rh_arg);
 

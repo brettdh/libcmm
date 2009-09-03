@@ -1379,6 +1379,7 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
     }
 
     PendingSenderIROB *pirob = new PendingSenderIROB(id, numdeps, deps,
+                                                     0, NULL,
                                                      send_labels, 
                                                      resume_handler, rh_arg);
 
@@ -1673,9 +1674,9 @@ CMMSocketImpl::send_default_irob(irob_id_t id, CSocket *csock,
 {
     prepare_app_operation();
     {
-        PendingIROB *pirob = new PendingSenderIROB(id, len, buf,
-						   send_labels, 
-                                                   resume_handler, rh_arg);
+      PendingIROB *pirob = new PendingSenderIROB(id, 0, NULL, len, buf,
+                                                 send_labels, 
+                                                 resume_handler, rh_arg);
 
         PthreadScopedLock lock(&scheduling_state_lock);
         bool success = outgoing_irobs.insert(pirob);

@@ -13,7 +13,7 @@ static pthread_mutex_t count_mutex = PTHREAD_MUTEX_INITIALIZER;
 ssize_t PendingIROB::obj_count = 0;
 
 PendingIROB::PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array,
-			 u_long send_labels_)
+			 size_t datalen, char *data, u_long send_labels_)
     : id(id_),
       send_labels(send_labels_),
       anonymous(false),
@@ -21,32 +21,23 @@ PendingIROB::PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array
 {
     if (numdeps > 0) {
         assert(deps_array);
-    } else if (numdeps == -1) {
-        anonymous = true;
     }
     for (int i = 0; i < numdeps; i++) {
         deps.insert(deps_array[i]);
     }
 
-    PthreadScopedLock lock(&count_mutex);
-    ++obj_count;
-}
+    if (datalen > 0) {
+        anonymous = true;
+        assert(data);
+        struct irob_chunk_data chunk;
+        chunk.id = id;
+        chunk.seqno = INVALID_IROB_SEQNO;
+        chunk.datalen = datalen;
+        chunk.data = data;
 
-PendingIROB::PendingIROB(irob_id_t id_, size_t datalen, char *data,
-			 u_long send_labels_)
-    : id(id_), 
-      send_labels(send_labels_), 
-      anonymous(true), 
-      complete(false)
-{
-    struct irob_chunk_data chunk;
-    chunk.id = id;
-    chunk.seqno = INVALID_IROB_SEQNO;
-    chunk.datalen = datalen;
-    chunk.data = data;
-    
-    (void)add_chunk(chunk);
-    (void)finish();
+        (void)add_chunk(chunk);
+        (void)finish();
+    }
 
     PthreadScopedLock lock(&count_mutex);
     ++obj_count;

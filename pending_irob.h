@@ -31,9 +31,7 @@ typedef std::set<irob_id_t> irob_id_set;
 class PendingIROB {
   public:
     PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array,
-		u_long send_labels);
-    PendingIROB(irob_id_t id_, size_t datalen, char *data,
-		u_long send_labels);
+                size_t datalen, char *data, u_long send_labels);
     virtual ~PendingIROB();
 
     /* return true on success; false if action is invalid */

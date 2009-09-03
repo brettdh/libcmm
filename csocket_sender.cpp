@@ -228,46 +228,53 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
 
     irob_id_t *deps = NULL;
 
-    struct iovec vec[2];
+    struct iovec vec[3];
     vec[0].iov_base = &hdr;
     vec[0].iov_len = sizeof(hdr);
     vec[1].iov_base = NULL;
     vec[1].iov_len = 0;
-
+    vec[2].iov_base = NULL;
+    vec[2].iov_len = 0;
+    size_t count = 1;
+    int numdeps = pirob->deps.size();
+    if (numdeps > 0) {
+        deps = new irob_id_t[numdeps];
+        int i = 0;
+        for (irob_id_set::iterator it = pirob->deps.begin();
+             it != pirob->deps.end(); it++) {
+            deps[i++] = htonl(*it);
+        }
+    }
+    
     if (pirob->is_anonymous()) {
         hdr.type = htons(CMM_CONTROL_MSG_DEFAULT_IROB);
         hdr.op.default_irob.id = htonl(id);
-        hdr.op.default_irob.data = NULL;
         
+        if (numdeps > 0) {
+            hdr.op.default_irob.numdeps = htonl(numdeps);
+            vec[count].iov_base = deps;
+            vec[count].iov_len = numdeps * sizeof(irob_id_t);
+            count++;
+        }
+
         assert(pirob->chunks.size() == 1);
         struct irob_chunk_data chunk = pirob->chunks.front();
         hdr.op.default_irob.datalen = htonl(chunk.datalen);
 
-        vec[1].iov_base = chunk.data;
-        vec[1].iov_len = chunk.datalen;
+        vec[count].iov_base = chunk.data;
+        vec[count].iov_len = chunk.datalen;
+        count++;
     } else {
-        int numdeps = pirob->deps.size();
-        
         hdr.type = htons(CMM_CONTROL_MSG_BEGIN_IROB);
         hdr.op.begin_irob.id = htonl(id);
         hdr.op.begin_irob.numdeps = htonl(numdeps);
-        hdr.op.begin_irob.deps = NULL;
-        
-        if (numdeps > 0) {
-            deps = new irob_id_t[numdeps];
-            int i = 0;
-            for (irob_id_set::iterator it = pirob->deps.begin();
-                 it != pirob->deps.end(); it++) {
-                deps[i++] = htonl(*it);
-            }
-        }
 
-        vec[1].iov_base = deps;
-        vec[1].iov_len = sizeof(irob_id_t) * numdeps;
+        vec[count].iov_base = deps;
+        vec[count].iov_len = numdeps * sizeof(irob_id_t);
+        count++;
     }
 
-    size_t bytes = vec[0].iov_len + vec[1].iov_len;
-    size_t count = vec[1].iov_base ? 2 : 1;
+    size_t bytes = vec[0].iov_len + vec[1].iov_len + vec[2].iov_len;
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);

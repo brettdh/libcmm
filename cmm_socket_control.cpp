@@ -8,17 +8,6 @@
 #include <iomanip>
 using std::ios;
 
-void 
-CMMSocketControlHdr::cleanup()
-{
-    if (type == CMM_CONTROL_MSG_BEGIN_IROB) {
-        delete [] op.begin_irob.deps;
-    } else if (type == CMM_CONTROL_MSG_IROB_CHUNK ||
-	       type == CMM_CONTROL_MSG_DEFAULT_IROB) {
-        delete [] op.irob_chunk.data;
-    }
-}
-
 const char *
 CMMSocketControlHdr::type_str() const
 {
@@ -57,13 +46,6 @@ CMMSocketControlHdr::describe() const
     case CMM_CONTROL_MSG_BEGIN_IROB:
         stream << "IROB: " << ntohl(op.begin_irob.id) << " ";
         stream << "numdeps: " << ntohl(op.begin_irob.numdeps);
-        if (op.begin_irob.deps) {
-            stream << " [ ";
-            for (size_t i = 0; i < ntohl(op.begin_irob.numdeps); i++) {
-		stream << ntohl(op.begin_irob.deps[i]) << " ";
-            }
-            stream << "]";
-        }
         break;
     case CMM_CONTROL_MSG_END_IROB:
         stream << "IROB: " << ntohl(op.end_irob.id);

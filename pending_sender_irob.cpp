@@ -4,21 +4,11 @@
 
 PendingSenderIROB::PendingSenderIROB(irob_id_t id_, 
                                      int numdeps, const irob_id_t *deps_array,
+                                     size_t datalen, char *data,
 				     u_long send_labels,
                                      resume_handler_t resume_handler_, 
                                      void *rh_arg_)
-    : PendingIROB(id_, numdeps, deps_array, send_labels),
-      next_seqno(INVALID_IROB_SEQNO + 1),
-      resume_handler(resume_handler_), rh_arg(rh_arg_),
-      acked(false),
-      waiting_thread(pthread_self())
-{
-}
-
-PendingSenderIROB::PendingSenderIROB(irob_id_t id_, size_t datalen, char *data,
-				     u_long send_labels,
-				     resume_handler_t resume_handler_, void *rh_arg_)
-    : PendingIROB(id_, datalen, data, send_labels),
+    : PendingIROB(id_, numdeps, deps_array, datalen, data, send_labels),
       next_seqno(INVALID_IROB_SEQNO + 1),
       resume_handler(resume_handler_), rh_arg(rh_arg_),
       acked(false),
