@@ -171,9 +171,9 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
         offset = pirob->id;
     }
 
-    size_t index = pirob->id - offset;
+    int index = pirob->id - offset;
 
-    if (index >= 0 && index < pending_irobs.size() && 
+    if (index >= 0 && index < (int)pending_irobs.size() && 
         (pending_irobs[index] != NULL &&
          !pending_irobs[index]->placeholder)) {
         return false;
@@ -183,7 +183,7 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
         --offset;
         index = pirob->id - offset;
     }
-    if (pending_irobs.size() <= index) {
+    if ((int)pending_irobs.size() <= index) {
         pending_irobs.resize(index+1, NULL);
     }
     if (pending_irobs[index]) {
@@ -304,8 +304,8 @@ PendingIROB *
 PendingIROBLattice::find_locked(irob_id_t id)
 {
     //TimeFunctionBody timer("pending_irobs.find(accessor)");
-    size_t index = id - offset;
-    if (index < 0 || index >= pending_irobs.size()) {
+    int index = id - offset;
+    if (index < 0 || index >= (int)pending_irobs.size()) {
         return NULL;
     }
     return pending_irobs[index];
@@ -317,8 +317,8 @@ PendingIROBLattice::erase(irob_id_t id)
     PthreadScopedLock lock(&membership_lock);
 
     //TimeFunctionBody timer("pending_irobs.erase(const_accessor)");
-    size_t index = id - offset;
-    if (index < 0 || index >= pending_irobs.size() ||
+    int index = id - offset;
+    if (index < 0 || index >= (int)pending_irobs.size() ||
         pending_irobs[index] == NULL) {
         return false;
     }
