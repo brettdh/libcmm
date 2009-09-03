@@ -190,8 +190,8 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
         assert(!pirob->placeholder);
         assert(pending_irobs[index]->placeholder);
         assert(pending_irobs[index]->id == pirob->id);
-        pirob->deps.insert(pending_irobs[index]->deps.begin(),
-                           pending_irobs[index]->deps.end());
+        pirob->dependents.insert(pending_irobs[index]->dependents.begin(),
+                                 pending_irobs[index]->dependents.end());
         delete pending_irobs[index];
         pending_irobs[index] = pirob;
     } else {
