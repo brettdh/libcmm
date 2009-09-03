@@ -85,6 +85,7 @@ class PendingIROB {
 
     bool anonymous;
     bool complete;
+    bool placeholder;
 
     friend class PendingIROBLattice;
 
@@ -92,6 +93,8 @@ class PendingIROB {
      * Used for keeping track of the domset of IROBs, which is needed
      * for figuring out which IROBs anonymous IROBs directly depend on. */
     //PendingIROBLattice *lattice;
+  private:
+    PendingIROB(irob_id_t id); // for creating placeholder IROBs
 };
 
 template <typename Predicate>
@@ -141,6 +144,7 @@ class PendingIROBLattice {
 
   private:
     // must hold membership_lock
+    bool insert_locked(PendingIROB *pirob, bool infer_deps = true);
     PendingIROB *find_locked(irob_id_t id);
     
     // Invariant: pending_irobs.empty() || 

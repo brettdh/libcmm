@@ -12,12 +12,25 @@ using std::bind1st;
 static pthread_mutex_t count_mutex = PTHREAD_MUTEX_INITIALIZER;
 ssize_t PendingIROB::obj_count = 0;
 
+PendingIROB::PendingIROB(irob_id_t id_)
+    : id(id_),
+      anonymous(false), 
+      complete(false),
+      placeholder(true)
+{
+    deps.insert(-1); // so that it never gets passed to the app
+
+    /* this placeholder PendingIROB will be replaced by 
+       the real one, when it arrives. */
+}
+
 PendingIROB::PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array,
 			 size_t datalen, char *data, u_long send_labels_)
     : id(id_),
       send_labels(send_labels_),
       anonymous(false),
-      complete(false)
+      complete(false),
+      placeholder(false)
 {
     if (numdeps > 0) {
         assert(deps_array);
@@ -143,7 +156,12 @@ bool
 PendingIROBLattice::insert(PendingIROB *pirob, bool infer_deps)
 {
     PthreadScopedLock lock(&membership_lock);
+    return insert_locked(pirob, infer_deps);
+}
 
+bool
+PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
+{
     assert(pirob);
     if (past_irobs.contains(pirob->id)) {
         return false;
@@ -156,7 +174,8 @@ PendingIROBLattice::insert(PendingIROB *pirob, bool infer_deps)
     size_t index = pirob->id - offset;
 
     if (index >= 0 && index < pending_irobs.size() && 
-        pending_irobs[index] != NULL) {
+        (pending_irobs[index] != NULL &&
+         !pending_irobs[index]->placeholder)) {
         return false;
     }
     while (index < 0) {
@@ -167,7 +186,25 @@ PendingIROBLattice::insert(PendingIROB *pirob, bool infer_deps)
     if (pending_irobs.size() <= index) {
         pending_irobs.resize(index+1, NULL);
     }
-    pending_irobs[index] = pirob;
+    if (pending_irobs[index]) {
+        // grab the placeholder's dependents and replace it
+        // with the real PendingIROB
+        assert(!pirob->placeholder);
+        assert(pending_irobs[index]->placeholder);
+        assert(pending_irobs[index]->id == pirob->id);
+        pirob->deps.insert(pending_irobs[index]->deps.begin(),
+                           pending_irobs[index]->deps.end());
+        delete pending_irobs[index];
+        pending_irobs[index] = pirob;
+    } else {
+        pending_irobs[index] = pirob;
+    }
+
+    if (pirob->placeholder) {
+        // pirob only exists to hold dependents until
+        // its replacement arrives.
+        return true;
+    }
 
     correct_deps(pirob, infer_deps);
 
@@ -180,6 +217,9 @@ PendingIROBLattice::insert(PendingIROB *pirob, bool infer_deps)
             dep->add_dependent(pirob->id);
         } else {
             dbgprintf_plain("(%ld) ", *it);
+            dep = new PendingIROB(*it);
+            insert_locked(dep);
+            dep->add_dependent(pirob->id);
         }
     }
     dbgprintf_plain("]\n");
