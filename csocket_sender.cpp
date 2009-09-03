@@ -297,7 +297,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     assert(waiting_thread != 0);
 
     if (pirob->is_anonymous()) {
-        sk->signal_completion(waiting_thread, vec[1].iov_len);
+        sk->signal_completion(waiting_thread, vec[count-1].iov_len);
     } else {
         sk->signal_completion(waiting_thread, 0);
     }
