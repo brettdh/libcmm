@@ -55,11 +55,17 @@ libcmm.so: libcmm.o libcmm_ipc.o cmm_socket.o cmm_socket_impl.o \
 #   see http://stackoverflow.com/questions/204823/
 # ---
 SRCS=$(wildcard *.cpp)
+DEPS=$(SRCS:%.cpp=.%.dep)
 
-depend: $(SRCS)
-	g++ -MM $(CXXFLAGS) $(SRCS) >depend
+.%.dep: %.cpp
+	g++ -MM $(CXXFLAGS) $< >$@
 
-include depend
+include $(DEPS)
+
+#depend: $(SRCS)
+#	g++ -MM $(CXXFLAGS) $(SRCS) >depend
+
+#include depend
 # ---
 
 clean:

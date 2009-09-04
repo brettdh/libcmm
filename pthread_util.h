@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <boost/shared_ptr.hpp>
 #include <map>
+#include <vector>
 #include "debug.h"
 
 class PthreadScopedLock {
@@ -106,6 +107,17 @@ class LockingMap {
     bool erase(accessor& ac);
 
     class iterator {
+        friend class LockingMap;
+        typedef boost::shared_ptr<PthreadScopedRWLock> LockPtr;
+        
+        bool valid;
+        bool locked;
+        NodePtr item;
+        typename MapType::iterator my_iter;
+        LockingMap* my_map;
+        LockPtr my_lock;
+        std::vector<LockPtr> member_locks;
+
       public:
         pair_type* operator->() {
             assert(valid);
@@ -142,9 +154,6 @@ class LockingMap {
         }
                 
       private:
-        friend class LockingMap;
-        typedef boost::shared_ptr<PthreadScopedRWLock> LockPtr;
-        
         iterator(LockingMap *my_map_, bool locked_ = false, bool writer = false)
             : valid(false), locked(locked_),
               my_map(my_map_) {
@@ -168,14 +177,6 @@ class LockingMap {
         }
 
         void update();
-
-        bool valid;
-        bool locked;
-        NodePtr item;
-        typename MapType::iterator my_iter;
-        LockingMap* my_map;
-        LockPtr my_lock;
-        std::vector<LockPtr> member_locks;
     };
 
     // if calling with locked == true, make sure not to call 
