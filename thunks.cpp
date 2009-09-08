@@ -115,6 +115,7 @@ void enqueue_handler(mc_socket_t sock, u_long send_labels,
 
 void print_thunks(void)
 {
+#ifdef CMM_DEBUG
     for (ThunkHash::iterator tq_iter = thunk_hash.begin();
 	 tq_iter != thunk_hash.end(); tq_iter++) {
 	struct labeled_thunk_queue *tq = tq_iter->second;
@@ -127,6 +128,7 @@ void print_thunks(void)
 		    th->fn, th->arg, th->send_labels);
 	}
     }
+#endif
 }
 
 static void fire_one_thunk(struct thunk *th)
