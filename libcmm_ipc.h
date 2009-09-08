@@ -2,6 +2,7 @@
 #define LIBCMM_IPC_H_INCL
 
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <vector>
 #include <map>
@@ -13,6 +14,9 @@
 /* per-process message queue identified by pid */
 #define SCOUT_PROC_MQ_NAME_FMT "/scout_mq_proc_%d"
 #define MAX_PROC_MQ_NAMELEN 101
+
+#define SCOUT_PROC_MQ_MODE (S_IRUSR | S_IWUSR | S_IRGRP | \
+                            S_IWGRP | S_IROTH | S_IWOTH)
 
 void scout_ipc_init(void);
 void scout_ipc_deinit(void);

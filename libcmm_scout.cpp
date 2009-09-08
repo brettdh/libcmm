@@ -101,8 +101,10 @@ void * IPC_Listener(void *)
     attr.mq_maxmsg = 10;
     attr.mq_msgsize = sizeof(struct cmm_msg);
     mq_unlink(SCOUT_CONTROL_MQ_NAME);
+    mode_t default_mode = umask(0);
     mqd_t scout_control_mq_fd = mq_open(SCOUT_CONTROL_MQ_NAME, O_CREAT|O_RDWR,
-					0755, &attr);
+					SCOUT_PROC_MQ_MODE, &attr);
+    (void)umask(default_mode);
     if (scout_control_mq_fd < 0) {
 	perror("mq_open");
 	fprintf(stderr, "Failed to open message queue\n");

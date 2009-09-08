@@ -122,8 +122,10 @@ void scout_ipc_init()
     attr.mq_maxmsg = 10;
     attr.mq_msgsize = sizeof(struct cmm_msg);
     mq_unlink(mq_name);
+    mode_t default_mode = umask(0);
     scout_mq_fd = mq_open(mq_name, O_CREAT|O_RDWR,
-			  0755, &attr);
+			  SCOUT_PROC_MQ_MODE, &attr);
+    (void)umask(default_mode);
     if (scout_mq_fd < 0) {
 	fprintf(stderr, "Failed to open process message queue! errno=%d\n",
 		errno);
