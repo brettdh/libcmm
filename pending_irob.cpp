@@ -132,7 +132,7 @@ PendingIROB::depends_on(irob_id_t that)
 
 
 PendingIROBLattice::PendingIROBLattice()
-    : offset(0), last_anon_irob(NULL)
+    : offset(0), last_anon_irob_id(-1)
 {
     pthread_mutex_init(&membership_lock, NULL);
 }
@@ -232,7 +232,7 @@ PendingIROBLattice::clear()
 
     pending_irobs.clear();
     min_dominator_set.clear();
-    last_anon_irob = NULL;
+    last_anon_irob_id = -1;
 }
 
 void
@@ -252,14 +252,14 @@ PendingIROBLattice::correct_deps(PendingIROB *pirob, bool infer_deps)
         //  communicates deps; the receiver enforces them.
 
         if (pirob->is_anonymous()) {
-            if (last_anon_irob && min_dominator_set.empty()) {
-                pirob->add_dep(last_anon_irob->id);
+            if (last_anon_irob_id >= 0 && min_dominator_set.empty()) {
+                pirob->add_dep(last_anon_irob_id);
             } else {
                 pirob->deps.insert(min_dominator_set.begin(),
                                    min_dominator_set.end());
                 min_dominator_set.clear();
             }
-            last_anon_irob = pirob;
+            last_anon_irob_id = pirob->id;
         } else {
             // this IROB dominates its deps, so remove them from
             // the min_dominator_set before inserting it
@@ -271,8 +271,8 @@ PendingIROBLattice::correct_deps(PendingIROB *pirob, bool infer_deps)
                                  min_dominator_set.end(),
                                  isect.begin());
             
-            if (last_anon_irob && isect.begin() == the_end) {
-                pirob->add_dep(last_anon_irob->id);
+            if (last_anon_irob_id >= 0 && isect.begin() == the_end) {
+                pirob->add_dep(last_anon_irob_id);
             } // otherwise, it already depends on something 
             // that depends on the last_anon_irob
             
@@ -322,9 +322,7 @@ PendingIROBLattice::erase(irob_id_t id)
     }
     past_irobs.insert(id);
     min_dominator_set.erase(id);
-    if (last_anon_irob && last_anon_irob->id == id) {
-        last_anon_irob = NULL;
-    }
+
     PendingIROB *victim = pending_irobs[index];
     pending_irobs[index] = NULL; // caller must free it
     while (!pending_irobs.empty() && pending_irobs[0] == NULL) {

@@ -155,14 +155,13 @@ class PendingIROBLattice {
     size_t offset;
     pthread_mutex_t membership_lock;
 
-    // the last anonymous IROB added to the set, if any, and
-    //  if it hasn't been erased.
-    // NULL otherwise.
-    PendingIROB *last_anon_irob;
+    // the last anonymous IROB added to the set, if any.
+    // -1 otherwise.
+    irob_id_t last_anon_irob_id;
     
     // If a new IROB depended upon all IROBs in this set, it would
     //  transitively depend on all prior IROBs.
-    // This set contains no anonymous IROB IDs; see last_anon_irob.
+    // This set contains no anonymous IROB IDs; see last_anon_irob_id.
     irob_id_set min_dominator_set;
 
     /* In a sender, this means IROBs that have been sent and ACK'd.
