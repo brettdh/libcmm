@@ -244,8 +244,10 @@ PendingIROBLattice::correct_deps(PendingIROB *pirob, bool infer_deps)
      * the minimal set of IROBs that the next anonymous IROB
      * must depend on. */
 
-    pirob->remove_deps_if(bind1st(mem_fun_ref(&IntSet::contains), 
-                                  past_irobs));
+    if (!infer_deps) {
+        pirob->remove_deps_if(bind1st(mem_fun_ref(&IntSet::contains), 
+                                      past_irobs));
+    }
 
     if (infer_deps) {
         // skip this at the receiver. The sender infers and
@@ -285,9 +287,11 @@ PendingIROBLattice::correct_deps(PendingIROB *pirob, bool infer_deps)
         }
     }
 
-    /* 3) Remove already-satisfied deps. */
-    pirob->remove_deps_if(bind1st(mem_fun_ref(&IntSet::contains), 
-                                  past_irobs));
+    if (!infer_deps) {
+        /* 3) Remove already-satisfied deps. */
+        pirob->remove_deps_if(bind1st(mem_fun_ref(&IntSet::contains), 
+                                      past_irobs));
+    }
 }
 
 PendingIROB *
