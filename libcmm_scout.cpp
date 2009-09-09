@@ -282,12 +282,12 @@ void handle_term(int)
 
 void usage(char *argv[])
 {
-    fprintf(stderr, "Usage: %s <BG iface> [uptime downtime] [ ap2 ... apN ]\n", argv[0]);
-    fprintf(stderr, "Usage:    uptime,downtime are in seconds.\n");
+    fprintf(stderr, "Usage: %s <FG iface> <BG iface> [uptime downtime]\n", argv[0]);
+    fprintf(stderr, "Usage:    uptime, downtime are in seconds.\n");
     fprintf(stderr, 
-	    "\nUsage 2: %s <BG iface> cdf <encounter duration cdf file>\n"
-	    "                                  <disconnect duration cdf file>\n"
-	    "                          [ ap2 ... apN ]\n", argv[0]);
+	    "\nUsage 2: %s <FG iface> <BG iface> cdf <encounter duration cdf file>\n"
+	    "                                             <disconnect duration cdf file>\n",
+            argv[0]);
     exit(-1);
 }
 

@@ -8,6 +8,7 @@
 #endif
 
 #ifdef CMM_DEBUG
+void set_debugging(bool value);
 CDECL void dbgprintf(const char *format, ...);
 CDECL void dbgprintf_plain(const char *format, ...);
 #else

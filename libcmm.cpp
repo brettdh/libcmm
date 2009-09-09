@@ -14,14 +14,16 @@
 #include <sys/ioctl.h>
 #include <sys/poll.h>
 #include <fcntl.h>
+#include <fstream>
+#include <string>
+using std::ifstream; using std::string;
 using std::vector; using std::pair;
 using std::auto_ptr;
-
-#include <connmgr_labels.h>
 
 #include "libcmm.h"
 #include "libcmm_ipc.h"
 #include "pending_irob.h"
+#include "debug.h"
 
 #include "cmm_timing.h"
 
@@ -34,6 +36,8 @@ using std::auto_ptr;
 using tbb::concurrent_hash_map;
 using tbb::concurrent_queue;
 using tbb::atomic;
+
+#define CONFIG_FILE "/etc/cmm_config"
 
 #ifdef IMPORT_RULES
 /**The following used for providing label rules**/
@@ -95,6 +99,19 @@ static void libcmm_init(void)
         fclose(fp);
     }
 #endif
+    set_debugging(false); // default: no dbgprintfs
+
+    ifstream config_input(CONFIG_FILE);
+    if (config_input) {
+        string line;
+        while (getline(config_input, line)) {
+            size_t pos = line.find("debug");
+            if (pos != string::npos) {
+                set_debugging(true);
+            }
+        }
+        config_input.close();
+    }
     
     scout_ipc_init();
 
