@@ -276,7 +276,15 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
 
     size_t bytes = vec[0].iov_len + vec[1].iov_len + vec[2].iov_len;
 
-    dbgprintf("About to send message: %s\n", hdr.describe().c_str());
+    dbgprintf("About to send message: %s", hdr.describe().c_str());
+    if (deps) {
+        dbgprintf_plain(" deps [ ");
+        for (int i = 0; i < numdeps; ++i) {
+            dbgprintf_plain("%d ", ntohl(deps[i]));
+        }
+        dbgprintf_plain("]");
+    }
+    dbgprintf_plain("\n");
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = writev(csock->osfd, vec, count);
     pthread_mutex_lock(&sk->scheduling_state_lock);
