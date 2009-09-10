@@ -368,19 +368,6 @@ mc_socket_t cmm_socket(int family, int type, int protocol)
     return CMMSocket::create(family, type, protocol);
 }
 
-#if 0
-int cmm_reset(mc_socket_t sock)
-{
-    return CMMSocket::lookup(sock)->reset();
-}
-
-int cmm_check_label(mc_socket_t sock, u_long label,
-		    resume_handler_t fn, void *arg)
-{
-    return CMMSocket::lookup(sock)->check_label(label, fn, arg);
-}
-#endif
-
 int cmm_shutdown(mc_socket_t sock, int how)
 {
     return CMMSocket::lookup(sock)->mc_shutdown(how);
