@@ -12,6 +12,7 @@ class EndToEndTestsForked : public EndToEndTestsBase {
     CPPUNIT_TEST(testRandomBytesReceivedCorrectly);
     CPPUNIT_TEST(testOrderingSimple);
     CPPUNIT_TEST(testOrderingReverse);
+    CPPUNIT_TEST(testNoInterleaving);
     CPPUNIT_TEST_SUITE_END();
 
   protected:

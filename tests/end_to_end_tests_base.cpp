@@ -12,6 +12,7 @@
 #include <arpa/inet.h>
 #include <assert.h>
 #include <libcmm.h>
+#include <libcmm_irob.h>
 #include <openssl/sha.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -139,41 +140,70 @@ EndToEndTestsBase::startSender()
     printf("Sender is connected.\n");
 }
 
+void
+EndToEndTestsBase::receiveAndChecksum()
+{
+    int bytes = -1;
+    int rc = cmm_read(read_sock, &bytes, sizeof(bytes), NULL);
+    CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiving message size", 
+                                 (int)sizeof(bytes), rc);
+    
+    bytes = ntohl(bytes);
+    printf("Receiving %d random bytes and digest\n", bytes);
+    
+    unsigned char *buf = new unsigned char[bytes];
+    rc = cmm_read(read_sock, buf, bytes, NULL);
+    CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiving message", bytes, rc);
+    
+    unsigned char digest[SHA_DIGEST_LENGTH];
+    rc = cmm_read(read_sock, digest, SHA_DIGEST_LENGTH, NULL);
+    CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiving digest", 
+                                 SHA_DIGEST_LENGTH, rc);
+    
+    unsigned char my_digest[SHA_DIGEST_LENGTH];
+    unsigned char *result = SHA1(buf, bytes, my_digest);
+    delete [] buf;
+    CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiver: computing digest", 
+                                 (unsigned char*)my_digest, result);
+    
+    rc = memcmp(digest, my_digest, SHA_DIGEST_LENGTH);
+    CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiver: checking that digests match", 
+                                 0, rc);
+    
+    printf("Received %d bytes, digest matches.\n", bytes);
+    printf("Receiver finished.\n");
+}
+
+void
+EndToEndTestsBase::sendChecksum(unsigned char *buf, size_t bytes)
+{
+    unsigned char my_digest[SHA_DIGEST_LENGTH];
+    unsigned char *result = SHA1(buf, bytes, my_digest);
+    CPPUNIT_ASSERT_EQUAL_MESSAGE("Sender: computing digest", 
+                                 (unsigned char*)my_digest, result);
+    
+    int rc = cmm_send(send_sock, my_digest, SHA_DIGEST_LENGTH, 0, 
+                      0, NULL, NULL);
+    CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending digest", SHA_DIGEST_LENGTH, rc);
+}
+
+void
+EndToEndTestsBase::sendMessageSize(int bytes)
+{
+    int nbytes = htonl(bytes);
+    int rc = cmm_send(send_sock, &nbytes, sizeof(nbytes), 0, 0, NULL, NULL);
+    CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending message size", 
+                                 (int)sizeof(nbytes), rc);
+}
+
 void 
 EndToEndTestsBase::testRandomBytesReceivedCorrectly()
 {
     if (isReceiver()) {
-        int bytes = -1;
-        int rc = cmm_read(read_sock, &bytes, sizeof(bytes), NULL);
-        CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiving message size", 
-                                     (int)sizeof(bytes), rc);
-        
-        bytes = ntohl(bytes);
-        printf("Receiving %d random bytes and digest\n", bytes);
-        
-        unsigned char *buf = new unsigned char[bytes];
-        rc = cmm_read(read_sock, buf, bytes, NULL);
-        CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiving message", bytes, rc);
-        
-        unsigned char digest[SHA_DIGEST_LENGTH];
-        rc = cmm_read(read_sock, digest, SHA_DIGEST_LENGTH, NULL);
-        CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiving digest", 
-                                     SHA_DIGEST_LENGTH, rc);
-        
-        unsigned char my_digest[SHA_DIGEST_LENGTH];
-        unsigned char *result = SHA1(buf, bytes, my_digest);
-        CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiver: computing digest", 
-                                     (unsigned char*)my_digest, result);
-        
-        rc = memcmp(digest, my_digest, SHA_DIGEST_LENGTH);
-        CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiver: checking that digests match", 
-                                     0, rc);
-        
-        printf("Received %d bytes, digest matches.\n", bytes);
-        printf("Receiver finished.\n");
+        receiveAndChecksum();
     } else {
-        int bytes = 4096;
-        unsigned char *buf = new unsigned char[bytes];
+        const int bytes = 4096;
+        unsigned char buf[bytes];
         int rand_fd = open("/dev/urandom", O_RDONLY);
         CPPUNIT_ASSERT_MESSAGE("Opening /dev/urandom", rand_fd != -1);
         
@@ -188,23 +218,51 @@ EndToEndTestsBase::testRandomBytesReceivedCorrectly()
         close(rand_fd);
         
         printf("Sending %d random bytes and digest\n", bytes);
-        int nbytes = htonl(bytes);
-        rc = cmm_send(send_sock, &nbytes, sizeof(nbytes), 0, 0, NULL, NULL);
-        CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending message size", 
-                                     (int)sizeof(nbytes), rc);
-        
+        sendMessageSize(bytes);
         rc = cmm_send(send_sock, buf, bytes, 0, 0, NULL, NULL);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending message", bytes, rc);
         
-        unsigned char my_digest[SHA_DIGEST_LENGTH];
-        unsigned char *result = SHA1(buf, bytes, my_digest);
-        CPPUNIT_ASSERT_EQUAL_MESSAGE("Sender: computing digest", 
-                                     (unsigned char*)my_digest, result);
-        
-        rc = cmm_send(send_sock, my_digest, SHA_DIGEST_LENGTH, 0, 
-                      0, NULL, NULL);
-        CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending digest", SHA_DIGEST_LENGTH, rc);
+        sendChecksum(buf, bytes);
 
+        printf("Sender finished.\n");
+    }
+}
+
+void
+EndToEndTestsBase::testNoInterleaving()
+{
+    if (isReceiver()) {
+        receiveAndChecksum();
+    } else {
+        const int numints = 1024;
+        unsigned int ints[numints];
+        irob_id_t irob_ids[numints];
+        for (int i = 0; i < numints; ++i) {
+            ints[i] = 0xdeadbeef;
+            irob_ids[i] = -1;
+        }
+
+        printf("Sending %d integers in byte-sized chunks, "
+               "in separate IROBs\n", numints);
+        sendMessageSize(sizeof(int)*numints);
+        for (int i = 0; i < (int)sizeof(int); ++i) {
+            for (int j = 0; j < numints; ++j) {
+                if (irob_ids[j] == -1) {
+                    irob_ids[j] = begin_irob(send_sock, 0, NULL, 
+                                             0, NULL, NULL);
+                    CPPUNIT_ASSERT_MESSAGE("begin_irob succeeds", 
+                                           irob_ids[j] >= 0);
+                }
+                char *one_int = (char*)&ints[j];
+                int rc = irob_send(irob_ids[j], (void*)&one_int[i], 1, 0);
+                CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending one byte succeeds", 
+                                             1, rc);
+                if (i + 1 == (int)sizeof(int)) {
+                    rc = end_irob(irob_ids[j]);
+                }
+            }
+        }
+        sendChecksum((unsigned char*)ints, sizeof(int)*numints);
         printf("Sender finished.\n");
     }
 }

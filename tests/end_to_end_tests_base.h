@@ -29,10 +29,15 @@ class EndToEndTestsBase : public CppUnit::TestFixture {
     mc_socket_t send_sock;
 
     void testRandomBytesReceivedCorrectly();
+    void testNoInterleaving();
   private:
     void setupReceiver();
     void startReceiver();
     void startSender();
+
+    void receiveAndChecksum();
+    void sendChecksum(unsigned char *bytes, size_t size);
+    void sendMessageSize(int size);
 };
 
 void handle_error(bool condition, const char *msg);
