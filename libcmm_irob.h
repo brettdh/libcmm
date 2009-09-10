@@ -1,3 +1,6 @@
+#ifndef LIBCMM_IROB_H_INCL
+#define LIBCMM_IROB_H_INCL
+
 /* API sketch for IROBs - Isolated Reliable Ordered Bytestreams 
  *
  * The IROB abstraction provides the following guarantees:
@@ -26,6 +29,10 @@
  * been made the default operations on multi-sockets, so they are no
  * longer needed as separate functions.
  */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <sys/types.h>
 #include <libcmm.h>
@@ -114,3 +121,9 @@ ssize_t irob_mc_read(mc_socket_t sock, void *buf, size_t len,
 /* NOTE: since everything sent on a multi-socket is now an IROB, these
  * are the default mc_recv and mc_read operations.
  */
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
