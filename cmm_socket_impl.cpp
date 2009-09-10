@@ -924,9 +924,12 @@ CMMSocketImpl::mc_irob_writev(irob_id_t id,
         buflen += vec[i].iov_len;
     }
     char *buf = new char[buflen];
+    int bytes_copied = 0;
     for (int i = 0; i < count; i++) {
-        memcpy(buf + i, vec[i].iov_base, vec[i].iov_len);
+        memcpy(buf + bytes_copied, vec[i].iov_base, vec[i].iov_len);
+        bytes_copied += vec[i].iov_len;
     }
+    assert(bytes_copied == buflen);
 
     long rc = mc_irob_send(id, buf, buflen, 0);
     delete [] buf;
