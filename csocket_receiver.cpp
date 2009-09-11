@@ -94,7 +94,7 @@ CSocketReceiver::Finish(void)
     }
     // nobody will pthread_join to the receiver now, so detach
     //  to make sure the memory gets reclaimed
-    pthread_detach(pthread_self());
+    detach();
 
     delete this; // the last thing that will ever be done with this
 }

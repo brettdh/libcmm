@@ -96,6 +96,7 @@ ListenerThread::Run()
 	    if (errno == EINTR) {
 		continue;
 	    } else {
+                close(listener_sock);
 		return;
 	    }
 	}

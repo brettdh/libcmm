@@ -29,6 +29,7 @@ using std::auto_ptr;
 
 #include "cmm_socket.h"
 #include "thunks.h"
+#include "cmm_thread.h"
 
 #include "tbb/concurrent_hash_map.h"
 #include "tbb/concurrent_queue.h"
@@ -179,8 +180,12 @@ static void libcmm_deinit(void)
     }
     thunk_hash.clear();
 #endif
-    
+
     scout_ipc_deinit();
+
+    //CMMThread::join_all();
+    dbgprintf("Main thread exiting.\n");
+    pthread_exit(NULL);
 }
 
 /* Figure out how the network status changed and invoke all the 
