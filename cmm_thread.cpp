@@ -12,10 +12,6 @@ using std::ptr_fun;
 pthread_key_t thread_name_key;
 static pthread_once_t key_once = PTHREAD_ONCE_INIT;
 
-pthread_mutex_t CMMThread::joinable_lock = PTHREAD_MUTEX_INITIALIZER;
-std::set<pthread_t> CMMThread::joinable_threads;
-
-
 void
 ThreadCleanup(void * arg)
 {
@@ -24,12 +20,6 @@ ThreadCleanup(void * arg)
     pthread_mutex_lock(&thread->starter_mutex);
     thread->running = false;
     pthread_mutex_unlock(&thread->starter_mutex);
-
-    {
-        PthreadScopedLock lock(&CMMThread::joinable_lock);
-        CMMThread::joinable_threads.erase(thread->tid);
-    }
-
     thread->Finish();
 }
 
@@ -108,14 +98,10 @@ CMMThread::start()
     pthread_attr_init(&attr);
     pthread_attr_setstacksize(&attr, 1024*1024);
 
-    {
-        PthreadScopedLock lock(&joinable_lock);
-        int rc = pthread_create(&tid, &attr, ThreadFn, this);
-        if (rc != 0) {
-            dbgprintf("Failed to create thread! rc=%d\n", rc);
-            return rc;
-        }
-        joinable_threads.insert(tid);
+    int rc = pthread_create(&tid, &attr, ThreadFn, this);
+    if (rc != 0) {
+      dbgprintf("Failed to create thread! rc=%d\n", rc);
+      return rc;
     }
 
     pthread_mutex_lock(&starter_mutex);
@@ -162,36 +148,11 @@ CMMThread::join()
             pthread_join(tid, NULL);
         }
     }
-
-    PthreadScopedLock j_lock(&joinable_lock);
-    joinable_threads.erase(tid);
 }
 
 void
 CMMThread::detach()
 {
     assert(tid == pthread_self());
-    {
-        PthreadScopedLock j_lock(&joinable_lock);
-        joinable_threads.erase(tid);
-    }
-    
     pthread_detach(tid);
-}
-
-void
-CMMThread::join_all()
-{
-    std::set<pthread_t> joinable_threads_private;
-    {
-        PthreadScopedLock lock(&joinable_lock);
-        joinable_threads_private = joinable_threads;
-        joinable_threads.clear();
-    }
-    void **result = NULL;
-    for (std::set<pthread_t>::iterator it = joinable_threads_private.begin();
-         it != joinable_threads_private.end(); it++) {
-        dbgprintf("pthread_join to thread %d\n", *it);
-        pthread_join(*it, result);
-    }
 }
