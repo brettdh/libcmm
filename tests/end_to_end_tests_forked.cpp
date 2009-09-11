@@ -16,12 +16,13 @@
 CPPUNIT_TEST_SUITE_REGISTRATION(EndToEndTestsForked);
 
 pid_t EndToEndTestsForked::receiver_pid = -1;
+EndToEndTestsForked::static_destroyer EndToEndTestsForked::destroyer;
 
 void
 EndToEndTestsForked::chooseRole()
 {
     receiver_pid = fork();
-    handle_error(receiver_pid == -1, "fork");
+    handle_error(receiver_pid < 0, "error: didn't fork");
     setRemoteHost("localhost");
 }
 
