@@ -846,10 +846,10 @@ CMMSocketImpl::mc_shutdown(int how)
     CMMSockHash::accessor ac;
     if (cmm_sock_hash.find(ac, sock)) {
 	goodbye(false);
-        rc = csock_map->for_each(shutdown_each(how));
+        //rc = csock_map->for_each(shutdown_each(how));
     } else {
-	errno = EBADF;
-	rc = -1;
+        // see CMMSocketPassThrough
+        assert(0);
     }
 
     return rc;
@@ -1023,7 +1023,7 @@ CMMSocketImpl::mc_accept(int listener_sock,
         /* pass-through */
         return accept(listener_sock, addr, addrlen);
     }
-    
+
     int sock = accept(listener_sock, addr, addrlen);
     if (sock < 0) {
         return sock;
@@ -1752,34 +1752,34 @@ void
 CMMSocketImpl::goodbye(bool remote_initiated)
 {
     if (is_shutting_down()) {
-        csock_map->join_to_all_workers();
+        //csock_map->join_to_all_workers();
 	return;
     }
 
-    pthread_mutex_lock(&scheduling_state_lock);
-    pthread_mutex_lock(&shutdown_mutex);
-    shutting_down = true; // picked up by sender-scheduler
-    if (remote_initiated) {
-	remote_shutdown = true;
+    PthreadScopedLock lock(&scheduling_state_lock);
+    {
+        PthreadScopedLock sh_lock(&shutdown_mutex);
+        shutting_down = true; // picked up by sender-scheduler
+        if (remote_initiated) {
+            remote_shutdown = true;
+        }
     }
-    pthread_mutex_unlock(&shutdown_mutex);
 
     CSocket *csock;
     int ret = get_csock(0, NULL, NULL, csock, false);
     if (ret < 0) {
         // no socket to send the goodbye; connection must be gone
-        pthread_mutex_lock(&shutdown_mutex);
+        PthreadScopedLock sh_lock(&shutdown_mutex);
         remote_shutdown = true;
         goodbye_sent = true;
-        pthread_mutex_unlock(&shutdown_mutex);
 
-        csock_map->join_to_all_workers();
-        return;
+        //csock_map->join_to_all_workers();
+        //return;
     }
 
     pthread_cond_broadcast(&scheduling_state_cv);
-    pthread_mutex_unlock(&scheduling_state_lock);
 
+    /*
     // sender-scheduler thread will send goodbye msg after 
     // all ACKs are received
 
@@ -1791,8 +1791,9 @@ CMMSocketImpl::goodbye(bool remote_initiated)
     //incoming_irobs.shutdown();
 
     if (!remote_initiated) {
-        csock_map->join_to_all_workers();
+      //csock_map->join_to_all_workers();
     }
+    */
 }
 
 void 

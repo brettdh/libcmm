@@ -62,22 +62,6 @@ CMMSocketPassThrough::mc_shutdown(int how)
     return shutdown(sock, how);
 }
 
-#if 0
-int 
-CMMSocketPassThrough::reset()
-{
-    /* not meaningful on regular sockets */
-    return 0;
-}
-
-int 
-CMMSocketPassThrough::check_label(u_long label, resume_handler_t fn, void *arg)
-{
-    /* not meaningful on regular sockets */
-    return 0;
-}
-#endif
-
 irob_id_t
 CMMSocketPassThrough::mc_begin_irob(int numdeps, const irob_id_t *deps, 
                                     u_long send_labels, 
