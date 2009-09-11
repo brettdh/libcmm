@@ -84,8 +84,10 @@ void
 EndToEndTestsBase::tearDown()
 {
     if (isReceiver()) {
+        cmm_shutdown(read_sock, SHUT_RDWR);
         cmm_close(read_sock);
     } else {
+        cmm_shutdown(send_sock, SHUT_RDWR);
         cmm_close(send_sock);
     }
 }
