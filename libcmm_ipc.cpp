@@ -212,6 +212,8 @@ static void *IPCThread(void *arg)
     char name[MAX_NAME_LEN+1] = "IPCThread";
     set_thread_name(name);
 
+    pthread_detach(pthread_self());
+
     while (1) {
         fd_set readfds;
         FD_ZERO(&readfds);
