@@ -7,6 +7,7 @@
 #include <signal.h>
 #include "libcmm_ipc.h"
 #include "cmm_thread.h"
+#include "signals.h"
 #include <set>
 using std::set;
 
@@ -179,7 +180,7 @@ void scout_ipc_deinit(void)
         running = false;
 	mq_close(scout_mq_fd);
 	mq_unlink(mq_name);
-        pthread_kill(ipc_thread_id, SIGINT);
+        pthread_kill(ipc_thread_id, CMM_SELECT_SIGNAL);
     }
 }
 
