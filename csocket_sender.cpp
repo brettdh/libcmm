@@ -7,6 +7,8 @@
 #include "pending_sender_irob.h"
 #include "csocket_mapping.h"
 #include "pthread_util.h"
+#include <signal.h>
+#include <pthread.h>
 
 CSocketSender::CSocketSender(CSocketPtr csock_) 
   : csock(csock_), sk(get_pointer(csock_->sk)) {}
@@ -18,6 +20,11 @@ CSocketSender::Run()
     memset(name, 0, MAX_NAME_LEN+1);
     snprintf(name, MAX_NAME_LEN, "CSockSender %d", csock->osfd);
     set_thread_name(name);
+
+    sigset_t sigset;
+    sigemptyset(&sigset);
+    sigaddset(&sigset, SIGPIPE); // ignore SIGPIPE
+    pthread_sigmask(SIG_BLOCK, &sigset, NULL);
 
     PthreadScopedLock lock(&sk->scheduling_state_lock);
     try {
