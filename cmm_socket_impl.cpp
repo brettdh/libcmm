@@ -1722,6 +1722,7 @@ CMMSocketImpl::ack_received(irob_id_t id)
 
     psirob->ack();
     remove_if_unneeded(pirob);
+    dbgprintf("%d unACK'd IROBs remain\n", outgoing_irobs.size());
 }
 
 /* call only with scheduling_state_lock held */

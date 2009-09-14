@@ -132,6 +132,7 @@ class PendingIROBLattice {
     bool past_irob_exists(irob_id_t id);
 
     bool empty();// { return pending_irobs.empty(); }
+    size_t size();
     void clear();
     
     /* returns true if first depends on second. */

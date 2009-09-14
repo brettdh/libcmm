@@ -365,6 +365,13 @@ PendingIROBLattice::empty()
     return pending_irobs.empty(); 
 }
 
+size_t
+PendingIROBLattice::size()
+{
+    PthreadScopedLock lock(&membership_lock);
+    return pending_irobs.size(); 
+}
+
 IROBSchedulingData::IROBSchedulingData(irob_id_t id_, u_long seqno_) 
     : id(id_), seqno(seqno_) 
 {
