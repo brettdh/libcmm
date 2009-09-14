@@ -551,6 +551,8 @@ CSocketSender::Finish(void)
         csock->csock_sendr = NULL;
         //pthread_cond_broadcast(&sk->scheduling_state_cv);
     }
+    dbgprintf("Exiting.\n");
+
     // nobody will pthread_join to the sender now, so detach
     //  to make sure the memory gets reclaimed
     detach();

@@ -97,6 +97,7 @@ ListenerThread::Run()
 		continue;
 	    } else {
                 close(listener_sock);
+                dbgprintf("Exiting.\n");
 		return;
 	    }
 	}
@@ -110,6 +111,7 @@ ListenerThread::Run()
                       " errno=%d\n",errno);
 	    close(listener_sock);
             //throw std::runtime_error("Socket error");
+            dbgprintf("Exiting.\n");
             return;
         }
 
