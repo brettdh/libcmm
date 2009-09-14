@@ -10,12 +10,9 @@
 #include <set>
 using std::set;
 
-#include "tbb/spin_mutex.h"
-using tbb::spin_mutex;
+#include "debug.h"
 
-typedef spin_mutex MsgMutexType;
-
-static MsgMutexType msg_lock;
+static bool running = true;
 
 /* per-process message queue with the scout. */
 static mqd_t scout_mq_fd;
@@ -179,8 +176,10 @@ void scout_ipc_deinit(void)
 	if (rc < 0) {
 	    fprintf(stderr, "Warning: failed to send unsubscribe message\n");
 	}
+        running = false;
 	mq_close(scout_mq_fd);
 	mq_unlink(mq_name);
+        pthread_kill(ipc_thread_id, SIGINT);
     }
 }
 
@@ -214,7 +213,7 @@ static void *IPCThread(void *arg)
 
     pthread_detach(pthread_self());
 
-    while (1) {
+    while (running) {
         fd_set readfds;
         FD_ZERO(&readfds);
         FD_SET(scout_mq_fd, &readfds);
@@ -230,5 +229,6 @@ static void *IPCThread(void *arg)
             net_status_change_handler();
         }
     }
+    dbgprintf("IPC thread exiting.\n");
     return NULL;
 }
