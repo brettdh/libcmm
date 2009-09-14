@@ -148,7 +148,8 @@ PendingReceiverIROBLattice::get_ready_irob()
 #ifndef CMM_UNIT_TESTING
             while (ready_irobs.empty()) {
                 assert(sk);
-                if (sk->is_shutting_down()) {
+                PthreadScopedLock lock(&sk->shutdown_mutex);
+                if (sk->remote_shutdown) {
                     dbgprintf("get_ready_irob: returning NULL\n");
                     return NULL;
                 }

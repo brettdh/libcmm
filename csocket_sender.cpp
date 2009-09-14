@@ -87,6 +87,7 @@ CSocketSender::Run()
             sk->goodbye_sent = true;
             pthread_cond_broadcast(&sk->shutdown_cv);
         }
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
         // csock will get cleaned up in Finish()
         throw;
     }
