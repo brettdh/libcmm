@@ -18,6 +18,15 @@ select_signal_handler(int signum)
     /* nothin' to do... */
 }
 
+void signals_init()
+{
+    struct sigaction actignore, act;
+    memset(&act, 0, sizeof(act));
+    memset(&actignore, 0, sizeof(actignore));
+    act.sa_handler = select_signal_handler;
+    sigaction(CMM_SELECT_SIGNAL, &act, NULL);
+}
+
 static void register_selecting_thread()
 {
     pthread_t tid = pthread_self();
@@ -26,12 +35,6 @@ static void register_selecting_thread()
 
 void unblock_select_signals()
 {
-    struct sigaction actignore, act;
-    memset(&act, 0, sizeof(act));
-    memset(&actignore, 0, sizeof(actignore));
-    act.sa_handler = select_signal_handler;
-    sigaction(CMM_SELECT_SIGNAL, &act, NULL);
-
     sigset_t sigset;
     sigemptyset(&sigset);
     sigaddset(&sigset, CMM_SELECT_SIGNAL);

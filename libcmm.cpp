@@ -24,6 +24,7 @@ using std::auto_ptr;
 #include "libcmm_ipc.h"
 #include "pending_irob.h"
 #include "debug.h"
+#include "signals.h"
 
 #include "cmm_timing.h"
 
@@ -115,6 +116,7 @@ static void libcmm_init(void)
     }
     
     scout_ipc_init();
+    signals_init();
 
 #ifdef CMM_TIMING
     tbb::mutex::scoped_lock(timing_mutex);
