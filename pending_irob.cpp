@@ -211,14 +211,20 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
     dbgprintf("Adding IROB %d as dependent of: [ ", pirob->id);
     for (irob_id_set::iterator it = pirob->deps.begin();
          it != pirob->deps.end(); it++) {
+        if (past_irobs.contains(*it)) {
+            dbgprintf_plain("(%ld) ", *it);
+            continue;
+        }
+
         PendingIROB *dep = find_locked(*it);
         if (dep) {
             dbgprintf_plain("%ld ", dep->id);
             dep->add_dependent(pirob->id);
         } else {
-            dbgprintf_plain("(%ld) ", *it);
+            dbgprintf_plain("P%ld ", *it);
             dep = new PendingIROB(*it);
-            insert_locked(dep);
+            bool ret = insert_locked(dep);
+            assert(ret);
             dep->add_dependent(pirob->id);
         }
     }
