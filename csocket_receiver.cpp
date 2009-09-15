@@ -84,6 +84,7 @@ CSocketReceiver::Run(void)
             dbgprintf("Fatal error on multisocket %d: %s\n",
                       sk->sock, e.what());
             sk->goodbye(false);
+            shutdown(sk->select_pipe[1], SHUT_RDWR);
             throw;
         }
     }
