@@ -1863,21 +1863,29 @@ CMMSocketImpl::signal_completion(pthread_t requester_tid, long rc)
     }
 }
 
+CMMSocketImpl::static_destroyer::~static_destroyer()
+{
+    CMMSocketImpl::cleanup();
+}
+
+CMMSocketImpl::static_destroyer CMMSocketImpl::destroyer;
+
 void
 CMMSocketImpl::cleanup()
 {
-    vector<mc_socket_t> abandoned_socks;
-    {
-        PthreadScopedLock lock(&hashmaps_mutex);
-        for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
-             sk_iter != cmm_sock_hash.end(); sk_iter++) {
-            CMMSockHash::const_accessor read_ac;
-            if (!cmm_sock_hash.find(read_ac, sk_iter->first)) {
-                assert(0);
-            }
-            abandoned_socks.push_back(sk_iter->first);
+    dbgprintf("Application is exitiong; cleaning up leftover mc_sockets\n");
+    PthreadScopedLock lock(&hashmaps_mutex);
+    for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin(true);
+         sk_iter != cmm_sock_hash.end(); sk_iter++) {
+        CMMSocketImplPtr sk = sk_iter->second;
+        sk->goodbye(false);
+        shutdown(sk->select_pipe[0], SHUT_RDWR);
+        shutdown(sk->select_pipe[1], SHUT_RDWR);
+        
+        //PthreadScopedLock lock(&sk->scheduling_state_lock);
+        PthreadScopedLock shdwn_kock(&sk->shutdown_mutex);
+        while (!sk->remote_shutdown || !sk->goodbye_sent) {
+            pthread_cond_wait(&sk->shutdown_cv, &sk->shutdown_mutex);
         }
     }
-
-    for_each(abandoned_socks.begin(), abandoned_socks.end(), cmm_close);
 }

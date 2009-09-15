@@ -298,6 +298,12 @@ class CMMSocketImpl : public CMMSocket {
     void read_lock(CMMSockHash::const_accessor& ac);
     /* grab a writelock on this socket with the accessor. */
     void write_lock(CMMSockHash::accessor& ac);
+
+    class static_destroyer {
+      public:
+        ~static_destroyer();
+    };
+    static static_destroyer destroyer;
 };
 
 class CMMSocketPassThrough : public CMMSocket {
