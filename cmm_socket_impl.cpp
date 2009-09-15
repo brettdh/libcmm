@@ -1865,7 +1865,9 @@ CMMSocketImpl::signal_completion(pthread_t requester_tid, long rc)
 
 CMMSocketImpl::static_destroyer::~static_destroyer()
 {
-    CMMSocketImpl::cleanup();
+    //CMMSocketImpl::cleanup();
+    dbgprintf("Application is exiting; waiting for internal threads to finish\n");
+    CMMThread::join_all();
 }
 
 CMMSocketImpl::static_destroyer CMMSocketImpl::destroyer;
