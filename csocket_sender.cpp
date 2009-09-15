@@ -88,6 +88,8 @@ CSocketSender::Run()
         } else {
             // this connection is hosed, so make sure everything
             // gets cleaned up as if we had done a graceful shutdown
+            dbgprintf("Connection %d is hosed; forcefully shutting down\n",
+                      sk->sock);
             shutdown(sk->select_pipe[1], SHUT_RDWR);
 
             PthreadScopedLock lock(&sk->shutdown_mutex);
