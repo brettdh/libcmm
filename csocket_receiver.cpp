@@ -78,7 +78,13 @@ CSocketReceiver::Run(void)
 
 	dbgprintf("Received message: %s\n", hdr.describe().c_str());
 
-        dispatch(hdr);
+        try {
+            dispatch(hdr);
+        } catch (CMMFatalError& e) {
+            dbgprintf("Fatal error on multisocket %d: %s\n",
+                      csock->osfd, e.hdr.describe().c_str());
+            throw;
+        }
     }
 }
 
@@ -170,8 +176,8 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
         PthreadScopedLock lock(&sk->scheduling_state_lock);
         if (!sk->incoming_irobs.insert(pirob, false)) {
             delete pirob;
-            throw CMMControlException("Tried to begin IROB that already exists", 
-                                  hdr);
+            throw CMMFatalError("Tried to begin IROB that already exists", 
+                                hdr);
         }
     }
 
@@ -198,15 +204,15 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
         PendingIROB *pirob = sk->incoming_irobs.find(id);
         if (!pirob) {
             if (sk->incoming_irobs.past_irob_exists(id)) {
-                throw CMMControlException("Tried to end committed IROB", hdr);
+                throw CMMFatalError("Tried to end committed IROB", hdr);
             } else {
-                throw CMMControlException("Tried to end nonexistent IROB", hdr);
+                throw CMMFatalError("Tried to end nonexistent IROB", hdr);
             }
         }
         
         assert(pirob);
         if (!pirob->finish()) {
-            throw CMMControlException("Tried to end already-done IROB", hdr);
+            throw CMMFatalError("Tried to end already-done IROB", hdr);
         }
         
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
@@ -244,9 +250,9 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         PendingIROB *pirob = sk->incoming_irobs.find(id);
         if (!pirob) {
             if (sk->incoming_irobs.past_irob_exists(id)) {
-                throw CMMControlException("Tried to add to committed IROB", hdr);
+                throw CMMFatalError("Tried to add to committed IROB", hdr);
             } else {
-                throw CMMControlException("Tried to add to nonexistent IROB", hdr);
+                throw CMMFatalError("Tried to add to nonexistent IROB", hdr);
             }
         }
         struct irob_chunk_data chunk;
@@ -259,7 +265,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
         assert(prirob);
         if (!prirob->add_chunk(chunk)) {
-            throw CMMControlException("Tried to add to completed IROB", hdr);
+            throw CMMFatalError("Tried to add to completed IROB", hdr);
         } else {
             dbgprintf("Successfully added chunk %d to IROB %d\n",
                       chunk.seqno, id);
@@ -297,7 +303,7 @@ void CSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
         PthreadScopedLock lock(&sk->scheduling_state_lock);
         if (!sk->incoming_irobs.insert(pirob, false)) {
             delete pirob;
-            throw CMMControlException("Tried to add default IROB "
+            throw CMMFatalError("Tried to add default IROB "
                                       "that already exists", 
                                       hdr);
         }

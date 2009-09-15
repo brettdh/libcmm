@@ -93,4 +93,15 @@ class CMMControlException : public std::runtime_error {
     struct CMMSocketControlHdr hdr;
 };
 
+/* These being caught will cause the multi-socket connection
+ * to break.  Fatal errors include unexpected control
+ * messages, or invalid IROB operations, such as repeating
+ * an IROB id on a connection or sending data for an IROB
+ * that doesn't exist at the receiver. */
+class CMMFatalError : public CMMControlException {
+  public:
+    CMMFatalError(const std::string& str, struct CMMSocketControlHdr hdr)
+        : CMMControlException(str, hdr) {}
+};
+
 #endif
