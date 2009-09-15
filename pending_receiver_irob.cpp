@@ -3,6 +3,7 @@
 #include "debug.h"
 #include "timeops.h"
 #include "cmm_socket.private.h"
+#include "csocket_mapping.h"
 #include "pthread_util.h"
 #include <algorithm>
 #include <vector>
@@ -150,7 +151,7 @@ PendingReceiverIROBLattice::get_ready_irob()
                 assert(sk);
                 {
                     PthreadScopedLock lock(&sk->shutdown_mutex);
-                    if (sk->remote_shutdown) {
+                    if (sk->remote_shutdown && sk->csock_map->empty()) {
                         dbgprintf("get_ready_irob: returning NULL\n");
                         return NULL;
                     }
