@@ -162,6 +162,7 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
 {
     assert(pirob);
     if (past_irobs.contains(pirob->id)) {
+        dbgprintf("Inserting IROB %d failed; it's in past_irobs\n", pirob->id);
         return false;
     }
 
@@ -174,6 +175,7 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
     if (index >= 0 && index < (int)pending_irobs.size() && 
         (pending_irobs[index] != NULL &&
          !pending_irobs[index]->placeholder)) {
+        dbgprintf("Inserting IROB %d failed; I have it already??\n", pirob->id);
         return false;
     }
     while (index < 0) {
@@ -322,6 +324,7 @@ PendingIROBLattice::erase(irob_id_t id)
     int index = id - offset;
     if (index < 0 || index >= (int)pending_irobs.size() ||
         pending_irobs[index] == NULL) {
+        dbgprintf("WARNING: failed to remove IROB %d from lattice!\n", id);
         return false;
     }
     past_irobs.insert(id);
