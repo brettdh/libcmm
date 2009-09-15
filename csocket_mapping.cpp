@@ -221,10 +221,12 @@ CSockMapping::new_csock_with_labels(u_long send_label)
 	connected_csocks.insert(csock);
     }
     // to interrupt any select() in progress, adding the new osfd
+    /*
     dbgprintf("Interrupting any selects() in progress to add osfd %d "
 	      "to multi-socket %d\n",
 	      csock->osfd, CMMSocketImplPtr(sk)->sock);
     signal_selecting_threads();
+    */
     
     return csock;
 }
@@ -313,7 +315,7 @@ CSockMapping::add_connection(int sock,
 	PthreadScopedRWLock lock(&sockset_mutex, true);
 	connected_csocks.insert(new_csock);
     }
-    signal_selecting_threads();
+    //signal_selecting_threads();
 }
 
 struct CSockMapping::get_worker_tids {

@@ -310,6 +310,11 @@ int cmm_select(mc_socket_t nfds,
 	       fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 	       struct timeval *timeout)
 {
+    return CMMSocket::mc_select(nfds, readfds, writefds, exceptfds, timeout);
+
+#if 0
+    /* No longer needed, since we now select on a special
+     * file descriptor that captures all CSockets */
     int rc = 0;
     do {
         rc = CMMSocket::mc_select(nfds, readfds, writefds, exceptfds, timeout);
@@ -321,6 +326,7 @@ int cmm_select(mc_socket_t nfds,
         }
     } while (rc < 0 && errno == EINTR);
     return rc;
+#endif
 }
 
 int cmm_poll(struct pollfd fds[], nfds_t nfds, int timeout)

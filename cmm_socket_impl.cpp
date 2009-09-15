@@ -610,10 +610,10 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
 
     dbgprintf("libcmm: about to call select(), maxosfd=%d\n", maxosfd);
 
-    unblock_select_signals();
+    //unblock_select_signals();
     rc = select(maxosfd + 1, &tmp_readfds, &tmp_writefds, &tmp_exceptfds, 
 		timeout);
-    block_select_signals();
+    //block_select_signals();
 
     dbgprintf("libcmm: returned from select()\n");
     
