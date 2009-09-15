@@ -1865,8 +1865,9 @@ CMMSocketImpl::signal_completion(pthread_t requester_tid, long rc)
 
 CMMSocketImpl::static_destroyer::~static_destroyer()
 {
-    //CMMSocketImpl::cleanup();
-    dbgprintf("Application is exiting; waiting for internal threads to finish\n");
+    dbgprintf("Application is exiting\n");
+    CMMSocketImpl::cleanup();
+    dbgprintf("Waiting for internal threads to finish\n");
     CMMThread::join_all();
 }
 
@@ -1875,7 +1876,7 @@ CMMSocketImpl::static_destroyer CMMSocketImpl::destroyer;
 void
 CMMSocketImpl::cleanup()
 {
-    dbgprintf("Application is exitiong; cleaning up leftover mc_sockets\n");
+    dbgprintf("Cleaning up leftover mc_sockets\n");
     PthreadScopedLock lock(&hashmaps_mutex);
     for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin(true);
          sk_iter != cmm_sock_hash.end(); sk_iter++) {
