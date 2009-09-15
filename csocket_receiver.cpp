@@ -83,6 +83,7 @@ CSocketReceiver::Run(void)
         } catch (CMMFatalError& e) {
             dbgprintf("Fatal error on multisocket %d: %s\n",
                       csock->osfd, e.hdr.describe().c_str());
+            sk->goodbye(false);
             throw;
         }
     }
