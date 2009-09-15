@@ -390,6 +390,11 @@ CSocketReceiver::do_goodbye(struct CMMSocketControlHdr hdr)
 	/* The other side initiated the shutdown; this is the "FIN" */
 	/* Send the "FIN/ACK" */
 	sk->goodbye(true);
+        
+        /* wake up any selectors */
+        dbgprintf("Received goodbye for msocket %d; waking selectors\n",
+                  sk->sock);
+        shutdown(sk->select_pipe[1], SHUT_RDWR);
     }
     /* Note: the senders will still wait for all waiting ACKs
      * to be sent before finalizing the shutdown. */

@@ -67,10 +67,6 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
     template <typename Predicate>
     void release_if_ready(PendingReceiverIROB *pirob, Predicate is_ready);
 
-    // must call with sk->scheduling_state_lock held
-    template <typename Predicate>
-    void release_dependents(PendingReceiverIROB *pirob, Predicate is_ready);
-
     void partially_read(PendingReceiverIROB *pirob);
     
     /* signify that the socket has been shut down for reading. */
@@ -82,6 +78,10 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
 
     // must call with sk->scheduling_state_lock held
     void release(irob_id_t id);
+
+    // must call with sk->scheduling_state_lock held
+    template <typename Predicate>
+    void release_dependents(PendingReceiverIROB *pirob, Predicate is_ready);
 
     PendingReceiverIROB *partially_read_irob;
 };

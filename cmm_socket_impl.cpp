@@ -291,6 +291,8 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
     if (cmm_sock_hash.find(ac, sock)) {
 	CMMSocketImplPtr sk(ac->second);
 	sk->goodbye(false);
+        shutdown(sk->select_pipe[0], SHUT_RDWR);
+        shutdown(sk->select_pipe[1], SHUT_RDWR);
         pthread_mutex_lock(&hashmaps_mutex);
 	cmm_sock_hash.erase(ac);
         /* the CMMSocket object gets destroyed by the shared_ptr. */
