@@ -25,6 +25,8 @@ void signals_init()
     memset(&actignore, 0, sizeof(actignore));
     act.sa_handler = select_signal_handler;
     sigaction(CMM_SELECT_SIGNAL, &act, NULL);
+    
+    signal(SIGPIPE, SIG_IGN);
 }
 
 static void register_selecting_thread()
