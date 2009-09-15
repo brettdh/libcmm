@@ -18,6 +18,8 @@ class CMMThread {
     CMMThread();
     virtual ~CMMThread();
 
+    static void join_all();
+
     pthread_t tid;
   protected:
     virtual void Run(void) = 0;
@@ -36,6 +38,10 @@ class CMMThread {
 
     friend void *ThreadFn(void *);
     friend void ThreadCleanup(void *);
+
+  private:
+    static pthread_mutex_t joinable_lock;
+    static std::set<pthread_t> joinable_threads;
 };
 
 /* throw from Run() function to terminate thread */
