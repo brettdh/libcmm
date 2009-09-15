@@ -183,6 +183,10 @@ static void libcmm_deinit(void)
     thunk_hash.clear();
 #endif
 
+    // clean up any mc_sockets that the application didn't explicitly
+    //  close with cmm_close
+    CMMSocket::cleanup();
+    
     scout_ipc_deinit();
 
     //CMMThread::join_all();

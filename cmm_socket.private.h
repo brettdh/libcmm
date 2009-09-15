@@ -116,6 +116,9 @@ class CMMSocketImpl : public CMMSocket {
     void add_connection(int sock, 
                         struct in_addr local_addr,
                         struct net_interface remote_iface);
+
+    // cmm_close all remaining mc_sockets.
+    static void cleanup();
     
   private:
     friend class CSocket;

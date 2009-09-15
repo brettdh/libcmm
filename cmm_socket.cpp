@@ -64,3 +64,9 @@ CMMSocket::mc_accept(int listener_sock,
 {
     return CMMSocketImpl::mc_accept(listener_sock, addr, addrlen);
 }
+
+void
+CMMSocket::cleanup()
+{
+    return CMMSocketImpl::cleanup();
+}

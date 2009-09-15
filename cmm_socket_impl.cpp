@@ -1862,3 +1862,18 @@ CMMSocketImpl::signal_completion(pthread_t requester_tid, long rc)
 	pthread_mutex_unlock(&thread.mutex);
     }
 }
+
+void
+CMMSocketImpl::cleanup()
+{
+    vector<mc_socket_t> abandoned_socks;
+    {
+        PthreadScopedLock lock(&hashmaps_mutex);
+        for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
+             sk_iter != cmm_sock_hash.end(); sk_iter++) {
+            abandoned_socks.push_back(sk_iter->first);
+        }
+    }
+
+    for_each(abandoned_socks.begin(), abandoned_socks.end(), cmm_close);
+}

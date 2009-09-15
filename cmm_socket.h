@@ -26,6 +26,9 @@ class CMMSocket {
     static void interface_down(struct net_interface down_iface);
     static void interface_up(struct net_interface up_iface);
 
+    // cmm_close all remaining mc_sockets.
+    static void cleanup();
+
     //virtual int reset() = 0;
     //virtual int check_label(u_long label, resume_handler_t fn, 
     //                        void *arg) = 0;
