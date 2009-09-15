@@ -159,6 +159,9 @@ class PendingIROBLattice {
     // the last anonymous IROB added to the set, if any.
     // -1 otherwise.
     irob_id_t last_anon_irob_id;
+
+    // number of real (not placeholder) IROBs in the data structure.
+    size_t count;
     
     // If a new IROB depended upon all IROBs in this set, it would
     //  transitively depend on all prior IROBs.

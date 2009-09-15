@@ -132,7 +132,7 @@ PendingIROB::depends_on(irob_id_t that)
 
 
 PendingIROBLattice::PendingIROBLattice()
-    : offset(0), last_anon_irob_id(-1)
+    : offset(0), last_anon_irob_id(-1), count(0)
 {
     pthread_mutex_init(&membership_lock, NULL);
 }
@@ -224,6 +224,7 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
     }
     dbgprintf_plain("]\n");
 
+    ++count;
     return true;
 }
 
@@ -235,6 +236,7 @@ PendingIROBLattice::clear()
     pending_irobs.clear();
     min_dominator_set.clear();
     last_anon_irob_id = -1;
+    count = 0;
 }
 
 void
@@ -351,6 +353,7 @@ PendingIROBLattice::erase(irob_id_t id)
     }
     dbgprintf_plain("]\n");
     
+    --count;
     return true;
 }
 
@@ -372,7 +375,7 @@ size_t
 PendingIROBLattice::size()
 {
     PthreadScopedLock lock(&membership_lock);
-    return pending_irobs.size(); 
+    return count; 
 }
 
 IROBSchedulingData::IROBSchedulingData(irob_id_t id_, u_long seqno_) 
