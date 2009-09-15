@@ -1871,6 +1871,10 @@ CMMSocketImpl::cleanup()
         PthreadScopedLock lock(&hashmaps_mutex);
         for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
              sk_iter != cmm_sock_hash.end(); sk_iter++) {
+            CMMSockHash::const_accessor read_ac;
+            if (!cmm_sock_hash.find(read_ac, sk_iter->first)) {
+                assert(0);
+            }
             abandoned_socks.push_back(sk_iter->first);
         }
     }

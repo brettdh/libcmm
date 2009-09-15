@@ -147,9 +147,11 @@ class LockingMap {
         
         iterator() : valid(false), my_map(NULL) {}
         ~iterator() {
-            while (!member_locks.empty()) {
-                // just to be 100% sure about the destruction order
-                member_locks.pop_back();
+            if (locked) {
+                while (!member_locks.empty()) {
+                    // just to be 100% sure about the destruction order
+                    member_locks.pop_back();
+                }
             }
         }
                 
