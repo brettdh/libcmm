@@ -33,7 +33,7 @@ LatticeTest::tearDown()
         delete pirob_array[i];
     }
 
-    pirobs->clear();
+    pirobs->clear(false);
     delete pirobs;
 }
 

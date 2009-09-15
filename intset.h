@@ -18,6 +18,7 @@ class IntSet {
     /* returns the number of unique ints insert()ed. */
     size_t size(void) const;
     bool empty(void) const;
+    void clear(void);
   private:
     boost::dynamic_bitset<> pos_vec;
     boost::dynamic_bitset<> neg_vec;

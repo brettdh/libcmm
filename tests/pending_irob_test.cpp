@@ -23,7 +23,7 @@ PendingIROBLatticeTest::tearDown()
     delete pirob2;
     delete pirob3;
 
-    pirobs->clear();
+    pirobs->clear(false);
     delete pirobs;
 }
 

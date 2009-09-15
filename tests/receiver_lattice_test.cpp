@@ -32,7 +32,7 @@ ReceiverLatticeTest::setUp()
 void
 ReceiverLatticeTest::tearDown()
 {
-    pirobs->clear();
+    pirobs->clear(true);
     delete pirobs;
 }
 

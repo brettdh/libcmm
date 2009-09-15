@@ -334,7 +334,7 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
 	throw sock; /* :-) */
     }
 
-    int rc = pipe(select_pipe);
+    int rc = socketpair(AF_UNIX, SOCK_STREAM, 0, select_pipe);
     if (rc < 0) { 
         close(sock);
         throw rc;
@@ -366,12 +366,15 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
 
 CMMSocketImpl::~CMMSocketImpl()
 {
+    dbgprintf("multisocket %d is being destroyed\n", sock);
     delete csock_map;
 
     listener_thread->stop();
     delete listener_thread;
     
     //free(remote_addr);
+    close(select_pipe[0]);
+    close(select_pipe[1]);
     close(sock);
 
     pthread_mutex_destroy(&shutdown_mutex);
@@ -457,8 +460,9 @@ CMMSocketImpl::get_fds_for_select(mcSocketOsfdPairList &osfd_list,
         if (incoming_irobs.data_is_ready()) {
             // select can return now, so make sure it does
             char c = 42; // value will be ignored
-            int rc = write(select_pipe[1], &c, 1);
-            assert(rc == 1);
+            (void)write(select_pipe[1], &c, 1);
+            /* if this write fails, then either we're shutting down or the
+             * buffer is full.  No big deal either way. */
             dbgprintf("read-selecting on msocket %d, which has data ready\n",
                       sock);
         } else {
@@ -846,6 +850,10 @@ CMMSocketImpl::mc_shutdown(int how)
     CMMSockHash::accessor ac;
     if (cmm_sock_hash.find(ac, sock)) {
 	goodbye(false);
+        if (how == SHUT_RD || how == SHUT_RDWR) {
+            shutdown(select_pipe[0], SHUT_RDWR);
+            shutdown(select_pipe[1], SHUT_RDWR);
+        }
         //rc = csock_map->for_each(shutdown_each(how));
     } else {
         // see CMMSocketPassThrough

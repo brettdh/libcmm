@@ -150,6 +150,7 @@ class CMMSocketImpl : public CMMSocket {
 
     mc_socket_t sock; /* file-descriptor handle for this multi-socket */
 
+    // actually created by socketpair() now, so that I can use shutdown.
     int select_pipe[2]; /* pipe for waking up read-selects */
 
     CSockMapping *csock_map;

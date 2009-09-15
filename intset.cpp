@@ -84,3 +84,11 @@ IntSet::empty(void) const
 {
     return (size() == 0);
 }
+
+void
+IntSet::clear(void)
+{
+    pos_vec.clear();
+    neg_vec.clear();
+    size_ = 0;
+}

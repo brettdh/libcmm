@@ -133,7 +133,7 @@ class PendingIROBLattice {
 
     bool empty();// { return pending_irobs.empty(); }
     size_t size();
-    void clear();
+    void clear(bool delete_members);
     
     /* returns true if first depends on second. */
     //bool depends_on(PendingIROB *first, PendingIROB *second);

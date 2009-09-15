@@ -139,14 +139,7 @@ PendingIROBLattice::PendingIROBLattice()
 
 PendingIROBLattice::~PendingIROBLattice()
 {
-    {
-        PthreadScopedLock lock(&membership_lock);
-        for (size_t i = 0; i < pending_irobs.size(); i++) {
-            delete pending_irobs[i];
-        }
-        pending_irobs.clear();
-        offset = 0;
-    }
+    clear(true);
     pthread_mutex_destroy(&membership_lock);
 }
 
@@ -235,12 +228,20 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
 }
 
 void
-PendingIROBLattice::clear()
+PendingIROBLattice::clear(bool delete_members)
 {
     PthreadScopedLock lock(&membership_lock);
 
+    if (delete_members) {
+        for (size_t i = 0; i < pending_irobs.size(); i++) {
+            delete pending_irobs[i];
+        }
+    }
     pending_irobs.clear();
+    offset = 0;
+
     min_dominator_set.clear();
+    past_irobs.clear();
     last_anon_irob_id = -1;
     count = 0;
 }
