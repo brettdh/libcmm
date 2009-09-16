@@ -23,6 +23,8 @@ ThreadCleanup(void * arg)
     assert(thread);
     pthread_mutex_lock(&thread->starter_mutex);
     thread->running = false;
+    thread->exiting = true;
+    pthread_cond_signal(&thread->starter_cv);
     pthread_mutex_unlock(&thread->starter_mutex);
 
     {
@@ -115,12 +117,20 @@ CMMThread::start()
             dbgprintf("Failed to create thread! rc=%d\n", rc);
             return rc;
         }
+        dbgprintf("Created thread %x\n", tid);
         joinable_threads.insert(tid);
     }
 
     pthread_mutex_lock(&starter_mutex);
-    while (!running) {
+    while (!running && !exiting) {
 	pthread_cond_wait(&starter_cv, &starter_mutex);
+    }
+    if (exiting) {
+        dbgprintf("Thread %x started, but is exiting "
+                  "as start() returns\n",
+                  tid);
+    } else {
+        dbgprintf("Thread %x is running\n", tid);
     }
     pthread_mutex_unlock(&starter_mutex);
 
@@ -128,7 +138,7 @@ CMMThread::start()
 }
 
 CMMThread::CMMThread()
-    : tid(0), running(false)
+    : tid(0), running(false), exiting(false)
 {
     pthread_mutex_init(&starter_mutex, NULL);
     pthread_cond_init(&starter_cv, NULL);
@@ -193,7 +203,7 @@ CMMThread::join_all()
     void **result = NULL;
     for (std::set<pthread_t>::iterator it = joinable_threads_private.begin();
          it != joinable_threads_private.end(); it++) {
-        dbgprintf("pthread_join to thread %d\n", *it);
+        dbgprintf("pthread_join to thread %x\n", *it);
         pthread_join(*it, result);
     }
 }

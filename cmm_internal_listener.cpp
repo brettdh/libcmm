@@ -71,6 +71,8 @@ ListenerThread::ListenerThread(CMMSocketImpl *sk_)
 void
 ListenerThread::stop()
 {
+    dbgprintf("Shutting down listener %d (port %d)\n",
+              listener_sock, ntohs(listen_port));
     shutdown(listener_sock, SHUT_RDWR);
     //stop();
     //join();
@@ -86,7 +88,11 @@ ListenerThread::port() const
 void
 ListenerThread::Run()
 {
-    set_thread_name("Listener");
+    char name[MAX_NAME_LEN+1];
+    memset(name, 0, MAX_NAME_LEN+1);
+    snprintf(name, MAX_NAME_LEN, "Listener %d", listener_sock);
+    set_thread_name(name);
+
     while (1) {
         fd_set readfds;
         FD_ZERO(&readfds);
@@ -97,7 +103,7 @@ ListenerThread::Run()
 		continue;
 	    } else {
                 close(listener_sock);
-                dbgprintf("Exiting.\n");
+                //dbgprintf("Exiting.\n");
 		return;
 	    }
 	}
@@ -111,7 +117,7 @@ ListenerThread::Run()
                       " errno=%d\n",errno);
 	    close(listener_sock);
             //throw std::runtime_error("Socket error");
-            dbgprintf("Exiting.\n");
+            //dbgprintf("Exiting.\n");
             return;
         }
 
