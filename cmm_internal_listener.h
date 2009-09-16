@@ -7,7 +7,7 @@
 class ListenerThread : public CMMThread {
   public:
     ListenerThread(CMMSocketImpl *sk_);
-    void stop();
+    virtual void stop();
     in_port_t port() const;
   protected:
     virtual void Run();
