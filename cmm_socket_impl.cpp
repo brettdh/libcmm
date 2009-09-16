@@ -372,7 +372,8 @@ CMMSocketImpl::~CMMSocketImpl()
     delete csock_map;
 
     listener_thread->stop();
-    delete listener_thread;
+    //delete listener_thread;
+    //  it deletes itself now, just before it exits.
     
     //free(remote_addr);
     close(select_pipe[0]);

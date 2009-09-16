@@ -73,7 +73,7 @@ ListenerThread::stop()
 {
     shutdown(listener_sock, SHUT_RDWR);
     //stop();
-    join();
+    //join();
     //close(listener_sock);
 }
 
@@ -160,4 +160,16 @@ ListenerThread::Run()
             dbgprintf("Failed to add connection: %s\n", e.what());
         }
     }
+}
+
+void
+ListenerThread::Finish()
+{
+    dbgprintf("Exiting.\n");
+
+    // nobody will pthread_join to me now, so detach
+    //  to make sure the memory gets reclaimed
+    detach();
+
+    delete this; // the last thing that will ever be done with this
 }

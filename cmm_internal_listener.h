@@ -11,6 +11,7 @@ class ListenerThread : public CMMThread {
     in_port_t port() const;
   protected:
     virtual void Run();
+    virtual void Finish();
   private:
     CMMSocketImpl *sk;
     int listener_sock;
