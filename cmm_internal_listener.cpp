@@ -171,6 +171,11 @@ ListenerThread::Run()
 void
 ListenerThread::Finish()
 {
+    {
+        PthreadScopedLock lock(&sk->scheduling_state_lock);
+        sk->listener_thread = NULL;
+    }
+
     dbgprintf("Exiting.\n");
 
     // nobody will pthread_join to me now, so detach

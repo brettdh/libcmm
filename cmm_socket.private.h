@@ -125,6 +125,7 @@ class CMMSocketImpl : public CMMSocket {
     friend class CSockMapping;
     friend class CSocketSender;
     friend class CSocketReceiver;
+    friend class ListenerThread;
     friend class PendingReceiverIROBLattice;
 
     static pthread_mutex_t hashmaps_mutex;

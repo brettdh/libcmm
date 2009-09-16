@@ -191,6 +191,8 @@ CSockMapping::new_csock_with_labels(u_long send_label)
             return csock;
         }
     }
+    
+    
 
     struct net_interface local_iface, remote_iface;
     if (!(get_local_iface(send_label, local_iface) &&

@@ -134,10 +134,14 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
 {
     /* TODO: non-blocking considerations? */
     try {
-	listener_thread = new ListenerThread(this);
-	int rc = listener_thread->start();
-        if (rc != 0) {
-            throw rc;
+        int rc;
+        {
+            PthreadScopedLock lock(&scheduling_state_lock);
+            listener_thread = new ListenerThread(this);
+            rc = listener_thread->start();
+            if (rc != 0) {
+                throw rc;
+            }
         }
     
         PthreadScopedLock scoped_lock(&hashmaps_mutex);
@@ -187,6 +191,10 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
             close(bootstrap_sock);
         }
     } catch (int error_rc) {
+        PthreadScopedLock lock(&scheduling_state_lock);
+        if (listener_thread) {
+            listener_thread->stop();
+        }
         return error_rc;
     }
 
@@ -322,6 +330,7 @@ set_non_blocking(int fd)
 
 CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
     : listener_thread(NULL),
+      remote_listener_port(0),
       shutting_down(false),
       remote_shutdown(false),
       goodbye_sent(false),
@@ -371,7 +380,12 @@ CMMSocketImpl::~CMMSocketImpl()
     dbgprintf("multisocket %d is being destroyed\n", sock);
     delete csock_map;
 
-    listener_thread->stop();
+    {
+        PthreadScopedLock lock(&scheduling_state_lock);
+        if (listener_thread) {
+            listener_thread->stop();
+        }
+    }
     //delete listener_thread;
     //  it deletes itself now, just before it exits.
     
@@ -1777,8 +1791,12 @@ CMMSocketImpl::goodbye(bool remote_initiated)
         }
     }
 
-    CSocket *csock;
-    int ret = get_csock(0, NULL, NULL, csock, false);
+    CSocket *csock = NULL;
+    int ret = -1;
+    if (remote_listener_port > 0) {
+        /* that is, if this multisocket was bootstrapped */
+        ret = get_csock(0, NULL, NULL, csock, false);
+    }
     if (ret < 0) {
         // no socket to send the goodbye; connection must be gone
         PthreadScopedLock sh_lock(&shutdown_mutex);
