@@ -136,7 +136,8 @@ CMMThread::CMMThread()
 
 CMMThread::~CMMThread()
 {
-    dbgprintf("CMMThread %p is being destroyed\n", this);
+    dbgprintf("CMMThread %p (tid %x) is being destroyed\n", 
+              this, tid);
     pthread_mutex_destroy(&starter_mutex);
     pthread_cond_destroy(&starter_cv);
 }
