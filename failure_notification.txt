@@ -85,3 +85,13 @@
    the specified time.  Applications may still wish to set this on 
    multisockets while simultaneously specifying separate failure notification
    semantics.
+
+   So...
+
+   Instead, we'll just use these simple functions.
+
+   int cmm_get_failure_timeout(mc_socket_t sock, struct timeval *tp);
+   int cmm_set_failure_timeout(mc_socket_t sock, const struct timeval *tp);
+
+   The default timeout is {tv_sec, tv_usec} == { -1, 0 }.  This will be 
+   written into *tp if the getter is called without first calling the setter.
