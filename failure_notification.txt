@@ -71,3 +71,17 @@
        FAILFAST describes programming semantics -- but those semantics
        are coupled with multi-socket operations, so maybe it's alright
        to have this kind of "meta-label."
+
+   Based on our 9/11/2009 meeting, this would be modified slightly:
+
+     - b) remains the default.
+     - The application can still get c) by using blocking I/O and SO_SNDTIMEO.
+     - The application gets a) also by using blocking I/O and SO_SNDTIMEO, 
+         by specifying a timeout of zero.
+     - Behavior for non-blocking sockets/operations remains the same as above.
+
+   Unfortunately, it looks like the SO_SNDTIMEO socket option is intended
+   to allow applications to fall back to non-blocking I/O after blocking for
+   the specified time.  Applications may still wish to set this on 
+   multisockets while simultaneously specifying separate failure notification
+   semantics.

@@ -193,7 +193,7 @@ PendingReceiverIROBLattice::release(irob_id_t id)
         dbgprintf("waking selectors for msocket %d\n",
                   sk->sock);
         char c = 42; // value will be ignored
-        (void)write(sk->select_pipe[1], &c, 1);
+        (void)send(sk->select_pipe[1], &c, 1, MSG_NOSIGNAL);
 #endif
     }
     ready_irobs.insert(id);

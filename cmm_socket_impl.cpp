@@ -321,7 +321,7 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
 }
 
 static void
-set_non_blocking(int fd)
+set_selectpipe_sockopts(int fd)
 {
     int flags = fcntl(fd, F_GETFL);
     int rc = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
@@ -350,8 +350,8 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
         close(sock);
         throw rc;
     }
-    set_non_blocking(select_pipe[0]);
-    set_non_blocking(select_pipe[1]);
+    set_selectpipe_sockopts(select_pipe[0]);
+    set_selectpipe_sockopts(select_pipe[1]);
 
     /* so we can identify this FD as a mc_socket later */
     /* XXX: This won't work when we yank out Juggler. */
@@ -477,7 +477,7 @@ CMMSocketImpl::get_fds_for_select(mcSocketOsfdPairList &osfd_list,
         if (incoming_irobs.data_is_ready()) {
             // select can return now, so make sure it does
             char c = 42; // value will be ignored
-            (void)write(select_pipe[1], &c, 1);
+            (void)send(select_pipe[1], &c, 1, MSG_NOSIGNAL);
             /* if this write fails, then either we're shutting down or the
              * buffer is full.  No big deal either way. */
             dbgprintf("read-selecting on msocket %d, which has data ready\n",
