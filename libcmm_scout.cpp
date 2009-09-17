@@ -19,7 +19,6 @@ using std::queue;
 #include <sys/time.h>
 #include <time.h>
 
-#include <connmgr_labels.h>
 #include "libcmm.h"
 #include "libcmm_ipc.h"
 #include "tbb/atomic.h"

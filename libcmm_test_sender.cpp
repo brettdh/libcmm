@@ -12,7 +12,6 @@ using tbb::atomic;
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <arpa/inet.h>
-#include <connmgr_labels.h>
 
 #include <pthread.h>
 #include <signal.h>

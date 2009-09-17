@@ -6,7 +6,6 @@
 #include "common.h"
 #include "libcmm.h"
 #include "libcmm_ipc.h"
-#include <connmgr_labels.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
