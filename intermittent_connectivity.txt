@@ -1,0 +1,103 @@
+Scenario:
+  A laptop user is a passenger in a moving vehicle.  The device can connect to
+  a high-latency, low-bandwidth cellular network that is persistently available, 
+  and it intermittently encounters low-latency, high-bandwidth WiFi hotspots.
+
+High-level goals:
+  1) When the WiFi network is available, it fully dominates the cellular network,
+     and all traffic should use it (in the absence of traffic striping).
+  2) When only the cellular network is available, 
+      a) foreground traffic should be prioritized over background traffic, 
+      b) while allowing as much background traffic as possible without
+         interfering with foreground traffic.
+
+Achieving goal 1 is straightforward; when the "best" network is available,
+send all traffic on it.  As for goal 2, let's start with a simple algorithm and
+iteratively improve it.
+
+Algorithm 1: exclusive
+  - Never send background traffic on the cellular network.  Block, thunk, 
+    or fail background sends when the background network is unavailable.
+    (This is the current approach.)
+
+  This approach ensures that background traffic will never impede foreground 
+  traffic on the cellular network, but there may be periods when no foreground
+  traffic is being sent, thus wasting available network capacity which could
+  be used to send pending background data.
+
+Algorithm 2: permissive
+  - Send background traffic on the cellular network whenever it is ready.  
+    Don't prioritize either traffic type over the other.
+
+  This approach prevents network capacity from going to waste when data is ready
+  to be sent, but if the background requests are large, they will undesirably
+  degrade foreground performance.
+
+Algorithm 3: trickling
+  - If foreground requests are small, they may not be utilizing the full 
+    bandwidth of the link.  In this case, the foreground sender thread
+    could "steal" some amount of data from a pending background request, 
+    appending those bytes to the next foreground data chunk it sends.
+
+  This approach might be successful in allowing background traffic to proceed
+  without unacceptably degrading foreground performance.  However, the scheduler
+  would need to be careful not to overcommit the link bandwidth, and it would 
+  also need to take into account the downlink utilization when deciding how much
+  background data to send.  If foreground traffic is constantly using all the
+  available bandwidth, this algorithm reverts to the exclusive case above.
+
+Algorithm 4: anticipatory scheduling
+  - Background requests may be allowed to proceed without impeding foreground
+    traffic when no foreground traffic is happening.  Record the timestamp
+    whenever a foreground request is sent or received.  When determining whether
+    to send a background request on the cellular network, check whether
+    the network has been idle for some amount of time.  If so, send the next
+    background request in full; if not, sleep for 
+    (target_idle_time - time_since_last_FG_activity) and check again.
+
+  If foreground traffic is constant, this approach allows it to proceed
+  unimpeded, though at the expense of background traffic.  However, it may miss
+  some opportunities that the trickling approach would successfully exploit.
+  Also, sending background data in small chunks (to start, at least) may reduce
+  contention with foreground traffic; the chunk size could be increased with 
+  the duration since the last foreground request. 
+
+Algorithms 1 and 2 are clearly straw men; their chief merit is simplicity of implementation.  A good algorithm might include aspects of both algorithms
+3 and 4, though they might need to be tuned - empirically and adaptively - to 
+achieve the best result.
+
+With all this in mind, then, here's a sketch of a possible algorithm, in
+vaguely Pythonic pseudocode:
+
+if background network is unavailable:
+    if foreground traffic is waiting:
+        choose ready foreground traffic
+        data = foreground traffic
+        if net_underutilized(fg_net):
+            trickle_amt = estimate_unused_capacity(fg_net)
+            data += trickle_amt-sized chunk of background traffic
+        send(data)
+        update last_fg timestamp
+    else:
+        if background traffic is waiting:
+            if okay_to_send_bg(last_fg):
+                chunksize += some_increase_with_time_since(last_fg)
+                send(background traffic, chunksize)
+    
+def okay_to_send_bg(last_fg):
+    (now - last_fg) > calc_wait_duration()
+    # the wait duration might be related to the fg/bg packet sizes
+    #  ...or related to a longer trail of fg traffic history
+    #  ...or it might be a magic number
+
+def net_underutilized(net):
+    # result of a monitoring test
+
+def estimate_unused_capacity(net):
+    # result of a monitoring test
+
+
+Clearly, there are some details to be ironed out.  Plus, it's not clear
+how well trickling would work in practice.  Is there any inter-process
+network scheduling going on nowadays in the OS?  Any notion of network
+usage priority between processes? 
