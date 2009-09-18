@@ -1,7 +1,62 @@
 * Think about and write up a list of sensible ways to handle failures:
   * where all physical connections are broken, but interfaces
     are still available to connect on
+
+      Physical connections are created on-demand, so there's no need to shut down
+       the multi-socket yet.  This is essentially the same as the multi-socket's
+       initial state after cmm_connect returns.
+
   * where all physical connections are broken and no connections are possible
+
+     At this point, we have two choices.  We can mimic the failure semantics of
+      a regular socket:
+        - No failure is noticable until the application tries to use the socket.
+          If at any point the library needs to make a connection and is not able
+          to (because no networks are available), it throws up its hands and
+          returns failure.
+     ...or, we can apply the same semantics as for any other time a network is 
+      unavailable:
+        - (see scenario 3, below.)
+
+     One subtlety here is that the library is sending additional data in the form
+       of ACKs and interface updates, and if any of these fail entirely, it means
+       that there are no connections possible at the moment.  When this happens,
+       it may make sense to declare the connection unrecoverably broken.
+
+     If each side continues listening for connections on the same port,
+       however, it will be possible to resume communication later when a
+       network becomes available.  If we apply the application-specified
+       policy as described below, the application can decide to wait for
+       an arbitrary period before closing the connection.
+
+      Consider also the following scenario:
+       1) Hosts A and B are communicating with a connected multi-socket.
+       2) The last remaining network available to host A goes away.
+          The next time host B tries to connect to that remote interface,
+          the connect will fail, and host B will remove that interface
+          from its list of available remote interfaces.
+       3) Meanwhile, host A still has a list of host B's available interfaces.
+          When its scout discovers an available network, it will attempt to
+          connect to one of host B's interfaces.
+       4) If the connect succeeds, then the multi-socket is re-established.
+          If it fails, host A can try connecting to another of host B's
+          available interfaces, removing the failed interface from its list.
+       5) If host A is unable to connect to any of host B's interfaces,
+          then it will wait, just as host B began doing at step 2.
+       6) If each host has forgotten the other side's available interfaces
+          due to failure, the multi-socket connection is now deadlocked, since
+          neither side can connect.  However, if each side remembers the other
+          side's previously available interfaces, it can retry each of them
+          despite the previous failure.  As long as one interface at one of 
+          hosts has a stable IP address, they should be able to re-establish
+          the connection when they both regain connectivity.
+       7) The above point on 'remembering' prior remote interfaces raises the
+          question: when should a host assume a particular remote interface
+          is permanently unavailable?  Presumably, upon reconnection, the
+          remote side can give me an authoritative list of its available
+          interfaces, but if I have tried and failed to connect on all previously
+          available interfaces, it may be a good idea to have a separate timeout
+          to keep the application from waiting indefinitely.
 
   * ALSO, think about this in terms of the following options for 
     failure notification:
@@ -46,7 +101,8 @@
        that can succeed now.
    However, it might still make sense to apply the SO_SNDTIMEO option for
      a blocking timeout, since this is defined as the "timeout until
-     reporting an error" in socket(7).
+     reporting an error" in socket(7).  (This turns out to be wrong as well,
+     for the same reasons that usurping O_NONBLOCK is wrong.  See below.)
 
    Failing this, then, how should applications communicate the failure 
      semantics they desire?
@@ -77,10 +133,11 @@
      - b) remains the default.
      - The application can still get c) by using blocking I/O and SO_SNDTIMEO.
      - The application gets a) also by using blocking I/O and SO_SNDTIMEO, 
-         by specifying a timeout of zero.
+         by specifying a timeout of zero.  Thus, the FAILFAST label isn't
+         needed.
      - Behavior for non-blocking sockets/operations remains the same as above.
 
-   Unfortunately, it looks like the SO_SNDTIMEO socket option is intended
+   However, it looks like the SO_SNDTIMEO socket option is intended
    to allow applications to fall back to non-blocking I/O after blocking for
    the specified time.  Applications may still wish to set this on 
    multisockets while simultaneously specifying separate failure notification
@@ -88,10 +145,22 @@
 
    So...
 
-   Instead, we'll just use these simple functions.
+   Instead, we'll just use these simple functions in the same way.
 
-   int cmm_get_failure_timeout(mc_socket_t sock, struct timeval *tp);
-   int cmm_set_failure_timeout(mc_socket_t sock, const struct timeval *tp);
+   int cmm_get_failure_timeout(mc_socket_t sock, u_long label, 
+                               struct timeval *tp);
+   int cmm_set_failure_timeout(mc_socket_t sock, u_long label,
+                               const struct timeval *tp);
+
+   The label argument is used to allow the application to specify different
+   semantics for different labels.
 
    The default timeout is {tv_sec, tv_usec} == { -1, 0 }.  This will be 
    written into *tp if the getter is called without first calling the setter.
+   Also, the application should use this to reset to the default failure
+   semantics (blocking until a network is available).  Note that the send
+   may still return failure if the connection is locally or remotely shutdown,
+   regardless of the timeout.
+
+   Timeouts can be applied per-send simply by calling the setter between 
+   calls to our send functions.

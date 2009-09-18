@@ -14,7 +14,7 @@
       assumptions that would make this difficult.
 
 * Ensure that connections are gracefully cleaned up upon 
-  close() or shutdown().
+  close() or shutdown(). (DONE)
 
 * Think about and write up a list of sensible ways to handle failures:
   * where all physical connections are broken, but interfaces
@@ -61,14 +61,14 @@
     a partial order over all IROBs."  (DONE; implemented the IROB
        data structure as a std::deque wraapper)
 
-* Figure out which threads are not getting cleaned up, and why.
+* Figure out which threads are not getting cleaned up, and why. (DONE)
 
 * (DONE)Get rid of recv_labels for cmm_send and the like.  A label applies to
   a connection, not an interface.  This has implications which will 
   play out later, but for now, getting rid of the recv_labels simplifies
   the interface.
 
-* Make cmm_select() work!
+* Make cmm_select() work! (DONE, I think.)
 
 * Make sure that concurrent send/recv work, since this is thread-safe for 
   regular sockets.  Also make sure cmm_shutdown is thread-safe with 
