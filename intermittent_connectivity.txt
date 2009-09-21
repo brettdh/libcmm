@@ -101,3 +101,20 @@ Clearly, there are some details to be ironed out.  Plus, it's not clear
 how well trickling would work in practice.  Is there any inter-process
 network scheduling going on nowadays in the OS?  Any notion of network
 usage priority between processes? 
+
+
+Amendment 9/21/2009: 
+  There's not really any way to apply the 'trickle' method while still
+  maintaining the priority of FG over BG traffic.  If we ever put BG
+  traffic in the socket buffer, there's no way to subsequently remove
+  it when FG traffic later arrives; the FG traffic ends up waiting for
+  the BG traffic to complete.  So, we'll drop that bit from the algorithm
+  and instead focus on the anticipatory scheduling.
+
+Here's a more detailed look at how that algorithm could work:
+
+if background_network_is_unavailable:
+   if foreground_traffic_is_waiting:
+       send_foreground_traffic()
+   else:
+       
