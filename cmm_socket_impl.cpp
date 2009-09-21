@@ -788,6 +788,13 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
     dbgprintf("mc_send (%d bytes) took %lu.%06lu seconds, start-to-finish\n", 
 	      rc, diff.tv_sec, diff.tv_usec);
 
+#ifdef CMM_TIMING
+    if (rc > 0) {
+        PthreadScopedLock lock(&timing_mutex);
+        global_stats.bytes_sent[send_labels] += rc;
+        global_stats.send_count[send_labels]++;
+    }
+#endif
     return rc;
 }
 
@@ -845,6 +852,13 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
     dbgprintf("mc_writev (%d bytes) took %lu.%06lu seconds, start-to-finish\n", 
 	      rc, diff.tv_sec, diff.tv_usec);
     
+#ifdef CMM_TIMING
+    if (rc > 0) {
+        PthreadScopedLock lock(&timing_mutex);
+        global_stats.bytes_sent[send_labels] += rc;
+        global_stats.send_count[send_labels]++;
+    }
+#endif
     return rc;
 }
 
@@ -1603,6 +1617,14 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
     TIMEDIFF(begin, end, diff);
     dbgprintf("Completed request in %lu.%06lu seconds (irob_chunk)\n",
 	      diff.tv_sec, diff.tv_usec);
+
+#ifdef CMM_TIMING
+    if (rc > 0) {
+        PthreadScopedLock lock(&timing_mutex);
+        global_stats.bytes_sent[send_labels] += rc;
+        global_stats.send_count[send_labels]++;
+    }
+#endif
 
     return rc;
 }

@@ -2,6 +2,7 @@
 #include "pending_receiver_irob.h"
 #include "debug.h"
 #include "timeops.h"
+#include "cmm_timing.h"
 #include "cmm_socket.private.h"
 #include "csocket_mapping.h"
 #include "pthread_util.h"
@@ -213,6 +214,10 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
     vector<PendingReceiverIROB *> pirobs;
     char *buf = (char*)bufp;
     
+#ifdef CMM_TIMING
+    u_long timing_recv_labels = 0;
+#endif
+
     struct timeval begin, end, diff;
     TIME(begin);
 
@@ -260,6 +265,9 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
             if (recv_labels) {
                 *recv_labels = pirob->send_labels;
             }
+#ifdef CMM_TIMING
+            timing_recv_labels = pirob->send_labels;
+#endif
         }
 
         bytes_passed += pirob->read_data(buf + bytes_passed,
@@ -279,5 +287,12 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
 	      diff.tv_sec, diff.tv_usec);
 
     dbgprintf("Passing %d bytes to application\n", bytes_passed);
+#ifdef CMM_TIMING
+    if (bytes_passed > 0) {
+        PthreadScopedLock lock(&timing_mutex);
+        global_stats.bytes_received[timing_recv_labels] += bytes_passed;
+        global_stats.recv_count[timing_recv_labels]++;;
+    }
+#endif
     return bytes_passed;
 }

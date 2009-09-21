@@ -62,9 +62,10 @@ Algorithm 4: anticipatory scheduling
   contention with foreground traffic; the chunk size could be increased with 
   the duration since the last foreground request. 
 
-Algorithms 1 and 2 are clearly straw men; their chief merit is simplicity of implementation.  A good algorithm might include aspects of both algorithms
-3 and 4, though they might need to be tuned - empirically and adaptively - to 
-achieve the best result.
+Algorithms 1 and 2 are clearly straw men; their chief merit is
+simplicity of implementation.  A good algorithm might include aspects
+of both algorithms 3 and 4, though they might need to be tuned -
+empirically and adaptively - to achieve the best result.
 
 With all this in mind, then, here's a sketch of a possible algorithm, in
 vaguely Pythonic pseudocode:

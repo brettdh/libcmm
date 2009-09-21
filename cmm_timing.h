@@ -4,20 +4,24 @@
 #define CMM_TIMING
 #ifdef CMM_TIMING
 #include "timeops.h"
+#include <map>
 
-#include "tbb/mutex.h"
-extern tbb::mutex timing_mutex;
+#include <pthread.h>
+extern pthread_mutex_t timing_mutex;
 #define TIMING_FILE "/tmp/cmm_timing.txt"
 extern FILE *timing_file;
-extern int num_switches;
-extern int num_switches_to_bg;
-extern int num_switches_to_fg;
-extern struct timeval total_switch_time;
-extern struct timeval total_switch_time_to_bg;
-extern struct timeval total_switch_time_to_fg;
 
-extern struct timeval total_time_in_connect;
-extern struct timeval total_time_in_up_cb;
+class GlobalStats {
+  public:
+    std::map<u_long, int> bytes_sent;
+    std::map<u_long, int> bytes_received;
+    std::map<u_long, int> send_count;
+    std::map<u_long, int> recv_count;
+
+    ~GlobalStats();
+};
+
+extern GlobalStats global_stats;
 #endif
 
 

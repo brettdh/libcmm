@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <fstream>
 #include <string>
+using std::map;
 using std::ifstream; using std::string;
 using std::vector; using std::pair;
 using std::auto_ptr;
@@ -27,6 +28,7 @@ using std::auto_ptr;
 #include "signals.h"
 
 #include "cmm_timing.h"
+#include "pthread_util.h"
 
 #include "cmm_socket.h"
 #include "thunks.h"
@@ -119,13 +121,7 @@ static void libcmm_init(void)
     signals_init();
 
 #ifdef CMM_TIMING
-    tbb::mutex::scoped_lock(timing_mutex);
-    num_switches = num_switches_to_bg = num_switches_to_fg = 0;
-    timerclear(&total_switch_time);
-    timerclear(&total_switch_time_to_bg);
-    timerclear(&total_switch_time_to_fg);
-    timerclear(&total_time_in_connect);
-    timerclear(&total_time_in_up_cb);
+    PthreadScopedLock lock(&timing_mutex);
     struct timeval now;
     TIME(now);
     timing_file = fopen(TIMING_FILE, "a");
@@ -145,30 +141,15 @@ static void libcmm_deinit(void)
 //         printf("Exiting; %d PendingIROBs still exist\n",
 //                PendingIROB::objs());
 
-	tbb::mutex::scoped_lock(timing_mutex);
+        PthreadScopedLock lock(&timing_mutex);
 	
 	if (timing_file) {
 	    struct timeval now;
 	    TIME(now);
 	    fprintf(timing_file, "*** Finished run at %ld.%06ld, PID %d;\n",
 		    now.tv_sec, now.tv_usec, getpid());
-	    fprintf(timing_file, 
-		    "*** Total time spent switching labels: "
-		    "%ld.%06ld seconds (%ld.%06ld bg->fg, %ld.%06ld fg->bg) in %d switches (%d bg->fg, %d fg->bg)\n",
-		    total_switch_time.tv_sec, total_switch_time.tv_usec, 
-		    total_switch_time_to_fg.tv_sec, total_switch_time_to_fg.tv_usec,
-		    total_switch_time_to_bg.tv_sec, total_switch_time_to_bg.tv_usec,
-		    num_switches, num_switches_to_fg, num_switches_to_bg);
-	    fprintf(timing_file, 
-		    "*** Total time spent in connect(): %ld.%06ld seconds\n",
-		    total_time_in_connect.tv_sec, 
-		    total_time_in_connect.tv_usec);
-	    fprintf(timing_file, 
-		    "*** Total time spent in up_cb: %ld.%06ld seconds\n",
-		    total_time_in_up_cb.tv_sec, 
-		    total_time_in_up_cb.tv_usec);
 
-            fclose(timing_file);
+            //fclose(timing_file);
 	}
     }
 #endif
