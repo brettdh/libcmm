@@ -116,6 +116,16 @@ Here's a more detailed look at how that algorithm could work:
 
 if background_network_is_unavailable:
    if foreground_traffic_is_waiting:
-       send_foreground_traffic()
-   else:
-       
+       send_foreground_traffic(fg_sock, data, datalen)
+       last_fg = now
+   elif background_traffic_is_waiting:
+       # first bg packet won't delay fg traffic by more than 62.5ms,
+       #   unless the link is extraordinarily bad (8kbps or less)
+       min_chunksize = max(bandwidth_in_bytes / 16, 64)
+       max_chunksize = bandwidth_in_bytes # bound FG delay at 1 second
+       magic_number = RTT * 4
+       if ((now - last_fg) > magic_number) and
+          (socket_buffer_is_empty(fg_sock)):
+          chunksize = (min_chunksize) * integer((now - last_fg) / magic_number)
+          chunksize = min(chunksize, max_chunksize)
+          send_background_traffic(fg_sock, data, min(datalen, chunksize))
