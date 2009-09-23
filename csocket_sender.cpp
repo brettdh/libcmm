@@ -395,6 +395,13 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     vec[1].iov_base = chunk.data;
     vec[1].iov_len = chunk.datalen;
 
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    assert(psirob);
+    pthread_t waiting_thread = psirob->waiting_threads[data.seqno];
+    psirob->waiting_threads.erase(data.seqno);
+    assert(waiting_thread != 0);
+    sk->signal_completion(waiting_thread, chunk.datalen);
+
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = writev(csock->osfd, vec, 2);
@@ -406,12 +413,12 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
         throw CMMControlException("Socket error", hdr);
     }
 
-    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
-    assert(psirob);
-    pthread_t waiting_thread = psirob->waiting_threads[data.seqno];
-    psirob->waiting_threads.erase(data.seqno);
-    assert(waiting_thread != 0);
-    sk->signal_completion(waiting_thread, chunk.datalen);
+//     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+//     assert(psirob);
+//     pthread_t waiting_thread = psirob->waiting_threads[data.seqno];
+//     psirob->waiting_threads.erase(data.seqno);
+//     assert(waiting_thread != 0);
+//     sk->signal_completion(waiting_thread, chunk.datalen);
     sk->remove_if_unneeded(pirob);
 }
 
