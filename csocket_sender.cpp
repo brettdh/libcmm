@@ -195,10 +195,10 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
             enqueue_handler(sk->sock,
                             pirob->send_labels, 
                             psirob->resume_handler, psirob->rh_arg);
-            //pthread_t waiting_thread = psirob->waiting_thread;
-            //psirob->waiting_thread = (pthread_t)0;
-            //assert(waiting_thread != 0);
-            //sk->signal_completion(waiting_thread, CMM_DEFERRED);
+            pthread_t waiting_thread = psirob->waiting_thread;
+            psirob->waiting_thread = (pthread_t)0;
+            assert(waiting_thread != 0);
+            sk->signal_completion(waiting_thread, CMM_DEFERRED);
         } else {
             enqueue_handler(sk->sock,
                             pirob->send_labels, 
@@ -312,15 +312,15 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
 
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
-    //pthread_t waiting_thread = psirob->waiting_thread;
-    //psirob->waiting_thread = (pthread_t)0;
-    //assert(waiting_thread != 0);
+    pthread_t waiting_thread = psirob->waiting_thread;
+    psirob->waiting_thread = (pthread_t)0;
+    assert(waiting_thread != 0);
 
-    // if (pirob->is_anonymous()) {
-//         sk->signal_completion(waiting_thread, vec[count-1].iov_len);
-//     } else {
-//         sk->signal_completion(waiting_thread, 0);
-//     }
+    if (pirob->is_anonymous()) {
+        sk->signal_completion(waiting_thread, vec[count-1].iov_len);
+    } else {
+        sk->signal_completion(waiting_thread, 0);
+    }
     sk->remove_if_unneeded(pirob);
 }
 
@@ -352,10 +352,10 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
     
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
-//     pthread_t waiting_thread = psirob->waiting_thread;
-//     psirob->waiting_thread = (pthread_t)0;
-//     assert(waiting_thread != 0);
-//     sk->signal_completion(waiting_thread, 0);
+    pthread_t waiting_thread = psirob->waiting_thread;
+    psirob->waiting_thread = (pthread_t)0;
+    assert(waiting_thread != 0);
+    sk->signal_completion(waiting_thread, 0);
     sk->remove_if_unneeded(pirob);
 }
 
@@ -408,10 +408,10 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
 
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
-//     pthread_t waiting_thread = psirob->waiting_threads[data.seqno];
-//     psirob->waiting_threads.erase(data.seqno);
-//     assert(waiting_thread != 0);
-//     sk->signal_completion(waiting_thread, chunk.datalen);
+    pthread_t waiting_thread = psirob->waiting_threads[data.seqno];
+    psirob->waiting_threads.erase(data.seqno);
+    assert(waiting_thread != 0);
+    sk->signal_completion(waiting_thread, chunk.datalen);
     sk->remove_if_unneeded(pirob);
 }
 
