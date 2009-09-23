@@ -791,8 +791,14 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
 #ifdef CMM_TIMING
     if (rc > 0) {
         PthreadScopedLock lock(&timing_mutex);
-        global_stats.bytes_sent[send_labels] += rc;
-        global_stats.send_count[send_labels]++;
+        if (timing_file) {
+            struct timeval now;
+            TIME(now);
+            fprintf(timing_file, "[%lu.%06lu] %d bytes sent with label %lu in %lu.%06lu seconds\n", 
+                    now.tv_sec, now.tv_usec, rc, send_labels, diff.tv_sec, diff.tv_usec);
+        }
+        //global_stats.bytes_sent[send_labels] += rc;
+        //global_stats.send_count[send_labels]++;
     }
 #endif
     return rc;
@@ -855,8 +861,14 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
 #ifdef CMM_TIMING
     if (rc > 0) {
         PthreadScopedLock lock(&timing_mutex);
-        global_stats.bytes_sent[send_labels] += rc;
-        global_stats.send_count[send_labels]++;
+        if (timing_file) {
+            struct timeval now;
+            TIME(now);
+            fprintf(timing_file, "[%lu.%06lu] %d bytes sent with label %lu in %lu.%06lu seconds\n", 
+                    now.tv_sec, now.tv_usec, rc, send_labels, diff.tv_sec, diff.tv_usec);
+        }
+        //global_stats.bytes_sent[send_labels] += rc;
+        //global_stats.send_count[send_labels]++;
     }
 #endif
     return rc;
@@ -1612,7 +1624,7 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
         pthread_cond_broadcast(&scheduling_state_cv);
     }
     
-    long rc = wait_for_completion();
+    long rc = len; //wait_for_completion();
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Completed request in %lu.%06lu seconds (irob_chunk)\n",
@@ -1621,8 +1633,14 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 #ifdef CMM_TIMING
     if (rc > 0) {
         PthreadScopedLock lock(&timing_mutex);
-        global_stats.bytes_sent[send_labels] += rc;
-        global_stats.send_count[send_labels]++;
+        if (timing_file) {
+            struct timeval now;
+            TIME(now);
+            fprintf(timing_file, "[%lu.%06lu] %ld bytes sent with label %lu in %lu.%06lu seconds\n", 
+                    now.tv_sec, now.tv_usec, rc, send_labels, diff.tv_sec, diff.tv_usec);
+        }
+        //global_stats.bytes_sent[send_labels] += rc;
+        //global_stats.send_count[send_labels]++;
     }
 #endif
 
@@ -1739,7 +1757,7 @@ CMMSocketImpl::send_default_irob(irob_id_t id, CSocket *csock,
         pthread_cond_broadcast(&scheduling_state_cv);
     }
     
-    long rc = wait_for_completion();
+    long rc = len; //wait_for_completion();
     if (rc < 0) {
         PthreadScopedLock lock(&scheduling_state_lock);
         PendingIROB *pirob = outgoing_irobs.find(id);
@@ -1889,8 +1907,9 @@ CMMSocketImpl::wait_for_completion()
 void 
 CMMSocketImpl::signal_completion(pthread_t requester_tid, long rc)
 {
-    if (requester_tid != 0) {
-	assert(app_threads.find(requester_tid) != app_threads.end());
+    if (requester_tid != 0 &&
+        app_threads.find(requester_tid) != app_threads.end()) {
+
 	struct AppThread& thread = app_threads[requester_tid];
 	
 	pthread_mutex_lock(&thread.mutex);

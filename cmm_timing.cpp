@@ -13,7 +13,7 @@ pthread_mutex_t timing_mutex;
 
 FILE *timing_file;
 
-GlobalStats global_stats;
+//GlobalStats global_stats;
 
 GlobalStats::~GlobalStats()
 {

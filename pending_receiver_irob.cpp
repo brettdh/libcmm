@@ -290,8 +290,15 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
 #ifdef CMM_TIMING
     if (bytes_passed > 0) {
         PthreadScopedLock lock(&timing_mutex);
-        global_stats.bytes_received[timing_recv_labels] += bytes_passed;
-        global_stats.recv_count[timing_recv_labels]++;;
+        if (timing_file) {
+            struct timeval now;
+            TIME(now);
+            fprintf(timing_file, "[%lu.%06lu] %d bytes received with label %lu in %lu.%06lu seconds\n\n", 
+                    now.tv_sec, now.tv_usec, bytes_passed, timing_recv_labels,
+                    diff.tv_sec, diff.tv_usec);
+        }
+        //global_stats.bytes_received[timing_recv_labels] += bytes_passed;
+        //global_stats.recv_count[timing_recv_labels]++;;
     }
 #endif
     return bytes_passed;

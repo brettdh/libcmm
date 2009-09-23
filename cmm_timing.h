@@ -21,7 +21,7 @@ class GlobalStats {
     ~GlobalStats();
 };
 
-extern GlobalStats global_stats;
+//extern GlobalStats global_stats;
 #endif
 
 
