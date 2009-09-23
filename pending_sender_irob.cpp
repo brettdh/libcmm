@@ -25,7 +25,7 @@ PendingSenderIROB::add_chunk(struct irob_chunk_data& irob_chunk)
 
     irob_chunk.seqno = next_seqno++;
     chunks.push_back(irob_chunk);
-    waiting_threads[irob_chunk.seqno] = pthread_self();
+    //waiting_threads[irob_chunk.seqno] = pthread_self();
 
     return true;
 }

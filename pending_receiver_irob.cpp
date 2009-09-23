@@ -287,6 +287,7 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
 	      diff.tv_sec, diff.tv_usec);
 
     dbgprintf("Passing %d bytes to application\n", bytes_passed);
+#ifndef CMM_UNIT_TESTING
 #ifdef CMM_TIMING
     if (bytes_passed > 0) {
         PthreadScopedLock lock(&timing_mutex);
@@ -300,6 +301,7 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
         //global_stats.bytes_received[timing_recv_labels] += bytes_passed;
         //global_stats.recv_count[timing_recv_labels]++;;
     }
+#endif
 #endif
     return bytes_passed;
 }

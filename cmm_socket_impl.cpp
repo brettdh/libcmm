@@ -1436,7 +1436,7 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
                                                      send_labels, 
                                                      resume_handler, rh_arg);
 
-    prepare_app_operation();
+    //prepare_app_operation();
 
     {
         PthreadScopedLock lock(&scheduling_state_lock);
@@ -1447,7 +1447,7 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
         pthread_cond_broadcast(&scheduling_state_cv);
     }
     
-    long rc = wait_for_completion();
+    long rc = 0; //wait_for_completion();
     if (rc < 0) {
         PthreadScopedLock lock(&scheduling_state_lock);
         PendingIROB *pirob = outgoing_irobs.find(id);
@@ -1511,15 +1511,15 @@ CMMSocketImpl::end_irob(irob_id_t id)
         }
     }
 
-    prepare_app_operation();
+    //prepare_app_operation();
     {
         PthreadScopedLock lock(&scheduling_state_lock);
         pirob->finish();
         
         PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
         assert(psirob);
-        assert(psirob->waiting_thread == 0);
-        psirob->waiting_thread = pthread_self();
+        //assert(psirob->waiting_thread == 0);
+        //psirob->waiting_thread = pthread_self();
         
         if (send_labels == 0) {
             irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
@@ -1529,7 +1529,7 @@ CMMSocketImpl::end_irob(irob_id_t id)
         pthread_cond_broadcast(&scheduling_state_cv);
     }
     
-    long rc = wait_for_completion();
+    long rc = 0; //wait_for_completion();
     if (rc != 0) {
         dbgprintf("end irob %d failed entirely; connection must be gone\n", id);
         return -1;
@@ -1602,7 +1602,7 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
     }
     assert(csock);
     
-    prepare_app_operation();
+    //prepare_app_operation();
     {
         PthreadScopedLock lock(&scheduling_state_lock);
 
@@ -1739,11 +1739,11 @@ CMMSocketImpl::send_default_irob(irob_id_t id, CSocket *csock,
                                  u_long send_labels,
                                  resume_handler_t resume_handler, void *rh_arg)
 {
-    prepare_app_operation();
+    //prepare_app_operation();
     {
-      PendingIROB *pirob = new PendingSenderIROB(id, 0, NULL, len, buf,
-                                                 send_labels, 
-                                                 resume_handler, rh_arg);
+        PendingIROB *pirob = new PendingSenderIROB(id, 0, NULL, len, buf,
+                                                   send_labels, 
+                                                   resume_handler, rh_arg);
 
         PthreadScopedLock lock(&scheduling_state_lock);
         bool success = outgoing_irobs.insert(pirob);
@@ -1795,9 +1795,9 @@ void CMMSocketImpl::remove_if_unneeded(PendingIROB *pirob)
     assert(pirob);
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
-    if (psirob->is_acked() && psirob->is_complete() &&
+    if (psirob->is_acked() && psirob->is_complete()  /* &&
         psirob->waiting_thread == 0 &&
-        psirob->waiting_threads.empty()) {
+        psirob->waiting_threads.empty() */) {
         outgoing_irobs.erase(pirob->id);
         delete pirob;
 
