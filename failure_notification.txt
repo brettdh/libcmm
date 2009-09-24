@@ -164,3 +164,14 @@
 
    Timeouts can be applied per-send simply by calling the setter between 
    calls to our send functions.
+
+   Note that operations can still fail after we have returned success to
+   the application.  This is the same semantics as with the regular socket
+   API, where a return code of success doesn't really mean that the operation
+   will succeed, but that it won't definitely fail.  The end-to-end argument
+   dissuades us from attempting to provide more thorough failure-checking,
+   since the application-level check above our layer is still needed.
+   It is important to note, however, that once we return success to the 
+   application, we *cannot* at a later time register a thunk that it passed
+   with that operation, because it will not be expecting the thunk to be
+   called and will have freed the argument.
