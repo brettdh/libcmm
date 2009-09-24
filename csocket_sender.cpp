@@ -350,12 +350,12 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
         throw CMMControlException("Socket error", hdr);
     }
     
-    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
-    assert(psirob);
-    pthread_t waiting_thread = psirob->waiting_thread;
-    psirob->waiting_thread = (pthread_t)0;
-    assert(waiting_thread != 0);
-    sk->signal_completion(waiting_thread, 0);
+//     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+//     assert(psirob);
+//     pthread_t waiting_thread = psirob->waiting_thread;
+//     psirob->waiting_thread = (pthread_t)0;
+//     assert(waiting_thread != 0);
+//     sk->signal_completion(waiting_thread, 0);
     sk->remove_if_unneeded(pirob);
 }
 

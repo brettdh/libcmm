@@ -287,7 +287,7 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
 	      diff.tv_sec, diff.tv_usec);
 
     dbgprintf("Passing %d bytes to application\n", bytes_passed);
-#ifdef CMM_TIMING
+#if defined(CMM_TIMING) && !defined(CMM_UNIT_TESTING)
     if (bytes_passed > 0) {
         PthreadScopedLock lock(&timing_mutex);
         if (timing_file) {

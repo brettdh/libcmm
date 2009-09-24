@@ -1511,15 +1511,17 @@ CMMSocketImpl::end_irob(irob_id_t id)
         }
     }
 
-    prepare_app_operation();
+    //prepare_app_operation();
     {
         PthreadScopedLock lock(&scheduling_state_lock);
         pirob->finish();
-        
+
+        /*        
         PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
         assert(psirob);
         assert(psirob->waiting_thread == 0);
         psirob->waiting_thread = pthread_self();
+        */
         
         if (send_labels == 0) {
             irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
@@ -1529,7 +1531,7 @@ CMMSocketImpl::end_irob(irob_id_t id)
         pthread_cond_broadcast(&scheduling_state_cv);
     }
     
-    long rc = wait_for_completion();
+    long rc = 0; //wait_for_completion();
     if (rc != 0) {
         dbgprintf("end irob %d failed entirely; connection must be gone\n", id);
         return -1;
