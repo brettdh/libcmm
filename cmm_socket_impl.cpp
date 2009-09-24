@@ -1368,7 +1368,6 @@ CMMSocketImpl::wait_for_labels(u_long send_labels)
                     (resume_handler_t)unblock_thread_thunk, 
                     new BlockingRequest(this, pthread_self()));
     (void)wait_for_completion();
-    
 }
 
 int
@@ -1436,8 +1435,6 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
                                                      send_labels, 
                                                      resume_handler, rh_arg);
 
-    prepare_app_operation();
-
     {
         PthreadScopedLock lock(&scheduling_state_lock);
         bool success = outgoing_irobs.insert(pirob);
@@ -1447,22 +1444,12 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
         pthread_cond_broadcast(&scheduling_state_cv);
     }
     
-    long rc = wait_for_completion();
-    if (rc < 0) {
-        PthreadScopedLock lock(&scheduling_state_lock);
-        PendingIROB *pirob = outgoing_irobs.find(id);
-        outgoing_irobs.erase(id);
-        delete pirob;
-        if (is_shutting_down() && outgoing_irobs.empty()) {
-            pthread_cond_broadcast(&scheduling_state_cv);
-        }
-    }
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Completed request in %lu.%06lu seconds (begin_irob)\n",
 	      diff.tv_sec, diff.tv_usec);
     
-    return rc;
+    return 0;
 }
 
 /* This function blocks until the data has been sent.
@@ -1489,12 +1476,14 @@ CMMSocketImpl::end_irob(irob_id_t id)
 
         pirob = outgoing_irobs.find(id);
         if (!pirob) {
+            errno = EINVAL;
             return -1;
         }
         
         if (pirob->is_complete()) {
             dbgprintf("Trying to complete IROB %lu, "
                       "which is already complete\n", id);
+            errno = EINVAL;
             return -1;
         }
         send_labels = pirob->send_labels;
@@ -1511,43 +1500,37 @@ CMMSocketImpl::end_irob(irob_id_t id)
         }
     }
 
-    //prepare_app_operation();
     {
         PthreadScopedLock lock(&scheduling_state_lock);
+        if (pirob->status < 0) {
+            /* last chance to report failure;
+             * if the sender has failed to send this IROB's data
+             * for some reason, we can still block, thunk or fail. */
+            if (pirob->status == CMM_DEFERRED) {
+                outgoing_irobs.erase(id);
+                delete pirob;
+                return CMM_DEFERRED;
+            } else {
+                /* TODO: block until labels are available, or until timeout */
+            }
+        }
         pirob->finish();
 
-        /*        
-        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
-        assert(psirob);
-        assert(psirob->waiting_thread == 0);
-        psirob->waiting_thread = pthread_self();
-        */
-        
         if (send_labels == 0) {
             irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
         } else {
             csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
         }
+
+        remove_if_unneeded(pirob);
         pthread_cond_broadcast(&scheduling_state_cv);
-    }
-    
-    long rc = 0; //wait_for_completion();
-    if (rc != 0) {
-        dbgprintf("end irob %d failed entirely; connection must be gone\n", id);
-        return -1;
-    } else {
-        PthreadScopedLock lock(&scheduling_state_lock);
-        PendingIROB *pirob = outgoing_irobs.find(id);
-        if (pirob) {
-	    remove_if_unneeded(pirob);
-	}
     }
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Completed request in %lu.%06lu seconds (end_irob)\n",
 	      diff.tv_sec, diff.tv_usec);
 
-    return rc;
+    return 0;
 }
 
 
@@ -1604,7 +1587,6 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
     }
     assert(csock);
     
-    prepare_app_operation();
     {
         PthreadScopedLock lock(&scheduling_state_lock);
 
@@ -1626,27 +1608,26 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
         pthread_cond_broadcast(&scheduling_state_cv);
     }
     
-    long rc = wait_for_completion();
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Completed request in %lu.%06lu seconds (irob_chunk)\n",
 	      diff.tv_sec, diff.tv_usec);
 
-#ifdef CMM_TIMING
-    if (rc > 0) {
+#ifdef CMM_TIMINGe
+    {
         PthreadScopedLock lock(&timing_mutex);
         if (timing_file) {
             struct timeval now;
             TIME(now);
             fprintf(timing_file, "[%lu.%06lu] %ld bytes sent with label %lu in %lu.%06lu seconds\n", 
-                    now.tv_sec, now.tv_usec, rc, send_labels, diff.tv_sec, diff.tv_usec);
+                    now.tv_sec, now.tv_usec, len, send_labels, diff.tv_sec, diff.tv_usec);
         }
         //global_stats.bytes_sent[send_labels] += rc;
         //global_stats.send_count[send_labels]++;
     }
 #endif
 
-    return rc;
+    return len;
 }
 
 int
@@ -1741,7 +1722,6 @@ CMMSocketImpl::send_default_irob(irob_id_t id, CSocket *csock,
                                  u_long send_labels,
                                  resume_handler_t resume_handler, void *rh_arg)
 {
-    prepare_app_operation();
     {
       PendingIROB *pirob = new PendingSenderIROB(id, 0, NULL, len, buf,
                                                  send_labels, 
@@ -1759,18 +1739,7 @@ CMMSocketImpl::send_default_irob(irob_id_t id, CSocket *csock,
         pthread_cond_broadcast(&scheduling_state_cv);
     }
     
-    long rc = wait_for_completion();
-    if (rc < 0) {
-        PthreadScopedLock lock(&scheduling_state_lock);
-        PendingIROB *pirob = outgoing_irobs.find(id);
-        outgoing_irobs.erase(id);
-        delete pirob;
-        if (is_shutting_down() && outgoing_irobs.empty()) {
-            pthread_cond_broadcast(&scheduling_state_cv);
-        }
-    }
-
-    return rc;
+    return len;
 }
 
 void
@@ -1882,7 +1851,7 @@ CMMSocketImpl::prepare_app_operation()
 {
     pthread_t self = pthread_self();
     struct AppThread& thread = app_threads[self];
-
+    
     pthread_mutex_lock(&thread.mutex);
     thread.rc = CMM_INVALID_RC;
     pthread_mutex_unlock(&thread.mutex);
@@ -1895,14 +1864,14 @@ CMMSocketImpl::wait_for_completion()
     long rc;
     pthread_t self = pthread_self();
     struct AppThread& thread = app_threads[self];
-
+    
     pthread_mutex_lock(&thread.mutex);
     while (thread.rc == CMM_INVALID_RC) {
         pthread_cond_wait(&thread.cv, &thread.mutex);
     }
     rc = thread.rc;
     pthread_mutex_unlock(&thread.mutex);
-
+    
     return rc;
 }
 
@@ -1911,16 +1880,16 @@ CMMSocketImpl::signal_completion(pthread_t requester_tid, long rc)
 {
     if (requester_tid != 0 &&
         app_threads.find(requester_tid) != app_threads.end()) {
-
-	struct AppThread& thread = app_threads[requester_tid];
-	
-	pthread_mutex_lock(&thread.mutex);
-	thread.rc = rc;
-
-	// since there's one cv per app thread, we don't need to
-	// broadcast here; at most one thread is waiting
-	pthread_cond_signal(&thread.cv);
-	pthread_mutex_unlock(&thread.mutex);
+        
+        struct AppThread& thread = app_threads[requester_tid];
+        
+        pthread_mutex_lock(&thread.mutex);
+        thread.rc = rc;
+        
+        // since there's one cv per app thread, we don't need to
+        // broadcast here; at most one thread is waiting
+        pthread_cond_signal(&thread.cv);
+        pthread_mutex_unlock(&thread.mutex);
     }
 }
 
