@@ -12,6 +12,7 @@
 #include <vector>
 #include <set>
 #include <boost/shared_ptr.hpp>
+#include <time.h>
 
 struct BlockingRequest;
 struct ResumeOperation;
@@ -107,6 +108,9 @@ class CMMSocketImpl : public CMMSocket {
                               void *optval, socklen_t *optlen);
     virtual int mc_setsockopt(int level, int optname, 
                               const void *optval, socklen_t optlen);
+
+    virtual int mc_get_failure_timeout(u_long label, struct timespec *ts);
+    virtual int mc_set_failure_timeout(u_long label, const struct timespec *ts);
     
     virtual ~CMMSocketImpl();
 
@@ -232,7 +236,7 @@ class CMMSocketImpl : public CMMSocket {
 
     // assumes prepare_app_operation has been called in this thread
     // with no call to wait_for_completion since.
-    long wait_for_completion();
+    long wait_for_completion(u_long labels = 0);
 
     // called from sender-scheduler thread to wake up app thread
     void signal_completion(pthread_t requester_tid, long result);
@@ -240,7 +244,10 @@ class CMMSocketImpl : public CMMSocket {
     friend void unblock_thread_thunk(BlockingRequest *req);
     friend void resume_operation_thunk(ResumeOperation *op);
 
-    void wait_for_labels(u_long send_labels);
+    // maps labels to failure timeoutus.
+    std::map<u_long, struct timespec> failure_timeouts;
+
+    int wait_for_labels(u_long send_labels);
 
     int get_csock(u_long send_labels, 
                   resume_handler_t resume_handler, void *rh_arg,
@@ -339,6 +346,9 @@ class CMMSocketPassThrough : public CMMSocket {
                                  const void *buf, size_t len, int flags);
     virtual int mc_irob_writev(irob_id_t id, 
                                const struct iovec *vector, int count);
+
+    virtual int mc_get_failure_timeout(u_long label, struct timespec *ts);
+    virtual int mc_set_failure_timeout(u_long label, const struct timespec *ts);
   private:
     mc_socket_t sock;
 };

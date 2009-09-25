@@ -30,10 +30,6 @@
  * longer needed as separate functions.
  */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <sys/types.h>
 #include <libcmm.h>
 
@@ -41,6 +37,10 @@ extern "C" {
  * and released by end_irob 
  */
 typedef long irob_id_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Begin an IROB and return the new IROB id.
  * If deps is non-NULL, it should point to a depnum-sized array of

@@ -60,6 +60,7 @@ class PendingIROB {
 
     // number of PendingIROBs in existence
     static ssize_t objs();
+
   protected:
     static ssize_t obj_count;
 
@@ -86,6 +87,17 @@ class PendingIROB {
     bool anonymous;
     bool complete;
     bool placeholder;
+
+
+    // 0 if there have been no csocket_sender errors with this IROB.
+    // If there is no suitable network for this IROB and I haven't
+    // sent all of its data, status will be:
+    //    CMM_DEFERRED if I registered the IROB's thunk.
+    //    CMM_FAILED if there's no thunk.
+    // In the no-thunk case, I might currently be blocking, or 
+    //  I might've timed out.  The csocket_sender thread and
+    //  the application thread that's blocking coordinate this.
+    int status;
 
     friend class PendingIROBLattice;
 

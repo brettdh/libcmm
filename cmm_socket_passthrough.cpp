@@ -93,3 +93,17 @@ CMMSocketPassThrough::mc_irob_writev(irob_id_t id,
     errno = EBADF;
     return -1;
 }
+
+int 
+CMMSocketPassThrough::mc_get_failure_timeout(u_long label, struct timespec *ts)
+{
+    errno = EBADF;
+    return -1;    
+}
+
+int 
+CMMSocketPassThrough::mc_set_failure_timeout(u_long label, const struct timespec *ts)
+{
+    errno = EBADF;
+    return -1;
+}

@@ -202,6 +202,7 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
                                 pirob->send_labels, 
                                 (resume_handler_t)resume_operation_thunk,
                                 new ResumeOperation(sk, data));
+                pirob->status = CMM_FAILED; // really "blocking"
             }
         } else {
             /* no way to tell the application that we failed to send
@@ -210,12 +211,6 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
              */
             sk->outgoing_irobs.erase(pirob->id);
             delete pirob;
-
-            /* TODO: sanity-check this.  it doesn't seem complete.
-             * in particular, it doesn't seem like we'd ever get here, since
-             * end_irob would have removed the IROB from outgoing_irobs.
-             * That makes me think that we need to check for outgoing_irobs.find
-             * returning NULL somewhere else. */
         }
         return true;
     } else {

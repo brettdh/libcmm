@@ -16,7 +16,8 @@ PendingIROB::PendingIROB(irob_id_t id_)
     : id(id_),
       anonymous(false), 
       complete(false),
-      placeholder(true)
+      placeholder(true),
+      status(0)
 {
     /* this placeholder PendingIROB will be replaced by 
        the real one, when it arrives. */
@@ -28,7 +29,8 @@ PendingIROB::PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array
       send_labels(send_labels_),
       anonymous(false),
       complete(false),
-      placeholder(false)
+      placeholder(false),
+      status(0)
 {
     if (numdeps > 0) {
         assert(deps_array);

@@ -379,3 +379,13 @@ int cmm_thunk_cancel(mc_socket_t sock, u_long send_labels,
 {
     return cancel_thunk(sock, send_labels, handler, arg, deleter);
 }
+
+int cmm_get_failure_timeout(mc_socket_t sock, u_long label, struct timespec *ts)
+{
+    return CMMSocket::lookup(sock)->mc_get_failure_timeout(label, ts);
+}
+
+int cmm_set_failure_timeout(mc_socket_t sock, u_long label, const struct timespec *ts)
+{
+    return CMMSocket::lookup(sock)->mc_set_failure_timeout(label, ts);
+}

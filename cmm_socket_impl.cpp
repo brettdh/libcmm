@@ -578,8 +578,6 @@ CMMSocketImpl::make_mc_fd_set(fd_set *fds,
     return dups;
 }
 
-/* TODO: reimplement for multi-sockets by selecting on a special pipe 
- * that is written to when data is available to read. */
 int 
 CMMSocketImpl::mc_select(mc_socket_t nfds, 
 			 fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
@@ -1342,8 +1340,7 @@ CMMSocketImpl::is_shutting_down()
     return shdwn;
 }
 
-/* TODO: what about a timeout for these? Maybe just check if
- * SO_TIMEOUT is set for the socket. */
+/* TODO: what about a timeout for these? */
 struct BlockingRequest {
     CMMSocketImpl *sk;
     pthread_t tid;
@@ -1359,15 +1356,21 @@ void unblock_thread_thunk(BlockingRequest *breq)
     delete breq;
 }
 
-void 
+int
 CMMSocketImpl::wait_for_labels(u_long send_labels)
 {
     // pseudo-thunk to block this until it's ready to send
     prepare_app_operation();
+    BlockingRequest *breq = new BlockingRequest(this, pthread_self());
     enqueue_handler(sock, send_labels, 
-                    (resume_handler_t)unblock_thread_thunk, 
-                    new BlockingRequest(this, pthread_self()));
-    (void)wait_for_completion();
+                    (resume_handler_t)unblock_thread_thunk, breq);
+    int rc = wait_for_completion(send_labels);
+    if (rc < 0) {
+        cancel_thunk(sock, send_labels,
+                     (resume_handler_t)unblock_thread_thunk, breq,
+                     delete_arg<BlockingRequest>);
+    }
+    return rc;
 }
 
 int
@@ -1385,7 +1388,11 @@ CMMSocketImpl::get_csock(u_long send_labels,
             } else {
                 if (blocking) {
                     while (!csock) {
-                        wait_for_labels(send_labels);
+                        int rc = wait_for_labels(send_labels);
+                        if (rc < 0) {
+                            /* timed out */
+                            return CMM_FAILED;
+                        }
                         csock = get_pointer(csock_map->new_csock_with_labels(send_labels));
                     }
                     return 0;
@@ -1511,7 +1518,15 @@ CMMSocketImpl::end_irob(irob_id_t id)
                 delete pirob;
                 return CMM_DEFERRED;
             } else {
-                /* TODO: block until labels are available, or until timeout */
+                pthread_mutex_unlock(&scheduling_state_lock);
+                ret = wait_for_labels(send_labels);
+                pthread_mutex_lock(&scheduling_state_lock);
+                if (ret < 0) {
+                    /* timeout; inform the app that the IROB failed */
+                    outgoing_irobs.erase(id);
+                    delete pirob;
+                    return ret;
+                }
             }
         }
         pirob->finish();
@@ -1522,7 +1537,12 @@ CMMSocketImpl::end_irob(irob_id_t id)
             csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
         }
 
-        remove_if_unneeded(pirob);
+        // XXX: I think this will never actually remove it, because
+        //  it can't be acked until the sender sends the END_IROB,
+        //  which won't happen until after I release the
+        //  scheduling_state_lock.
+        //remove_if_unneeded(pirob);
+        
         pthread_cond_broadcast(&scheduling_state_cv);
     }
     TIME(end);
@@ -1766,9 +1786,7 @@ void CMMSocketImpl::remove_if_unneeded(PendingIROB *pirob)
     assert(pirob);
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
-    if (psirob->is_acked() && psirob->is_complete() &&
-        psirob->waiting_thread == 0 &&
-        psirob->waiting_threads.empty()) {
+    if (psirob->is_acked() && psirob->is_complete()) {
         outgoing_irobs.erase(pirob->id);
         delete pirob;
 
@@ -1859,18 +1877,38 @@ CMMSocketImpl::prepare_app_operation()
 
 /* returns result of pending operation, or -1 on error */
 long 
-CMMSocketImpl::wait_for_completion()
+CMMSocketImpl::wait_for_completion(u_long label)
 {
     long rc;
     pthread_t self = pthread_self();
     struct AppThread& thread = app_threads[self];
     
-    pthread_mutex_lock(&thread.mutex);
+    struct timespec abs_timeout;
+    struct timespec *ptimeout = NULL;
+    struct timespec relative_timeout = {-1, 0};
+    if (failure_timeouts.find(label) != failure_timeouts.end()) {
+        relative_timeout = failure_timeouts[label];
+    }
+    if (relative_timeout.tv_sec >= 0) {
+        clock_gettime(CLOCK_REALTIME, &abs_timeout);
+        abs_timeout.tv_sec += relative_timeout.tv_sec;
+        abs_timeout.tv_nsec += relative_timeout.tv_nsec;
+        if (abs_timeout.tv_nsec >= 1000000000) {
+            abs_timeout.tv_sec++;
+            abs_timeout.tv_nsec -= 1000000000;
+        }
+        ptimeout = &abs_timeout;
+    }
+    
+    PthreadScopedLock lock(&thread.mutex);
     while (thread.rc == CMM_INVALID_RC) {
-        pthread_cond_wait(&thread.cv, &thread.mutex);
+        rc = pthread_cond_timedwait(&thread.cv, &thread.mutex, ptimeout);
+        if (rc == ETIMEDOUT) {
+            errno = rc;
+            return CMM_FAILED;
+        }
     }
     rc = thread.rc;
-    pthread_mutex_unlock(&thread.mutex);
     
     return rc;
 }
@@ -1920,5 +1958,40 @@ CMMSocketImpl::cleanup()
         while (!sk->remote_shutdown || !sk->goodbye_sent) {
             pthread_cond_wait(&sk->shutdown_cv, &sk->shutdown_mutex);
         }
+    }
+}
+
+
+int 
+CMMSocketImpl::mc_get_failure_timeout(u_long label, struct timespec *ts)
+{
+    CMMSockHash::const_accessor ac;
+    read_lock(ac);
+
+    if (ts) {
+        struct timespec timeout = {-1, 0};
+        if (failure_timeouts.find(label) != failure_timeouts.end()) {
+            timeout = failure_timeouts[label];
+        }
+        *ts = timeout;
+        return 0;
+    } else {
+        errno = EINVAL;
+        return -1;
+    }
+}
+
+int 
+CMMSocketImpl::mc_set_failure_timeout(u_long label, const struct timespec *ts)
+{
+    CMMSockHash::accessor ac;
+    write_lock(ac);
+
+    if (ts) {
+        failure_timeouts[label] = *ts;
+        return 0;
+    } else {
+        errno = EINVAL;
+        return -1;
     }
 }

@@ -138,21 +138,6 @@ int cmm_close(mc_socket_t sock);
 /* returns 0 on success, -1 on failure. */
 int cmm_shutdown(mc_socket_t sock, int how);
 
-/* checks whether label is available.
- * if so, prepares socket for sending on that label and returns 0.
- * if not, tries to register (fn,arg)  */
-// This shouldn't be necessary anymore.
-//int cmm_check_label(mc_socket_t sock, u_long label,
-//		    resume_handler_t fn, void *arg);
-
-/* to be called on a mc_socket that has encountered some kind of error.
- * "Resets" the mc_socket to the state before any real connections
- * have been made and initialized. The next operation on the 
- * mc_socket after cmm_reset will trigger reconnection and 
- * replay of the application-level callback. */
-// This shouldn't be necessary anymore.
-//int cmm_reset(mc_socket_t sock);
-  
 /* Looks through the socket's queue of thunks and cancels any and all
  * that match this handler.
  * If deleter is non-NULL, it will be called on the handler's arg. */
@@ -161,8 +146,31 @@ int cmm_thunk_cancel(mc_socket_t sock, u_long label,
 		     void (*handler)(void*), void *arg,
 		     void (*deleter)(void*));
 
+/* functions for getting/setting the failure timeout. 
+ * this timeout is invoked when calling a multi-socket operation
+ * without a thunk.  If the multisocket is unable to send data
+ * with the requested label, it will block until either a
+ * suitable network becomes available or the timeout expires.
+ * the defailt timeout is {-1, 0}, meaning that no-thunk
+ * calls will block indefinitely. */
+/* XXX: these are untested beyond the default. */
+int cmm_get_failure_timeout(mc_socket_t sock, u_long label, struct timespec *ts);
+int cmm_set_failure_timeout(mc_socket_t sock, u_long label, const struct timespec *ts);
 
 #ifdef __cplusplus
+}
+#endif
+
+#ifdef __cplusplus
+/* simple deleter function that calls the delete operator on its victim. 
+ * only valid if we're compiling with a C++ compiler;
+ * thunks with malloc()'d arguments can just pass 
+ * stdlib's free as the deleter. */
+template <typename T>
+void delete_arg(void *victim)
+{
+    T *real_victim = (T*)victim;
+    delete real_victim;
 }
 #endif
 
