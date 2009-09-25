@@ -14,10 +14,15 @@ PendingReceiverIROB::PendingReceiverIROB(irob_id_t id, int numdeps, irob_id_t *d
                                          size_t datalen, char *data,
 					 u_long send_labels)
     : PendingIROB(id, numdeps, deps, datalen, data, send_labels),
-      offset(0), num_bytes(datalen)
+      offset(0), num_bytes(datalen), num_chunks(-1), recvd_chunks(0)
 {
     partial_chunk.data = NULL;
     partial_chunk.datalen = 0;
+
+    if (datalen > 0) {
+        num_chunks = recvd_chunks = 1;
+    }
+    assert(datalen == 0 || is_complete());
 }
 
 PendingReceiverIROB::~PendingReceiverIROB()
@@ -32,6 +37,7 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
     bool result = PendingIROB::add_chunk(chunk);
     if (result) {
         num_bytes += chunk.datalen;
+        recvd_chunks++;
 	dbgprintf("Added chunk %d (%d bytes) to IROB %d\n", 
 		  chunk.seqno, chunk.datalen, id);
     } else {
@@ -45,6 +51,27 @@ bool
 PendingReceiverIROB::is_ready(void)
 {
     return !placeholder && deps.empty();
+}
+
+bool 
+PendingReceiverIROB::is_complete(void)
+{
+    assert(recvd_chunks <= num_chunks || num_chunks == -1);
+    return (num_chunks == recvd_chunks) && complete;
+}
+
+bool
+PendingReceiverIROB::finish(ssize_t num_chunks_)
+{
+    if (is_complete()) {
+        return false;
+    }
+    complete = true;
+
+    assert(num_chunks == -1);
+    num_chunks = num_chunks_;
+
+    return true;
 }
 
 ssize_t 

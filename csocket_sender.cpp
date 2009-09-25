@@ -209,6 +209,8 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
              * this IROB.  Just drop it, and let the application 
              * do the usual end-to-end check (e.g. response timeout). 
              */
+            dbgprintf("Warning: silently dropping IROB %d after failing to send it.\n",
+                      pirob->id);
             sk->outgoing_irobs.erase(pirob->id);
             delete pirob;
         }
@@ -334,8 +336,10 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
     }
 
     struct CMMSocketControlHdr hdr;
+    memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_END_IROB);
     hdr.op.end_irob.id = htonl(data.id);
+    hdr.op.end_irob.num_chunks = htonl(pirob->chunks.size());
     hdr.send_labels = htonl(csock->local_iface.labels);
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
@@ -350,7 +354,14 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
         throw CMMControlException("Socket error", hdr);
     }
     
-    sk->remove_if_unneeded(pirob);
+    // Don't do this!  
+    //   1) It's a race to call this without
+    //      holding the scheduling_state_lock.
+    //   2) This will be called later when the 
+    //      ACK arrives.  Even if called
+    //      with the lock here, it would never
+    //      remove the PendingIROB.
+    //sk->remove_if_unneeded(pirob);
 }
 
 void 
@@ -370,6 +381,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     // at this point, we know that this task is ours
 
     struct CMMSocketControlHdr hdr;
+    memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_IROB_CHUNK);
     hdr.send_labels = htonl(pirob->send_labels);
 

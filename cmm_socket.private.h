@@ -236,6 +236,8 @@ class CMMSocketImpl : public CMMSocket {
 
     // assumes prepare_app_operation has been called in this thread
     // with no call to wait_for_completion since.
+    // optional labels indicate which labels to wait for
+    // if this wait should timeout.
     long wait_for_completion(u_long labels = 0);
 
     // called from sender-scheduler thread to wake up app thread

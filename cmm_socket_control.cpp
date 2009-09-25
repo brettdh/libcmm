@@ -48,7 +48,8 @@ CMMSocketControlHdr::describe() const
         stream << "numdeps: " << ntohl(op.begin_irob.numdeps);
         break;
     case CMM_CONTROL_MSG_END_IROB:
-        stream << "IROB: " << ntohl(op.end_irob.id);
+      stream << "IROB: " << ntohl(op.end_irob.id) << " ";
+        stream << "num_chunks: " << ntohl(op.end_irob.num_chunks);
         break;
     case CMM_CONTROL_MSG_IROB_CHUNK:
         stream << "IROB: " << ntohl(op.irob_chunk.id) << " ";
@@ -57,6 +58,7 @@ CMMSocketControlHdr::describe() const
         break;
     case CMM_CONTROL_MSG_DEFAULT_IROB:
         stream << "IROB: " << ntohl(op.default_irob.id) << " ";
+        stream << "numdeps: " << ntohl(op.default_irob.numdeps);
         stream << "datalen: " << ntohl(op.default_irob.datalen);
 	break;
     case CMM_CONTROL_MSG_NEW_INTERFACE:

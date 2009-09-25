@@ -213,11 +213,11 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
         }
         
         assert(pirob);
-        if (!pirob->finish()) {
+        PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
+        if (!prirob->finish(ntohl(hdr.op.end_irob.num_chunks))) {
             throw CMMFatalError("Tried to end already-done IROB", hdr);
         }
         
-        PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
         sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
 
         csock->irob_indexes.waiting_acks.insert(IROBSchedulingData(id));
@@ -273,9 +273,10 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
                       chunk.seqno, id);
         }
 
-//         IROBScheduingData sched_data(id, chunk.seqno);
-//         csock->irob_indexes.waiting_acks.insert(sched_data);
-//         pthread_cond_broadcast(&sk->scheduling_state_cv);
+        if (prirob->is_complete()) {
+            csock->irob_indexes.waiting_acks.insert(IROBSchedulingData(id));
+            pthread_cond_broadcast(&sk->scheduling_state_cv);
+        }
     }
     
     TIME(end);

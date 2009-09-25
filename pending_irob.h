@@ -36,7 +36,6 @@ class PendingIROB {
 
     /* return true on success; false if action is invalid */
     virtual bool add_chunk(struct irob_chunk_data&); /* host byte order */
-    bool finish(void);
 
     void add_dep(irob_id_t id);
     //void add_dependency(PendingIROB *dep);
@@ -56,12 +55,14 @@ class PendingIROB {
     bool is_anonymous(void) const;
     
     /* has all the data arrived? */
-    bool is_complete(void) const;
+    virtual bool is_complete(void) const;
 
     // number of PendingIROBs in existence
     static ssize_t objs();
 
   protected:
+    bool finish(void);
+
     static ssize_t obj_count;
 
     friend class CMMSocketImpl;

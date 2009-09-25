@@ -25,6 +25,17 @@ class PendingReceiverIROB : public PendingIROB {
      * (only meaningful on the receiver side) */
     bool is_ready(void);
 
+    /* The receiver can receive the END_IROB message before all
+     * of the chunks have been received.  Therefore, the 
+     * END_IROB message contains the total number of chunks
+     * in the IROB, and is_complete() will return true
+     * iff all of the chunks AND the END_IROB message
+     * have arrived. */
+    bool is_complete(void);
+
+    
+    bool finish(ssize_t num_chunks);
+
     /* Read the next len bytes into buf. 
      * After this call, the first len bytes cannot be re-read. */
     ssize_t read_data(void *buf, size_t len);
@@ -45,6 +56,15 @@ class PendingReceiverIROB : public PendingIROB {
 
     /* the number of bytes left in this IROB. */
     ssize_t num_bytes;
+
+    /* total number of chunks expected for this IROB.
+     * this is -1 until the END_IROB message arrives. */
+    ssize_t num_chunks;
+
+    /* number of chunks received (duh).  Once
+     * recvd_chunks == num_chunks and the END_IROB is
+     * received, this IROB is_complete(). */
+    ssize_t recvd_chunks;
 };
 
 class CMMSocketImpl;

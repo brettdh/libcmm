@@ -48,8 +48,8 @@ PendingIROB::PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array
         chunk.datalen = datalen;
         chunk.data = data;
 
-        (void)add_chunk(chunk);
-        (void)finish();
+        chunks.push_back(chunk);
+        complete = true;
     }
 
     PthreadScopedLock lock(&count_mutex);
@@ -64,6 +64,7 @@ PendingIROB::~PendingIROB()
         delete [] chunk.data;
     }
 
+    dbgprintf("PendingIROB %p is being destroyed\n", this);
     PthreadScopedLock lock(&count_mutex);
     --obj_count;
 }

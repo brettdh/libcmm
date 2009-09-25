@@ -174,6 +174,7 @@ ListenerThread::Finish()
     {
         PthreadScopedLock lock(&sk->scheduling_state_lock);
         sk->listener_thread = NULL;
+        pthread_cond_signal(&sk->scheduling_state_cv);
     }
 
     dbgprintf("Exiting.\n");

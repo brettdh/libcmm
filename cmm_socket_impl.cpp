@@ -383,6 +383,9 @@ CMMSocketImpl::~CMMSocketImpl()
         PthreadScopedLock lock(&scheduling_state_lock);
         if (listener_thread) {
             listener_thread->stop();
+            while (listener_thread) {
+                pthread_cond_wait(&scheduling_state_cv, &scheduling_state_lock);
+            }
         }
     }
     //delete listener_thread;
@@ -1633,13 +1636,13 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
     dbgprintf("Completed request in %lu.%06lu seconds (irob_chunk)\n",
 	      diff.tv_sec, diff.tv_usec);
 
-#ifdef CMM_TIMINGe
+#ifdef CMM_TIMING
     {
         PthreadScopedLock lock(&timing_mutex);
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "[%lu.%06lu] %ld bytes sent with label %lu in %lu.%06lu seconds\n", 
+            fprintf(timing_file, "[%lu.%06lu] %u bytes sent with label %lu in %lu.%06lu seconds\n", 
                     now.tv_sec, now.tv_usec, len, send_labels, diff.tv_sec, diff.tv_usec);
         }
         //global_stats.bytes_sent[send_labels] += rc;
