@@ -34,17 +34,17 @@ PendingReceiverIROB::~PendingReceiverIROB()
 bool
 PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
 {
-    bool result = PendingIROB::add_chunk(chunk);
-    if (result) {
+    if (!is_complete()) {
         num_bytes += chunk.datalen;
         recvd_chunks++;
 	dbgprintf("Added chunk %d (%d bytes) to IROB %d\n", 
 		  chunk.seqno, chunk.datalen, id);
     } else {
-	dbgprintf("Adding chunk %d (%d bytes) on IROB %d failed!\n",
-		  chunk.seqno, chunk.datalen, id);
+	dbgprintf("Adding chunk %d (%d bytes) on IROB %d failed! recvd_chunks=%d, num_chunks=%d\n",
+		  chunk.seqno, chunk.datalen, id, recvd_chunks, num_chunks);
+        return false;
     }
-    return result;
+    return true;
 }
 
 bool 
