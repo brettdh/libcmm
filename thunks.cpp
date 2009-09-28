@@ -8,7 +8,8 @@
 #include "tbb/concurrent_queue.h"
 #include <string.h>
 #include <vector>
-using std::vector;
+#include <deque>
+using std::vector; using std::deque;
 
 struct thunk {
     resume_handler_t fn;
@@ -33,7 +34,7 @@ struct PtrLess {
     }
 };
 
-typedef tbb::concurrent_queue<struct thunk*> ThunkQueue;
+typedef deque<struct thunk*> ThunkQueue;
 struct labeled_thunk_queue {
     mc_socket_t sock;
     u_long send_labels; /* single label bit only; relax this in the future */
@@ -67,8 +68,8 @@ struct labeled_thunk_queue {
         : sock(sk), send_labels(s) {}
     ~labeled_thunk_queue() {
 	while (!thunk_queue.empty()) {
-	    struct thunk *th = NULL;
-	    thunk_queue.pop(th);
+            struct thunk *th = thunk_queue.front();
+	    thunk_queue.pop_front();
 	    assert(th);
 	    /* XXX: this leaks any outstanding thunk args.
 	     * maybe we can assume that a thunk queue being destroyed means
@@ -107,7 +108,7 @@ void enqueue_handler(mc_socket_t sock, u_long send_labels,
     struct thunk * new_thunk = new struct thunk(fn, arg, send_labels, 
                                                 sock);
 
-    hash_ac->second->thunk_queue.push(new_thunk);
+    hash_ac->second->thunk_queue.push_back(new_thunk);
 
 
     dbgprintf("Registered thunk %p, arg %p on mc_sock %d send labels %lu\n",
@@ -151,8 +152,8 @@ static void *ThunkThreadFn(void *arg)
     ThunkQueue *thunk_queue = (ThunkQueue*)arg;
     assert(thunk_queue);
     while (!thunk_queue->empty()) {
-        struct thunk *th = NULL;
-        thunk_queue->pop(th);
+        struct thunk *th = thunk_queue->front();
+        thunk_queue->pop_front();
         assert(th);
         /* No worries if the app cancels the thunk after 
          * it is fired; this can happen even if we 
