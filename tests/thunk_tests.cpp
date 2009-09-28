@@ -27,11 +27,12 @@ struct thunk_args {
     int *nums;
     size_t n;
     size_t next;
+    bool running;
     pthread_mutex_t mutex;
     pthread_cond_t cv;
 
     thunk_args(mc_socket_t sock_, int *nums_, size_t n_, size_t next_)
-        : sock(sock_), nums(nums_), n(n_), next(next_) {
+        : sock(sock_), nums(nums_), n(n_), next(next_), running(true) {
         pthread_mutex_init(&mutex, NULL);
         pthread_cond_init(&cv, NULL);
     }
@@ -43,31 +44,8 @@ static void thunk_fn(void *arg)
     assert(th_arg);
 
     PthreadScopedLock lock(&th_arg->mutex);
-
-    int rc = 0;
-    while (rc == 0 && th_arg->next < th_arg->n) {
-        printf("Sending int... ");
-        rc = cmm_send(th_arg->sock, 
-                      &th_arg->nums[th_arg->next], sizeof(int), 0, 
-                      CMM_LABEL_BACKGROUND, thunk_fn, arg);
-        if (rc >= 0) {
-            printf("sent, rc=%d\n", rc);
-            CPPUNIT_ASSERT_EQUAL_MESSAGE("Integer sent",
-                                         (int)sizeof(int), rc);
-            th_arg->next++;
-            rc = 0;
-            sleep(1);
-        } else {
-            printf("not sent, rc=%d\n", rc);
-            CPPUNIT_ASSERT_EQUAL_MESSAGE("Deferred, not failed",
-                                         CMM_DEFERRED, rc);
-        }
-    }
-
-    if (rc == 0) {
-        assert(th_arg->next == th_arg->n);
-        pthread_cond_signal(&th_arg->cv);
-    }
+    th_arg->running = true;
+    pthread_cond_signal(&th_arg->cv);
 }
 
 void
@@ -86,10 +64,30 @@ ThunkTests::testThunks()
         }
         struct thunk_args *th_arg = new struct thunk_args(send_sock, nums, 
                                                           NUMINTS, 0);
-        thunk_fn(th_arg);
         PthreadScopedLock lock(&th_arg->mutex);
+        th_arg->running = true;
         while (th_arg->next < th_arg->n) {
-            pthread_cond_wait(&th_arg->cv, &th_arg->mutex);
+            printf("Sending int... ");
+            int rc = cmm_send(th_arg->sock, 
+                              &th_arg->nums[th_arg->next], sizeof(int), 0, 
+                              CMM_LABEL_BACKGROUND, thunk_fn, th_arg);
+            if (rc >= 0) {
+                printf("sent, rc=%d\n", rc);
+                CPPUNIT_ASSERT_EQUAL_MESSAGE("Integer sent",
+                                             (int)sizeof(int), rc);
+                th_arg->next++;
+                rc = 0;
+                sleep(1);
+            } else {
+                printf("not sent, rc=%d\n", rc);
+                CPPUNIT_ASSERT_EQUAL_MESSAGE("Deferred, not failed",
+                                             CMM_DEFERRED, rc);
+
+                th_arg->running = false;
+                while (!th_arg->running) {
+                    pthread_cond_wait(&th_arg->cv, &th_arg->mutex);
+                }
+            }
         }
     }
 }

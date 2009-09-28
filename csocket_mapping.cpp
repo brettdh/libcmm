@@ -299,8 +299,20 @@ CSockMapping::add_connection(int sock,
 	      inet_ntoa(local_addr), inet_ntoa(remote_iface.ip_addr));
     struct net_interface local_iface;
     if (!get_local_iface_by_addr(local_addr, local_iface)) {
-        assert(0); /* should always know about my own interfaces
-                    * before anyone else does */
+        /* XXX: not true! Our fake scout doesn't really simulate
+         * the network disappearing.  Hosts can still 
+         * try to connect to it, and they won't be refused. 
+         * We'll get here, but the scout won't have told us about 
+         * the new interface yet.  Maybe this should just add the
+         * new local_iface. */
+
+        /* should always know about my own interfaces
+         * before anyone else does */
+        //assert(0);
+
+        local_iface.ip_addr = local_addr;
+        local_iface.labels = 0; /* will get updated by the scout */
+        CMMSocket::interface_up(local_iface);
     }
     struct net_interface dummy;
     if (!get_remote_iface_by_addr(remote_iface.ip_addr, dummy)) {
