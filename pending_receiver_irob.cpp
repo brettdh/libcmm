@@ -37,6 +37,7 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
     if (!is_complete()) {
         num_bytes += chunk.datalen;
         recvd_chunks++;
+        chunks.push_back(chunk);
 	dbgprintf("Added chunk %d (%d bytes) to IROB %d\n", 
 		  chunk.seqno, chunk.datalen, id);
     } else {
