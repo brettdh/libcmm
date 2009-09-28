@@ -1268,10 +1268,12 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
     csock_map->teardown(iface, local);
 
     if (local) {
-        PthreadScopedLock lock(&scheduling_state_lock);
         local_ifaces.erase(iface);
-        changed_local_ifaces.insert(iface);
-        pthread_cond_broadcast(&scheduling_state_cv);
+
+        /* This leads to a deadlock. */
+        //PthreadScopedLock lock(&scheduling_state_lock);
+        //changed_local_ifaces.insert(iface);
+        //pthread_cond_broadcast(&scheduling_state_cv);
     } else {
         remote_ifaces.erase(iface);
     }

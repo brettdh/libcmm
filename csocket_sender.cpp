@@ -77,9 +77,10 @@ CSocketSender::Run()
             // something happened; we might be able to do some work
         }
     } catch (CMMControlException& e) {
-        //csock->remove();
+        pthread_mutex_unlock(&sk->scheduling_state_lock);
         sk->csock_map->remove_csock(csock);
         CSocketPtr replacement = sk->csock_map->new_csock_with_labels(0);
+        pthread_mutex_lock(&sk->scheduling_state_lock);
         if (replacement) {
             // pass off any work I didn't get to finish; it will
             //  be passed to the correct thread or deferred
@@ -156,15 +157,20 @@ struct ResumeOperation {
 void resume_operation_thunk(ResumeOperation *op)
 {
     assert(op);
-    PthreadScopedLock lock(&op->sk->scheduling_state_lock);
-    PendingIROB *pirob = op->sk->outgoing_irobs.find(op->data.id);
-    assert(pirob);
-    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
-    assert(psirob);
+    u_long send_labels = 0;
+    {
+        PthreadScopedLock lock(&op->sk->scheduling_state_lock);
+        PendingIROB *pirob = op->sk->outgoing_irobs.find(op->data.id);
+        assert(pirob);
+        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+        assert(psirob);
+        send_labels = psirob->send_labels;
+    }
 
     CSocketPtr csock =
-        op->sk->csock_map->new_csock_with_labels(psirob->send_labels);
+        op->sk->csock_map->new_csock_with_labels(send_labels);
     
+    PthreadScopedLock lock(&op->sk->scheduling_state_lock);
     IROBSchedulingIndexes& indexes = (csock 
                                       ? csock->irob_indexes 
                                       : op->sk->irob_indexes);
@@ -184,12 +190,18 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
 
-    if (csock->matches(pirob->send_labels)) {
+    u_long send_labels = pirob->send_labels;
+
+    pthread_mutex_unlock(&sk->scheduling_state_lock);
+
+    if (csock->matches(send_labels)) {
         return false;
     }
 
     CSocketPtr match = 
-        sk->csock_map->new_csock_with_labels(pirob->send_labels);
+        sk->csock_map->new_csock_with_labels(send_labels);
+
+    pthread_mutex_lock(&sk->scheduling_state_lock);
     if (!match) {
         if (!pirob->complete) {
             if (psirob->resume_handler) {
