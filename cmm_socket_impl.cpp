@@ -377,6 +377,8 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
 CMMSocketImpl::~CMMSocketImpl()
 {
     dbgprintf("multisocket %d is being destroyed\n", sock);
+    cancel_all_thunks(sock);
+
     delete csock_map;
 
     {

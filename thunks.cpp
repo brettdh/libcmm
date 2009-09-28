@@ -7,6 +7,8 @@
 #include "tbb/concurrent_hash_map.h"
 #include "tbb/concurrent_queue.h"
 #include <string.h>
+#include <vector>
+using std::vector;
 
 struct thunk {
     resume_handler_t fn;
@@ -188,6 +190,26 @@ void fire_thunks(void)
                 fire_one_thunk_queue(&tq->thunk_queue);
             }
 	}
+    }
+}
+
+void cancel_all_thunks(mc_socket_t sock)
+{
+    /* XXX: potentially expensive, but probably rare. */
+    vector<struct labeled_thunk_queue*> victims;
+
+    for (ThunkHash::iterator tq_iter = thunk_hash.begin(true, true);
+	 tq_iter != thunk_hash.end(); tq_iter++) {
+	struct labeled_thunk_queue *tq = tq_iter->second;
+        if (tq->sock == sock) {
+            victims.push_back(tq);
+	}
+    }
+    
+    for (size_t i = 0; i < victims.size(); ++i) {
+        struct labeled_thunk_queue *tq = victims[i];
+        thunk_hash.erase(tq_key(sock, tq->send_labels));
+        delete tq;
     }
 }
 

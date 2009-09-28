@@ -46,16 +46,19 @@ static void thunk_fn(void *arg)
 
     int rc = 0;
     while (rc == 0 && th_arg->next < th_arg->n) {
+        printf("Sending int... ");
         rc = cmm_send(th_arg->sock, 
                       &th_arg->nums[th_arg->next], sizeof(int), 0, 
                       CMM_LABEL_BACKGROUND, thunk_fn, arg);
         if (rc >= 0) {
+            printf("sent, rc=%d\n", rc);
             CPPUNIT_ASSERT_EQUAL_MESSAGE("Integer sent",
                                          (int)sizeof(int), rc);
             th_arg->next++;
             rc = 0;
             sleep(1);
         } else {
+            printf("not sent, rc=%d\n", rc);
             CPPUNIT_ASSERT_EQUAL_MESSAGE("Deferred, not failed",
                                          CMM_DEFERRED, rc);
         }
