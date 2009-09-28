@@ -1,7 +1,12 @@
 CXXFLAGS:=-Wall -Werror -I. -I.. -m32 -g -DCMM_UNIT_TESTING #-DCMM_DEBUG 
 LDFLAGS:=-L. -L.. -lcppunit -ldl -ltbb
 
-all: run_unit_tests run_lib_tests run_remote_tests run_thunk_tests
+EXECUTABLES=run_unit_tests run_lib_tests run_remote_tests run_thunk_tests
+
+.gitignore: Makefile
+	echo "$(EXECUTABLES)" | sed -e 's/\s+/ /' | tr ' ' '\n' > .gitignore
+
+all: $(EXECUTABLES)
 
 test: run_unit_tests run_lib_tests
 	./run_unit_tests; ./run_lib_tests
