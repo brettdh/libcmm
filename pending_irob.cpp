@@ -64,7 +64,7 @@ PendingIROB::~PendingIROB()
         delete [] chunk.data;
     }
 
-    dbgprintf("PendingIROB %p is being destroyed\n", this);
+    //dbgprintf("PendingIROB %p is being destroyed\n", this);
     PthreadScopedLock lock(&count_mutex);
     --obj_count;
 }

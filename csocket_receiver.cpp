@@ -275,6 +275,8 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
                       chunk.seqno, id);
         }
 
+        sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
+
         if (prirob->is_complete()) {
             csock->irob_indexes.waiting_acks.insert(IROBSchedulingData(id));
             pthread_cond_broadcast(&sk->scheduling_state_cv);
