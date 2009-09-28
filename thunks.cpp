@@ -164,8 +164,8 @@ static void *ThunkThreadFn(void *arg)
             delete th;
         }
 
-	if (CMMSocketImpl::net_available(tq->sock, 
-                                         tq->send_labels)) {
+	if (!CMMSocketImpl::net_available(tq->sock, 
+                                          tq->send_labels)) {
             /* Prevent spurious thunk-firing if the network
              * goes away while a thunk is being handled. 
              * Also avoids infinite loop resulting from
