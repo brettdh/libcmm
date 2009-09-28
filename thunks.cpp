@@ -8,8 +8,7 @@
 #include "tbb/concurrent_queue.h"
 #include <string.h>
 #include <vector>
-#include <deque>
-using std::vector; using std::deque;
+using std::vector;
 
 struct thunk {
     resume_handler_t fn;
@@ -34,7 +33,7 @@ struct PtrLess {
     }
 };
 
-typedef deque<struct thunk*> ThunkQueue;
+typedef tbb::concurrent_queue<struct thunk*> ThunkQueue;
 struct labeled_thunk_queue {
     mc_socket_t sock;
     u_long send_labels; /* single label bit only; relax this in the future */
@@ -68,8 +67,8 @@ struct labeled_thunk_queue {
         : sock(sk), send_labels(s) {}
     ~labeled_thunk_queue() {
 	while (!thunk_queue.empty()) {
-            struct thunk *th = thunk_queue.front();
-	    thunk_queue.pop_front();
+	    struct thunk *th = NULL;
+	    thunk_queue.pop(th);
 	    assert(th);
 	    /* XXX: this leaks any outstanding thunk args.
 	     * maybe we can assume that a thunk queue being destroyed means
@@ -108,7 +107,7 @@ void enqueue_handler(mc_socket_t sock, u_long send_labels,
     struct thunk * new_thunk = new struct thunk(fn, arg, send_labels, 
                                                 sock);
 
-    hash_ac->second->thunk_queue.push_back(new_thunk);
+    hash_ac->second->thunk_queue.push(new_thunk);
 
 
     dbgprintf("Registered thunk %p, arg %p on mc_sock %d send labels %lu\n",
@@ -149,11 +148,11 @@ static void fire_one_thunk(struct thunk *th)
 
 static void *ThunkThreadFn(void *arg)
 {
-    ThunkQueue *thunk_queue = (ThunkQueue*)arg;
-    assert(thunk_queue);
-    while (!thunk_queue->empty()) {
-        struct thunk *th = thunk_queue->front();
-        thunk_queue->pop_front();
+    struct labeled_thunk_queue *tq = (struct labeled_thunk_queue*)arg;
+    assert(tq);
+    while (!tq->thunk_queue.empty()) {
+        struct thunk *th = NULL;
+        tq->thunk_queue.pop(th);
         assert(th);
         /* No worries if the app cancels the thunk after 
          * it is fired; this can happen even if we 
@@ -164,17 +163,26 @@ static void *ThunkThreadFn(void *arg)
         } else {
             delete th;
         }
+
+	if (CMMSocketImpl::net_available(tq->sock, 
+                                         tq->send_labels)) {
+            /* Prevent spurious thunk-firing if the network
+             * goes away while a thunk is being handled. 
+             * Also avoids infinite loop resulting from
+             * a thunk that itself registers a thunk. */
+            break;
+        }
     }
     return NULL;
 }
 
-static void fire_one_thunk_queue(ThunkQueue *thunk_queue)
+static void fire_one_thunk_queue(struct labeled_thunk_queue *tq)
 {
     pthread_t tid;
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-    (void)pthread_create(&tid, &attr, ThunkThreadFn, thunk_queue);
+    (void)pthread_create(&tid, &attr, ThunkThreadFn, tq);
 }
 
 void fire_thunks(void)
@@ -188,7 +196,7 @@ void fire_thunks(void)
 	if (CMMSocketImpl::net_available(tq->sock, 
                                          tq->send_labels)) {
             if (!tq->thunk_queue.empty()) {
-                fire_one_thunk_queue(&tq->thunk_queue);
+                fire_one_thunk_queue(tq);
             }
 	}
     }
