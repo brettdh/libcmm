@@ -120,7 +120,7 @@ CSockMapping::teardown(struct net_interface iface, bool local)
         CSocketPtr victim = victims.back();
         victims.pop_back();
         connected_csocks.erase(victim);
-        //delete victim; /* closes socket, cleans up */
+        shutdown(victim->osfd, SHUT_RDWR); /* tells the sender/receiver threads to exit */
     }
 }
 
