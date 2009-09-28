@@ -220,8 +220,10 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
         
         sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
 
-        csock->irob_indexes.waiting_acks.insert(IROBSchedulingData(id));
-        pthread_cond_broadcast(&sk->scheduling_state_cv);
+        if (prirob->is_complete()) {
+            csock->irob_indexes.waiting_acks.insert(IROBSchedulingData(id));
+            pthread_cond_broadcast(&sk->scheduling_state_cv);
+        }
     }
 
     //sk->sendr->ack(id);
