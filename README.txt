@@ -1,6 +1,4 @@
-Note: this API description is current as of: 
-
-$Date$
+Note: this API description was last updated on 2009-07-15.
 
 -------------
 
