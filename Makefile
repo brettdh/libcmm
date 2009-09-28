@@ -14,6 +14,9 @@ EXECUTABLES:=conn_scout cmm_test_sender cmm_test_receiver cdf_test\
 	     vanilla_test_sender vanilla_test_receiver \
 	     cmm_throughput_test vanilla_throughput_test
 
+.gitignore: Makefile
+	echo "$(EXECUTABLES) $(LIBRARIES)" | sed -e 's/\s+/ /' | tr ' ' '\n' > .gitignore
+
 all: $(LIBRARIES) $(EXECUTABLES)
 
 cdf_test: cdf_test.o cdf_sampler.o
