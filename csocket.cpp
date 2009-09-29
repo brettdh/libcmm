@@ -29,7 +29,7 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
                  int accepted_sock)
     : sk(sk_),
       local_iface(local_iface_), remote_iface(remote_iface_),
-      csock_sendr(NULL), csock_recvr(NULL)
+      csock_sendr(NULL), csock_recvr(NULL), irob_indexes(local_iface_.labels)
 {
     assert(sk);
     if (accepted_sock == -1) {

@@ -192,22 +192,4 @@ class PendingIROBLattice {
 
 };
 
-struct IROBSchedulingData {
-    IROBSchedulingData(irob_id_t id=-1, u_long seqno=INVALID_IROB_SEQNO);
-    bool operator<(const IROBSchedulingData& other) const;
-
-    irob_id_t id;
-    u_long seqno; // may be INVALID_IROB_SEQNO
-    //u_long send_labels;
-    // add scheduling hints later
-};
-
-struct IROBSchedulingIndexes {
-    std::set<IROBSchedulingData> new_irobs;
-    std::set<IROBSchedulingData> new_chunks;
-    std::set<IROBSchedulingData> finished_irobs;
-
-    std::set<IROBSchedulingData> waiting_acks;
-};
-
 #endif

@@ -327,6 +327,7 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
       remote_shutdown(false),
       goodbye_sent(false),
       incoming_irobs(this),
+      irob_indexes(0),
       sending_goodbye(false),
       next_irob(0)
 {

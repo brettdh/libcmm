@@ -387,17 +387,3 @@ PendingIROBLattice::size()
     PthreadScopedLock lock(&membership_lock);
     return count; 
 }
-
-IROBSchedulingData::IROBSchedulingData(irob_id_t id_, u_long seqno_) 
-    : id(id_), seqno(seqno_) 
-{
-    /* empty */
-}
-
-bool 
-IROBSchedulingData::operator<(const IROBSchedulingData& other) const
-{
-    // can implement priority here, based on 
-    //  any added scheduling hints
-    return (id < other.id) || (seqno < other.seqno);
-}

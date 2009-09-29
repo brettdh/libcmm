@@ -7,6 +7,7 @@
 
 #include "pending_irob.h"
 #include "pending_receiver_irob.h"
+#include "irob_scheduling.h"
 
 #include <map>
 #include <vector>

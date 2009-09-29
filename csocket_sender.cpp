@@ -123,22 +123,22 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
 
     IROBSchedulingData data;
 
-    if (pop_item(indexes.new_irobs, data)) {
+    if (indexes.new_irobs.pop(data)) {
         begin_irob(data);
         did_something = true;
     }
     
-    if (pop_item(indexes.new_chunks, data)) {
+    if (indexes.new_chunks.pop(data)) {
         irob_chunk(data);
         did_something = true;
     }
     
-    if (pop_item(indexes.finished_irobs, data)) {
+    if (indexes.finished_irobs.pop(data)) {
         end_irob(data);
         did_something = true;
     }
     
-    if (pop_item(indexes.waiting_acks, data)) {
+    if (indexes.waiting_acks.pop(data)) {
         send_acks(data, indexes);
         did_something = true;
     }
