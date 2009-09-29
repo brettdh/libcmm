@@ -91,3 +91,38 @@ ThunkTests::testThunks()
         }
     }
 }
+
+void 
+ThunkTests::testBlockingSend()
+{
+    const size_t NUMINTS = 10;
+    int nums[NUMINTS] = {
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+    };
+
+    if (isReceiver()) {
+        receiverAssertIntsSorted(nums, NUMINTS);
+    } else {
+        for (size_t i = 0; i < NUMINTS; ++i) {
+            nums[i] = htonl(nums[i]);
+        }
+
+        size_t next = 0;
+        while (next < NUMINTS) {
+            printf("Sending int... ");
+            fflush(stdout);
+            int rc = cmm_send(send_sock, &nums[next], sizeof(int), 0, 
+                              CMM_LABEL_BACKGROUND, NULL, NULL);
+            if (rc >= 0) {
+                printf("sent, rc=%d\n", rc);
+                CPPUNIT_ASSERT_EQUAL_MESSAGE("Integer sent",
+                                             (int)sizeof(int), rc);
+                next++;
+                sleep(1);
+            } else {
+                printf("failed! rc=%d, errno=%d\n", rc, errno);
+                CPPUNIT_FAIL("Failed to send integer");
+            }
+        }
+    }    
+}
