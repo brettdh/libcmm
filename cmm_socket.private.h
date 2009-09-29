@@ -42,7 +42,8 @@ typedef std::map<int, SockOptNames> SockOptHash;
 /*                                  CMMSocketImplPtr,  */
 /*                                  IntegerHashCompare<mc_socket_t> > CMMSockHash; */
 #include "pthread_util.h"
-typedef LockingMap<mc_socket_t, CMMSocketImplPtr> CMMSockHash;
+//typedef LockingMap<mc_socket_t, CMMSocketImplPtr> CMMSockHash;
+typedef LockWrappedMap<mc_socket_t, CMMSocketImplPtr> CMMSockHash;
 
 /* typedef tbb::concurrent_hash_map<irob_id_t, mc_socket_t,  */
 /*                                  IntegerHashCompare<irob_id_t> > IROBSockHash; */
@@ -138,6 +139,8 @@ class CMMSocketImpl : public CMMSocket {
     static VanillaListenerSet cmm_listeners;
     static NetInterfaceSet ifaces;
 
+    pthread_rwlock_t my_lock;
+
     virtual void setup(struct net_interface iface, bool local);
     virtual void teardown(struct net_interface iface, bool local);
     
@@ -151,8 +154,6 @@ class CMMSocketImpl : public CMMSocket {
     int connection_bootstrap(const struct sockaddr *remote_addr, 
                              socklen_t addrlen,
                              int bootstrap_sock = -1);
-
-    //CSocket * get_readable_csock(CMMSockHash::const_accessor& ac);
 
     CMMSocketImpl(int family, int type, int protocol);
 
@@ -303,11 +304,6 @@ class CMMSocketImpl : public CMMSocket {
     bool net_available(u_long send_labels);
 
     /* shortcut utility functions for hashtable-based rwlocking.  */
-
-    /* grab a readlock on this socket with the accessor. */
-    void read_lock(CMMSockHash::const_accessor& ac);
-    /* grab a writelock on this socket with the accessor. */
-    void write_lock(CMMSockHash::accessor& ac);
 
     class static_destroyer {
       public:

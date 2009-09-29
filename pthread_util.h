@@ -9,10 +9,20 @@
 
 class PthreadScopedLock {
   public:
-    explicit PthreadScopedLock(pthread_mutex_t *mutex_) : mutex(mutex_) {
-        assert(mutex);
+    PthreadScopedLock() : mutex(NULL) {}
+
+    explicit PthreadScopedLock(pthread_mutex_t *mutex_) {
+        mutex = NULL;
+        acquire(mutex_);
+    }
+
+    void acquire(pthread_mutex_t *mutex_) {
+        assert(mutex == NULL);
+        assert(mutex_);
+        mutex = mutex_;
         pthread_mutex_lock(mutex);
     }
+    
     ~PthreadScopedLock() {
         if (mutex) {
             pthread_mutex_unlock(mutex);
@@ -28,14 +38,24 @@ class PthreadScopedLock {
 
 class PthreadScopedRWLock {
   public:
-    explicit PthreadScopedRWLock(pthread_rwlock_t *mutex_, bool writer) : mutex(mutex_) {
-        assert(mutex);
+    PthreadScopedRWLock() : mutex(NULL) {}
+
+    explicit PthreadScopedRWLock(pthread_rwlock_t *mutex_, bool writer) {
+        mutex = NULL;
+        acquire(mutex_, writer);
+    }
+
+    void acquire(pthread_rwlock_t *mutex_, bool writer) {
+        assert(mutex == NULL);
+        assert(mutex_);
+        mutex = mutex_;
         if (writer) {
             pthread_rwlock_wrlock(mutex);
         } else {
             pthread_rwlock_rdlock(mutex);
         }
     }
+
     ~PthreadScopedRWLock() {
         if (mutex) {
             pthread_rwlock_unlock(mutex);
@@ -50,11 +70,84 @@ class PthreadScopedRWLock {
 
 };
 
-template <typename KeyType, typename ValueType>
+/* LockWrappedMap
+ *
+ * Simple wrapper around an STL map that makes
+ * the basic operations (insert, find, erase)
+ * thread-safe.  Useful if you want any per-object
+ * locks to live inside the contained objects.
+ */
+template <typename KeyType, typename ValueType,
+          typename ordering = std::less<KeyType> >
+class LockWrappedMap {
+    typedef std::map<KeyType, ValueType, ordering> MapType;
+
+  public:
+    LockWrappedMap() {
+        pthread_mutex_init(&membership_lock, NULL);
+    }
+
+    ~LockWrappedMap() {
+        pthread_mutex_destroy(&membership_lock);
+    }
+
+    typedef typename MapType::iterator iterator;
+
+    bool insert(const KeyType& key, const ValueType& val) {
+        PthreadScopedLock lock(&membership_lock);
+        std::pair<iterator, bool> ret = 
+            the_map.insert(std::make_pair(key, val));
+        return ret.second;
+    }
+
+    bool find(const KeyType &key, ValueType& val) {
+        PthreadScopedLock lock(&membership_lock);
+        typename MapType::iterator pos = the_map.find(key);
+        if (pos != the_map.end()) {
+            val = pos->second;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    bool erase(const KeyType &key) {
+        PthreadScopedLock lock(&membership_lock);
+        return (the_map.erase(key) == 1);
+    }
+
+    /* Not thread-safe, obviously. */
+    iterator begin() {
+        return the_map.begin();
+    }
+
+    /* Not thread-safe, obviously. */
+    iterator end() {
+        return the_map.end();
+    }
+
+  private:
+    MapType the_map;
+    pthread_mutex_t membership_lock;
+};
+
+
+/* LockingMap<KeyType, ValueType>
+ *
+ * Provides a TBB-like interface for a thread-safe
+ *  STL-style std::map<KeyType, ValueType>.
+ * Accessors are used with insert, find, and erase
+ *  functions to provide fine-grained locking.
+ * Thread-safe iteration can be achieved by
+ *  passing appropriate arguments to 
+ *  begin(bool locked, bool writer).
+ */
+template <typename KeyType, typename ValueType,
+          typename ordering = std::less<KeyType> >
 class LockingMap {
     struct node;
     typedef boost::shared_ptr<struct node> NodePtr;
-    typedef std::map<KeyType, NodePtr> MapType;
+    typedef std::map<KeyType, NodePtr, ordering> MapType;
     typedef std::pair<KeyType, ValueType> pair_type;
 
     struct node {
@@ -201,8 +294,8 @@ class LockingMap {
     pthread_rwlock_t membership_lock;
 };
 
-template <typename KeyType, typename ValueType>
-void LockingMap<KeyType,ValueType>::iterator::update()
+template <typename KeyType, typename ValueType, typename ordering>
+void LockingMap<KeyType,ValueType,ordering>::iterator::update()
 {
     if (my_iter != my_map->the_map.end()) {
         item = my_iter->second;
@@ -211,14 +304,14 @@ void LockingMap<KeyType,ValueType>::iterator::update()
     }
 }
 
-template <typename KeyType, typename ValueType>
-LockingMap<KeyType, ValueType>::LockingMap()
+template <typename KeyType, typename ValueType, typename ordering>
+LockingMap<KeyType,ValueType,ordering>::LockingMap()
 {
     pthread_rwlock_init(&membership_lock, NULL);
 }
 
-template <typename KeyType, typename ValueType>
-bool LockingMap<KeyType,ValueType>::insert(accessor& ac, const KeyType& key)
+template <typename KeyType, typename ValueType, typename ordering>
+bool LockingMap<KeyType,ValueType,ordering>::insert(accessor& ac, const KeyType& key)
 {
     NodePtr target;
     {
@@ -237,8 +330,8 @@ bool LockingMap<KeyType,ValueType>::insert(accessor& ac, const KeyType& key)
     return true;
 }
 
-template <typename KeyType, typename ValueType>
-bool LockingMap<KeyType,ValueType>::find(const_accessor& ac, const KeyType& key)
+template <typename KeyType, typename ValueType, typename ordering>
+bool LockingMap<KeyType,ValueType,ordering>::find(const_accessor& ac, const KeyType& key)
 {
     NodePtr target;
     {
@@ -256,8 +349,8 @@ bool LockingMap<KeyType,ValueType>::find(const_accessor& ac, const KeyType& key)
     return true;
 }
 
-template <typename KeyType, typename ValueType>
-bool LockingMap<KeyType,ValueType>::find(accessor& ac, const KeyType& key)
+template <typename KeyType, typename ValueType, typename ordering>
+bool LockingMap<KeyType,ValueType,ordering>::find(accessor& ac, const KeyType& key)
 {
     NodePtr target;
     {
@@ -275,8 +368,8 @@ bool LockingMap<KeyType,ValueType>::find(accessor& ac, const KeyType& key)
     return true;
 }
 
-template <typename KeyType, typename ValueType>
-bool LockingMap<KeyType,ValueType>::erase(const KeyType& key)
+template <typename KeyType, typename ValueType, typename ordering>
+bool LockingMap<KeyType,ValueType,ordering>::erase(const KeyType& key)
 {
     {
         PthreadScopedRWLock lock(&membership_lock, true);
@@ -291,8 +384,8 @@ bool LockingMap<KeyType,ValueType>::erase(const KeyType& key)
     return true;
 }
 
-template <typename KeyType, typename ValueType>
-bool LockingMap<KeyType,ValueType>::erase(accessor& ac)
+template <typename KeyType, typename ValueType, typename ordering>
+bool LockingMap<KeyType,ValueType,ordering>::erase(accessor& ac)
 {
     return erase(ac->first);
 }

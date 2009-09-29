@@ -144,8 +144,7 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
         }
     
         PthreadScopedLock scoped_lock(&hashmaps_mutex);
-        CMMSockHash::accessor ac;
-        write_lock(ac);
+        PthreadScopedRWLock sock_lock(&my_lock, true);
         for (NetInterfaceSet::iterator it = ifaces.begin();
              it != ifaces.end(); it++) {
             
@@ -157,9 +156,6 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
             local_ifaces.insert(listener_addr);
         }
         
-        //CMMSockHash::accessor ac;
-        //write_lock(ac);
-
         if (bootstrap_sock != -1) {
             /* we are accepting a connection */
             recv_remote_listeners(bootstrap_sock);
@@ -222,10 +218,7 @@ CMMSocketImpl::create(int family, int type, int protocol)
     }
     
     PthreadScopedLock lock(&hashmaps_mutex);
-    CMMSockHash::accessor ac;
-    if (cmm_sock_hash.insert(ac, new_sock)) {
-	ac->second = new_sk;
-    } else {
+    if (!cmm_sock_hash.insert(new_sock, new_sk)) {
 	fprintf(stderr, "Error: new socket %d is already in hash!  WTF?\n", 
 		new_sock);
 	assert(0);
@@ -267,13 +260,13 @@ sanity_check(mc_socket_t sock)
 CMMSocketPtr
 CMMSocketImpl::lookup(mc_socket_t sock)
 {
-    CMMSockHash::const_accessor read_ac;
-    if (!cmm_sock_hash.find(read_ac, sock)) {
+    CMMSocketImplPtr sk;
+    if (!cmm_sock_hash.find(sock, sk)) {
         return CMMSocketPtr(new CMMSocketPassThrough(sock));
     } else {
         int rc = sanity_check(sock);
         assert(rc == 0);
-        return read_ac->second;
+        return sk;
     }
 }
 
@@ -294,14 +287,14 @@ int
 CMMSocketImpl::mc_close(mc_socket_t sock)
 {
     VanillaListenerSet::accessor listener_ac;
-    CMMSockHash::accessor ac;
-    if (cmm_sock_hash.find(ac, sock)) {
-	CMMSocketImplPtr sk(ac->second);
+    CMMSocketImplPtr sk;
+    if (cmm_sock_hash.find(sock, sk)) {
+        PthreadScopedRWLock lock(&sk->my_lock, true);
 	sk->goodbye(false);
         shutdown(sk->select_pipe[0], SHUT_RDWR);
         shutdown(sk->select_pipe[1], SHUT_RDWR);
         pthread_mutex_lock(&hashmaps_mutex);
-	cmm_sock_hash.erase(ac);
+	cmm_sock_hash.erase(sock);
         /* the CMMSocket object gets destroyed by the shared_ptr. */
         /* moved the rest of the cleanup to the destructor */
         pthread_mutex_unlock(&hashmaps_mutex);
@@ -372,6 +365,8 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
     pthread_cond_init(&shutdown_cv, NULL);
     pthread_mutex_init(&scheduling_state_lock, NULL);
     pthread_cond_init(&scheduling_state_cv, NULL);
+    
+    pthread_rwlock_init(&my_lock, NULL);
 }
 
 CMMSocketImpl::~CMMSocketImpl()
@@ -409,8 +404,8 @@ CMMSocketImpl::mc_connect(const struct sockaddr *serv_addr,
                           socklen_t addrlen)
 {
     {    
-	CMMSockHash::const_accessor ac;
-	if (!cmm_sock_hash.find(ac, sock)) {
+        CMMSocketImplPtr sk;
+	if (!cmm_sock_hash.find(sock, sk)) {
             assert(0);
 
 	    fprintf(stderr, 
@@ -419,7 +414,8 @@ CMMSocketImpl::mc_connect(const struct sockaddr *serv_addr,
 	    errno = EBADF;
 	    return CMM_FAILED; /* assert(0)? */
 	}
-	if (!ac->second->remote_ifaces.empty()) {
+        PthreadScopedRWLock lock(&sk->my_lock, false);
+	if (!sk->remote_ifaces.empty()) {
 	    fprintf(stderr, 
 		    "Warning: tried to cmm_connect an "
 		    "already-connected socket %d\n", sock);
@@ -515,16 +511,16 @@ CMMSocketImpl::make_real_fd_set(int nfds, fd_set *fds,
         //fprintf(stderr, "DBG: checking fd %d\n", s);
 	if (FD_ISSET(s, fds)) {
             //fprintf(stderr, "DBG: fd %d is set\n", s);
-	    CMMSockHash::const_accessor ac;
-	    if (!cmm_sock_hash.find(ac, s)) {
+	    CMMSocketImplPtr sk;
+	    if (!cmm_sock_hash.find(s, sk)) {
                 /* This must be a real file descriptor, not a mc_socket. 
                  * No translation needed. */
                 continue;
 	    }
 
 	    FD_CLR(s, fds);
-	    CMMSocketImplPtr sk = ac->second;
 	    assert(sk);
+            PthreadScopedRWLock lock(&sk->my_lock, false);
 	    sk->get_fds_for_select(osfd_list, reading);
 	    if (osfd_list.size() == 0) {
 #if 0
@@ -649,15 +645,15 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
     for (int i = 0; i < nfds; ++i) {
         if (FD_ISSET(i, &tmp_readfds)) {
             dbgprintf("SELECT_DEBUG fd %d is set in tmp_readfds\n", i);
-            CMMSockHash::accessor ac;
-            if (!cmm_sock_hash.find(ac, i)) {
+            CMMSocketImplPtr sk;
+            if (!cmm_sock_hash.find(i, sk)) {
                 /* This must be a real file descriptor, 
                  * not a mc_socket.  Skip it. */
                 continue;
             }
             
-            CMMSocketImplPtr sk = ac->second;
             assert(sk);
+            PthreadScopedRWLock lock(&sk->my_lock, true);
             char junk[64];
             int bytes_cleared = 0;
             dbgprintf("Emptying select pipe for msocket %d\n", i);
@@ -690,14 +686,14 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
     vector<struct pollfd> real_fds_list;
     for(nfds_t i=0; i<nfds; i++) {
 	mcSocketOsfdPairList osfd_list;
-	CMMSockHash::const_accessor ac;	
-	if(!cmm_sock_hash.find(ac, fds[i].fd)) {
+        CMMSocketImplPtr sk;
+	if(!cmm_sock_hash.find(fds[i].fd, sk)) {
 	    real_fds_list.push_back(fds[i]);
 	    osfds_to_pollfds[fds[i].fd] = &fds[i];
 	    continue; //this is a non mc_socket
 	} else {
-	    CMMSocketImplPtr sk = ac->second;
 	    assert(sk);
+            PthreadScopedRWLock lock(&sk->my_lock, false);
 	    sk->csock_map->get_real_fds(osfd_list);
 	    if (osfd_list.size() == 0) {
 		/* XXX: is this right? should we instead
@@ -730,8 +726,8 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
     for (nfds_t i = 0; i < real_nfds; i++) {
 	struct pollfd *origfd = osfds_to_pollfds[realfds[i].fd];
 	assert(origfd);
-	CMMSockHash::const_accessor ac;	
-	if(!cmm_sock_hash.find(ac, fds[i].fd)) {
+        CMMSocketImplPtr sk;
+	if(!cmm_sock_hash.find(fds[i].fd, sk)) {
 	    origfd->revents = realfds[i].revents;
 	} else {
             //CMMSocketImplPtr sk = ac->second;
@@ -775,12 +771,10 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
     
     irob_id_t id = -1;
     {
-        CMMSockHash::accessor write_ac;
-        write_lock(write_ac);
+        PthreadScopedRWLock sock_lock(&my_lock, true);
         id = next_irob++;
     }
-    CMMSockHash::const_accessor read_ac;
-    read_lock(read_ac);
+    PthreadScopedRWLock sock_lock(&my_lock, false);
 
     int rc = default_irob(id, buf, len, flags,
                           send_labels, 
@@ -844,12 +838,10 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
     
     irob_id_t id = -1;
     {
-        CMMSockHash::accessor write_ac;
-        write_lock(write_ac);
+        PthreadScopedRWLock sock_lock(&my_lock, true);
         id = next_irob++;
     }
-    CMMSockHash::const_accessor read_ac;
-    read_lock(read_ac);
+    PthreadScopedRWLock sock_lock(&my_lock, false);
 
     dbgprintf("Calling default_irob with %d bytes\n", total_bytes);
     int rc = default_irob_writev(id, vec, count, total_bytes,
@@ -892,18 +884,13 @@ int
 CMMSocketImpl::mc_shutdown(int how)
 {
     int rc = 0;
-    CMMSockHash::accessor ac;
-    if (cmm_sock_hash.find(ac, sock)) {
-	goodbye(false);
-        if (how == SHUT_RD || how == SHUT_RDWR) {
-            shutdown(select_pipe[0], SHUT_RDWR);
-            shutdown(select_pipe[1], SHUT_RDWR);
-        }
-        //rc = csock_map->for_each(shutdown_each(how));
-    } else {
-        // see CMMSocketPassThrough
-        assert(0);
+    PthreadScopedRWLock(&my_lock, true);
+    goodbye(false);
+    if (how == SHUT_RD || how == SHUT_RDWR) {
+        shutdown(select_pipe[0], SHUT_RDWR);
+        shutdown(select_pipe[1], SHUT_RDWR);
     }
+    //rc = csock_map->for_each(shutdown_each(how));
 
     return rc;
 }
@@ -915,12 +902,10 @@ CMMSocketImpl::mc_begin_irob(int numdeps, const irob_id_t *deps,
 {
     irob_id_t id = -1;
     {
-        CMMSockHash::accessor write_ac;
-        write_lock(write_ac);
+        PthreadScopedRWLock sock_lock(&my_lock, true);
         id = next_irob++;
     }
-    CMMSockHash::const_accessor read_ac;
-    read_lock(read_ac);
+    PthreadScopedRWLock sock_lock(&my_lock, false);
     int rc = begin_irob(id, numdeps, deps, 
                         send_labels, 
                         rh, rh_arg);
@@ -939,8 +924,7 @@ CMMSocketImpl::mc_begin_irob(int numdeps, const irob_id_t *deps,
 int
 CMMSocketImpl::mc_end_irob(irob_id_t id)
 {
-    CMMSockHash::const_accessor read_ac;
-    read_lock(read_ac);
+    PthreadScopedRWLock sock_lock(&my_lock, false);
     int rc = end_irob(id);
     if (rc == 0) {
 	irob_sock_hash.erase(id);
@@ -952,8 +936,7 @@ ssize_t
 CMMSocketImpl::mc_irob_send(irob_id_t id, 
                             const void *buf, size_t len, int flags)
 {
-    CMMSockHash::const_accessor read_ac;
-    read_lock(read_ac);
+    PthreadScopedRWLock sock_lock(&my_lock, false);
     return irob_chunk(id, buf, len, flags);
 }
 
@@ -1015,13 +998,8 @@ CMMSocketImpl::interface_down(struct net_interface down_iface)
     /* put down the sockets connected on now-unavailable networks. */
     for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
 	 sk_iter != cmm_sock_hash.end(); sk_iter++) {
-	CMMSockHash::const_accessor read_ac;
-	if (!cmm_sock_hash.find(read_ac, sk_iter->first)) {
-            assert(0);
-	}
-	CMMSocketImplPtr sk = read_ac->second;
+	CMMSocketImplPtr sk = sk_iter->second;
 	assert(sk);
-        read_ac.release();
 
 	sk->teardown(down_iface, true);
     }
@@ -1119,13 +1097,7 @@ int
 CMMSocketImpl::mc_getsockopt(int level, int optname, 
                              void *optval, socklen_t *optlen)
 {
-    CMMSockHash::const_accessor ac;
-    if (!cmm_sock_hash.find(ac, sock)) {
-	//return getsockopt(sock, level, optname, optval, optlen);
-
-        // see CMMSocketPassThrough
-        assert(0);
-    }
+    PthreadScopedRWLock lock(&my_lock, false);
 
     CSocketPtr csock = csock_map->csock_with_labels(0);
     if (csock) {
@@ -1173,11 +1145,7 @@ CMMSocketImpl::mc_setsockopt(int level, int optname,
                                const void *optval, socklen_t optlen)
 {
     int rc = 0;
-    CMMSockHash::accessor ac;
-    if (!cmm_sock_hash.find(ac, sock)) {
-        // see CMMSocketPassThrough
-        assert(0);
-    }
+    PthreadScopedRWLock lock(&my_lock, true);
 
     if (optname == O_NONBLOCK) {
 	non_blocking = true;
@@ -1212,14 +1180,7 @@ int
 CMMSocketImpl::mc_getpeername(struct sockaddr *address, 
                               socklen_t *address_len)
 {
-    CMMSockHash::const_accessor ac;
-    if (!cmm_sock_hash.find(ac, sock)) {
-        // see CMMSocketPassThrough
-        assert(0);
-
-	/* pass-through for non-mc-sockets; now a layer above */
-	// return getpeername(sock, address, address_len);
-    }
+    PthreadScopedRWLock lock(&my_lock, false);
 
     CSocketPtr csock = csock_map->csock_with_labels(0);
     if (!csock) {
@@ -1234,11 +1195,7 @@ CMMSocketImpl::mc_getpeername(struct sockaddr *address,
 void
 CMMSocketImpl::setup(struct net_interface iface, bool local)
 {
-    CMMSockHash::accessor write_ac;
-    if (!cmm_sock_hash.find(write_ac, sock)) {
-        assert(0);
-    }
-    assert(get_pointer(write_ac->second) == this);
+    PthreadScopedRWLock lock(&my_lock, true);
     
     if (local) {
         PthreadScopedLock lock(&scheduling_state_lock);
@@ -1262,8 +1219,7 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
 void
 CMMSocketImpl::teardown(struct net_interface iface, bool local)
 {
-    CMMSockHash::accessor ac;
-    write_lock(ac);
+    PthreadScopedRWLock sock_lock(&my_lock, true);
     
     csock_map->teardown(iface, local);
 
@@ -1305,38 +1261,15 @@ bool
 CMMSocketImpl::net_available(mc_socket_t sock, 
                              u_long send_labels)
 {
-    CMMSockHash::const_accessor read_ac;
-    if (!cmm_sock_hash.find(read_ac, sock)) {
+    CMMSocketImplPtr sk;
+    if (!cmm_sock_hash.find(sock, sk)) {
         return false;
     }
-    CMMSocketImplPtr sk = read_ac->second;;
+    assert(sk);
+    PthreadScopedRWLock lock(&sk->my_lock, false);
     return sk->net_available(send_labels);
 }
 
-/* grab a readlock on this socket with the accessor. */
-void 
-CMMSocketImpl::read_lock(CMMSockHash::const_accessor& ac)
-{
-    //dbgprintf("Begin: read-lock msocket %d\n", sock);
-    if (!cmm_sock_hash.find(ac, sock)) {
-        assert(0);
-    }
-    //dbgprintf("End: read-lock msocket %d\n", sock);
-    assert(get_pointer(ac->second) == this);
-}
-
-
-/* grab a writelock on this socket with the accessor. */
-void 
-CMMSocketImpl::write_lock(CMMSockHash::accessor& ac)
-{
-    //dbgprintf("Begin: write-lock msocket %d\n", sock);
-    if (!cmm_sock_hash.find(ac, sock)) {
-        assert(0);
-    }
-    //dbgprintf("End: write-lock msocket %d\n", sock);
-    assert(get_pointer(ac->second) == this);
-}
 
 bool
 CMMSocketImpl::is_shutting_down()
@@ -1347,7 +1280,6 @@ CMMSocketImpl::is_shutting_down()
     return shdwn;
 }
 
-/* TODO: what about a timeout for these? */
 struct BlockingRequest {
     CMMSocketImpl *sk;
     pthread_t tid;
@@ -1906,6 +1838,8 @@ CMMSocketImpl::wait_for_completion(u_long label)
         }
         ptimeout = &abs_timeout;
     }
+
+    pthread_rwlock_unlock(&my_lock);
     
     PthreadScopedLock lock(&thread.mutex);
     while (thread.rc == CMM_INVALID_RC) {
@@ -1914,6 +1848,8 @@ CMMSocketImpl::wait_for_completion(u_long label)
         } else {
             rc = pthread_cond_wait(&thread.cv, &thread.mutex);
         }
+        pthread_rwlock_rdlock(&my_lock); // XXX: double-check!
+
         if (rc == ETIMEDOUT) {
             errno = rc;
             return CMM_FAILED;
@@ -1957,9 +1893,10 @@ CMMSocketImpl::cleanup()
 {
     dbgprintf("Cleaning up leftover mc_sockets\n");
     PthreadScopedLock lock(&hashmaps_mutex);
-    for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin(true);
+    for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
          sk_iter != cmm_sock_hash.end(); sk_iter++) {
         CMMSocketImplPtr sk = sk_iter->second;
+        PthreadScopedRWLock lock(&sk->my_lock, false);
         sk->goodbye(false);
         shutdown(sk->select_pipe[0], SHUT_RDWR);
         shutdown(sk->select_pipe[1], SHUT_RDWR);
@@ -1976,8 +1913,7 @@ CMMSocketImpl::cleanup()
 int 
 CMMSocketImpl::mc_get_failure_timeout(u_long label, struct timespec *ts)
 {
-    CMMSockHash::const_accessor ac;
-    read_lock(ac);
+    PthreadScopedRWLock sock_lock(&my_lock, false);
 
     if (ts) {
         struct timespec timeout = {-1, 0};
@@ -1995,8 +1931,7 @@ CMMSocketImpl::mc_get_failure_timeout(u_long label, struct timespec *ts)
 int 
 CMMSocketImpl::mc_set_failure_timeout(u_long label, const struct timespec *ts)
 {
-    CMMSockHash::accessor ac;
-    write_lock(ac);
+    PthreadScopedRWLock sock_lock(&my_lock, true);
 
     if (ts) {
         failure_timeouts[label] = *ts;
