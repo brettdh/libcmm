@@ -1909,7 +1909,11 @@ CMMSocketImpl::wait_for_completion(u_long label)
     
     PthreadScopedLock lock(&thread.mutex);
     while (thread.rc == CMM_INVALID_RC) {
-        rc = pthread_cond_timedwait(&thread.cv, &thread.mutex, ptimeout);
+        if (ptimeout) {
+            rc = pthread_cond_timedwait(&thread.cv, &thread.mutex, ptimeout);
+        } else {
+            rc = pthread_cond_wait(&thread.cv, &thread.mutex);
+        }
         if (rc == ETIMEDOUT) {
             errno = rc;
             return CMM_FAILED;
