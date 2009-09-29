@@ -1318,7 +1318,12 @@ CMMSocketImpl::get_csock(u_long send_labels,
                          CSocket *& csock, bool blocking)
 {
     try {
-        csock = get_pointer(csock_map->new_csock_with_labels(send_labels));
+        if (net_available(send_labels)) {
+            csock = get_pointer(csock_map->new_csock_with_labels(send_labels));
+        } else {
+            csock = NULL;
+        }
+
         if (!csock) {
             if (resume_handler) {
                 enqueue_handler(sock, send_labels, 

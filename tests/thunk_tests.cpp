@@ -67,19 +67,19 @@ ThunkTests::testThunks()
         PthreadScopedLock lock(&th_arg->mutex);
         th_arg->running = true;
         while (th_arg->next < th_arg->n) {
-            printf("Sending int... ");
+            fprintf(stderr, "Sending int... ");
             int rc = cmm_send(th_arg->sock, 
                               &th_arg->nums[th_arg->next], sizeof(int), 0, 
                               CMM_LABEL_BACKGROUND, thunk_fn, th_arg);
             if (rc >= 0) {
-                printf("sent, rc=%d\n", rc);
+                fprintf(stderr, "sent, rc=%d\n", rc);
                 CPPUNIT_ASSERT_EQUAL_MESSAGE("Integer sent",
                                              (int)sizeof(int), rc);
                 th_arg->next++;
                 rc = 0;
                 sleep(1);
             } else {
-                printf("not sent, rc=%d\n", rc);
+                fprintf(stderr, "not sent, rc=%d\n", rc);
                 CPPUNIT_ASSERT_EQUAL_MESSAGE("Deferred, not failed",
                                              CMM_DEFERRED, rc);
 
@@ -109,18 +109,17 @@ ThunkTests::testBlockingSend()
 
         size_t next = 0;
         while (next < NUMINTS) {
-            printf("Sending int... ");
-            fflush(stdout);
+            fprintf(stderr, "Sending int... ");
             int rc = cmm_send(send_sock, &nums[next], sizeof(int), 0, 
                               CMM_LABEL_BACKGROUND, NULL, NULL);
             if (rc >= 0) {
-                printf("sent, rc=%d\n", rc);
+                fprintf(stderr, "sent, rc=%d\n", rc);
                 CPPUNIT_ASSERT_EQUAL_MESSAGE("Integer sent",
                                              (int)sizeof(int), rc);
                 next++;
                 sleep(1);
             } else {
-                printf("failed! rc=%d, errno=%d\n", rc, errno);
+                fprintf(stderr, "failed! rc=%d, errno=%d\n", rc, errno);
                 CPPUNIT_FAIL("Failed to send integer");
             }
         }
