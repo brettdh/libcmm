@@ -3,6 +3,8 @@
 #include <unistd.h>
 #include <string.h>
 #include "cmm_internal_listener.h"
+#include "cmm_socket.private.h"
+#include "csocket_mapping.h"
 #include "debug.h"
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -132,6 +134,18 @@ ListenerThread::Run()
             perror("getsockname");
             close(sock);
             dbgprintf("Error getting local socket address\n");
+            continue;
+        }
+        
+        dbgprintf("Remote host %s is connecting to local address %s\n",
+                  inet_ntoa(remote_addr.sin_addr),
+                  inet_ntoa(local_addr.sin_addr));
+        struct net_interface dummy;
+        if (!sk->csock_map->get_local_iface_by_addr(local_addr.sin_addr, dummy)) {
+            dbgprintf("%s: network should be down.  %s, go away.\n",
+                      inet_ntoa(local_addr.sin_addr),
+                      inet_ntoa(remote_addr.sin_addr));
+            close(sock);
             continue;
         }
 

@@ -152,7 +152,7 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
             memset(&listener_addr, 0, sizeof(listener_addr));
             listener_addr.ip_addr = it->ip_addr;
             listener_addr.labels = it->labels;
-            
+
             local_ifaces.insert(listener_addr);
         }
         
@@ -978,6 +978,9 @@ void
 CMMSocketImpl::interface_up(struct net_interface up_iface)
 {
     pthread_mutex_lock(&hashmaps_mutex);
+
+    dbgprintf("Bringing up %s, label %lu\n",
+              inet_ntoa(up_iface.ip_addr), up_iface.labels);
     ifaces.insert(up_iface);
 
     for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
@@ -994,6 +997,9 @@ void
 CMMSocketImpl::interface_down(struct net_interface down_iface)
 {
     pthread_mutex_lock(&hashmaps_mutex);
+
+    dbgprintf("Bringing down %s, label %lu\n",
+              inet_ntoa(down_iface.ip_addr), down_iface.labels);
     ifaces.erase(down_iface);
 
     /* put down the sockets connected on now-unavailable networks. */
@@ -1205,6 +1211,7 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
             local_ifaces.erase(iface);
             changed_local_ifaces.erase(iface);
         }
+
         local_ifaces.insert(iface);
         changed_local_ifaces.insert(iface);
         pthread_cond_broadcast(&scheduling_state_cv);
@@ -1308,6 +1315,7 @@ CMMSocketImpl::wait_for_labels(u_long send_labels)
     return rc;
 }
 
+/* must call with readlock and scheduling_state_lock held */
 int
 CMMSocketImpl::get_csock(u_long send_labels, 
                          resume_handler_t resume_handler, void *rh_arg,

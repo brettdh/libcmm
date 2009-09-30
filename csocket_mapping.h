@@ -29,6 +29,8 @@ class CSockMapping {
     void remove_csock(CSocketPtr csock); // only removes, doesn't delete
 
     bool get_local_iface(u_long label, struct net_interface& iface);
+    bool get_local_iface_by_addr(struct in_addr addr, 
+                                 struct net_interface& iface);
 
     bool empty();
     
@@ -64,8 +66,6 @@ class CSockMapping {
     bool get_remote_iface(u_long label, struct net_interface& iface);
     bool get_iface(const NetInterfaceSet& ifaces, u_long label,
                    struct net_interface& iface);
-    bool get_local_iface_by_addr(struct in_addr addr, 
-                                 struct net_interface& iface);
     bool get_remote_iface_by_addr(struct in_addr addr,
                                   struct net_interface& iface);
     bool get_iface_by_addr(const NetInterfaceSet& ifaces, struct in_addr addr,

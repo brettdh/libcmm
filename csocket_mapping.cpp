@@ -152,6 +152,10 @@ bool
 CSockMapping::get_iface(const NetInterfaceSet& ifaces, u_long label,
                         struct net_interface& iface)
 {
+    CMMSocketImplPtr skp(sk);
+
+    PthreadScopedRWLock lock(&skp->my_lock, false);
+
     NetInterfaceSet::const_iterator it = find_if(ifaces.begin(), 
                                                  ifaces.end(), 
                                                  IfaceMatch(label));
@@ -167,8 +171,6 @@ bool
 CSockMapping::get_local_iface(u_long label, struct net_interface& iface)
 {
     CMMSocketImplPtr skp(sk);
-
-    PthreadScopedLock lock(&skp->hashmaps_mutex);
     return get_iface(skp->local_ifaces, label, iface);
 }
 
@@ -176,8 +178,6 @@ bool
 CSockMapping::get_remote_iface(u_long label, struct net_interface& iface)
 {
     CMMSocketImplPtr skp(sk);
-
-    PthreadScopedLock lock(&skp->hashmaps_mutex);
     return get_iface(skp->remote_ifaces, label, iface);
 }
 
@@ -256,6 +256,10 @@ CSockMapping::get_iface_by_addr(const NetInterfaceSet& ifaces,
                                 struct in_addr addr,
                                 struct net_interface& iface)
 {
+    CMMSocketImplPtr skp(sk);
+
+    PthreadScopedRWLock lock(&skp->my_lock, false);
+
     NetInterfaceSet::const_iterator it = find_if(ifaces.begin(), 
                                                  ifaces.end(), 
                                                  AddrMatch(addr));
@@ -272,8 +276,6 @@ CSockMapping::get_local_iface_by_addr(struct in_addr addr,
                                       struct net_interface& iface)
 {
     CMMSocketImplPtr skp(sk);
-
-    PthreadScopedLock lock(&skp->hashmaps_mutex);
     return get_iface_by_addr(skp->local_ifaces, addr, iface);
 }
 
@@ -282,8 +284,6 @@ CSockMapping::get_remote_iface_by_addr(struct in_addr addr,
                                       struct net_interface& iface)
 {
     CMMSocketImplPtr skp(sk);
-
-    PthreadScopedLock lock(&skp->hashmaps_mutex);
     return get_iface_by_addr(skp->remote_ifaces, addr, iface);
 }
 
