@@ -93,6 +93,10 @@ ListenerThread::Run()
     snprintf(name, MAX_NAME_LEN, "Listener %d", listener_sock);
     set_thread_name(name);
 
+    // we never join to this thread; we synchronize with its death
+    // with a condition variable.
+    detach();
+
     while (1) {
         fd_set readfds;
         FD_ZERO(&readfds);
@@ -181,7 +185,7 @@ ListenerThread::Finish()
 
     // nobody will pthread_join to me now, so detach
     //  to make sure the memory gets reclaimed
-    detach();
+    //detach();
 
     delete this; // the last thing that will ever be done with this
 }
