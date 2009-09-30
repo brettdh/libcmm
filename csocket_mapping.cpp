@@ -43,7 +43,6 @@ class LocalLabelMatch {
   private:
     u_long label;
 };
-
     
 CSockMapping::CSockMapping(CMMSocketImplPtr sk_)
     : sk(sk_)

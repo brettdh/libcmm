@@ -1241,13 +1241,8 @@ bool
 CMMSocketImpl::net_available(u_long send_labels)
 {
     bool local_found = false;
-    for (NetInterfaceSet::const_iterator it = local_ifaces.begin();
-         it != local_ifaces.end(); it++) {
-        if (send_labels == 0 || it->labels & send_labels) {
-            local_found = true;
-            break;
-        }
-    }
+    struct net_interface dummy;
+    local_found = csock_map->get_local_iface(send_labels, dummy);
     if (!local_found) {
         return false;
     }

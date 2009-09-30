@@ -28,6 +28,8 @@ class CSockMapping {
     CSocketPtr new_csock_with_labels(u_long send_label);
     void remove_csock(CSocketPtr csock); // only removes, doesn't delete
 
+    bool get_local_iface(u_long label, struct net_interface& iface);
+
     bool empty();
     
     void add_connection(int sock, 
@@ -59,7 +61,6 @@ class CSockMapping {
 
     struct get_worker_tids;
 
-    bool get_local_iface(u_long label, struct net_interface& iface);
     bool get_remote_iface(u_long label, struct net_interface& iface);
     bool get_iface(const NetInterfaceSet& ifaces, u_long label,
                    struct net_interface& iface);
