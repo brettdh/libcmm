@@ -29,6 +29,7 @@ class CSockMapping {
     void remove_csock(CSocketPtr csock); // only removes, doesn't delete
 
     bool get_local_iface(u_long label, struct net_interface& iface);
+    bool get_local_iface_locked(u_long label, struct net_interface& iface);
 
     bool empty();
     

@@ -169,6 +169,13 @@ CSockMapping::get_local_iface(u_long label, struct net_interface& iface)
     CMMSocketImplPtr skp(sk);
 
     PthreadScopedLock lock(&skp->hashmaps_mutex);
+    return get_local_iface_locked(label, iface);
+}
+
+bool
+CSockMapping::get_local_iface_locked(u_long label, struct net_interface& iface)
+{
+    CMMSocketImplPtr skp(sk);
     return get_iface(skp->local_ifaces, label, iface);
 }
 

@@ -1242,7 +1242,7 @@ CMMSocketImpl::net_available(u_long send_labels)
 {
     bool local_found = false;
     struct net_interface dummy;
-    local_found = csock_map->get_local_iface(send_labels, dummy);
+    local_found = csock_map->get_local_iface_locked(send_labels, dummy);
     if (!local_found) {
         return false;
     }

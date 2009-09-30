@@ -351,7 +351,8 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         csock->irob_indexes.new_chunks.insert(IROBSchedulingData(pirob->id, 1));
         csock->irob_indexes.finished_irobs.insert(data);
     }
-    sk->remove_if_unneeded(pirob);
+    // WRONG WRONG WRONG WRONG WRONG.  only remove after ACK.
+    //sk->remove_if_unneeded(pirob);
 
     return true;
 }
@@ -443,7 +444,8 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
         throw CMMControlException("Socket error", hdr);
     }
 
-    sk->remove_if_unneeded(pirob);
+    // WRONG WRONG WRONG WRONG.  only remove after ACK.
+    //sk->remove_if_unneeded(pirob);
 
     return true;
 }
