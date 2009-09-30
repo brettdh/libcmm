@@ -14,13 +14,13 @@ PendingReceiverIROB::PendingReceiverIROB(irob_id_t id, int numdeps, irob_id_t *d
                                          size_t datalen, char *data,
 					 u_long send_labels)
     : PendingIROB(id, numdeps, deps, datalen, data, send_labels),
-      offset(0), num_bytes(datalen), num_chunks(-1), recvd_chunks(0)
+      offset(0), num_bytes(datalen), expected_bytes(-1), recvd_bytes(0)
 {
     partial_chunk.data = NULL;
     partial_chunk.datalen = 0;
 
     if (datalen > 0) {
-        num_chunks = recvd_chunks = 1;
+        expected_bytes = recvd_bytes = datalen;
     }
     assert(datalen == 0 || is_complete());
 }
@@ -36,13 +36,13 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
 {
     if (!is_complete()) {
         num_bytes += chunk.datalen;
-        recvd_chunks++;
+        recvd_bytes += chunk.datalen;
         chunks.push_back(chunk);
 	dbgprintf("Added chunk %d (%d bytes) to IROB %d\n", 
 		  chunk.seqno, chunk.datalen, id);
     } else {
-	dbgprintf("Adding chunk %d (%d bytes) on IROB %d failed! recvd_chunks=%d, num_chunks=%d\n",
-		  chunk.seqno, chunk.datalen, id, recvd_chunks, num_chunks);
+	dbgprintf("Adding chunk %d (%d bytes) on IROB %d failed! recvd_bytes=%d, expected_bytes=%d\n",
+		  chunk.seqno, chunk.datalen, id, recvd_bytes, expected_bytes);
         return false;
     }
     return true;
@@ -57,20 +57,20 @@ PendingReceiverIROB::is_ready(void)
 bool 
 PendingReceiverIROB::is_complete(void)
 {
-    assert(recvd_chunks <= num_chunks || num_chunks == -1);
-    return (num_chunks == recvd_chunks) && complete;
+    assert(recvd_bytes <= expected_bytes || expected_bytes == -1);
+    return (expected_bytes == recvd_bytes) && complete;
 }
 
 bool
-PendingReceiverIROB::finish(ssize_t num_chunks_)
+PendingReceiverIROB::finish(ssize_t expected_bytes_)
 {
     if (is_complete()) {
         return false;
     }
     complete = true;
 
-    assert(num_chunks == -1);
-    num_chunks = num_chunks_;
+    assert(expected_bytes == -1);
+    expected_bytes = expected_bytes_;
 
     return true;
 }

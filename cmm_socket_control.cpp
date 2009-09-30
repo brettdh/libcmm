@@ -49,7 +49,7 @@ CMMSocketControlHdr::describe() const
         break;
     case CMM_CONTROL_MSG_END_IROB:
       stream << "IROB: " << ntohl(op.end_irob.id) << " ";
-        stream << "num_chunks: " << ntohl(op.end_irob.num_chunks);
+        stream << "expected_bytes: " << ntohl(op.end_irob.expected_bytes);
         break;
     case CMM_CONTROL_MSG_IROB_CHUNK:
         stream << "IROB: " << ntohl(op.irob_chunk.id) << " ";

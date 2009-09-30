@@ -293,27 +293,6 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         }
     }
     
-/*
-    if (pirob->is_anonymous()) {
-        hdr.type = htons(CMM_CONTROL_MSG_DEFAULT_IROB);
-        hdr.op.default_irob.id = htonl(id);
-        
-        hdr.op.default_irob.numdeps = htonl(numdeps);
-        if (numdeps > 0) {
-            vec[count].iov_base = deps;
-            vec[count].iov_len = numdeps * sizeof(irob_id_t);
-            count++;
-        }
-
-        assert(pirob->chunks.size() == 1);
-        struct irob_chunk_data chunk = pirob->chunks.front();
-        hdr.op.default_irob.datalen = htonl(chunk.datalen);
-
-        vec[count].iov_base = chunk.data;
-        vec[count].iov_len = chunk.datalen;
-        count++;
-    } else {
-*/
     hdr.type = htons(CMM_CONTROL_MSG_BEGIN_IROB);
     hdr.op.begin_irob.id = htonl(id);
     hdr.op.begin_irob.numdeps = htonl(numdeps);
@@ -357,6 +336,14 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     return true;
 }
 
+struct SumFunctor {
+    size_t sum;
+    SumFunctor() : sum(0) {}
+    void operator()(const struct irob_chunk_data& chunk) {
+        sum += chunk.datalen;
+    }
+};
+
 void
 CSocketSender::end_irob(const IROBSchedulingData& data)
 {
@@ -370,7 +357,9 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
     memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_END_IROB);
     hdr.op.end_irob.id = htonl(data.id);
-    hdr.op.end_irob.num_chunks = htonl(pirob->chunks.size());
+    hdr.op.end_irob.expected_bytes = htonl(for_each(pirob->chunks.begin(),
+                                                    pirob->chunks.end(),
+                                                    SumFunctor()).sum);
     hdr.send_labels = htonl(csock->local_iface.labels);
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());

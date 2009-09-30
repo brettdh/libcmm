@@ -214,7 +214,7 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
         
         assert(pirob);
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
-        if (!prirob->finish(ntohl(hdr.op.end_irob.num_chunks))) {
+        if (!prirob->finish(ntohl(hdr.op.end_irob.expected_bytes))) {
             throw CMMFatalError("Tried to end already-done IROB", hdr);
         }
         

@@ -30,7 +30,7 @@ struct begin_irob_data {
 
 struct end_irob_data {
     irob_id_t id;
-    ssize_t num_chunks;
+    ssize_t expected_bytes;
 };
 
 struct irob_chunk_data {

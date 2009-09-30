@@ -57,14 +57,17 @@ class PendingReceiverIROB : public PendingIROB {
     /* the number of bytes left in this IROB. */
     ssize_t num_bytes;
 
-    /* total number of chunks expected for this IROB.
+    /* total number of bytes expected for this IROB.
      * this is -1 until the END_IROB message arrives. */
-    ssize_t num_chunks;
+    ssize_t expected_bytes;
 
-    /* number of chunks received (duh).  Once
+    /* number of bytes received (duh).  Once
      * recvd_chunks == num_chunks and the END_IROB is
-     * received, this IROB is_complete(). */
-    ssize_t recvd_chunks;
+     * received, this IROB is_complete(). 
+     * This number is strictly increasing, whereas
+     * num_bytes above decreases as bytes are copied out
+     * by read_data(). */
+    ssize_t recvd_bytes;
 };
 
 class CMMSocketImpl;
