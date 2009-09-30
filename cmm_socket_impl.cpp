@@ -1688,19 +1688,21 @@ CMMSocketImpl::send_default_irob(irob_id_t id, CSocket *csock,
                                  resume_handler_t resume_handler, void *rh_arg)
 {
     {
-      PendingIROB *pirob = new PendingSenderIROB(id, 0, NULL, len, buf,
-                                                 send_labels, 
-                                                 resume_handler, rh_arg);
-
+        PendingIROB *pirob = new PendingSenderIROB(id, 0, NULL, len, buf,
+                                                   send_labels, 
+                                                   resume_handler, rh_arg);
+        
         PthreadScopedLock lock(&scheduling_state_lock);
         bool success = outgoing_irobs.insert(pirob);
         assert(success);
 
-        if (send_labels == 0) {
-            irob_indexes.new_irobs.insert(IROBSchedulingData(id));
-        } else {
-            csock->irob_indexes.new_irobs.insert(IROBSchedulingData(id));
-        }
+        struct IROBSchedulingIndexes& indexes = (send_labels == 0) 
+            ? irob_indexes : csock->irob_indexes;
+
+        indexes.new_irobs.insert(IROBSchedulingData(id));
+        //indexes.new_chunks.insert(IROBSchedulingData(id, 1));
+        //indexes.finished_irobs.insert(IROBSchedulingData(id));
+
         pthread_cond_broadcast(&scheduling_state_cv);
     }
     

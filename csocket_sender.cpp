@@ -5,6 +5,7 @@
 #include "thunks.h"
 #include "pending_irob.h"
 #include "pending_sender_irob.h"
+#include "irob_scheduling.h"
 #include "csocket_mapping.h"
 #include "pthread_util.h"
 #include <signal.h>
@@ -20,7 +21,7 @@ CSocketSender::Run()
     memset(name, 0, MAX_NAME_LEN+1);
     snprintf(name, MAX_NAME_LEN, "CSockSender %d", csock->osfd);
     set_thread_name(name);
-
+    
     sigset_t sigset;
     sigemptyset(&sigset);
     sigaddset(&sigset, SIGPIPE); // ignore SIGPIPE
@@ -65,10 +66,10 @@ CSocketSender::Run()
                 }
             }
 
-            if (schedule_on_my_labels()) {
+            if (schedule_work(csock->irob_indexes)) {
                 continue;
             }
-            if (schedule_unlabeled()) {
+            if (schedule_work(sk->irob_indexes)) {
                 continue;
             }
             
@@ -105,18 +106,6 @@ CSocketSender::Run()
     }
 }
 
-bool
-CSocketSender::schedule_on_my_labels()
-{
-    return schedule_work(csock->irob_indexes);
-}
-
-bool
-CSocketSender::schedule_unlabeled()
-{
-    return schedule_work(sk->irob_indexes);
-}
-
 bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
 {
     bool did_something = false;
@@ -124,13 +113,11 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
     IROBSchedulingData data;
 
     if (indexes.new_irobs.pop(data)) {
-        begin_irob(data);
-        did_something = true;
+        did_something = begin_irob(data);
     }
     
     if (indexes.new_chunks.pop(data)) {
-        irob_chunk(data);
-        did_something = true;
+        did_something = irob_chunk(data);
     }
     
     if (indexes.finished_irobs.pop(data)) {
@@ -243,7 +230,22 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
     return false;
 }
 
-void 
+#if 0
+bool
+CSocketSender::okay_to_send_bg(const struct timeval& now,
+                               struct timeval& time_since_last_fg)
+{
+    if (csock->matches(CMM_LABEL_BACKGROUND)) {
+        return true;
+    }
+
+    TIMEDIFF(last_fg, now, time_since_last_fg);
+    return timercmp(time_since_last_fg, bg_wait_time, >=);
+}
+#endif
+
+/* returns true if I actually sent it; false if not */
+bool
 CSocketSender::begin_irob(const IROBSchedulingData& data)
 {
     irob_id_t id = data.id;
@@ -255,9 +257,17 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     }
 
     if (delegate_if_necessary(pirob, data)) {
-        return;
+        return false;
     }
     // at this point, we know that this task is ours
+
+#if 0
+    if (data.send_labels == CMM_LABEL_BACKGROUND) {
+        if (!okay_to_send_bg()) {
+            return false;
+        }
+    }
+#endif
 
     struct CMMSocketControlHdr hdr;
     memset(&hdr, 0, sizeof(hdr));
@@ -283,6 +293,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         }
     }
     
+/*
     if (pirob->is_anonymous()) {
         hdr.type = htons(CMM_CONTROL_MSG_DEFAULT_IROB);
         hdr.op.default_irob.id = htonl(id);
@@ -302,14 +313,15 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         vec[count].iov_len = chunk.datalen;
         count++;
     } else {
-        hdr.type = htons(CMM_CONTROL_MSG_BEGIN_IROB);
-        hdr.op.begin_irob.id = htonl(id);
-        hdr.op.begin_irob.numdeps = htonl(numdeps);
-
-        vec[count].iov_base = deps;
-        vec[count].iov_len = numdeps * sizeof(irob_id_t);
-        count++;
-    }
+*/
+    hdr.type = htons(CMM_CONTROL_MSG_BEGIN_IROB);
+    hdr.op.begin_irob.id = htonl(id);
+    hdr.op.begin_irob.numdeps = htonl(numdeps);
+    
+    vec[count].iov_base = deps;
+    vec[count].iov_len = numdeps * sizeof(irob_id_t);
+    count++;
+    
 
     size_t bytes = vec[0].iov_len + vec[1].iov_len + vec[2].iov_len;
 
@@ -335,10 +347,16 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         throw CMMControlException("Socket error", hdr);
     }
 
+    if (pirob->is_anonymous()) {
+        csock->irob_indexes.new_chunks.insert(IROBSchedulingData(pirob->id, 1));
+        csock->irob_indexes.finished_irobs.insert(data);
+    }
     sk->remove_if_unneeded(pirob);
+
+    return true;
 }
 
-void 
+void
 CSocketSender::end_irob(const IROBSchedulingData& data)
 {
     PendingIROB *pirob = sk->outgoing_irobs.find(data.id);
@@ -376,7 +394,8 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
     //sk->remove_if_unneeded(pirob);
 }
 
-void 
+/* returns true if I actually sent it; false if not */
+bool
 CSocketSender::irob_chunk(const IROBSchedulingData& data)
 {
     irob_id_t id = data.id;
@@ -388,7 +407,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     }
 
     if (delegate_if_necessary(pirob, data)) {
-        return;
+        return false;
     }
     // at this point, we know that this task is ours
 
@@ -425,6 +444,8 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     }
 
     sk->remove_if_unneeded(pirob);
+
+    return true;
 }
 
 void 
@@ -522,7 +543,7 @@ CSocketSender::send_acks(const IROBSchedulingData& data,
 
     if (rc != (int)datalen) {
         // re-insert all ACKs
-        sk->irob_indexes.waiting_acks.insert(tmp.begin(), tmp.end());
+        sk->irob_indexes.waiting_acks.insert_range(tmp.begin(), tmp.end());
 
         pthread_cond_broadcast(&sk->scheduling_state_cv);
         perror("CSocketSender: write");

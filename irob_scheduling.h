@@ -6,6 +6,8 @@
 #include "libcmm_irob.h"
 #include "cmm_socket_control.h"
 #include <set>
+#include <algorithm>
+#include <functional>
 
 struct IROBSchedulingIndexes;
 
@@ -19,6 +21,8 @@ struct IROBSchedulingData {
     u_long send_labels;
     // more scheduling hints here?
 
+  private:
+    friend class IROBPrioritySet;
     struct IROBSchedulingIndexes *owner;
 };
 
@@ -34,13 +38,16 @@ class IROBPrioritySet {
     iterator end() { return tasks.end(); }
     
     template <typename InputIterator>
-    void insert(InputIterator head, InputIterator tail) {
-        (void)tasks.insert(head, tail);
+    void insert_range(InputIterator head, InputIterator tail) {
+        std::for_each(head, tail, 
+                      std::bind1st(std::mem_fun(&IROBPrioritySet::insert), 
+                                   this));
     }
     void erase(iterator head, iterator tail) {
         (void)tasks.erase(head, tail);
     }
   private:
+    friend class IROBSchedulingData;
     TaskSet tasks;
 };
 

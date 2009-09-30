@@ -15,7 +15,7 @@ IROBSchedulingData::operator<(const IROBSchedulingData& other) const
 {
     // can implement priority here, based on 
     //  any added scheduling hints
-    return (//(owner && owner->send_labels) ||
+    return (//(owner && owner->send_labels & send_labels) ||
             (id < other.id) || (seqno < other.seqno));
 }
 
@@ -23,6 +23,7 @@ void
 IROBPrioritySet::insert(IROBSchedulingData data)
 {
     //TODO: do something more interesting.
+    //data.owner = this;
     tasks.insert(data);
 }
 
