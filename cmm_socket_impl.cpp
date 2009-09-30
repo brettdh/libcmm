@@ -1242,7 +1242,7 @@ CMMSocketImpl::net_available(u_long send_labels)
 {
     bool local_found = false;
     struct net_interface dummy;
-    local_found = csock_map->get_local_iface_locked(send_labels, dummy);
+    local_found = csock_map->get_local_iface(send_labels, dummy);
     if (!local_found) {
         return false;
     }
@@ -1895,9 +1895,17 @@ void
 CMMSocketImpl::cleanup()
 {
     dbgprintf("Cleaning up leftover mc_sockets\n");
-    PthreadScopedLock lock(&hashmaps_mutex);
-    for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
-         sk_iter != cmm_sock_hash.end(); sk_iter++) {
+
+    typedef map<mc_socket_t, CMMSocketImplPtr> TmpMap;
+    TmpMap leftover_sockets;
+
+    {
+        PthreadScopedLock lock(&hashmaps_mutex);
+        leftover_sockets.insert(cmm_sock_hash.begin(), cmm_sock_hash.end());
+    }
+
+    for (TmpMap::iterator sk_iter = leftover_sockets.begin();
+         sk_iter != leftover_sockets.end(); sk_iter++) {
         CMMSocketImplPtr sk = sk_iter->second;
         PthreadScopedRWLock lock(&sk->my_lock, false);
         sk->goodbye(false);
