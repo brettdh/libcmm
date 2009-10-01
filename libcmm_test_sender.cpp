@@ -120,7 +120,8 @@ void *BackgroundPing(struct th_arg * arg)
 #else
 	    int rc = cmm_send(shared_sock, &ch, sizeof(ch), 0,
 			      CMM_LABEL_BACKGROUND,
-			      (resume_handler_t)resume_bg_sends, arg);
+                              NULL, NULL);
+			      //(resume_handler_t)resume_bg_sends, arg);
 	    if (rc == CMM_DEFERRED) {
 		bg_send = false;
 		fprintf(stderr, 
