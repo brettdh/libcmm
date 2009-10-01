@@ -331,6 +331,8 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
       sending_goodbye(false),
       next_irob(0)
 {
+    last_fg.tv_sec = last_fg.tv_usec = 0;
+
     /* reserve a dummy OS file descriptor for this mc_socket. */
     sock = socket(family, type, protocol);
     if (sock < 0) {
@@ -1569,9 +1571,9 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 
         if (send_labels == 0) {
             // unlabeled send; let any thread pick it up
-            irob_indexes.new_chunks.insert(IROBSchedulingData(id, chunk.seqno));
+            irob_indexes.new_chunks.insert(IROBSchedulingData(id, 1));//chunk.seqno));
         } else {
-            csock->irob_indexes.new_chunks.insert(IROBSchedulingData(id, chunk.seqno));
+            csock->irob_indexes.new_chunks.insert(IROBSchedulingData(id, 1));//chunk.seqno));
         }
         pthread_cond_broadcast(&scheduling_state_cv);
     }
@@ -1703,8 +1705,7 @@ CMMSocketImpl::send_default_irob(irob_id_t id, CSocket *csock,
             ? irob_indexes : csock->irob_indexes;
 
         indexes.new_irobs.insert(IROBSchedulingData(id));
-        //indexes.new_chunks.insert(IROBSchedulingData(id, 1));
-        //indexes.finished_irobs.insert(IROBSchedulingData(id));
+        // the CSocketSender will insert the chunk and end_irob
 
         pthread_cond_broadcast(&scheduling_state_cv);
     }
@@ -1959,4 +1960,13 @@ CMMSocketImpl::mc_set_failure_timeout(u_long label, const struct timespec *ts)
         errno = EINVAL;
         return -1;
     }
+}
+
+bool
+CMMSocketImpl::okay_to_send_bg(const struct timeval& now,
+                               struct timeval& time_since_last_fg)
+{
+    TIMEDIFF(last_fg, now, time_since_last_fg);
+    struct timeval bg_wait_time = {1, 0}; // RTT * 4 ?
+    return timercmp(&time_since_last_fg, &bg_wait_time, >=);
 }

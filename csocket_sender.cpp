@@ -10,6 +10,9 @@
 #include "pthread_util.h"
 #include <signal.h>
 #include <pthread.h>
+#include "timeops.h"
+#include <sys/ioctl.h>
+#include <linux/sockios.h>
 #include <vector>
 using std::vector;
 
@@ -115,11 +118,17 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
     IROBSchedulingData data;
 
     if (indexes.new_irobs.pop(data)) {
-        did_something = begin_irob(data);
+        if (!begin_irob(data)) {
+            indexes.new_irobs.insert(data);
+        }
+        did_something = true;
     }
     
     if (indexes.new_chunks.pop(data)) {
-        did_something = irob_chunk(data);
+        if (!irob_chunk(data)) {
+            indexes.new_irobs.insert(data);
+        }
+        did_something = true;
     }
     
     if (indexes.finished_irobs.pop(data)) {
@@ -232,19 +241,28 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
     return false;
 }
 
-#if 0
-bool
-CSocketSender::okay_to_send_bg(const struct timeval& now,
-                               struct timeval& time_since_last_fg)
+bool CSocketSender::okay_to_send_bg(struct timeval& time_since_last_fg)
 {
-    if (csock->matches(CMM_LABEL_BACKGROUND)) {
-        return true;
+    struct timeval now;
+    TIME(now);
+    dbgprintf("Checking whether to trickle background data...\n");
+    if (!sk->okay_to_send_bg(now, time_since_last_fg)) {
+        dbgprintf("     ...too soon after last FG transmission\n");
+        return false;
     }
-
-    TIMEDIFF(last_fg, now, time_since_last_fg);
-    return timercmp(time_since_last_fg, bg_wait_time, >=);
+    
+    int unsent_bytes = 0;
+    int rc = ioctl(csock->osfd, SIOCOUTQ, &unsent_bytes);
+    if (rc < 0) {
+        dbgprintf("     ...failed to check socket send buffer: %s\n",
+                  strerror(errno));
+        return false;
+    } else if (unsent_bytes > 0) {
+        dbgprintf("     ...socket buffer not empty\n");
+        return false;
+    }
+    return true;
 }
-#endif
 
 /* returns true if I actually sent it; false if not */
 bool
@@ -259,15 +277,21 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     }
 
     if (delegate_if_necessary(pirob, data)) {
-        return false;
+        // we passed it off, so make sure that we don't
+        // try to re-insert data into the IROBSchedulingIndexes.
+        return true;
     }
     // at this point, we know that this task is ours
 
 #if 0
-    if (data.send_labels == CMM_LABEL_BACKGROUND) {
-        if (!okay_to_send_bg()) {
+    if (data.send_labels == CMM_LABEL_BACKGROUND &&
+        !csock->matches(data.send_labels)) {
+        struct timeval dummy;
+        if (!okay_to_send_bg(dummy)) {
             return false;
         }
+        // after this point, we've committed to sending the
+        // BG BEGIN_IROB message on the FG socket.
     }
 #endif
 
@@ -394,50 +418,67 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
 
     PendingIROB *pirob = sk->outgoing_irobs.find(id);
     if (!pirob) {
-        // shouldn't get here if it doesn't exist
-        assert(0);
+        /* must've been ACK'd already */
+        return true;
     }
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
 
     if (delegate_if_necessary(pirob, data)) {
-        return false;
+        return true;
     }
     // at this point, we know that this task is ours
+
+    // default to sending next chunk (maybe tweak to avoid extra roundtrips?)
+    ssize_t chunksize = 30;
+
+#if 0
+    if (data.send_labels == CMM_LABEL_BACKGROUND &&
+        !csock->matches(data.send_labels)) {
+        struct timeval time_since_last_fg;
+        if (!okay_to_send_bg(time_since_last_fg)) {
+            return false;
+        }
+        
+        chunksize = CMMSocketImpl::trickle_chunksize(time_since_last_fg);
+
+        // after this point, we've committed to sending the
+        // BG BEGIN_IROB message on the FG socket.
+    }
+#endif
 
     struct CMMSocketControlHdr hdr;
     memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_IROB_CHUNK);
     hdr.send_labels = htonl(pirob->send_labels);
 
-    // chunks start at seqno==1; chunk N is at pirob->chunks[N-1]
-    assert(pirob->chunks.size() >= data.seqno);
     u_long seqno = 0;
-    ssize_t bytes = 0;
-    vector<struct iovec> irob_vecs = psirob->get_ready_bytes(bytes, seqno);
-    assert(seqno == data.seqno);
-    assert(irob_vecs.size() == 1);
-    //struct irob_chunk_data chunk = pirob->chunks[data.seqno - 1];
-    assert(irob_vecs[0].iov_base);
-    assert(irob_vecs[0].iov_len == (size_t)bytes);
+
+    vector<struct iovec> irob_vecs = psirob->get_ready_bytes(chunksize, seqno);
+    if (chunksize == 0) {
+        return true;
+    }
 
     hdr.op.irob_chunk.id = htonl(id);
-    hdr.op.irob_chunk.seqno = htonl(data.seqno);
-    hdr.op.irob_chunk.datalen = htonl(irob_vecs[0].iov_len);
+    hdr.op.irob_chunk.seqno = htonl(seqno);
+    hdr.op.irob_chunk.datalen = htonl(chunksize);
     hdr.op.irob_chunk.data = NULL;
 
-    struct iovec vec[2];
+    struct iovec *vec = new struct iovec[1 + irob_vecs.size()];
     vec[0].iov_base = &hdr;
     vec[0].iov_len = sizeof(hdr);
-    vec[1] = irob_vecs[0];
+    for (size_t i = 0; i < irob_vecs.size(); ++i) {
+        vec[i+1] = irob_vecs[i];
+    }
     //vec[1].iov_base = chunk.data;
     //vec[1].iov_len = chunk.datalen;
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
-    int rc = writev(csock->osfd, vec, 2);
+    int rc = writev(csock->osfd, vec, irob_vecs.size() + 1);
+    delete [] vec;
     pthread_mutex_lock(&sk->scheduling_state_lock);
-    if (rc != (ssize_t)(sizeof(hdr) + bytes)) {
+    if (rc != (ssize_t)(sizeof(hdr) + chunksize)) {
         sk->irob_indexes.new_chunks.insert(data);
         pthread_cond_broadcast(&sk->scheduling_state_cv);
         perror("CSocketSender: writev");
@@ -447,7 +488,10 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     // It might've been ACK'd and removed, so check first
     psirob = dynamic_cast<PendingSenderIROB*>(sk->outgoing_irobs.find(id));
     if (psirob) {
-        psirob->mark_sent(bytes);
+        psirob->mark_sent(chunksize);
+
+        // more chunks to send, potentially, so make sure someone sends them.
+        csock->irob_indexes.new_chunks.insert(data);
     }
 
     // WRONG WRONG WRONG WRONG.  only remove after ACK.

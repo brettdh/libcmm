@@ -5,7 +5,7 @@
 #include <cppunit/extensions/HelperMacros.h>
 #include "pending_sender_irob.h"
 
-const size_t BUFSIZE = 60;
+const size_t BUFSIZE = 50;
 
 class PendingSenderIROBTest : public CppUnit::TestFixture {
     PendingSenderIROB *psirob;
@@ -15,6 +15,7 @@ class PendingSenderIROBTest : public CppUnit::TestFixture {
     CPPUNIT_TEST(testReadChunks);
     CPPUNIT_TEST(testBreakItUp);
     CPPUNIT_TEST(testOneByteAtATime);
+    CPPUNIT_TEST(testGroupChunks);
     CPPUNIT_TEST_SUITE_END();
 
     static char buffer[BUFSIZE+1];
@@ -27,6 +28,7 @@ class PendingSenderIROBTest : public CppUnit::TestFixture {
     void testReadChunks();
     void testBreakItUp();
     void testOneByteAtATime();
+    void testGroupChunks();
 
   private:
     void testReadByChunkSize(ssize_t chunksize);

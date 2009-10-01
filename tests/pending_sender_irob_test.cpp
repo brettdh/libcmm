@@ -78,7 +78,9 @@ PendingSenderIROBTest::testReadByChunkSize(ssize_t chunksize)
         u_long next_seqno = seqno + 1;
 
         vector<struct iovec> new_vecs = psirob->get_ready_bytes(bytes, seqno);
-        CPPUNIT_ASSERT_EQUAL_MESSAGE("Copied a chunk", (chunksize == 0) ? 10 : chunksize, bytes);
+        CPPUNIT_ASSERT_MESSAGE("Copied a chunk", 
+                               (bytes == ((chunksize == 0) ? 10 : chunksize) ||
+                                bytes == (ssize_t)(BUFSIZE - bytes_copied)));
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Incremented seqno", next_seqno, seqno);
         psirob->mark_sent(bytes);
         vecs.insert(vecs.end(), new_vecs.begin(), new_vecs.end());
@@ -109,4 +111,10 @@ void
 PendingSenderIROBTest::testOneByteAtATime()
 {
     testReadByChunkSize(1);
+}
+
+void
+PendingSenderIROBTest::testGroupChunks()
+{
+    testReadByChunkSize(20);
 }
