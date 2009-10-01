@@ -10,6 +10,8 @@
 #include "pthread_util.h"
 #include <signal.h>
 #include <pthread.h>
+#include <vector>
+using std::vector;
 
 CSocketSender::CSocketSender(CSocketPtr csock_) 
   : csock(csock_), sk(get_pointer(csock_->sk)) {}
@@ -395,6 +397,8 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
         // shouldn't get here if it doesn't exist
         assert(0);
     }
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    assert(psirob);
 
     if (delegate_if_necessary(pirob, data)) {
         return false;
@@ -408,29 +412,42 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
 
     // chunks start at seqno==1; chunk N is at pirob->chunks[N-1]
     assert(pirob->chunks.size() >= data.seqno);
-    struct irob_chunk_data chunk = pirob->chunks[data.seqno - 1];
-    assert(chunk.data);
+    u_long seqno = 0;
+    ssize_t bytes = 0;
+    vector<struct iovec> irob_vecs = psirob->get_ready_bytes(bytes, seqno);
+    assert(seqno == data.seqno);
+    assert(irob_vecs.size() == 1);
+    //struct irob_chunk_data chunk = pirob->chunks[data.seqno - 1];
+    assert(irob_vecs[0].iov_base);
+    assert(irob_vecs[0].iov_len == (size_t)bytes);
 
     hdr.op.irob_chunk.id = htonl(id);
     hdr.op.irob_chunk.seqno = htonl(data.seqno);
-    hdr.op.irob_chunk.datalen = htonl(chunk.datalen);
+    hdr.op.irob_chunk.datalen = htonl(irob_vecs[0].iov_len);
     hdr.op.irob_chunk.data = NULL;
 
     struct iovec vec[2];
     vec[0].iov_base = &hdr;
     vec[0].iov_len = sizeof(hdr);
-    vec[1].iov_base = chunk.data;
-    vec[1].iov_len = chunk.datalen;
+    vec[1] = irob_vecs[0];
+    //vec[1].iov_base = chunk.data;
+    //vec[1].iov_len = chunk.datalen;
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = writev(csock->osfd, vec, 2);
     pthread_mutex_lock(&sk->scheduling_state_lock);
-    if (rc != (ssize_t)(sizeof(hdr) + chunk.datalen)) {
+    if (rc != (ssize_t)(sizeof(hdr) + bytes)) {
         sk->irob_indexes.new_chunks.insert(data);
         pthread_cond_broadcast(&sk->scheduling_state_cv);
         perror("CSocketSender: writev");
         throw CMMControlException("Socket error", hdr);
+    }
+
+    // It might've been ACK'd and removed, so check first
+    psirob = dynamic_cast<PendingSenderIROB*>(sk->outgoing_irobs.find(id));
+    if (psirob) {
+        psirob->mark_sent(bytes);
     }
 
     // WRONG WRONG WRONG WRONG.  only remove after ACK.

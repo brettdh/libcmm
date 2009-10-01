@@ -1,6 +1,9 @@
 #include "pending_irob.h"
 #include "pending_sender_irob.h"
 #include "debug.h"
+#include <vector>
+#include <functional>
+using std::vector; using std::min;
 
 PendingSenderIROB::PendingSenderIROB(irob_id_t id_, 
                                      int numdeps, const irob_id_t *deps_array,
@@ -12,7 +15,7 @@ PendingSenderIROB::PendingSenderIROB(irob_id_t id_,
       next_seqno(INVALID_IROB_SEQNO + 1),
       resume_handler(resume_handler_), rh_arg(rh_arg_),
       acked(false),
-      waiting_thread(pthread_self())
+      next_seqno_to_send(next_seqno), next_chunk(0), chunk_offset(0)
 {
 }
 
@@ -25,31 +28,73 @@ PendingSenderIROB::add_chunk(struct irob_chunk_data& irob_chunk)
 
     irob_chunk.seqno = next_seqno++;
     chunks.push_back(irob_chunk);
-    waiting_threads[irob_chunk.seqno] = pthread_self();
 
     return true;
 }
 
 void
-PendingSenderIROB::ack(u_long seqno)
+PendingSenderIROB::ack()
 {
-    if (seqno >= next_seqno) {
-        dbgprintf("Invalid seqno %lu for ack in IROB %lu\n", seqno, id);
-        throw CMMException();
-    }
-
-    if (seqno == INVALID_IROB_SEQNO) {
-        acked = true;
-    } else {
-        acked_chunks.insert(seqno);
-        if (is_complete() && acked_chunks.size() == (size_t)chunks.size()) {
-            acked = true;
-        }
-    }
+    acked = true;
 }
 
 bool
 PendingSenderIROB::is_acked(void)
 {
     return acked;
+}
+
+vector<struct iovec> 
+PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno) const
+{
+    vector<struct iovec> data;
+
+    if (chunks.empty() || next_chunk >= chunks.size()) {
+        bytes_requested = 0;
+        return data;
+    }
+
+    if (bytes_requested <= 0) {
+        bytes_requested = chunks[next_chunk].datalen - chunk_offset;
+    }
+    
+    ssize_t bytes_gathered = 0;
+    size_t chunk_index = next_chunk;
+    size_t cur_chunk_offset = chunk_offset;
+    while (bytes_gathered < bytes_requested && chunk_index < chunks.size()) {
+        struct iovec next_buf;
+        ssize_t bytes = chunks[chunk_index].datalen - cur_chunk_offset;
+        if ((bytes + bytes_gathered) > bytes_requested) {
+            bytes = bytes_requested - bytes_gathered;
+        }
+        next_buf.iov_len = bytes;
+        next_buf.iov_base = chunks[chunk_index].data + cur_chunk_offset;
+        data.push_back(next_buf);
+        bytes_gathered += bytes;
+
+        cur_chunk_offset = 0;
+        chunk_index++;
+    }
+
+    bytes_requested = bytes_gathered;
+    seqno = next_seqno_to_send;
+    return data;
+}
+
+void 
+PendingSenderIROB::mark_sent(ssize_t bytes_sent)
+{
+    assert (next_chunk < chunks.size());
+    while (bytes_sent > 0) {
+        ssize_t chunk_bytes_left = chunks[next_chunk].datalen - chunk_offset;
+        ssize_t bytes = min(chunk_bytes_left, bytes_sent);
+        bytes_sent -= bytes;
+        chunk_offset += bytes;
+        
+        if (chunk_offset == chunks[next_chunk].datalen) {
+            next_chunk++;
+            chunk_offset = 0;
+        }
+    }
+    next_seqno_to_send++;
 }
