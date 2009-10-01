@@ -1324,6 +1324,9 @@ CMMSocketImpl::get_csock(u_long send_labels,
                          resume_handler_t resume_handler, void *rh_arg,
                          CSocket *& csock, bool blocking)
 {
+    // XXX: this is blocking BG sends even though a network is available.
+    //  (probably not this function's fault, but it's caller's.)
+    // Figure it out and fix it.
     try {
         if (net_available(send_labels)) {
             csock = get_pointer(csock_map->new_csock_with_labels(send_labels));
