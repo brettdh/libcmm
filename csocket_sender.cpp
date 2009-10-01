@@ -17,7 +17,11 @@
 using std::vector;
 
 CSocketSender::CSocketSender(CSocketPtr csock_) 
-  : csock(csock_), sk(get_pointer(csock_->sk)) {}
+  : csock(csock_), sk(get_pointer(csock_->sk)) 
+{
+    trickle_timeout.tv_sec = -1;
+    trickle_timeout.tv_nsec = 0;
+}
 
 void
 CSocketSender::Run()
@@ -78,8 +82,14 @@ CSocketSender::Run()
                 continue;
             }
             
-            pthread_cond_wait(&sk->scheduling_state_cv,
-                              &sk->scheduling_state_lock);
+            if (trickle_timeout.tv_sec >= 0) {
+                pthread_cond_timedwait(&sk->scheduling_state_cv,
+                                       &sk->scheduling_state_lock,
+                                       &trickle_timeout);
+            } else {
+                pthread_cond_wait(&sk->scheduling_state_cv,
+                                  &sk->scheduling_state_lock);
+            }
             // something happened; we might be able to do some work
         }
     } catch (CMMControlException& e) {
@@ -120,6 +130,10 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
     if (indexes.new_irobs.pop(data)) {
         if (!begin_irob(data)) {
             indexes.new_irobs.insert(data);
+        } else {
+            if (data.send_labels & CMM_LABEL_ONDEMAND) {
+                TIME(sk->last_fg);
+            }
         }
         did_something = true;
     }
@@ -127,6 +141,10 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
     if (indexes.new_chunks.pop(data)) {
         if (!irob_chunk(data)) {
             indexes.new_irobs.insert(data);
+        } else {
+            if (data.send_labels & CMM_LABEL_ONDEMAND) {
+                TIME(sk->last_fg);
+            }
         }
         did_something = true;
     }
@@ -195,9 +213,17 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
     if (csock->matches(send_labels)) {
         return false;
     }
-
+    
     CSocketPtr match = 
         sk->csock_map->new_csock_with_labels(send_labels);
+
+    if (!match) {
+        if (send_labels & CMM_LABEL_BACKGROUND) {
+            // No actual background network, so let's trickle 
+            // on the available network
+            return true;
+        }
+    }
 
     pthread_mutex_lock(&sk->scheduling_state_lock);
     if (!match) {
@@ -283,17 +309,20 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     }
     // at this point, we know that this task is ours
 
-#if 0
-    if (data.send_labels == CMM_LABEL_BACKGROUND &&
+    if (data.send_labels & CMM_LABEL_BACKGROUND &&
         !csock->matches(data.send_labels)) {
         struct timeval dummy;
         if (!okay_to_send_bg(dummy)) {
+            struct timespec rel_timeout = {
+                CMMSocketImpl::bg_wait_time.tv_sec,
+                CMMSocketImpl::bg_wait_time.tv_usec*1000
+            };
+            trickle_timeout = abs_time(rel_timeout);
             return false;
         }
         // after this point, we've committed to sending the
         // BG BEGIN_IROB message on the FG socket.
     }
-#endif
 
     struct CMMSocketControlHdr hdr;
     memset(&hdr, 0, sizeof(hdr));
@@ -430,22 +459,26 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     // at this point, we know that this task is ours
 
     // default to sending next chunk (maybe tweak to avoid extra roundtrips?)
-    ssize_t chunksize = 30;
+    ssize_t chunksize = 0;
 
-#if 0
-    if (data.send_labels == CMM_LABEL_BACKGROUND &&
+    if (data.send_labels & CMM_LABEL_BACKGROUND &&
         !csock->matches(data.send_labels)) {
         struct timeval time_since_last_fg;
         if (!okay_to_send_bg(time_since_last_fg)) {
+            struct timespec rel_timeout = {
+                CMMSocketImpl::bg_wait_time.tv_sec,
+                CMMSocketImpl::bg_wait_time.tv_usec*1000
+            };
+
+            trickle_timeout = abs_time(rel_timeout);
             return false;
         }
         
         chunksize = CMMSocketImpl::trickle_chunksize(time_since_last_fg);
 
-        // after this point, we've committed to sending the
-        // BG BEGIN_IROB message on the FG socket.
+        // after this point, we've committed to sending a
+        // BG chunk (chunksize bytes) on the FG socket.
     }
-#endif
 
     struct CMMSocketControlHdr hdr;
     memset(&hdr, 0, sizeof(hdr));

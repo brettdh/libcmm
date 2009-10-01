@@ -22,6 +22,8 @@ class CSocketSender : public CMMThread {
     CSocketPtr csock;
     CMMSocketImpl *sk;
 
+    struct timespec trickle_timeout;
+
     // call all these below with the scheduling_state_lock held
 
     bool schedule_work(IROBSchedulingIndexes& indexes);

@@ -22,23 +22,23 @@ all: $(LIBRARIES) $(EXECUTABLES)
 cdf_test: cdf_test.o cdf_sampler.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
-cmm_test_sender: libcmm_test_sender.o libcmm.so
+cmm_test_sender: libcmm_test_sender.o libcmm.so 
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -lcmm -o $@ $<
 
-cmm_test_receiver: libcmm_test_receiver.o libcmm.so
+cmm_test_receiver: libcmm_test_receiver.o libcmm.so 
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -lcmm -o $@ $<
 
-vanilla_test_sender: vanilla_test_sender.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $<
+vanilla_test_sender: vanilla_test_sender.o timeops.o
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ -lrt
 
-vanilla_test_receiver: vanilla_test_receiver.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $<
+vanilla_test_receiver: vanilla_test_receiver.o timeops.o
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ -lrt
 
 cmm_throughput_test: libcmm_throughput_test.o libcmm.so
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -lcmm -o $@ $<
 
-vanilla_throughput_test: vanilla_throughput_test.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $<
+vanilla_throughput_test: vanilla_throughput_test.o timeops.o
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ -lrt
 
 vanilla_%.o: libcmm_%.cpp
 	$(CXX) $(CXXFLAGS) -DNOMULTISOCK $(LDFLAGS) -c -o $@ $<
@@ -51,7 +51,7 @@ libcmm.so: libcmm.o libcmm_ipc.o cmm_socket.o cmm_socket_impl.o \
            csocket_mapping.o csocket_sender.o csocket_receiver.o \
            pending_irob.o pending_sender_irob.o pending_receiver_irob.o \
            cmm_thread.o cmm_internal_listener.o libcmm_irob.o debug.o \
-           intset.o cmm_socket_control.o irob_scheduling.o
+           intset.o cmm_socket_control.o irob_scheduling.o timeops.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -shared -o $@ $^
 
 # Generate header dependency rules

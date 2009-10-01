@@ -7,6 +7,15 @@
 #include <string>
 #include "debug.h"
 
+
+const long int& subseconds(const struct timeval&  tv);
+const long int& subseconds(const struct timespec& tv);
+long int& subseconds(struct timeval&  tv);
+long int& subseconds(struct timespec& tv);
+long int& subseconds(struct timeval  *tv);
+long int& subseconds(struct timespec *tv);
+
+
 /*************************************** time operations */
 
 /* tvp should be of type TIMEVAL */
@@ -18,12 +27,12 @@
 do {                                                             \
     assert(((tve).tv_sec > (tvb).tv_sec)                         \
 	   || (((tve).tv_sec == (tvb).tv_sec)                    \
-	       && ((tve).tv_usec >= (tvb).tv_usec)));             \
-    if ((tve).tv_usec < (tvb).tv_usec) {                         \
-	(tvr).tv_usec = 1000000 + (tve).tv_usec - (tvb).tv_usec; \
+	       && (subseconds(tve) >= subseconds(tvb))));             \
+    if (subseconds(tve) < subseconds(tvb)) {                         \
+	subseconds(tvr) = 1000000 + subseconds(tve) - subseconds(tvb); \
 	(tvr).tv_sec = (tve).tv_sec - (tvb).tv_sec - 1;          \
     } else {                                                     \
-	(tvr).tv_usec = (tve).tv_usec - (tvb).tv_usec;           \
+	subseconds(tvr) = subseconds(tve) - subseconds(tvb);           \
 	(tvr).tv_sec = (tve).tv_sec - (tvb).tv_sec;              \
     }                                                            \
 } while (0)
@@ -38,30 +47,32 @@ do {                                                             \
 #undef timeradd
 #undef timersub
 
-#define timerclear(tvp)         (tvp)->tv_sec = (tvp)->tv_usec = 0
-#define timerisset(tvp)         ((tvp)->tv_sec || (tvp)->tv_usec)
+#define timerclear(tvp)         (tvp)->tv_sec = subseconds(tvp) = 0
+#define timerisset(tvp)         ((tvp)->tv_sec || subseconds(tvp))
 #define timercmp(tvp, uvp, cmp)                                         \
         (((tvp)->tv_sec == (uvp)->tv_sec) ?                             \
-            ((tvp)->tv_usec cmp (uvp)->tv_usec) :                       \
+            (subseconds(tvp) cmp subseconds(uvp)) :                       \
             ((tvp)->tv_sec cmp (uvp)->tv_sec))
 #define timeradd(tvp, uvp, vvp)                                         \
         do {                                                            \
                 (vvp)->tv_sec = (tvp)->tv_sec + (uvp)->tv_sec;          \
-                (vvp)->tv_usec = (tvp)->tv_usec + (uvp)->tv_usec;       \
-                if ((vvp)->tv_usec >= 1000000) {                        \
+                subseconds(vvp) = subseconds(tvp) + subseconds(uvp);       \
+                if (subseconds(vvp) >= 1000000) {                      \
                         (vvp)->tv_sec++;                                \
-                        (vvp)->tv_usec -= 1000000;                      \
+                        subseconds(vvp) -= 1000000;                      \
                 }                                                       \
         } while (0)
 #define timersub(tvp, uvp, vvp)                                         \
         do {                                                            \
                 (vvp)->tv_sec = (tvp)->tv_sec - (uvp)->tv_sec;          \
-                (vvp)->tv_usec = (tvp)->tv_usec - (uvp)->tv_usec;       \
-                if ((vvp)->tv_usec < 0) {                               \
+                subseconds(vvp) = subseconds(*tvp) - subseconds(uvp);       \
+                if (subseconds(vvp) < 0) {                               \
                         (vvp)->tv_sec--;                                \
-                        (vvp)->tv_usec += 1000000;                      \
+                        subseconds(vvp) += 1000000;                      \
                 }                                                       \
         } while (0)
+
+struct timespec abs_time(struct timespec rel_time);
 
 struct TimeFunctionBody {
 #ifndef CMM_DEBUG

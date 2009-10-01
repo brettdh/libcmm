@@ -31,6 +31,7 @@
 using std::multimap; using std::make_pair;
 using std::map; using std::vector;
 using std::set; using std::pair;
+using std::max; using std::min;
 
 CMMSockHash CMMSocketImpl::cmm_sock_hash;
 VanillaListenerSet CMMSocketImpl::cmm_listeners;
@@ -1841,13 +1842,7 @@ CMMSocketImpl::wait_for_completion(u_long label)
         relative_timeout = failure_timeouts[label];
     }
     if (relative_timeout.tv_sec >= 0) {
-        clock_gettime(CLOCK_REALTIME, &abs_timeout);
-        abs_timeout.tv_sec += relative_timeout.tv_sec;
-        abs_timeout.tv_nsec += relative_timeout.tv_nsec;
-        if (abs_timeout.tv_nsec >= 1000000000) {
-            abs_timeout.tv_sec++;
-            abs_timeout.tv_nsec -= 1000000000;
-        }
+        abs_timeout = abs_time(relative_timeout);
         ptimeout = &abs_timeout;
     }
 
@@ -1962,11 +1957,27 @@ CMMSocketImpl::mc_set_failure_timeout(u_long label, const struct timespec *ts)
     }
 }
 
+struct timeval CMMSocketImpl::bg_wait_time = {1, 0}; // RTT * 4 ?
+
 bool
 CMMSocketImpl::okay_to_send_bg(const struct timeval& now,
                                struct timeval& time_since_last_fg)
 {
     TIMEDIFF(last_fg, now, time_since_last_fg);
-    struct timeval bg_wait_time = {1, 0}; // RTT * 4 ?
+    //struct timeval bg_wait_time = {1, 0};
     return timercmp(&time_since_last_fg, &bg_wait_time, >=);
+}
+
+#define useconds(tv) ((tv).tv_sec*1000000 + (tv).tv_usec)
+
+ssize_t
+CMMSocketImpl::trickle_chunksize(struct timeval time_since_last_fg)
+{
+    const ssize_t min_chunksize = 64; // max(bandwidth_in_bytes / 16, 64)
+    const ssize_t max_chunksize = 4096; // bandwidth_in_bytes
+    ssize_t chunksize = min_chunksize * (useconds(time_since_last_fg) /
+                                         useconds(bg_wait_time));
+    chunksize = max(chunksize, min_chunksize);
+    chunksize = min(chunksize, max_chunksize);
+    return chunksize;
 }
