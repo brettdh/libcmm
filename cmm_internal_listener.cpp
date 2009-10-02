@@ -137,14 +137,16 @@ ListenerThread::Run()
             continue;
         }
         
-        dbgprintf("Remote host %s is connecting to local address %s\n",
-                  inet_ntoa(remote_addr.sin_addr),
+        dbgprintf("Remote host %s is connecting ",
+                  inet_ntoa(remote_addr.sin_addr));
+        dbgprintf_plain("to local address %s\n",
                   inet_ntoa(local_addr.sin_addr));
         struct net_interface dummy;
         if (!sk->csock_map->get_local_iface_by_addr(local_addr.sin_addr, dummy)) {
-            dbgprintf("%s: network should be down.  %s, go away.\n",
-                      inet_ntoa(local_addr.sin_addr),
-                      inet_ntoa(remote_addr.sin_addr));
+            dbgprintf("%s: network should be down.  ",
+                      inet_ntoa(local_addr.sin_addr));
+            dbgprintf_plain("%s, go away.\n",
+                            inet_ntoa(remote_addr.sin_addr));
             close(sock);
             continue;
         }
@@ -172,9 +174,10 @@ ListenerThread::Run()
         struct sockaddr_in true_remote_addr;
         memcpy(&true_remote_addr.sin_addr, &hdr.op.new_interface.ip_addr, 
                sizeof(struct in_addr));
-        dbgprintf("Adding connection %d from %s (peername %s)\n",
-                  sock, inet_ntoa(true_remote_addr.sin_addr),
-                  inet_ntoa(remote_addr.sin_addr));
+        dbgprintf("Adding connection %d from %s ",
+                  sock, inet_ntoa(true_remote_addr.sin_addr));
+        dbgprintf_plain("(peername %s)\n",
+                        inet_ntoa(remote_addr.sin_addr));
 
         try {
             sk->add_connection(sock, 

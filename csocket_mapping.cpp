@@ -309,8 +309,9 @@ CSockMapping::add_connection(int sock,
                              struct in_addr local_addr, 
                              struct net_interface remote_iface)
 {
-    dbgprintf("Adding new connection on %s from %s\n",
-	      inet_ntoa(local_addr), inet_ntoa(remote_iface.ip_addr));
+    dbgprintf("Adding new connection on %s ",
+	      inet_ntoa(local_addr));
+    dbgprintf_plain("from %s\n", inet_ntoa(remote_iface.ip_addr));
     struct net_interface local_iface;
     if (!get_local_iface_by_addr(local_addr, local_iface)) {
         /* XXX: not true! Our fake scout doesn't really simulate
