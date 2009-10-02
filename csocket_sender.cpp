@@ -214,7 +214,7 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
         if (send_labels & CMM_LABEL_BACKGROUND) {
             // No actual background network, so let's trickle 
             // on the available network
-            return true;
+            return false;
         }
     }
 
