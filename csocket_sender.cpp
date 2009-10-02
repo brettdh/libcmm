@@ -83,7 +83,8 @@ CSocketSender::Run()
             }
             
             if (trickle_timeout.tv_sec >= 0) {
-                dbgprintf("Waiting until %lu.%09lu to check again for trickling\n");
+                dbgprintf("Waiting until %lu.%09lu to check again for trickling\n",
+                          trickle_timeout.tv_sec, trickle_timeout.tv_nsec);
                 int rc = pthread_cond_timedwait(&sk->scheduling_state_cv,
                                                 &sk->scheduling_state_lock,
                                                 &trickle_timeout);
