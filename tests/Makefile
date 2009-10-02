@@ -1,7 +1,7 @@
 CXXFLAGS:=-Wall -Werror -I. -I.. -m32 -g -DCMM_UNIT_TESTING #-DCMM_DEBUG 
 LDFLAGS:=-L. -L.. -lcppunit -ldl -ltbb
 
-EXECUTABLES=run_unit_tests run_lib_tests run_remote_tests run_thunk_tests
+EXECUTABLES=run_unit_tests run_lib_tests run_remote_tests run_thunk_tests run_trickle_tests
 
 .gitignore: Makefile
 	echo "$(EXECUTABLES)" | sed -e 's/\s+/ /' | tr ' ' '\n' > .gitignore
@@ -50,5 +50,9 @@ THUNKTESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o thunk_tests.o
 run_thunk_tests: run_all_tests.o $(THUNKTESTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl -pthread
 
+TRICKLETESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o trickle_tests.o
+run_trickle_tests: run_all_tests.o $(TRICKLETESTOBJS)
+	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl -pthread
+
 clean:
-	rm -f *.o *~ run_unit_tests run_lib_tests run_remote_tests run_thunk_tests
+	rm -f *.o *~ $(EXECUTABLES)

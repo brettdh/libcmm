@@ -2,3 +2,4 @@ run_unit_tests
 run_lib_tests
 run_remote_tests
 run_thunk_tests
+run_trickle_tests
