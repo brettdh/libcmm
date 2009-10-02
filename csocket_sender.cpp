@@ -143,7 +143,7 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
     
     if (indexes.new_chunks.pop(data)) {
         if (!irob_chunk(data)) {
-            indexes.new_irobs.insert(data);
+            indexes.new_chunks.insert(data);
         } else {
             did_something = true;
         }
