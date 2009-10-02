@@ -73,3 +73,7 @@
 * Make sure that concurrent send/recv work, since this is thread-safe for 
   regular sockets.  Also make sure cmm_shutdown is thread-safe with 
   all the other calls.
+
+
+* Add bandwidth and latency estimates to the CSocket structure.
+  The scout will update them periodically.
