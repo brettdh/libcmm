@@ -130,10 +130,6 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
     if (indexes.new_irobs.pop(data)) {
         if (!begin_irob(data)) {
             indexes.new_irobs.insert(data);
-        } else {
-            if (data.send_labels & CMM_LABEL_ONDEMAND) {
-                TIME(sk->last_fg);
-            }
         }
         did_something = true;
     }
@@ -142,9 +138,6 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
         if (!irob_chunk(data)) {
             indexes.new_irobs.insert(data);
         } else {
-            if (data.send_labels & CMM_LABEL_ONDEMAND) {
-                TIME(sk->last_fg);
-            }
         }
         did_something = true;
     }
@@ -190,7 +183,7 @@ void resume_operation_thunk(ResumeOperation *op)
     IROBSchedulingIndexes& indexes = (csock 
                                       ? csock->irob_indexes 
                                       : op->sk->irob_indexes);
-    if (op->data.seqno > INVALID_IROB_SEQNO) {
+    if (op->data.chunks_ready) {
         indexes.new_chunks.insert(op->data);
     } else {
         indexes.new_irobs.insert(op->data);
@@ -255,7 +248,7 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
         assert(match != csock); // since csock->matches returned false
 
         // pass this task to the right thread
-        if (data.seqno == INVALID_IROB_SEQNO) {
+        if (!data.chunks_ready) {
             match->irob_indexes.new_irobs.insert(data);
         } else {
             match->irob_indexes.new_chunks.insert(data);
@@ -388,6 +381,9 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     // WRONG WRONG WRONG WRONG WRONG.  only remove after ACK.
     //sk->remove_if_unneeded(pirob);
 
+    if (data.send_labels & CMM_LABEL_ONDEMAND) {
+        TIME(sk->last_fg);
+    }
     return true;
 }
 
@@ -530,6 +526,9 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     // WRONG WRONG WRONG WRONG.  only remove after ACK.
     //sk->remove_if_unneeded(pirob);
 
+    if (data.send_labels & CMM_LABEL_ONDEMAND) {
+        TIME(sk->last_fg);
+    }
     return true;
 }
 

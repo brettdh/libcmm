@@ -3,9 +3,9 @@
 using std::set;
 #include "common.h"
 
-IROBSchedulingData::IROBSchedulingData(irob_id_t id_, u_long seqno_, 
+IROBSchedulingData::IROBSchedulingData(irob_id_t id_, bool chunks_ready_,
                                        u_long send_labels_)
-    : id(id_), seqno(seqno_), send_labels(send_labels_)
+    : id(id_), chunks_ready(chunks_ready_), send_labels(send_labels_)
 {
     /* empty */
 }
@@ -16,7 +16,7 @@ IROBSchedulingData::operator<(const IROBSchedulingData& other) const
     // can implement priority here, based on 
     //  any added scheduling hints
     return (//(owner && owner->send_labels & send_labels) ||
-            (id < other.id) || (seqno < other.seqno));
+            (id < other.id));
 }
 
 void 

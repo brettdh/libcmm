@@ -12,12 +12,12 @@
 struct IROBSchedulingIndexes;
 
 struct IROBSchedulingData {
-    IROBSchedulingData(irob_id_t id=-1, u_long seqno=INVALID_IROB_SEQNO,
+    IROBSchedulingData(irob_id_t id=-1, bool chunks_ready_=false,
                        u_long send_labels_=0);
     bool operator<(const IROBSchedulingData& other) const;
 
     irob_id_t id;
-    u_long seqno; // may be INVALID_IROB_SEQNO
+    bool chunks_ready;
     u_long send_labels;
     // more scheduling hints here?
 
