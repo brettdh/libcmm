@@ -15,7 +15,15 @@ IROBSchedulingData::operator<(const IROBSchedulingData& other) const
 {
     // can implement priority here, based on 
     //  any added scheduling hints
-    return ((owner && owner->send_labels & send_labels) ||
+    if ((send_labels & CMM_LABEL_ONDEMAND) && 
+        !(other.send_labels & CMM_LABEL_ONDEMAND)) {
+        return true;
+    } else if (!(send_labels & CMM_LABEL_ONDEMAND) && 
+               (other.send_labels & CMM_LABEL_ONDEMAND)) {
+        return false;
+    }
+
+    return ((owner && (owner->send_labels & send_labels)) ||
             (id < other.id));
 }
 
