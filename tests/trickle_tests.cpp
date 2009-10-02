@@ -102,13 +102,13 @@ TrickleTests::testTrickle()
         struct thread_args *fg_args = new struct thread_args;
         fg_args->sock = send_sock;
         fg_args->send_label = CMM_LABEL_ONDEMAND;
-        fg_args->delay.tv_sec = 1;
-        fg_args->delay.tv_nsec = 500000000;
+        fg_args->delay.tv_sec = 0;
+        fg_args->delay.tv_nsec = 700000000;
 
         struct thread_args *bg_args = new struct thread_args;
         bg_args->sock = send_sock;
         bg_args->send_label = CMM_LABEL_BACKGROUND;
-        bg_args->delay.tv_sec = 3;
+        bg_args->delay.tv_sec = 2;
         bg_args->delay.tv_nsec = 0;
 
         for (size_t i = 0; i < NUMINTS; ++i) {
