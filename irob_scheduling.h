@@ -48,11 +48,13 @@ class IROBPrioritySet {
     }
   private:
     friend class IROBSchedulingData;
+    friend class IROBSchedulingIndexes;
     TaskSet tasks;
+    struct IROBSchedulingIndexes *owner;
 };
 
 struct IROBSchedulingIndexes {
-    IROBSchedulingIndexes(u_long send_labels_) : send_labels(send_labels_) {}
+    IROBSchedulingIndexes(u_long send_labels_);
 
     IROBPrioritySet new_irobs;
     IROBPrioritySet new_chunks;

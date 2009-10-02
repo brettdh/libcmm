@@ -15,7 +15,7 @@ IROBSchedulingData::operator<(const IROBSchedulingData& other) const
 {
     // can implement priority here, based on 
     //  any added scheduling hints
-    return (//(owner && owner->send_labels & send_labels) ||
+    return ((owner && owner->send_labels & send_labels) ||
             (id < other.id));
 }
 
@@ -23,7 +23,7 @@ void
 IROBPrioritySet::insert(IROBSchedulingData data)
 {
     //TODO: do something more interesting.
-    //data.owner = this;
+    data.owner = owner;
     tasks.insert(data);
 }
 
@@ -31,4 +31,14 @@ bool
 IROBPrioritySet::pop(IROBSchedulingData& data)
 {
     return pop_item(tasks, data);
+}
+
+IROBSchedulingIndexes::IROBSchedulingIndexes(u_long send_labels_) 
+    : send_labels(send_labels_) 
+{
+    new_irobs.owner = this;
+    new_chunks.owner = this;
+    finished_irobs.owner = this;
+    waiting_acks.owner = this;
+
 }
