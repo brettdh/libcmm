@@ -1237,10 +1237,9 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
     if (local) {
         local_ifaces.erase(iface);
 
-        /* This leads to a deadlock. */
-        //PthreadScopedLock lock(&scheduling_state_lock);
-        //changed_local_ifaces.insert(iface);
-        //pthread_cond_broadcast(&scheduling_state_cv);
+        PthreadScopedLock lock(&scheduling_state_lock);
+        down_local_ifaces.insert(iface);
+        pthread_cond_broadcast(&scheduling_state_cv);
     } else {
         remote_ifaces.erase(iface);
     }

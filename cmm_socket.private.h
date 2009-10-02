@@ -280,9 +280,9 @@ class CMMSocketImpl : public CMMSocket {
     pthread_mutex_t scheduling_state_lock;
     pthread_cond_t scheduling_state_cv;
 
-    // whether up or down, the newest status of these has 
-    // not been sent to the remote side
+    // the newest status of these has not been sent to the remote side
     NetInterfaceSet changed_local_ifaces;
+    NetInterfaceSet down_local_ifaces;
 
     PendingIROBLattice outgoing_irobs;
     PendingReceiverIROBLattice incoming_irobs;
