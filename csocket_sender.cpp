@@ -398,8 +398,10 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     assert(psirob);
     psirob->announced = true;
     if (pirob->is_anonymous()) {
-        csock->irob_indexes.new_chunks.insert(IROBSchedulingData(pirob->id, 1));
+        csock->irob_indexes.new_chunks.insert(IROBSchedulingData(pirob->id, true));
         csock->irob_indexes.finished_irobs.insert(data);
+    } else if (pirob->chunks.size() > 0) {
+        csock->irob_indexes.new_chunks.insert(IROBSchedulingData(pirob->id, true));
     }
     // WRONG WRONG WRONG WRONG WRONG.  only remove after ACK.
     //sk->remove_if_unneeded(pirob);

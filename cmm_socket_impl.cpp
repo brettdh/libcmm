@@ -1563,13 +1563,15 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 
 	psirob->add_chunk(chunk); /* writes correct seqno into struct */
 
-        if (send_labels == 0) {
-            // unlabeled send; let any thread pick it up
-            irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));//chunk.seqno));
-        } else {
-            csock->irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));//chunk.seqno));
+        if (psirob->announced) {
+            if (send_labels == 0) {
+                // unlabeled send; let any thread pick it up
+                irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));//chunk.seqno));
+            } else {
+                csock->irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));//chunk.seqno));
+            }
+            pthread_cond_broadcast(&scheduling_state_cv);
         }
-        pthread_cond_broadcast(&scheduling_state_cv);
     }
     
     TIME(end);
