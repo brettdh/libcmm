@@ -1250,17 +1250,8 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
 bool
 CMMSocketImpl::net_available(u_long send_labels)
 {
-    bool local_found = false;
-    struct net_interface dummy;
-    local_found = csock_map->get_local_iface(send_labels, dummy);
-    if (!local_found) {
-        return false;
-    }
-    if (!remote_ifaces.empty()) {
-        return true;
-    }
-
-    return false;
+    struct net_interface local_dummy, remote_dummy;
+    return csock_map->get_iface_pair(send_labels, local_dummy, remote_dummy);
 }
 
 bool 

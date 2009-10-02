@@ -168,6 +168,22 @@ CSockMapping::get_iface(const NetInterfaceSet& ifaces, u_long label,
 }
 
 bool
+CSockMapping::get_iface_pair(u_long send_label,
+                             struct net_interface& local_iface,
+                             struct net_interface& remote_iface)
+{
+    CMMSocketImplPtr skp(sk);
+    bool ret = get_iface(skp->local_ifaces, send_label, local_iface);
+    if (ret) {
+        return get_iface(skp->remote_ifaces, 
+                         (local_iface.labels == 0) ? send_label : 0,
+                         remote_iface);
+    } else {
+        return false;
+    }
+}
+
+bool
 CSockMapping::get_local_iface(u_long label, struct net_interface& iface)
 {
     CMMSocketImplPtr skp(sk);
@@ -192,9 +208,10 @@ CSockMapping::new_csock_with_labels(u_long send_label)
     }
     
     struct net_interface local_iface, remote_iface;
-    if (!(get_local_iface(send_label, local_iface) &&
-          get_remote_iface(0, remote_iface))) { // pick any remote iface
-        /* one of the desired labels wasn't available */
+    //if (!(get_local_iface(send_label, local_iface) &&
+    //get_remote_iface(0, remote_iface))) { // pick any remote iface
+    if (!get_iface_pair(send_label, local_iface, remote_iface)) {
+        /* Can't make a suitable connection for this send label */
         return CSocketPtr();
     }
 
@@ -313,6 +330,7 @@ CSockMapping::add_connection(int sock,
     }
     struct net_interface dummy;
     if (!get_remote_iface_by_addr(remote_iface.ip_addr, dummy)) {
+        /* A remote interface that we didn't know about! */
         CMMSocketImplPtr skp(sk);
         skp->setup(remote_iface, false);
     }

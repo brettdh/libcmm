@@ -280,6 +280,7 @@ bool CSocketSender::okay_to_send_bg(struct timeval& time_since_last_fg)
         dbgprintf("     ...socket buffer not empty\n");
         return false;
     }
+    dbgprintf("     ...yes.\n");
     return true;
 }
 
