@@ -1477,19 +1477,17 @@ CMMSocketImpl::end_irob(irob_id_t id)
         }
         pirob->finish();
 
-        if (send_labels == 0) {
-            irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
-        } else {
-            csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
+        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+        assert(psirob);
+        if (psirob->announced && !psirob->end_announced) {
+            psirob->end_announced = true;
+            if (send_labels == 0) {
+                irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
+            } else {
+                csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
+            }
+            pthread_cond_broadcast(&scheduling_state_cv);
         }
-
-        // XXX: I think this will never actually remove it, because
-        //  it can't be acked until the sender sends the END_IROB,
-        //  which won't happen until after I release the
-        //  scheduling_state_lock.
-        //remove_if_unneeded(pirob);
-        
-        pthread_cond_broadcast(&scheduling_state_cv);
     }
     TIME(end);
     TIMEDIFF(begin, end, diff);

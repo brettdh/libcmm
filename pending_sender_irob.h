@@ -74,6 +74,8 @@ class PendingSenderIROB : public PendingIROB {
     resume_handler_t resume_handler;
     void *rh_arg;
 
+    bool announced;
+    bool end_announced;
     bool acked;
 
     // for sending partial chunks

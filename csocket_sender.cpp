@@ -394,6 +394,9 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         throw CMMControlException("Socket error", hdr);
     }
 
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    assert(psirob);
+    psirob->announced = true;
     if (pirob->is_anonymous()) {
         csock->irob_indexes.new_chunks.insert(IROBSchedulingData(pirob->id, 1));
         csock->irob_indexes.finished_irobs.insert(data);
@@ -538,6 +541,15 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     psirob = dynamic_cast<PendingSenderIROB*>(sk->outgoing_irobs.find(id));
     if (psirob) {
         psirob->mark_sent(chunksize);
+
+        if (psirob->is_complete() && !psirob->end_announced) {
+            psirob->end_announced = true;
+            if (psirob->send_labels == 0) {
+                sk->irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
+            } else {
+                csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
+            }
+        } 
 
         // more chunks to send, potentially, so make sure someone sends them.
         csock->irob_indexes.new_chunks.insert(data);
