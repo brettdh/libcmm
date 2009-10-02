@@ -1330,6 +1330,8 @@ CMMSocketImpl::get_csock(u_long send_labels,
     try {
         if (net_available(send_labels)) {
             csock = get_pointer(csock_map->new_csock_with_labels(send_labels));
+        } else if (send_labels & CMM_LABEL_BACKGROUND) {
+            csock = get_pointer(csock_map->new_csock_with_labels(0));
         } else {
             csock = NULL;
         }
