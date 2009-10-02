@@ -102,14 +102,14 @@ TrickleTests::testTrickle()
         struct thread_args *fg_args = new struct thread_args;
         fg_args->sock = send_sock;
         fg_args->send_label = CMM_LABEL_ONDEMAND;
-        fg_args->delay.tv_sec = 0;
+        fg_args->delay.tv_sec = 1;
         fg_args->delay.tv_nsec = 500000000;
 
         struct thread_args *bg_args = new struct thread_args;
         bg_args->sock = send_sock;
         bg_args->send_label = CMM_LABEL_BACKGROUND;
-        bg_args->delay.tv_sec = 0;
-        bg_args->delay.tv_nsec = 600000000;
+        bg_args->delay.tv_sec = 3;
+        bg_args->delay.tv_nsec = 0;
 
         for (size_t i = 0; i < NUMINTS; ++i) {
             fg_args->nums[i] = htonl(nums[i]);
@@ -119,6 +119,7 @@ TrickleTests::testTrickle()
         pthread_t fg_thread, bg_thread;
         int rc = pthread_create(&fg_thread, NULL, SenderThread, fg_args);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Created FG thread", 0, rc);
+        sleep(1);
         rc = pthread_create(&bg_thread, NULL, SenderThread, bg_args);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Created BG thread", 0, rc);
 
