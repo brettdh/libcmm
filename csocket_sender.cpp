@@ -83,9 +83,14 @@ CSocketSender::Run()
             }
             
             if (trickle_timeout.tv_sec >= 0) {
-                pthread_cond_timedwait(&sk->scheduling_state_cv,
-                                       &sk->scheduling_state_lock,
-                                       &trickle_timeout);
+                dbgprintf("Waiting until %lu.%09lu to check again for trickling\n");
+                int rc = pthread_cond_timedwait(&sk->scheduling_state_cv,
+                                                &sk->scheduling_state_lock,
+                                                &trickle_timeout);
+                trickle_timeout.tv_sec = -1;
+                if (rc != 0) {
+                    dbgprintf("pthread_cond_timedwait failed, rc=%d\n", rc);
+                }
             } else {
                 pthread_cond_wait(&sk->scheduling_state_cv,
                                   &sk->scheduling_state_lock);
@@ -130,16 +135,17 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
     if (indexes.new_irobs.pop(data)) {
         if (!begin_irob(data)) {
             indexes.new_irobs.insert(data);
+        } else {
+            did_something = true;
         }
-        did_something = true;
     }
     
     if (indexes.new_chunks.pop(data)) {
         if (!irob_chunk(data)) {
             indexes.new_irobs.insert(data);
         } else {
+            did_something = true;
         }
-        did_something = true;
     }
     
     if (indexes.finished_irobs.pop(data)) {
