@@ -281,36 +281,51 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
 
 bool CSocketSender::okay_to_send_bg(struct timeval& time_since_last_fg)
 {
+    bool do_trickle = true;
+
+    dbgprintf("Checking whether to trickle background data...\n");
+
+    struct timeval rel_timeout;
+    
     struct timeval now;
     TIME(now);
-    dbgprintf("Checking whether to trickle background data...\n");
     if (!sk->okay_to_send_bg(now, time_since_last_fg)) {
         dbgprintf("     ...too soon after last FG transmission\n");
-        struct timeval rel_timeout;
-        
-        timersub(&CMMSocketImpl::bg_wait_time, &time_since_last_fg, &rel_timeout);
+        do_trickle = false;
+        timersub(&CMMSocketImpl::bg_wait_time, &time_since_last_fg, 
+                 &rel_timeout);
+    } else {
+        int unsent_bytes = 0;
+        int rc = ioctl(csock->osfd, SIOCOUTQ, &unsent_bytes);
+        if (rc < 0) {
+            dbgprintf("     ...failed to check socket send buffer: %s\n",
+                      strerror(errno));
+            do_trickle = false;
+            rel_timeout = CMMSocketImpl::bg_wait_time;
+        } else if (unsent_bytes > 0) {
+            dbgprintf("     ...socket buffer not empty\n");
+            do_trickle = false;
 
+            // time for a 10Mbps link to clear the buffer
+            const double bandwidth = (10*1024*1024)/8.0;
+            double clear_time = (unsent_bytes / (float)bandwidth);
+            rel_timeout.tv_sec = (time_t)clear_time;
+            rel_timeout.tv_usec = (long int)((clear_time - rel_timeout.tv_sec) * 1000000);
+        }
+    }
+
+    if (do_trickle) {
+        dbgprintf("     ...yes.\n");
+    } else {
+        dbgprintf("     ...waiting %ld.%06ld to check again\n",
+                  rel_timeout.tv_sec, rel_timeout.tv_usec);
         struct timespec rel_timeout_ts = {
             rel_timeout.tv_sec,
             rel_timeout.tv_usec*1000
         };
         trickle_timeout = abs_time(rel_timeout_ts);
-        
-        return false;
     }
-    
-    int unsent_bytes = 0;
-    int rc = ioctl(csock->osfd, SIOCOUTQ, &unsent_bytes);
-    if (rc < 0) {
-        dbgprintf("     ...failed to check socket send buffer: %s\n",
-                  strerror(errno));
-        return false;
-    } else if (unsent_bytes > 0) {
-        dbgprintf("     ...socket buffer not empty\n");
-        return false;
-    }
-    dbgprintf("     ...yes.\n");
-    return true;
+    return do_trickle;
 }
 
 /* returns true if I actually sent it; false if not */
