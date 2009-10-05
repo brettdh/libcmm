@@ -1968,8 +1968,8 @@ CMMSocketImpl::okay_to_send_bg(const struct timeval& now,
 ssize_t
 CMMSocketImpl::trickle_chunksize(struct timeval time_since_last_fg)
 {
-    const ssize_t min_chunksize = 64; // max(bandwidth_in_bytes / 16, 64)
-    const ssize_t max_chunksize = 256*1024; // bandwidth_in_bytes
+    const ssize_t max_chunksize = 10/8*1024*1024; // bandwidth_in_bytes
+    const ssize_t min_chunksize = max(max_chunksize / 16, 64);
     ssize_t chunksize = min_chunksize * (1 << (useconds(time_since_last_fg) /
                                                useconds(bg_wait_time)));
     if (chunksize < 0) {
