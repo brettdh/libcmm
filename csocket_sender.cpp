@@ -286,6 +286,16 @@ bool CSocketSender::okay_to_send_bg(struct timeval& time_since_last_fg)
     dbgprintf("Checking whether to trickle background data...\n");
     if (!sk->okay_to_send_bg(now, time_since_last_fg)) {
         dbgprintf("     ...too soon after last FG transmission\n");
+        struct timeval rel_timeout;
+        
+        timersub(&CMMSocketImpl::bg_wait_time, &time_since_last_fg, &rel_timeout);
+
+        struct timespec rel_timeout_ts = {
+            rel_timeout.tv_sec,
+            rel_timeout.tv_usec*1000
+        };
+        trickle_timeout = abs_time(rel_timeout_ts);
+        
         return false;
     }
     
@@ -326,11 +336,6 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         !csock->matches(data.send_labels)) {
         struct timeval dummy;
         if (!okay_to_send_bg(dummy)) {
-            struct timespec rel_timeout = {
-                CMMSocketImpl::bg_wait_time.tv_sec,
-                CMMSocketImpl::bg_wait_time.tv_usec*1000
-            };
-            trickle_timeout = abs_time(rel_timeout);
             return false;
         }
         // after this point, we've committed to sending the
@@ -486,12 +491,6 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
         !csock->matches(data.send_labels)) {
         struct timeval time_since_last_fg;
         if (!okay_to_send_bg(time_since_last_fg)) {
-            struct timespec rel_timeout = {
-                CMMSocketImpl::bg_wait_time.tv_sec,
-                CMMSocketImpl::bg_wait_time.tv_usec*1000
-            };
-
-            trickle_timeout = abs_time(rel_timeout);
             return false;
         }
         
