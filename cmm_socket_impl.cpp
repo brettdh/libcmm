@@ -1969,9 +1969,12 @@ ssize_t
 CMMSocketImpl::trickle_chunksize(struct timeval time_since_last_fg)
 {
     const ssize_t min_chunksize = 64; // max(bandwidth_in_bytes / 16, 64)
-    const ssize_t max_chunksize = 4096; // bandwidth_in_bytes
-    ssize_t chunksize = min_chunksize * (useconds(time_since_last_fg) /
-                                         useconds(bg_wait_time));
+    const ssize_t max_chunksize = 256*1024; // bandwidth_in_bytes
+    ssize_t chunksize = min_chunksize * (1 << (useconds(time_since_last_fg) /
+                                               useconds(bg_wait_time)));
+    if (chunksize < 0) {
+        chunksize = max_chunksize;
+    }
     chunksize = max(chunksize, min_chunksize);
     chunksize = min(chunksize, max_chunksize);
     return chunksize;
