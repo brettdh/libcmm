@@ -169,7 +169,9 @@ ListenerThread::Run()
         }
 
         struct net_interface remote_iface = { hdr.op.new_interface.ip_addr, 
-                                              ntohl(hdr.op.new_interface.labels) };
+                                              ntohl(hdr.op.new_interface.labels),
+                                              ntohl(hdr.op.new_interface.bandwidth),
+                                              ntohl(hdr.op.new_interface.RTT)};
 
         struct sockaddr_in true_remote_addr;
         memcpy(&true_remote_addr.sin_addr, &hdr.op.new_interface.ip_addr, 

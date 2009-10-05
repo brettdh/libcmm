@@ -405,11 +405,14 @@ int main(int argc, char *argv[])
     signal(SIGINT, handle_term);
 
     labels_available = UP_LABELS;
+    
+    const double fake_bandwidth = 420000; // bytes/sec
+    const double fake_RTT = 4200; // microseconds
 
     /* Add the interfaces, wizard-of-oz-style */
     struct net_interface ifs[2] = {
-        {{0}, CMM_LABEL_ONDEMAND},
-        {{0}, CMM_LABEL_BACKGROUND}
+        {{0}, CMM_LABEL_ONDEMAND, fake_bandwidth, fake_RTT},
+        {{0}, CMM_LABEL_BACKGROUND, fake_bandwidth, fake_RTT}
     };
     const char *ifnames[2] = {fg_iface_name, bg_iface_name};
 

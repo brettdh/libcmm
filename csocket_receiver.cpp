@@ -333,8 +333,7 @@ void
 CSocketReceiver::do_new_interface(struct CMMSocketControlHdr hdr)
 {
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_NEW_INTERFACE);
-    struct net_interface iface = {hdr.op.new_interface.ip_addr,
-                                  hdr.op.new_interface.labels};
+    struct net_interface iface = hdr.op.new_interface;
     sk->setup(iface, false);
 }
 

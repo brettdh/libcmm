@@ -63,7 +63,9 @@ CMMSocketControlHdr::describe() const
 	break;
     case CMM_CONTROL_MSG_NEW_INTERFACE:
         stream << "IP: " << inet_ntoa(op.new_interface.ip_addr) << " ";
-        stream << "labels: " << ntohl(op.new_interface.labels);
+        stream << "labels: " << ntohl(op.new_interface.labels) << " ";
+        stream << "bandwidth: " << ntohl(op.new_interface.bandwidth) << " bytes/sec, ";
+        stream << "RTT: " << ntohl(op.new_interface.RTT) << " ms";
         break;
     case CMM_CONTROL_MSG_DOWN_INTERFACE:
         stream << "IP: " << inet_ntoa(op.down_interface.ip_addr);        
