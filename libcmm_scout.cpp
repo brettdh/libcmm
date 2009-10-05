@@ -406,8 +406,8 @@ int main(int argc, char *argv[])
 
     labels_available = UP_LABELS;
     
-    const double fake_bandwidth = 420000; // bytes/sec
-    const double fake_RTT = 4200; // microseconds
+    const u_long fake_bandwidth = 420000; // bytes/sec
+    const u_long fake_RTT = 4200; // microseconds
 
     /* Add the interfaces, wizard-of-oz-style */
     struct net_interface ifs[2] = {
