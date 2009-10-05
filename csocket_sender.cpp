@@ -308,7 +308,8 @@ bool CSocketSender::okay_to_send_bg(struct timeval& time_since_last_fg)
 
             // time for a 10Mbps link to clear the buffer
             const double bandwidth = (10*1024*1024)/8.0;
-            double clear_time = (unsent_bytes / (float)bandwidth);
+            const double RTT = 0.075; // seconds
+            double clear_time = (unsent_bytes / bandwidth) + RTT;
             rel_timeout.tv_sec = (time_t)clear_time;
             rel_timeout.tv_usec = (long int)((clear_time - rel_timeout.tv_sec) * 1000000);
         }
