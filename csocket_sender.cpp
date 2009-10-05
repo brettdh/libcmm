@@ -399,7 +399,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     psirob->announced = true;
     if (pirob->is_anonymous()) {
         csock->irob_indexes.new_chunks.insert(IROBSchedulingData(pirob->id, true));
-        csock->irob_indexes.finished_irobs.insert(data);
+        //csock->irob_indexes.finished_irobs.insert(data);
     } else if (pirob->chunks.size() > 0) {
         csock->irob_indexes.new_chunks.insert(IROBSchedulingData(pirob->id, true));
     }
