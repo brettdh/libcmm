@@ -1952,7 +1952,7 @@ CMMSocketImpl::mc_set_failure_timeout(u_long label, const struct timespec *ts)
     }
 }
 
-struct timeval CMMSocketImpl::bg_wait_time = {1, 0}; // RTT * 4 ?
+struct timeval CMMSocketImpl::bg_wait_time = {0, 500000}; // RTT * 4 ?
 
 bool
 CMMSocketImpl::okay_to_send_bg(const struct timeval& now,
