@@ -287,12 +287,11 @@ bool CSocketSender::okay_to_send_bg(struct timeval& time_since_last_fg)
 
     struct timeval rel_timeout;
     
-    struct timeval now;
-    TIME(now);
-    if (!sk->okay_to_send_bg(now, time_since_last_fg)) {
+    if (!sk->okay_to_send_bg(time_since_last_fg)) {
         dbgprintf("     ...too soon after last FG transmission\n");
         do_trickle = false;
-        timersub(&CMMSocketImpl::bg_wait_time, &time_since_last_fg, 
+        struct timeval wait_time = sk->bg_wait_time();
+        timersub(&wait_time, &time_since_last_fg, 
                  &rel_timeout);
     } else {
         int unsent_bytes = 0;
@@ -301,17 +300,15 @@ bool CSocketSender::okay_to_send_bg(struct timeval& time_since_last_fg)
             dbgprintf("     ...failed to check socket send buffer: %s\n",
                       strerror(errno));
             do_trickle = false;
-            rel_timeout = CMMSocketImpl::bg_wait_time;
+            rel_timeout = sk->bg_wait_time();
         } else if (unsent_bytes > 0) {
             dbgprintf("     ...socket buffer not empty\n");
             do_trickle = false;
 
-            // time for a 10Mbps link to clear the buffer
-            const double bandwidth = (10*1024*1024)/8.0;
-            const double RTT = 0.075; // seconds
-            double clear_time = (unsent_bytes / bandwidth) + RTT;
-            rel_timeout.tv_sec = (time_t)clear_time;
-            rel_timeout.tv_usec = (long int)((clear_time - rel_timeout.tv_sec) * 1000000);
+            u_long clear_time = ((unsent_bytes * (1000000 / csock->bandwidth())) 
+                                 + (csock->RTT() * 1000));
+            rel_timeout.tv_sec = clear_time / 1000000;
+            rel_timeout.tv_usec = clear_time - (rel_timeout.tv_sec * 1000000);
         }
     }
 
@@ -428,7 +425,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     //sk->remove_if_unneeded(pirob);
 
     if (data.send_labels & CMM_LABEL_ONDEMAND) {
-        TIME(sk->last_fg);
+        sk->update_last_fg();
     }
     return true;
 }
@@ -510,7 +507,8 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
             return false;
         }
         
-        chunksize = CMMSocketImpl::trickle_chunksize(time_since_last_fg);
+        chunksize = csock->trickle_chunksize(time_since_last_fg,
+                                             sk->bg_wait_time());
 
         // after this point, we've committed to sending a
         // BG chunk (chunksize bytes) on the FG socket.
@@ -573,7 +571,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     }
 
     if (data.send_labels & CMM_LABEL_ONDEMAND) {
-        TIME(sk->last_fg);
+        sk->update_last_fg();
     }
     return true;
 }
@@ -585,6 +583,8 @@ CSocketSender::new_interface(struct net_interface iface)
     hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
     hdr.op.new_interface.ip_addr = iface.ip_addr;
     hdr.op.new_interface.labels = htonl(iface.labels);
+    hdr.op.new_interface.bandwidth = htonl(iface.bandwidth);
+    hdr.op.new_interface.RTT = htonl(iface.RTT);
 
     hdr.send_labels = htonl(0);
 

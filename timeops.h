@@ -15,6 +15,10 @@ long int& subseconds(struct timespec& tv);
 long int& subseconds(struct timeval  *tv);
 long int& subseconds(struct timespec *tv);
 
+long int MAX_SUBSECS(const struct timeval& tv);
+long int MAX_SUBSECS(const struct timeval *tv);
+long int MAX_SUBSECS(const struct timespec& tv);
+long int MAX_SUBSECS(const struct timespec *tv);
 
 /*************************************** time operations */
 
@@ -29,7 +33,7 @@ do {                                                             \
 	   || (((tve).tv_sec == (tvb).tv_sec)                    \
 	       && (subseconds(tve) >= subseconds(tvb))));             \
     if (subseconds(tve) < subseconds(tvb)) {                         \
-	subseconds(tvr) = 1000000 + subseconds(tve) - subseconds(tvb); \
+	subseconds(tvr) = MAX_SUBSECS(tvr) + subseconds(tve) - subseconds(tvb); \
 	(tvr).tv_sec = (tve).tv_sec - (tvb).tv_sec - 1;          \
     } else {                                                     \
 	subseconds(tvr) = subseconds(tve) - subseconds(tvb);           \
@@ -46,6 +50,7 @@ do {                                                             \
 #undef timercmp
 #undef timeradd
 #undef timersub
+#undef timerdiv
 
 #define timerclear(tvp)         (tvp)->tv_sec = subseconds(tvp) = 0
 #define timerisset(tvp)         ((tvp)->tv_sec || subseconds(tvp))
@@ -57,9 +62,9 @@ do {                                                             \
         do {                                                            \
                 (vvp)->tv_sec = (tvp)->tv_sec + (uvp)->tv_sec;          \
                 subseconds(vvp) = subseconds(tvp) + subseconds(uvp);       \
-                if (subseconds(vvp) >= 1000000) {                      \
+                if (subseconds(vvp) >= MAX_SUBSECS(vvp)) {              \
                         (vvp)->tv_sec++;                                \
-                        subseconds(vvp) -= 1000000;                      \
+                        subseconds(vvp) -= MAX_SUBSECS(vvp);            \
                 }                                                       \
         } while (0)
 #define timersub(tvp, uvp, vvp)                                         \
@@ -68,9 +73,20 @@ do {                                                             \
                 subseconds(vvp) = subseconds(*tvp) - subseconds(uvp);       \
                 if (subseconds(vvp) < 0) {                               \
                         (vvp)->tv_sec--;                                \
-                        subseconds(vvp) += 1000000;                      \
+                        subseconds(vvp) += MAX_SUBSECS(vvp);            \
                 }                                                       \
         } while (0)
+
+// avg = total/n, crudely and with rounding error
+#define timerdiv(total, n, avg)                                         \
+    do {                                                                \
+        double avg_f = ((double)(total)->tv_sec +                       \
+                        ((double)subseconds(total)                      \
+                         / MAX_SUBSECS(total))) / n;                    \
+        (avg)->tv_sec = (time_t)avg_f;                                  \
+        subseconds(avg) = (long int)((avg_f - (double)(avg)->tv_sec)    \
+                                     * MAX_SUBSECS(avg));               \
+    } while (0)
 
 struct timespec abs_time(struct timespec rel_time);
 

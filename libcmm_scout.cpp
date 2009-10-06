@@ -281,12 +281,18 @@ void handle_term(int)
 
 void usage(char *argv[])
 {
-    fprintf(stderr, "Usage: %s <FG iface> <BG iface> [uptime downtime]\n", argv[0]);
-    fprintf(stderr, "Usage:    uptime, downtime are in seconds.\n");
     fprintf(stderr, 
-	    "\nUsage 2: %s <FG iface> <BG iface> cdf <encounter duration cdf file>\n"
-	    "                                             <disconnect duration cdf file>\n",
-            argv[0]);
+            "Usage: conn_scout <FG iface> <bandwidth> <RTT>\n"
+            "                  [<BG iface> <bandwidth> <RTT>\n"
+            "                   [uptime downtime]]\n");
+    fprintf(stderr, 
+            "Usage:    uptime, downtime are in seconds;\n"
+            "          bandwidth=bytes/sec, RTT=ms.\n");
+    fprintf(stderr, 
+            "Usage 2: conn_scout <FG iface> <bandwidth> <RTT>\n"
+            "                    <BG iface> <bandwidth> <RTT>\n"
+	    "                    cdf <encounter duration cdf file>\n"
+	    "                        <disconnect duration cdf file>\n");
     exit(-1);
 }
 
@@ -352,7 +358,7 @@ int get_ip_address(const char *ifname, struct in_addr *ip_addr)
 
 int main(int argc, char *argv[])
 {
-    if (argc < 2) {
+    if (argc < 4) {
 	usage(argv);
     }
 
@@ -361,24 +367,36 @@ int main(int argc, char *argv[])
     CDFSampler *down_time_samples = NULL;
     double presample_duration = 3600.0;
 
-    const char *fg_iface_name = argv[1];
+    int argi = 1;
+    const char *fg_iface_name = argv[argi++];
     char *bg_iface_name = NULL;
+
+    u_long fg_bandwidth, fg_RTT, bg_bandwidth, bg_RTT;
+    fg_bandwidth = atoi(argv[argi++]);
+    fg_RTT = atoi(argv[argi++]);
 
     double up_time = 30.0;
     double down_time = 5.0;
-    if (argc > 2) {
-	bg_iface_name = argv[2];
+    if (argc > argi) {
+        if ((argc - argi) < 3) {
+            usage(argv);
+        }
 
-	if (argc > 3 && !strcmp(argv[3], "cdf")) {
-	    if (argc < 6) {
+	bg_iface_name = argv[argi++];
+        bg_bandwidth = atoi(argv[argi++]);
+        bg_RTT = atoi(argv[argi++]);
+
+	if (argc > argi && !strcmp(argv[argi], "cdf")) {
+	    if ((argc - argi) < 3) {
 		usage(argv);
 	    }
+            argi++;
 	    
 	    sampling = true;
 	    try {
-		auto_ptr<CDFSampler> up_ptr(new CDFSampler(argv[4], 
+		auto_ptr<CDFSampler> up_ptr(new CDFSampler(argv[argi++], 
 							   presample_duration));
-		auto_ptr<CDFSampler> down_ptr(new CDFSampler(argv[5],
+		auto_ptr<CDFSampler> down_ptr(new CDFSampler(argv[argi++],
 							     presample_duration));
 		
 		up_time_samples = up_ptr.release();
@@ -388,11 +406,11 @@ int main(int argc, char *argv[])
 		exit(1);
 	    }
 	} else {
-            if (argc < 5) {
+            if ((argc - argi) < 2) {
                 usage(argv);
             }
-	    up_time = atof(argv[3]);
-	    down_time = atof(argv[4]);
+	    up_time = atof(argv[argi++]);
+	    down_time = atof(argv[argi++]);
 	    if (up_time < MIN_TIME || down_time < MIN_TIME) {
 		fprintf(stderr, 
 			"Error: uptime and downtime must be greater than "
@@ -406,13 +424,10 @@ int main(int argc, char *argv[])
 
     labels_available = UP_LABELS;
     
-    const u_long fake_bandwidth = 420000; // bytes/sec
-    const u_long fake_RTT = 4200; // microseconds
-
     /* Add the interfaces, wizard-of-oz-style */
     struct net_interface ifs[2] = {
-        {{0}, CMM_LABEL_ONDEMAND, fake_bandwidth, fake_RTT},
-        {{0}, CMM_LABEL_BACKGROUND, fake_bandwidth, fake_RTT}
+        {{0}, CMM_LABEL_ONDEMAND, fg_bandwidth, fg_RTT},
+        {{0}, CMM_LABEL_BACKGROUND, bg_bandwidth, bg_RTT}
     };
     const char *ifnames[2] = {fg_iface_name, bg_iface_name};
 
@@ -429,8 +444,8 @@ int main(int argc, char *argv[])
 	    exit(-1);
 	}
         net_interfaces[ifs[i].ip_addr.s_addr] = ifs[i];
-	printf("Got interface: %s, %s\n", ifnames[i], 
-	       inet_ntoa(ifs[i].ip_addr));
+	printf("Got interface: %s, %s, %lu bytes/sec %lu ms\n", ifnames[i], 
+	       inet_ntoa(ifs[i].ip_addr), ifs[i].bandwidth, ifs[i].RTT);
     }
     
     struct net_interface bg_iface;

@@ -333,6 +333,8 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
       next_irob(0)
 {
     last_fg.tv_sec = last_fg.tv_usec = 0;
+    total_inter_fg_time.tv_sec = total_inter_fg_time.tv_usec = 0;
+    fg_count = 0;
 
     /* reserve a dummy OS file descriptor for this mc_socket. */
     sock = socket(family, type, protocol);
@@ -1952,30 +1954,40 @@ CMMSocketImpl::mc_set_failure_timeout(u_long label, const struct timespec *ts)
     }
 }
 
-struct timeval CMMSocketImpl::bg_wait_time = {0, 500000}; // RTT * 4 ?
-
 bool
-CMMSocketImpl::okay_to_send_bg(const struct timeval& now,
-                               struct timeval& time_since_last_fg)
+CMMSocketImpl::okay_to_send_bg(struct timeval& time_since_last_fg)
 {
+    struct timeval now;
+    TIME(now);
+    
     TIMEDIFF(last_fg, now, time_since_last_fg);
-    //struct timeval bg_wait_time = {1, 0};
-    return timercmp(&time_since_last_fg, &bg_wait_time, >=);
+    struct timeval wait_time = bg_wait_time();
+    return timercmp(&time_since_last_fg, &wait_time, >=);
 }
 
-#define useconds(tv) ((tv).tv_sec*1000000 + (tv).tv_usec)
-
-ssize_t
-CMMSocketImpl::trickle_chunksize(struct timeval time_since_last_fg)
+struct timeval
+CMMSocketImpl::bg_wait_time()
 {
-    const ssize_t max_chunksize = 10/8*1024*1024; // bandwidth_in_bytes
-    const ssize_t min_chunksize = max(max_chunksize / 16, 64);
-    ssize_t chunksize = min_chunksize * (1 << (useconds(time_since_last_fg) /
-                                               useconds(bg_wait_time)));
-    if (chunksize < 0) {
-        chunksize = max_chunksize;
+    struct timeval avg = {0, 0};
+
+    // XXX: may want to tweak this to bound probability of 
+    //  interfering with foreground traffic.  That would
+    //  assume the foreground traffic pattern distribution
+    //  is consistent.
+    double count = (double)fg_count / 2;
+    if (fg_count > 0) {
+        timerdiv(&total_inter_fg_time, count, &avg);
     }
-    chunksize = max(chunksize, min_chunksize);
-    chunksize = min(chunksize, max_chunksize);
-    return chunksize;
+    return avg;
+}
+
+void
+CMMSocketImpl::update_last_fg()
+{
+    struct timeval now, diff;
+    TIME(now);
+    TIMEDIFF(last_fg, now, diff);
+    timeradd(&total_inter_fg_time, &diff, &total_inter_fg_time);
+    fg_count++;
+    last_fg = now;
 }

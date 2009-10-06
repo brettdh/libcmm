@@ -165,11 +165,12 @@ class CMMSocketImpl : public CMMSocket {
 
     CSockMapping *csock_map;
 
-    static struct timeval bg_wait_time;
     struct timeval last_fg;  // the time of the last foreground activity.
-    bool okay_to_send_bg(const struct timeval& now,
-                         struct timeval& time_since_last_fg);
-    static ssize_t trickle_chunksize(struct timeval time_since_last_fg);
+    struct timeval total_inter_fg_time; // time between fg actions
+    size_t fg_count;
+    bool okay_to_send_bg(struct timeval& time_since_last_fg);
+    struct timeval bg_wait_time();
+    void update_last_fg();
 
     NetInterfaceSet local_ifaces;
     ListenerThread *listener_thread;

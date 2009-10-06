@@ -191,8 +191,9 @@ void process_interface_update(struct net_interface iface, bool down)
     //fprintf(stderr, "Signalled by scout\n");
     
     /* bitmask of all available bit labels ORed together */
-    dbgprintf("Got update from scout: %s is %s\n",
-	      inet_ntoa(iface.ip_addr), down?"down":"up");
+    dbgprintf("Got update from scout: %s is %s, bandwidth %lu bytes/sec RTT %lu ms\n",
+	      inet_ntoa(iface.ip_addr), down?"down":"up",
+              iface.bandwidth, iface.RTT);
 
 #ifdef IMPORT_RULES
     /** Rules Part 2: setup the sup_lookup map for quicker check of interface superiority**/
