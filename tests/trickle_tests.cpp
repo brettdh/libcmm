@@ -119,7 +119,7 @@ TrickleTests::testTrickle()
         pthread_t fg_thread, bg_thread;
         int rc = pthread_create(&fg_thread, NULL, SenderThread, fg_args);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Created FG thread", 0, rc);
-        sleep(1);
+        sleep(2);
         rc = pthread_create(&bg_thread, NULL, SenderThread, bg_args);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Created BG thread", 0, rc);
 

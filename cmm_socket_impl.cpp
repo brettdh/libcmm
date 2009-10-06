@@ -1392,8 +1392,13 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
 
     {
         PthreadScopedLock lock(&scheduling_state_lock);
+        
         bool success = outgoing_irobs.insert(pirob);
         assert(success);
+
+        if (send_labels & CMM_LABEL_ONDEMAND) {
+            update_last_fg();
+        }
 
         csock->irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
         pthread_cond_broadcast(&scheduling_state_cv);
@@ -1564,6 +1569,10 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 	memcpy(chunk.data, buf, len);
 
 	psirob->add_chunk(chunk); /* writes correct seqno into struct */
+
+        if (send_labels & CMM_LABEL_ONDEMAND) {
+            update_last_fg();
+        }
 
         if (psirob->announced) {
             if (send_labels == 0) {

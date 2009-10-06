@@ -424,9 +424,6 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     // WRONG WRONG WRONG WRONG WRONG.  only remove after ACK.
     //sk->remove_if_unneeded(pirob);
 
-    if (data.send_labels & CMM_LABEL_ONDEMAND) {
-        sk->update_last_fg();
-    }
     return true;
 }
 
@@ -570,9 +567,6 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
         csock->irob_indexes.new_chunks.insert(data);
     }
 
-    if (data.send_labels & CMM_LABEL_ONDEMAND) {
-        sk->update_last_fg();
-    }
     return true;
 }
 
