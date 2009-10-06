@@ -156,10 +156,10 @@ CSocket::bandwidth()
     return min(local_iface.bandwidth, remote_iface.bandwidth);
 }
 
-u_long CSocket::RTT()
+double CSocket::RTT()
 {
     // TODO: replace with measurement on this socket
-    return (local_iface.RTT / 2) + (remote_iface.RTT / 2);
+    return (local_iface.RTT / 2.0) + (remote_iface.RTT / 2.0);
 }
 
 
