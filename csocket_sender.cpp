@@ -302,10 +302,11 @@ bool CSocketSender::okay_to_send_bg(struct timeval& time_since_last_fg)
             do_trickle = false;
             rel_timeout = sk->bg_wait_time();
         } else if (unsent_bytes > 0) {
-            dbgprintf("     ...socket buffer not empty\n");
+            dbgprintf("     ...socket buffer not empty; %d bytes left\n",
+                      unsent_bytes);
             do_trickle = false;
 
-            u_long clear_time = ((unsent_bytes * (1000000 / csock->bandwidth())) 
+            u_long clear_time = ((unsent_bytes * (1000000 / csock->bandwidth()))
                                  + (csock->RTT() * 1000));
             rel_timeout.tv_sec = clear_time / 1000000;
             rel_timeout.tv_usec = clear_time - (rel_timeout.tv_sec * 1000000);
