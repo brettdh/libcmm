@@ -57,10 +57,14 @@ void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
     memset(&new_listener.ip_addr, 0, sizeof(new_listener.ip_addr));
     new_listener.ip_addr = hdr.op.new_interface.ip_addr;
     new_listener.labels = ntohl(hdr.op.new_interface.labels);
+    new_listener.bandwidth = ntohl(hdr.op.new_interface.bandwidth);
+    new_listener.RTT = ntohl(hdr.op.new_interface.RTT);
     
     remote_ifaces.insert(new_listener);
-    dbgprintf("Got new remote interface %s with labels %lu\n",
-	      inet_ntoa(new_listener.ip_addr), new_listener.labels);
+    dbgprintf("Got new remote interface %s with labels %lu, "
+              "bandwidth %lu bytes/sec RTT %lu ms\n",
+	      inet_ntoa(new_listener.ip_addr), new_listener.labels,
+              new_listener.bandwidth, new_listener.RTT);
 }
 
 void CMMSocketImpl::recv_remote_listeners(int bootstrap_sock)
@@ -88,6 +92,8 @@ void CMMSocketImpl::send_local_listener(int bootstrap_sock,
     hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
     hdr.op.new_interface.ip_addr = iface.ip_addr;
     hdr.op.new_interface.labels = htonl(iface.labels);
+    hdr.op.new_interface.bandwidth = htonl(iface.bandwidth);
+    hdr.op.new_interface.RTT = htonl(iface.RTT);
     dbgprintf("Sending local interface info: %s with labels %lu\n",
 	      inet_ntoa(iface.ip_addr), iface.labels);
     int rc = send(bootstrap_sock, &hdr, sizeof(hdr), 0);
@@ -146,16 +152,7 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
     
         PthreadScopedLock scoped_lock(&hashmaps_mutex);
         PthreadScopedRWLock sock_lock(&my_lock, true);
-        for (NetInterfaceSet::iterator it = ifaces.begin();
-             it != ifaces.end(); it++) {
-            
-            struct net_interface listener_addr;
-            memset(&listener_addr, 0, sizeof(listener_addr));
-            listener_addr.ip_addr = it->ip_addr;
-            listener_addr.labels = it->labels;
-
-            local_ifaces.insert(listener_addr);
-        }
+        local_ifaces = ifaces;
         
         if (bootstrap_sock != -1) {
             /* we are accepting a connection */

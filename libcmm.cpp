@@ -195,31 +195,6 @@ void process_interface_update(struct net_interface iface, bool down)
 	      inet_ntoa(iface.ip_addr), down?"down":"up",
               iface.bandwidth, iface.RTT);
 
-#ifdef IMPORT_RULES
-    /** Rules Part 2: setup the sup_lookup map for quicker check of interface superiority**/
-    for (RuleHash::iterator rule_iter = rule_hash.begin();
-	 rule_iter != rule_hash.end(); rule_iter++){
-	u_long head_label = rule_iter->first;
-	
-	SuperiorLookUp::accessor supper_ac;
-	if (!sup_look_up.find(supper_ac, head_label))
-	    continue;
-	//return to original, new info comming from scout
-	supper_ac->second = supper_ac->first;  
-	
-	struct RuleStruct* rule_struct  = rule_iter->second;
-	for (RuleQueue::iterator q_iter = rule_struct->rule_queue.begin(); 
-	     q_iter != rule_struct->rule_queue.end(); q_iter++) {
-	    if(cur_labels & *q_iter){
-		fprintf(stderr,"Label %lu will use interface with label %lu\n", 
-			supper_ac->first, *q_iter);
-		supper_ac->second = *q_iter;
-		break;
-	    }
-	}
-    }
-#endif
-    
     //fprintf(stderr, "Before:\n---\n");
     //print_thunks();
 
