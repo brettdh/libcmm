@@ -306,8 +306,8 @@ bool CSocketSender::okay_to_send_bg(struct timeval& time_since_last_fg)
                       unsent_bytes);
             do_trickle = false;
 
-            u_long clear_time = ((unsent_bytes * (1000000.0 / csock->bandwidth()))
-                                 + (u_long)(csock->RTT() * 1000.0));
+            u_long clear_time = (u_long)((unsent_bytes * (1000000.0 / csock->bandwidth()))
+                                         + (csock->RTT() * 1000.0));
             rel_timeout.tv_sec = clear_time / 1000000;
             rel_timeout.tv_usec = clear_time - (rel_timeout.tv_sec * 1000000);
         }
