@@ -332,7 +332,7 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
       sending_goodbye(false),
       next_irob(0)
 {
-    last_fg.tv_sec = last_fg.tv_usec = 0;
+    TIME(last_fg);
     total_inter_fg_time.tv_sec = total_inter_fg_time.tv_usec = 0;
     fg_count = 0;
 
@@ -1979,6 +1979,8 @@ CMMSocketImpl::bg_wait_time()
 {
     struct timeval avg = {0, 0};
 
+    // wait 2x the avg time between FG requests.
+
     // XXX: may want to tweak this to bound probability of 
     //  interfering with foreground traffic.  That would
     //  assume the foreground traffic pattern distribution
@@ -1995,6 +1997,7 @@ CMMSocketImpl::update_last_fg()
 {
     struct timeval now, diff;
     TIME(now);
+
     TIMEDIFF(last_fg, now, diff);
     timeradd(&total_inter_fg_time, &diff, &total_inter_fg_time);
     fg_count++;
