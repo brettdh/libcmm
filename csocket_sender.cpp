@@ -222,14 +222,16 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
 
     u_long send_labels = pirob->send_labels;
 
-    pthread_mutex_unlock(&sk->scheduling_state_lock);
-
     if (csock->matches(send_labels)) {
         return false;
     }
     
+    pthread_mutex_unlock(&sk->scheduling_state_lock);
+
     CSocketPtr match = 
         sk->csock_map->new_csock_with_labels(send_labels);
+
+    pthread_mutex_lock(&sk->scheduling_state_lock);
 
     if (!match) {
         if (send_labels & CMM_LABEL_BACKGROUND) {
@@ -239,7 +241,6 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
         }
     }
 
-    pthread_mutex_lock(&sk->scheduling_state_lock);
     if (!match) {
         if (!pirob->complete) {
             if (psirob->resume_handler) {
