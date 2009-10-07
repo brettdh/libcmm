@@ -542,11 +542,36 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     //vec[1].iov_base = chunk.data;
     //vec[1].iov_len = chunk.datalen;
 
+#ifdef CMM_TIMING
+    {
+        PthreadScopedLock lock(&timing_mutex);
+        if (timing_file) {
+            struct timeval now;
+            TIME(now);
+            fprintf(timing_file, "[%lu.%06lu] About to send %d bytes with label %lu\n", 
+                    now.tv_sec, now.tv_usec, (sizeof(hdr) + chunksize), send_labels);
+        }
+    }
+#endif
+
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = writev(csock->osfd, vec, irob_vecs.size() + 1);
     delete [] vec;
     pthread_mutex_lock(&sk->scheduling_state_lock);
+
+#ifdef CMM_TIMING
+    {
+        PthreadScopedLock lock(&timing_mutex);
+        if (timing_file) {
+            struct timeval now;
+            TIME(now);
+            fprintf(timing_file, "[%lu.%06lu] Sent %d bytes with label %lu\n", 
+                    now.tv_sec, now.tv_usec, rc, send_labels);
+        }
+    }
+#endif
+
     if (rc != (ssize_t)(sizeof(hdr) + chunksize)) {
         sk->irob_indexes.new_chunks.insert(data);
         pthread_cond_broadcast(&sk->scheduling_state_cv);
