@@ -165,7 +165,7 @@ double CSocket::RTT()
 {
     // TODO: replace with measurement on this socket
     double rtt = 2*((local_iface.RTT / 2.0) + (remote_iface.RTT / 2.0));
-    dbgprintf("RTT: csocket %p local %f remote %f\n",
+    dbgprintf("RTT: csocket %p local %lu remote %lu\n",
               this, local_iface.RTT, remote_iface.RTT);
     dbgprintf("RTT of csocket %p is %f ms\n", this, rtt);
     return rtt;
