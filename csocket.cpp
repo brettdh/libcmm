@@ -153,13 +153,22 @@ u_long
 CSocket::bandwidth()
 {
     // TODO: replace with measurement on this socket
-    return min(local_iface.bandwidth, remote_iface.bandwidth);
+    u_long bw = min(local_iface.bandwidth, remote_iface.bandwidth);
+    dbgprintf("bandwidth: csocket %p local %lu remote %lu\n",
+              this, local_iface.bandwidth, remote_iface.bandwidth);
+    dbgprintf("bandwidth of csocket %p is %lu bytes/sec\n",
+              this, bw);
+    return bw;
 }
 
 double CSocket::RTT()
 {
     // TODO: replace with measurement on this socket
-    return 2*((local_iface.RTT / 2.0) + (remote_iface.RTT / 2.0));
+    double rtt = 2*((local_iface.RTT / 2.0) + (remote_iface.RTT / 2.0));
+    dbgprintf("RTT: csocket %p local %f remote %f\n",
+              this, local_iface.RTT, remote_iface.RTT);
+    dbgprintf("RTT of csocket %p is %f ms\n", this, rtt);
+    return rtt;
 }
 
 
