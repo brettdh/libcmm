@@ -413,6 +413,10 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         throw CMMControlException("Socket error", hdr);
     }
 
+    if (data.send_labels & CMM_LABEL_ONDEMAND) {
+        sk->update_last_fg();
+    }
+
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
     psirob->announced = true;
@@ -548,6 +552,10 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
         pthread_cond_broadcast(&sk->scheduling_state_cv);
         perror("CSocketSender: writev");
         throw CMMControlException("Socket error", hdr);
+    }
+
+    if (data.send_labels & CMM_LABEL_ONDEMAND) {
+        sk->update_last_fg();
     }
 
     // It might've been ACK'd and removed, so check first

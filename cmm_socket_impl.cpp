@@ -1393,10 +1393,6 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
         bool success = outgoing_irobs.insert(pirob);
         assert(success);
 
-        if (send_labels & CMM_LABEL_ONDEMAND) {
-            update_last_fg();
-        }
-
         csock->irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
         pthread_cond_broadcast(&scheduling_state_cv);
     }
