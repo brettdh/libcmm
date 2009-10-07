@@ -176,8 +176,9 @@ ListenerThread::Run()
         struct sockaddr_in true_remote_addr;
         memcpy(&true_remote_addr.sin_addr, &hdr.op.new_interface.ip_addr, 
                sizeof(struct in_addr));
-        dbgprintf("Adding connection %d from %s ",
-                  sock, inet_ntoa(true_remote_addr.sin_addr));
+        dbgprintf("Adding connection %d from %s bw %lu RTT %lu ",
+                  sock, inet_ntoa(true_remote_addr.sin_addr),
+                  remote_iface.bandwidth, remote_iface.RTT);
         dbgprintf_plain("(peername %s)\n",
                         inet_ntoa(remote_addr.sin_addr));
 
