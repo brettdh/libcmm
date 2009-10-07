@@ -115,6 +115,8 @@ CSocket::phys_connect()
     hdr.send_labels = 0;
     hdr.op.new_interface.ip_addr = local_iface.ip_addr;
     hdr.op.new_interface.labels = htonl(local_iface.labels);
+    hdr.op.new_interface.bandwidth = htonl(local_iface.bandwidth);
+    hdr.op.new_interface.RTT = htonl(local_iface.RTT);
     rc = send(osfd, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr)) {
         perror("send");
