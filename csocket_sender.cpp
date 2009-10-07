@@ -16,6 +16,8 @@
 #include <vector>
 using std::vector;
 
+#include "cmm_timing.h"
+
 CSocketSender::CSocketSender(CSocketPtr csock_) 
   : csock(csock_), sk(get_pointer(csock_->sk)) 
 {
@@ -548,8 +550,8 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "[%lu.%06lu] About to send %d bytes with label %lu\n", 
-                    now.tv_sec, now.tv_usec, (sizeof(hdr) + chunksize), send_labels);
+            fprintf(timing_file, "[%lu.%06lu] CSocketSender: about to send %d bytes with label %lu\n", 
+                    now.tv_sec, now.tv_usec, (sizeof(hdr) + chunksize), data.send_labels);
         }
     }
 #endif
@@ -566,8 +568,8 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "[%lu.%06lu] Sent %d bytes with label %lu\n", 
-                    now.tv_sec, now.tv_usec, rc, send_labels);
+            fprintf(timing_file, "[%lu.%06lu] CSocketSender: sent %d bytes with label %lu\n", 
+                    now.tv_sec, now.tv_usec, rc, data.send_labels);
         }
     }
 #endif
