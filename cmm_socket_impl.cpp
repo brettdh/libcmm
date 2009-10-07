@@ -794,8 +794,8 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "[%lu.%06lu] %d bytes sent with label %lu in %lu.%06lu seconds\n", 
-                    now.tv_sec, now.tv_usec, rc, send_labels, diff.tv_sec, diff.tv_usec);
+            fprintf(timing_file, "%lu.%06lu IROB %ld %d bytes sent with label %lu in %lu.%06lu seconds\n", 
+                    now.tv_sec, now.tv_usec, id, rc, send_labels, diff.tv_sec, diff.tv_usec);
         }
         //global_stats.bytes_sent[send_labels] += rc;
         //global_stats.send_count[send_labels]++;
@@ -862,8 +862,8 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "[%lu.%06lu] %d bytes sent with label %lu in %lu.%06lu seconds\n", 
-                    now.tv_sec, now.tv_usec, rc, send_labels, diff.tv_sec, diff.tv_usec);
+            fprintf(timing_file, "%lu.%06lu IROB %ld %d bytes sent with label %lu in %lu.%06lu seconds\n", 
+                    now.tv_sec, now.tv_usec, id, rc, send_labels, diff.tv_sec, diff.tv_usec);
         }
         //global_stats.bytes_sent[send_labels] += rc;
         //global_stats.send_count[send_labels]++;
@@ -1528,12 +1528,12 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 
         pirob = outgoing_irobs.find(id);
         if (!pirob) {
-	    dbgprintf("Tried to add to nonexistent IROB %d\n", id);
+	    dbgprintf("Tried to add to nonexistent IROB %ld\n", id);
 	    throw CMMException();
 	}
 	
 	if (pirob->is_complete()) {
-	    dbgprintf("Tried to add to complete IROB %d\n", id);
+	    dbgprintf("Tried to add to complete IROB %ld\n", id);
 	    throw CMMException();
 	}
 
@@ -1589,8 +1589,8 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "[%lu.%06lu] %u bytes sent with label %lu in %lu.%06lu seconds\n", 
-                    now.tv_sec, now.tv_usec, len, send_labels, diff.tv_sec, diff.tv_usec);
+            fprintf(timing_file, "%lu.%06lu IROB %ld %u bytes sent with label %lu in %lu.%06lu seconds\n", 
+                    now.tv_sec, now.tv_usec, id, len, send_labels, diff.tv_sec, diff.tv_usec);
         }
         //global_stats.bytes_sent[send_labels] += rc;
         //global_stats.send_count[send_labels]++;
@@ -1719,7 +1719,7 @@ CMMSocketImpl::ack_received(irob_id_t id)
     PthreadScopedLock lock(&scheduling_state_lock);
     PendingIROB *pirob = outgoing_irobs.find(id);
     if (!pirob) {
-        dbgprintf("Ack received for non-existent IROB %d\n", id);
+        dbgprintf("Ack received for non-existent IROB %ld\n", id);
         throw CMMException();
     }
 

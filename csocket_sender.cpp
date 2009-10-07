@@ -259,7 +259,7 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
              * this IROB.  Just drop it, and let the application 
              * do the usual end-to-end check (e.g. response timeout). 
              */
-            dbgprintf("Warning: silently dropping IROB %d after failing to send it.\n",
+            dbgprintf("Warning: silently dropping IROB %ld after failing to send it.\n",
                       pirob->id);
             sk->outgoing_irobs.erase(pirob->id);
             delete pirob;
@@ -550,8 +550,9 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "[%lu.%06lu] CSocketSender: about to send %d bytes with label %lu\n", 
-                    now.tv_sec, now.tv_usec, (sizeof(hdr) + chunksize), data.send_labels);
+            fprintf(timing_file, "%lu.%06lu CSocketSender: IROB %ld about to send %d bytes with label %lu\n", 
+                    now.tv_sec, now.tv_usec, id,
+                    (sizeof(hdr) + chunksize), data.send_labels);
         }
     }
 #endif
@@ -568,8 +569,8 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "[%lu.%06lu] CSocketSender: sent %d bytes with label %lu\n", 
-                    now.tv_sec, now.tv_usec, rc, data.send_labels);
+            fprintf(timing_file, "%lu.%06lu CSocketSender: IROB %ld sent %d bytes with label %lu\n", 
+                    now.tv_sec, now.tv_usec, id, rc, data.send_labels);
         }
     }
 #endif
