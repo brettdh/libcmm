@@ -61,5 +61,17 @@ IROBSchedulingIndexes::IROBSchedulingIndexes(u_long send_labels_)
     new_chunks.owner = this;
     finished_irobs.owner = this;
     waiting_acks.owner = this;
+    resend_requests.owner = this;
+}
 
+void
+IROBSchedulingIndexes::add(const IROBSchedulingIndexes& other)
+{
+    new_irobs.insert_range(other.new_irobs.begin(), other.new_irobs.end());
+    new_chunks.insert_range(other.new_chunks.begin(), other.new_chunks.end());
+    finished_irobs.insert_range(other.finished_irobs.begin(),
+                                other.finished_irobs.end());
+    waiting_acks.insert_range(other.waiting_acks.begin(), other.waiting_acks.end());
+    resend_requests.insert_range(other.resend_requests.begin(), 
+                                 other.resend_requests.end());
 }

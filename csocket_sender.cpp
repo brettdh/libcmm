@@ -109,7 +109,7 @@ CSocketSender::Run()
             // pass off any work I didn't get to finish; it will
             //  be passed to the correct thread or deferred
             //  as appropriate
-            replacement->irob_indexes = csock->irob_indexes;
+            replacement->irob_indexes.add(csock->irob_indexes);
         } else {
             // this connection is hosed, so make sure everything
             // gets cleaned up as if we had done a graceful shutdown

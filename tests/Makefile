@@ -29,10 +29,13 @@ pending_irob.o: ../pending_irob.cpp ../pending_irob.h
 pending_receiver_irob.o: ../pending_receiver_irob.cpp ../pending_receiver_irob.h
 	g++ $(CXXFLAGS) -c -o $@ $<
 
+timeops.o: ../timeops.cpp ../timeops.h
+	g++ $(CXXFLAGS) -c -o $@ $<
+
 TESTOBJS := pending_irob_test.o lattice_test.o intset_test.o \
 	    receiver_lattice_test.o pending_sender_irob_test.o
 SUPPORTOBJS := pending_irob.o intset.o debug.o pending_receiver_irob.o \
-	       pending_sender_irob.o
+	       pending_sender_irob.o timeops.o
 
 run_unit_tests: run_all_tests.o $(TESTOBJS) $(SUPPORTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)

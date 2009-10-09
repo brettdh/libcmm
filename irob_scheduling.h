@@ -42,8 +42,8 @@ class IROBPrioritySet {
     bool empty() const { return tasks.empty(); }
 
     typedef TaskSet::iterator iterator;
-    iterator begin() { return tasks.begin(); }
-    iterator end() { return tasks.end(); }
+    iterator begin() const { return tasks.begin(); }
+    iterator end() const { return tasks.end(); }
     
     template <typename InputIterator>
     void insert_range(InputIterator head, InputIterator tail) {
@@ -63,6 +63,8 @@ class IROBPrioritySet {
 
 struct IROBSchedulingIndexes {
     IROBSchedulingIndexes(u_long send_labels_);
+
+    void add(const IROBSchedulingIndexes& other);
 
     IROBPrioritySet new_irobs;
     IROBPrioritySet new_chunks;
