@@ -25,6 +25,30 @@ PendingReceiverIROB::PendingReceiverIROB(irob_id_t id, int numdeps, irob_id_t *d
     assert(datalen == 0 || is_complete());
 }
 
+PendingReceiverIROB::PendingReceiverIROB(irob_id_t id_)
+    : PendingIROB(id_),
+      offset(0), num_bytes(0), expected_bytes(-1), recvd_bytes(0)
+{
+    /* this placeholder PendingReceiverIROB will be replaced by 
+       the real one, when it arrives. */
+    partial_chunk.data = NULL;
+    partial_chunk.datalen = 0;
+}
+
+void
+PendingReceiverIROB::copy_metadata(PendingIROB *other)
+{
+    PendingIROB::copy_metadata(other);
+
+    PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(other);
+    assert(prirob);
+    offset = prirob->offset; // should be zero
+    num_bytes = prirob->num_bytes;
+    expected_bytes = prirob->expected_bytes;
+    recvd_bytes = prirob->recvd_bytes;
+    partial_chunk = prirob->partial_chunk; // should be {NULL, 0}
+}
+
 PendingReceiverIROB::~PendingReceiverIROB()
 {
     // XXX: make sure there are no races here
@@ -142,6 +166,13 @@ PendingReceiverIROBLattice::~PendingReceiverIROBLattice()
 {
     // XXX: make sure there are no races here
     delete partially_read_irob;
+}
+
+PendingIROB *
+PendingReceiverIROBLattice::make_placeholder(irob_id_t id)
+{
+    PendingReceiverIROB *pirob = new PendingReceiverIROB(id);
+    return pirob;
 }
 
 bool

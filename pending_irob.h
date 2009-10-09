@@ -102,11 +102,15 @@ class PendingIROB {
 
     friend class PendingIROBLattice;
 
+    // other should be a placeholder.
+    virtual void copy_metadata(PendingIROB *other);
+
+
     /* if not NULL, points to the lattice that this IROB belongs to. 
      * Used for keeping track of the domset of IROBs, which is needed
      * for figuring out which IROBs anonymous IROBs directly depend on. */
     //PendingIROBLattice *lattice;
-  private:
+  protected:
     PendingIROB(irob_id_t id); // for creating placeholder IROBs
 };
 
@@ -156,6 +160,10 @@ class PendingIROBLattice {
     //typedef void (PendingIROB::*iter_fn_t)(PendingIROB *);
     //void for_each_dep(PendingIROB *dependent, iter_fn_t fn);
 
+  protected:
+    // returns a placeholder IROB of the correct subtype for this lattice
+    virtual PendingIROB *make_placeholder(irob_id_t id);
+
   private:
     // must hold membership_lock
     bool insert_locked(PendingIROB *pirob, bool infer_deps = true);
@@ -189,7 +197,6 @@ class PendingIROBLattice {
      * 2) Otherwise, add deps on all pending anonymous IROBs.
      * 3) Remove already-satisfied deps. */
     void correct_deps(PendingIROB *pirob, bool infer_deps);
-
 };
 
 #endif

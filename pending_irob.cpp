@@ -133,6 +133,17 @@ PendingIROB::depends_on(irob_id_t that)
     return (deps.count(that) == 1);
 }
 
+void
+PendingIROB::copy_metadata(PendingIROB *other)
+{
+    dependents.insert(other->dependents.begin(),
+                      other->dependents.end());
+    for (size_t i = 0; i < other->chunks.size(); ++i) {
+        add_chunk(other->chunks[i]);
+    }
+    
+    complete = other->complete;
+}
 
 PendingIROBLattice::PendingIROBLattice()
     : offset(0), last_anon_irob_id(-1), count(0)
@@ -188,8 +199,8 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
         assert(!pirob->placeholder);
         assert(pending_irobs[index]->placeholder);
         assert(pending_irobs[index]->id == pirob->id);
-        pirob->dependents.insert(pending_irobs[index]->dependents.begin(),
-                                 pending_irobs[index]->dependents.end());
+        pirob->copy_metadata(pending_irobs[index]);
+        
         delete pending_irobs[index];
         pending_irobs[index] = pirob;
     } else {
@@ -218,7 +229,7 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
             dep->add_dependent(pirob->id);
         } else {
             dbgprintf_plain("P%ld ", *it);
-            dep = new PendingIROB(*it);
+            dep = make_placeholder(*it);
             bool ret = insert_locked(dep);
             assert(ret);
             dep->add_dependent(pirob->id);
@@ -228,6 +239,13 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
 
     ++count;
     return true;
+}
+
+PendingIROB *
+PendingIROBLattice::make_placeholder(irob_id_t id)
+{
+    PendingIROB *pirob = new PendingIROB(id);
+    return pirob;
 }
 
 void
