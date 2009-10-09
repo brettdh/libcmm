@@ -1970,7 +1970,7 @@ CMMSocketImpl::okay_to_send_bg(struct timeval& time_since_last_fg)
 struct timeval
 CMMSocketImpl::bg_wait_time()
 {
-    struct timeval avg = {0, 0};
+    struct timeval avg = {0, 500000};
 
     // wait 2x the avg time between FG requests.
 
