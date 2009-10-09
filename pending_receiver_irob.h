@@ -99,7 +99,6 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
     /* signify that the socket has been shut down for reading. */
     void shutdown();
 
-  protected:
     // returns a placeholder IROB of the correct subtype for this lattice
     virtual PendingIROB *make_placeholder(irob_id_t id);
 

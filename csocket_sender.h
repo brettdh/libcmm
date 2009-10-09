@@ -38,5 +38,6 @@ class CSocketSender : public CMMThread {
     void down_interface(struct net_interface iface);
     void send_acks(const IROBSchedulingData& data, IROBSchedulingIndexes& indexes);
     void goodbye();
+    void resend_request(const IROBSchedulingData& data);
 };
 #endif

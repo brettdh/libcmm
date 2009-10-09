@@ -16,11 +16,12 @@ CMMSocketControlHdr::type_str() const
 	"Begin_IROB",
 	"End_IROB",
 	"IROB_chunk",
-	"Default IROB",
+	"(unknown)",//"Default IROB",
 	"New_Interface",
 	"Down_Interface",
 	"Ack",
 	"Goodbye",
+        "Resend_Request",
 	"(unknown)"
     };
 
@@ -56,11 +57,13 @@ CMMSocketControlHdr::describe() const
 	stream << "seqno: " << ntohl(op.irob_chunk.seqno) << " ";
         stream << "datalen: " << ntohl(op.irob_chunk.datalen);
         break;
+#if 0
     case CMM_CONTROL_MSG_DEFAULT_IROB:
         stream << "IROB: " << ntohl(op.default_irob.id) << " ";
         stream << "numdeps: " << ntohl(op.default_irob.numdeps);
         stream << "datalen: " << ntohl(op.default_irob.datalen);
 	break;
+#endif
     case CMM_CONTROL_MSG_NEW_INTERFACE:
         stream << "IP: " << inet_ntoa(op.new_interface.ip_addr) << " ";
         stream << "labels: " << ntohl(op.new_interface.labels) << " ";
@@ -76,6 +79,10 @@ CMMSocketControlHdr::describe() const
         break;
     case CMM_CONTROL_MSG_GOODBYE:
 	break;
+    case CMM_CONTROL_MSG_RESEND_REQUEST:
+        stream << "IROB: " << ntohl(op.resend_request.id) << " ";
+        stream << "request: " << ntohl(op.resend_request.request);
+        break;
     default:
         break;
     };

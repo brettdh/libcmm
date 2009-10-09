@@ -3,11 +3,24 @@
 using std::set;
 #include "common.h"
 
-IROBSchedulingData::IROBSchedulingData(irob_id_t id_, bool chunks_ready_,
-                                       u_long send_labels_)
-    : id(id_), chunks_ready(chunks_ready_), send_labels(send_labels_)
+IROBSchedulingData::IROBSchedulingData()
 {
     /* empty */
+}
+
+IROBSchedulingData::IROBSchedulingData(irob_id_t id_, bool chunks_ready_,
+                                       u_long send_labels_)
+    : id(id_), send_labels(send_labels_)
+{
+    data.chunks_ready = chunks_ready_;
+}
+
+IROBSchedulingData::IROBSchedulingData(irob_id_t id_,
+                                       resend_request_type_t resend_request_,
+                                       u_long send_labels_)
+    : id(id_), send_labels(send_labels_)
+{
+    data.resend_request = resend_request_;
 }
 
 bool 

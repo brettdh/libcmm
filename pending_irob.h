@@ -160,7 +160,6 @@ class PendingIROBLattice {
     //typedef void (PendingIROB::*iter_fn_t)(PendingIROB *);
     //void for_each_dep(PendingIROB *dependent, iter_fn_t fn);
 
-  protected:
     // returns a placeholder IROB of the correct subtype for this lattice
     virtual PendingIROB *make_placeholder(irob_id_t id);
 

@@ -13,11 +13,15 @@ CSocketReceiver::handler_fn_t CSocketReceiver::handlers[] = {
     &CSocketReceiver::do_begin_irob,
     &CSocketReceiver::do_end_irob,
     &CSocketReceiver::do_irob_chunk,
-    &CSocketReceiver::do_default_irob,
+
+    //&CSocketReceiver::do_default_irob,
+    &CSocketReceiver::unrecognized_control_msg, /* DEFAULT_IROB not expected */
+
     &CSocketReceiver::do_new_interface,
     &CSocketReceiver::do_down_interface,
     &CSocketReceiver::do_ack,
-    &CSocketReceiver::do_goodbye
+    &CSocketReceiver::do_goodbye,
+    &CSocketReceiver::do_request_resend
 };
 
 CSocketReceiver::CSocketReceiver(CSocketPtr csock_) 
@@ -178,8 +182,9 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
         PthreadScopedLock lock(&sk->scheduling_state_lock);
         if (!sk->incoming_irobs.insert(pirob, false)) {
             delete pirob;
-            throw CMMFatalError("Tried to begin IROB that already exists", 
-                                hdr);
+            //throw CMMFatalError("Tried to begin committed IROB", hdr);
+            dbgprintf("do_begin_irob: duplicate IROB %d, ignoring\n", id);
+            return;
         }
     }
 
@@ -206,22 +211,34 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
         PendingIROB *pirob = sk->incoming_irobs.find(id);
         if (!pirob) {
             if (sk->incoming_irobs.past_irob_exists(id)) {
-                throw CMMFatalError("Tried to end committed IROB", hdr);
+                //throw CMMFatalError("Tried to end committed IROB", hdr);
+                dbgprintf("do_end_irob: previously-finished IROB %d, ignoring\n", id);
+                return;
             } else {
-                throw CMMFatalError("Tried to end nonexistent IROB", hdr);
+                //throw CMMFatalError("Tried to end nonexistent IROB", hdr);
+                dbgprintf("Receiver got End_IROB for IROB %d; "
+                          "creating placeholder\n", id);
+                pirob = sk->incoming_irobs.make_placeholder(id);
+                bool ret = sk->incoming_irobs.insert(pirob, false);
+                assert(ret); // since it was absent before now
+
+                IROBSchedulingData data(id, CMM_RESEND_REQUEST_BOTH);
+                csock->irob_indexes.resend_requests.insert(data);
             }
         }
         
         assert(pirob);
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
         if (!prirob->finish(ntohl(hdr.op.end_irob.expected_bytes))) {
-            throw CMMFatalError("Tried to end already-done IROB", hdr);
+            //throw CMMFatalError("Tried to end already-done IROB", hdr);
+            dbgprintf("do_end_irob: already-finished IROB %d, ignoring\n", id);
+            return;
         }
         
         sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
 
         if (prirob->is_complete()) {
-            csock->irob_indexes.waiting_acks.insert(IROBSchedulingData(id));
+            csock->irob_indexes.waiting_acks.insert(IROBSchedulingData(id, false));
             pthread_cond_broadcast(&sk->scheduling_state_cv);
         }
     }
@@ -256,7 +273,15 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
             if (sk->incoming_irobs.past_irob_exists(id)) {
                 throw CMMFatalError("Tried to add to committed IROB", hdr);
             } else {
-                throw CMMFatalError("Tried to add to nonexistent IROB", hdr);
+                //throw CMMFatalError("Tried to add to nonexistent IROB", hdr);
+                dbgprintf("Receiver got IROB_chunk for IROB %d; "
+                          "creating placeholder\n", id);
+                pirob = sk->incoming_irobs.make_placeholder(id);
+                bool ret = sk->incoming_irobs.insert(pirob, false);
+                assert(ret); // since it was absent before now
+
+                IROBSchedulingData data(id, CMM_RESEND_REQUEST_DEPS);
+                csock->irob_indexes.resend_requests.insert(data);
             }
         }
         struct irob_chunk_data chunk;
@@ -278,7 +303,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
 
         if (prirob->is_complete()) {
-            csock->irob_indexes.waiting_acks.insert(IROBSchedulingData(id));
+            csock->irob_indexes.waiting_acks.insert(IROBSchedulingData(id, false));
             pthread_cond_broadcast(&sk->scheduling_state_cv);
         }
     }
@@ -289,6 +314,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
 	      ntohl(hdr.op.irob_chunk.seqno), id, diff.tv_sec, diff.tv_usec);
 }
 
+#if 0
 void CSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
 {
     struct timeval begin, end, diff;
@@ -311,15 +337,15 @@ void CSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
         if (!sk->incoming_irobs.insert(pirob, false)) {
             delete pirob;
             throw CMMFatalError("Tried to add default IROB "
-                                      "that already exists", 
-                                      hdr);
+                                "that already exists", 
+                                hdr);
         }
         
         //PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
         //assert(prirob);
         sk->incoming_irobs.release_if_ready(pirob, ReadyIROB());
 
-        csock->irob_indexes.waiting_acks.insert(IROBSchedulingData(id));
+        csock->irob_indexes.waiting_acks.insert(IROBSchedulingData(id, false));
         pthread_cond_broadcast(&sk->scheduling_state_cv);
     }
 
@@ -328,6 +354,7 @@ void CSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
     dbgprintf("Received default IROB %d, took %lu.%06lu seconds\n",
 	      id, diff.tv_sec, diff.tv_usec);
 }
+#endif
 
 void
 CSocketReceiver::do_new_interface(struct CMMSocketControlHdr hdr)
@@ -407,4 +434,14 @@ CSocketReceiver::do_goodbye(struct CMMSocketControlHdr hdr)
     }
     /* Note: the senders will still wait for all waiting ACKs
      * to be sent before finalizing the shutdown. */
+}
+
+void
+CSocketReceiver::do_request_resend(struct CMMSocketControlHdr hdr)
+{
+    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_RESEND_REQUEST);
+    irob_id_t id = ntohl(hdr.op.resend_request.id);
+    resend_request_type_t request = (resend_request_type_t)ntohl(hdr.op.resend_request.request);
+
+    sk->resend_request_received(id, request);
 }

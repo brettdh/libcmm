@@ -25,11 +25,12 @@ class CSocketReceiver : public CMMThread {
     void do_begin_irob(struct CMMSocketControlHdr hdr);
     void do_end_irob(struct CMMSocketControlHdr hdr);
     void do_irob_chunk(struct CMMSocketControlHdr hdr);
-    void do_default_irob(struct CMMSocketControlHdr hdr);
+    //void do_default_irob(struct CMMSocketControlHdr hdr);
     void do_new_interface(struct CMMSocketControlHdr hdr);
     void do_down_interface(struct CMMSocketControlHdr hdr);
     void do_ack(struct CMMSocketControlHdr hdr);
     void do_goodbye(struct CMMSocketControlHdr hdr);
+    void do_request_resend(struct CMMSocketControlHdr hdr);
 
     typedef void (CSocketReceiver::*handler_fn_t)(struct CMMSocketControlHdr);
 

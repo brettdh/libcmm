@@ -1482,9 +1482,9 @@ CMMSocketImpl::end_irob(irob_id_t id)
         if (psirob->announced && !psirob->end_announced) {
             psirob->end_announced = true;
             if (send_labels == 0) {
-                irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
+                irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
             } else {
-                csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
+                csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
             }
             pthread_cond_broadcast(&scheduling_state_cv);
         }
@@ -1719,8 +1719,14 @@ CMMSocketImpl::ack_received(irob_id_t id)
     PthreadScopedLock lock(&scheduling_state_lock);
     PendingIROB *pirob = outgoing_irobs.find(id);
     if (!pirob) {
-        dbgprintf("Ack received for non-existent IROB %ld\n", id);
-        throw CMMException();
+        if (outgoing_irobs.past_irob_exists(id)) {
+            dbgprintf("Duplicate ack received for IROB %ld; ignoring\n",
+                      id);
+            return;
+        } else {
+            dbgprintf("Ack received for non-existent IROB %ld\n", id);
+            throw CMMException();
+        }
     }
 
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
@@ -1729,6 +1735,30 @@ CMMSocketImpl::ack_received(irob_id_t id)
     psirob->ack();
     remove_if_unneeded(pirob);
     dbgprintf("%d unACK'd IROBs remain\n", outgoing_irobs.size());
+}
+
+void
+CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t request)
+{
+    PthreadScopedLock lock(&scheduling_state_lock);
+    PendingIROB *pirob = outgoing_irobs.find(id);
+    if (!pirob) {
+        dbgprintf("Resend request received for non-existent IROB %ld\n", id);
+        throw CMMException();
+    }
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    assert(psirob);
+    u_long send_labels = psirob->send_labels;
+    
+    if (request == CMM_RESEND_REQUEST_DEPS ||
+        request == CMM_RESEND_REQUEST_BOTH) {
+        irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
+    }
+    if (request == CMM_RESEND_REQUEST_DATA ||
+        request == CMM_RESEND_REQUEST_BOTH) {
+        irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));
+    }
+    pthread_cond_broadcast(&scheduling_state_cv);
 }
 
 /* call only with scheduling_state_lock held */

@@ -161,6 +161,11 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
         did_something = true;
     }
 
+    if (indexes.resend_requests.pop(data)) {
+        resend_request(data);
+        did_something = true;
+    }
+
     struct net_interface iface;
 
     if (pop_item(sk->changed_local_ifaces, iface)) {
@@ -204,7 +209,7 @@ void resume_operation_thunk(ResumeOperation *op)
     IROBSchedulingIndexes& indexes = (csock 
                                       ? csock->irob_indexes 
                                       : op->sk->irob_indexes);
-    if (op->data.chunks_ready) {
+    if (op->data.data.chunks_ready) {
         indexes.new_chunks.insert(op->data);
     } else {
         indexes.new_irobs.insert(op->data);
@@ -270,7 +275,7 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
         assert(match != csock); // since csock->matches returned false
 
         // pass this task to the right thread
-        if (!data.chunks_ready) {
+        if (!data.data.chunks_ready) {
             match->irob_indexes.new_irobs.insert(data);
         } else {
             match->irob_indexes.new_chunks.insert(data);
@@ -595,9 +600,9 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
         if (psirob->is_complete() && !psirob->end_announced) {
             psirob->end_announced = true;
             if (psirob->send_labels == 0) {
-                sk->irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
+                sk->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
             } else {
-                csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id));
+                csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
             }
         } 
 
@@ -739,6 +744,29 @@ CSocketSender::goodbye()
     pthread_cond_broadcast(&sk->shutdown_cv);
 }
 
+void
+CSocketSender::resend_request(const IROBSchedulingData& data)
+{
+    struct CMMSocketControlHdr hdr;
+    memset(&hdr, 0, sizeof(hdr));
+    hdr.type = htons(CMM_CONTROL_MSG_RESEND_REQUEST);
+    hdr.op.resend_request.id = htonl(data.id);
+    hdr.op.resend_request.request =
+        (resend_request_type_t)htonl(data.data.resend_request);
+    hdr.send_labels = htonl(csock->local_iface.labels);
+    
+    dbgprintf("About to send message: %s\n", hdr.describe().c_str());
+    pthread_mutex_unlock(&sk->scheduling_state_lock);
+    int rc = write(csock->osfd, &hdr, sizeof(hdr));
+    pthread_mutex_lock(&sk->scheduling_state_lock);
+    
+    if (rc != sizeof(hdr)) {
+        sk->irob_indexes.resend_requests.insert(data);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
+        perror("CSocketSender: write");
+        throw CMMControlException("Socket error", hdr);        
+    }
+}
 
 void
 CSocketSender::Finish(void)

@@ -12,12 +12,20 @@
 struct IROBSchedulingIndexes;
 
 struct IROBSchedulingData {
-    IROBSchedulingData(irob_id_t id=-1, bool chunks_ready_=false,
+    IROBSchedulingData();
+    IROBSchedulingData(irob_id_t id, bool chunks_ready_,
+                       u_long send_labels_=0);
+    IROBSchedulingData(irob_id_t id, 
+                       resend_request_type_t resend_request_,
                        u_long send_labels_=0);
     bool operator<(const IROBSchedulingData& other) const;
 
     irob_id_t id;
-    bool chunks_ready;
+    union {
+        bool chunks_ready;
+        resend_request_type_t resend_request;
+    } data;
+
     u_long send_labels;
     // more scheduling hints here?
 
@@ -61,6 +69,8 @@ struct IROBSchedulingIndexes {
     IROBPrioritySet finished_irobs;
 
     IROBPrioritySet waiting_acks;
+
+    IROBPrioritySet resend_requests;
 
     u_long send_labels;
 };
