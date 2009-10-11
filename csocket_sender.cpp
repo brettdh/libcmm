@@ -291,7 +291,7 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 {
     bool do_trickle = true;
 
-    dbgprintf("Checking whether to trickle background data...\n");
+    //dbgprintf("Checking whether to trickle background data...\n");
 
     struct timeval rel_timeout;
     
@@ -309,13 +309,13 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
         int unsent_bytes = 0;
         int rc = ioctl(csock->osfd, SIOCOUTQ, &unsent_bytes);
         if (rc < 0) {
-            dbgprintf("     ...failed to check socket send buffer: %s\n",
-                      strerror(errno));
+            //dbgprintf("     ...failed to check socket send buffer: %s\n",
+            //strerror(errno));
             do_trickle = false;
             //rel_timeout = sk->bg_wait_time();
         } else if (unsent_bytes >= csock->trickle_chunksize()) {
-            dbgprintf("     ...socket buffer has %d bytes left; more than %d\n",
-                      unsent_bytes, csock->trickle_chunksize());
+            /*dbgprintf("     ...socket buffer has %d bytes left; more than %d\n",
+              unsent_bytes, csock->trickle_chunksize());*/
             do_trickle = false;
 
             /*
@@ -330,13 +330,13 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
     }
 
     if (do_trickle) {
-        dbgprintf("     ...yes.\n");
+        //dbgprintf("     ...yes.\n");
     } else {
         rel_timeout.tv_sec = 0;
         rel_timeout.tv_usec = 10000;
 
-        dbgprintf("     ...waiting %ld.%06ld to check again\n",
-                  rel_timeout.tv_sec, rel_timeout.tv_usec);
+        /*dbgprintf("     ...waiting %ld.%06ld to check again\n",
+          rel_timeout.tv_sec, rel_timeout.tv_usec);*/
         struct timespec rel_timeout_ts = {
             rel_timeout.tv_sec,
             rel_timeout.tv_usec*1000
