@@ -50,8 +50,7 @@ class CSocket {
     // network measurements/estimates for this connection.
     u_long bandwidth();
     double RTT();
-    ssize_t trickle_chunksize(struct timeval time_since_last_fg,
-                              struct timeval bg_wait_time);
+    ssize_t trickle_chunksize();
   private:
     // only allow shared_ptr creation
     CSocket(boost::weak_ptr<CMMSocketImpl> sk_, 

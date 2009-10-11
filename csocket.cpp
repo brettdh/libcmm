@@ -177,17 +177,20 @@ double CSocket::RTT()
 #define useconds(tv) ((tv).tv_sec*1000000 + (tv).tv_usec)
 
 ssize_t
-CSocket::trickle_chunksize(struct timeval time_since_last_fg,
-                           struct timeval bg_wait_time)
+CSocket::trickle_chunksize()/*struct timeval time_since_last_fg,
+                              struct timeval bg_wait_time)*/
 {
-    const ssize_t max_chunksize = bandwidth();
-    const ssize_t min_chunksize = max(max_chunksize / 16, 64);
+    const long int max_tolerable_fg_delay = 50; //ms
+    ssize_t max_chunksize = (bandwidth() * max_tolerable_fg_delay) / 1000;
+    //ssize_t min_chunksize = 64;
+    /*
     ssize_t chunksize = min_chunksize * (1 << (useconds(time_since_last_fg) /
                                                useconds(sk->bg_wait_time())*2));
     if (chunksize < 0) {
         chunksize = max_chunksize;
     }
-    chunksize = max(chunksize, min_chunksize);
-    chunksize = min(chunksize, max_chunksize);
+    */
+    //ssize_t chunksize = max(chunksize, min_chunksize);
+    ssize_t chunksize = max_chunksize;
     return chunksize;
 }

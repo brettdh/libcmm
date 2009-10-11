@@ -287,7 +287,7 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
     return false;
 }
 
-bool CSocketSender::okay_to_send_bg(struct timeval& time_since_last_fg)
+bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 {
     bool do_trickle = true;
 
@@ -295,12 +295,16 @@ bool CSocketSender::okay_to_send_bg(struct timeval& time_since_last_fg)
 
     struct timeval rel_timeout;
     
-    if (!sk->okay_to_send_bg(time_since_last_fg)) {
+    // Removing the wait duration, in hope that the small chunksize
+    //  is sufficient to limit interference with FG traffic
+    if (false) {//!sk->okay_to_send_bg(time_since_last_fg)) {
+        /*
         dbgprintf("     ...too soon after last FG transmission\n");
         do_trickle = false;
         struct timeval wait_time = sk->bg_wait_time();
         timersub(&wait_time, &time_since_last_fg, 
                  &rel_timeout);
+        */
     } else {
         int unsent_bytes = 0;
         int rc = ioctl(csock->osfd, SIOCOUTQ, &unsent_bytes);
@@ -308,22 +312,29 @@ bool CSocketSender::okay_to_send_bg(struct timeval& time_since_last_fg)
             dbgprintf("     ...failed to check socket send buffer: %s\n",
                       strerror(errno));
             do_trickle = false;
-            rel_timeout = sk->bg_wait_time();
-        } else if (unsent_bytes > 0) {
-            dbgprintf("     ...socket buffer not empty; %d bytes left\n",
-                      unsent_bytes);
+            //rel_timeout = sk->bg_wait_time();
+        } else if (unsent_bytes >= csock->trickle_chunksize()) {
+            dbgprintf("     ...socket buffer has %d bytes left; more than %d\n",
+                      unsent_bytes, csock->trickle_chunksize());
             do_trickle = false;
 
+            /*
             u_long clear_time = (u_long)((unsent_bytes * (1000000.0 / csock->bandwidth()))
                                          + (csock->RTT() * 1000.0));
             rel_timeout.tv_sec = clear_time / 1000000;
             rel_timeout.tv_usec = clear_time - (rel_timeout.tv_sec * 1000000);
+            */
+        } else {
+            chunksize = csock->trickle_chunksize() - unsent_bytes;
         }
     }
 
     if (do_trickle) {
         dbgprintf("     ...yes.\n");
     } else {
+        rel_timeout.tv_sec = 0;
+        rel_timeout.tv_usec = 10000;
+
         dbgprintf("     ...waiting %ld.%06ld to check again\n",
                   rel_timeout.tv_sec, rel_timeout.tv_usec);
         struct timespec rel_timeout_ts = {
@@ -356,8 +367,8 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
 
     if (data.send_labels & CMM_LABEL_BACKGROUND &&
         !csock->matches(data.send_labels)) {
-        struct timeval dummy;
-        if (!okay_to_send_bg(dummy)) {
+        ssize_t chunksize = 0;
+        if (!okay_to_send_bg(chunksize)) {
             return false;
         }
         // after this point, we've committed to sending the
@@ -512,13 +523,14 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
 
     if (data.send_labels & CMM_LABEL_BACKGROUND &&
         !csock->matches(data.send_labels)) {
-        struct timeval time_since_last_fg;
-        if (!okay_to_send_bg(time_since_last_fg)) {
+        if (!okay_to_send_bg(chunksize)) {
             return false;
         }
         
+        /*
         chunksize = csock->trickle_chunksize(time_since_last_fg,
                                              sk->bg_wait_time());
+        */
 
         // after this point, we've committed to sending a
         // BG chunk (chunksize bytes) on the FG socket.

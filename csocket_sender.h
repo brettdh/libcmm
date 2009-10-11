@@ -29,7 +29,7 @@ class CSocketSender : public CMMThread {
     bool schedule_work(IROBSchedulingIndexes& indexes);
     bool delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingData& data);
 
-    bool okay_to_send_bg(struct timeval& time_since_last_fg);
+    bool okay_to_send_bg(ssize_t& chunksize);
 
     bool begin_irob(const IROBSchedulingData& data);
     void end_irob(const IROBSchedulingData& data);
