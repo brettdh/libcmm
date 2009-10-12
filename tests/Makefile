@@ -35,7 +35,7 @@ timeops.o: ../timeops.cpp ../timeops.h
 TESTOBJS := pending_irob_test.o lattice_test.o intset_test.o \
 	    receiver_lattice_test.o pending_sender_irob_test.o
 SUPPORTOBJS := pending_irob.o intset.o debug.o pending_receiver_irob.o \
-	       pending_sender_irob.o timeops.o
+	       pending_sender_irob.o timeops.o ack_timeouts.o
 
 run_unit_tests: run_all_tests.o $(TESTOBJS) $(SUPPORTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)

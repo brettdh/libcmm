@@ -216,11 +216,17 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
     irob_id_t id = ntohl(hdr.op.end_irob.id);
     {
         PthreadScopedLock lock(&sk->scheduling_state_lock);
+
+        bool resend_request = false;
+        resend_request_type_t req_type = CMM_RESEND_REQUEST_NONE;
+
         PendingIROB *pirob = sk->incoming_irobs.find(id);
         if (!pirob) {
             if (sk->incoming_irobs.past_irob_exists(id)) {
                 //throw CMMFatalError("Tried to end committed IROB", hdr);
-                dbgprintf("do_end_irob: previously-finished IROB %d, ignoring\n", id);
+                dbgprintf("do_end_irob: previously-finished IROB %d, resending ACK\n", id);
+                sk->irob_indexes.waiting_acks.insert(IROBSchedulingData(id, false));
+                pthread_cond_broadcast(&sk->scheduling_state_cv);
                 return;
             } else {
                 //throw CMMFatalError("Tried to end nonexistent IROB", hdr);
@@ -229,20 +235,42 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
                 pirob = sk->incoming_irobs.make_placeholder(id);
                 bool ret = sk->incoming_irobs.insert(pirob, false);
                 assert(ret); // since it was absent before now
-
-                IROBSchedulingData data(id, CMM_RESEND_REQUEST_BOTH);
-                csock->irob_indexes.resend_requests.insert(data);
+                
+                resend_request = true;
+                req_type = CMM_RESEND_REQUEST_BOTH;
             }
         }
         
+        ssize_t expected_bytes = ntohl(hdr.op.end_irob.expected_bytes);
+
         assert(pirob);
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
-        if (!prirob->finish(ntohl(hdr.op.end_irob.expected_bytes))) {
+        if (!prirob->finish(expected_bytes)) {
             //throw CMMFatalError("Tried to end already-done IROB", hdr);
-            dbgprintf("do_end_irob: already-finished IROB %d, ignoring\n", id);
-            return;
+            dbgprintf("do_end_irob: already-finished IROB %d, ", id);
+            if (prirob->is_complete()) {
+                dbgprintf_plain("resending ACK\n");
+            } else {
+                dbgprintf_plain("still waiting for deps and/or data\n");
+                if (!resend_request) {
+                    resend_request = true;
+                    if (prirob->placeholder) {
+                        req_type = resend_request_type_t(req_type |
+                                                         CMM_RESEND_REQUEST_DEPS);
+                    }
+                    if (prirob->recvd_bytes != expected_bytes) {
+                        req_type = resend_request_type_t(req_type | 
+                                                         CMM_RESEND_REQUEST_DATA);
+                    }
+                }
+            }
         }
-        
+
+        if (resend_request) {
+            IROBSchedulingData data(id, req_type);
+            csock->irob_indexes.resend_requests.insert(data);
+        }
+
         sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
 
         if (prirob->is_complete()) {
@@ -250,8 +278,6 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
             pthread_cond_broadcast(&sk->scheduling_state_cv);
         }
     }
-
-    //sk->sendr->ack(id);
 
     TIME(end);
     TIMEDIFF(begin, end, diff);

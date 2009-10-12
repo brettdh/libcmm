@@ -489,14 +489,13 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
         throw CMMControlException("Socket error", hdr);
     }
     
-    // Don't do this!  
-    //   1) It's a race to call this without
-    //      holding the scheduling_state_lock.
-    //   2) This will be called later when the 
-    //      ACK arrives.  Even if called
-    //      with the lock here, it would never
-    //      remove the PendingIROB.
-    //sk->remove_if_unneeded(pirob);
+#if 0
+    //TODO: continue here.  Also, unit tests for AckTimeouts.
+    pirob = sk->outgoing_irobs.find(data.id);
+    if (pirob) {
+        sk->ack_timeouts.update(data.id, 2*csock->RTT());
+    }
+#endif
 }
 
 /* returns true if I actually sent it; false if not */

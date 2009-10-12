@@ -23,7 +23,9 @@ long int MAX_SUBSECS(const struct timespec *tv);
 /*************************************** time operations */
 
 /* tvp should be of type TIMEVAL */
-#define TIME(tv)    (gettimeofday(&(tv),NULL))
+//#define TIME(tv)    (gettimeofday(&(tv),NULL)
+void TIME(struct timeval& tv);
+void TIME(struct timespec& tv);
 
 /* tvb, tve, tvr should be of type TIMEVAL */
 /* tve should be >= tvb. */

@@ -1405,9 +1405,6 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
     return 0;
 }
 
-/* This function blocks until the data has been sent.
- * If the socket is non-blocking, we need to implement that here.
- */
 int
 CMMSocketImpl::end_irob(irob_id_t id)
 {
@@ -1734,7 +1731,8 @@ CMMSocketImpl::ack_received(irob_id_t id)
 
     psirob->ack();
     remove_if_unneeded(pirob);
-    dbgprintf("%d unACK'd IROBs remain\n", outgoing_irobs.size());
+    dbgprintf("Ack received for IROB %ld; %d unACK'd IROBs remain\n", 
+              id, outgoing_irobs.size());
 }
 
 void
@@ -1750,12 +1748,10 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
     assert(psirob);
     u_long send_labels = psirob->send_labels;
     
-    if (request == CMM_RESEND_REQUEST_DEPS ||
-        request == CMM_RESEND_REQUEST_BOTH) {
+    if (request & CMM_RESEND_REQUEST_DEPS) {
         irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
     }
-    if (request == CMM_RESEND_REQUEST_DATA ||
-        request == CMM_RESEND_REQUEST_BOTH) {
+    if (request & CMM_RESEND_REQUEST_DATA) {
         irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));
     }
     pthread_cond_broadcast(&scheduling_state_cv);
