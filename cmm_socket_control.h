@@ -17,6 +17,7 @@
 #define CMM_CONTROL_MSG_ACK            7
 #define CMM_CONTROL_MSG_GOODBYE        8
 #define CMM_CONTROL_MSG_RESEND_REQUEST 9
+#define CMM_CONTROL_MSG_INVALID        10
 
 struct hello_data {
     in_port_t listen_port;

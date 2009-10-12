@@ -37,7 +37,7 @@ void
 CSocketReceiver::dispatch(struct CMMSocketControlHdr hdr)
 {
     short type = ntohs(hdr.msgtype());
-    if (type < 0 || type > CMM_CONTROL_MSG_GOODBYE) {
+    if (type < 0 || type >= CMM_CONTROL_MSG_INVALID) {
         unrecognized_control_msg(hdr);
     } else {
         (this->*handlers[type])(hdr);
