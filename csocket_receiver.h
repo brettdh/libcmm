@@ -21,6 +21,11 @@ class CSocketReceiver : public CMMThread {
     CSocketPtr csock;
     CMMSocketImpl *sk;
 
+    irob_id_t * read_deps_array(irob_id_t id, int numdeps,
+                                struct CMMSocketControlHdr& hdr);
+    char * read_data_buffer(irob_id_t id, int datalen, 
+                            struct CMMSocketControlHdr& hdr);
+
     void unrecognized_control_msg(struct CMMSocketControlHdr hdr);
     void do_begin_irob(struct CMMSocketControlHdr hdr);
     void do_end_irob(struct CMMSocketControlHdr hdr);

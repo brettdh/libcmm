@@ -114,22 +114,26 @@ CSocketReceiver::Finish(void)
     delete this; // the last thing that will ever be done with this
 }
 
-static irob_id_t *
-read_deps_array(int fd, int numdeps, struct CMMSocketControlHdr& hdr)
+irob_id_t *
+CSocketReceiver::read_deps_array(irob_id_t id, int numdeps, 
+                                 struct CMMSocketControlHdr& hdr)
 {
     irob_id_t *deps = NULL;
     if (numdeps > 0) {
         deps = new irob_id_t[numdeps];
         int datalen = numdeps * sizeof(irob_id_t);
-        int rc = read_bytes(fd, (char*)deps, datalen);
+        int rc = read_bytes(csock->osfd, (char*)deps, datalen);
         if (rc != datalen) {
             if (rc < 0) {
-                dbgprintf("Error %d on socket %d\n", errno, fd);
+                dbgprintf("Error %d on socket %d\n", errno, csock->osfd);
             } else {
                 dbgprintf("Expected %d bytes after header, received %d\n", 
                           datalen, rc);
             }
             delete [] deps;
+
+            IROBSchedulingData data(id, CMM_RESEND_REQUEST_DEPS);
+            csock->irob_indexes.resend_requests.insert(data);
             throw CMMControlException("Socket error", hdr);
         }
 
@@ -140,23 +144,27 @@ read_deps_array(int fd, int numdeps, struct CMMSocketControlHdr& hdr)
     return deps;
 }
 
-static char *
-read_data_buffer(int fd, int datalen, struct CMMSocketControlHdr& hdr)
+char *
+CSocketReceiver::read_data_buffer(irob_id_t id, int datalen,
+                                  struct CMMSocketControlHdr& hdr)
 {
     if (datalen <= 0) {
         throw CMMControlException("Expected data with header, got none", hdr);
     }
     
     char *buf = new char[datalen];
-    int rc = read_bytes(fd, buf, datalen);
+    int rc = read_bytes(csock->osfd, buf, datalen);
     if (rc != datalen) {
         if (rc < 0) {
-            dbgprintf("Error %d on socket %d\n", errno, fd);
+            dbgprintf("Error %d on socket %d\n", errno, csock->osfd);
         } else {
             dbgprintf("Expected %d bytes after header, received %d\n", 
                       datalen, rc);
         }
         delete [] buf;
+        
+        IROBSchedulingData data(id, CMM_RESEND_REQUEST_DATA);
+        csock->irob_indexes.resend_requests.insert(data);
         throw CMMControlException("Socket error", hdr);
     }
 
@@ -170,10 +178,10 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     TIME(begin);
 
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_BEGIN_IROB);
-    int numdeps = ntohl(hdr.op.begin_irob.numdeps);
-    irob_id_t *deps = read_deps_array(csock->osfd, numdeps, hdr);
-
     irob_id_t id = ntohl(hdr.op.begin_irob.id);
+    int numdeps = ntohl(hdr.op.begin_irob.numdeps);
+    irob_id_t *deps = read_deps_array(id, numdeps, hdr);
+
 
     PendingIROB *pirob = new PendingReceiverIROB(id, numdeps, deps, 0, NULL,
 						 ntohl(hdr.send_labels));
@@ -258,12 +266,11 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     TIME(begin);
 
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_IROB_CHUNK);
+    irob_id_t id = ntohl(hdr.op.irob_chunk.id);
     int datalen = ntohl(hdr.op.irob_chunk.datalen);
-    char *buf = read_data_buffer(csock->osfd, datalen, hdr);
+    char *buf = read_data_buffer(id, datalen, hdr);
 
     hdr.op.irob_chunk.data = buf;
-
-    irob_id_t id = ntohl(hdr.op.irob_chunk.id);
 
     {
         PthreadScopedLock lock(&sk->scheduling_state_lock);
