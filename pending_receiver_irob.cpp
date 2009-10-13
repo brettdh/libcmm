@@ -93,8 +93,15 @@ PendingReceiverIROB::finish(ssize_t expected_bytes_)
     }
     complete = true;
 
-    assert(expected_bytes == -1);
-    expected_bytes = expected_bytes_;
+    if (expected_bytes == -1) {
+        expected_bytes = expected_bytes_;
+    } else {
+        // otherwise, we've already set it;
+        // we better not be trying to set it to something
+        // different
+        assert(expected_bytes == expected_bytes_);
+        return false;
+    }
 
     return true;
 }
