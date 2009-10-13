@@ -71,6 +71,7 @@ CSocketSender::Run()
                 } else {
                     struct CMMSocketControlHdr hdr;
                     hdr.type = htons(CMM_CONTROL_MSG_GOODBYE);
+                    hdr.send_labels = 0;
                     throw CMMControlException("Receiver died due to "
                                               "socket error; "
                                               "sender is quitting", hdr);
