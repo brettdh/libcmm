@@ -86,39 +86,51 @@ LatticeTest::testLatticeStructure()
     }
 }
 
+// XXX: this test is WRONG for the lattice on the sender side.
+// XXX: hence the second argument to erase calls here.
 void
 LatticeTest::testRemoval()
 {
     testLatticeStructure();
     
-    CPPUNIT_ASSERT(pirobs->erase(0) == true);
+    //CPPUNIT_ASSERT(pirobs->erase(0) == true);
+    CPPUNIT_ASSERT(pirobs->erase(0, true) == true);
     CPPUNIT_ASSERT(pirob_array[1]->depends_on(0) == false);
     CPPUNIT_ASSERT(pirob_array[2]->depends_on(0) == false);
 
-    CPPUNIT_ASSERT(pirobs->erase(1) == true);
+    //CPPUNIT_ASSERT(pirobs->erase(1) == true);
+    CPPUNIT_ASSERT(pirobs->erase(1, true) == true);
     CPPUNIT_ASSERT(pirob_array[4]->depends_on(1) == false);
 
-    CPPUNIT_ASSERT(pirobs->erase(2) == true);
+    //CPPUNIT_ASSERT(pirobs->erase(2) == true);
+    CPPUNIT_ASSERT(pirobs->erase(2, true) == true);
     CPPUNIT_ASSERT(pirob_array[4]->depends_on(2) == false);
 
-    CPPUNIT_ASSERT(pirobs->erase(3) == true);
+    //CPPUNIT_ASSERT(pirobs->erase(3) == true);
+    CPPUNIT_ASSERT(pirobs->erase(3, true) == true);
     CPPUNIT_ASSERT(pirob_array[4]->depends_on(3) == false);
 
-    CPPUNIT_ASSERT(pirobs->erase(4) == true);
+    //CPPUNIT_ASSERT(pirobs->erase(4) == true);
+    CPPUNIT_ASSERT(pirobs->erase(4, true) == true);
     CPPUNIT_ASSERT(pirob_array[5]->depends_on(4) == false);
     CPPUNIT_ASSERT(pirob_array[6]->depends_on(4) == false);
     
-    CPPUNIT_ASSERT(pirobs->erase(6) == true);
+    //CPPUNIT_ASSERT(pirobs->erase(6) == true);
+    CPPUNIT_ASSERT(pirobs->erase(6, true) == true);
     CPPUNIT_ASSERT(pirob_array[7]->depends_on(6) == false);
 
-    CPPUNIT_ASSERT(pirobs->erase(5) == true);
+    //CPPUNIT_ASSERT(pirobs->erase(5) == true);
+    CPPUNIT_ASSERT(pirobs->erase(5, true) == true);
     CPPUNIT_ASSERT(pirob_array[8]->depends_on(5) == false);
 
-    CPPUNIT_ASSERT(pirobs->erase(7) == true);
+    //CPPUNIT_ASSERT(pirobs->erase(7) == true);
+    CPPUNIT_ASSERT(pirobs->erase(7, true) == true);
     CPPUNIT_ASSERT(pirob_array[8]->depends_on(7) == false);
 
-    CPPUNIT_ASSERT(pirobs->erase(8) == true);
+    //CPPUNIT_ASSERT(pirobs->erase(8) == true);
+    CPPUNIT_ASSERT(pirobs->erase(8, true) == true);
     CPPUNIT_ASSERT(pirob_array[9]->depends_on(8) == false);
 
-    CPPUNIT_ASSERT(pirobs->erase(9) == true);
+    //CPPUNIT_ASSERT(pirobs->erase(9) == true);
+    CPPUNIT_ASSERT(pirobs->erase(9, true) == true);
 }
