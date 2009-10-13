@@ -552,7 +552,8 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
     }
     
     pirob = sk->outgoing_irobs.find(data.id);
-    if (pirob && pirob->is_complete()) {
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    if (psirob && psirob->is_complete()) {
         sk->ack_timeouts.update(data.id, csock->retransmission_timeout());
     }
 }
