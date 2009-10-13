@@ -1714,6 +1714,7 @@ void
 CMMSocketImpl::ack_received(irob_id_t id)
 {
     PthreadScopedLock lock(&scheduling_state_lock);
+    ack_timeouts.remove(id);
     PendingIROB *pirob = outgoing_irobs.find(id);
     if (!pirob) {
         if (outgoing_irobs.past_irob_exists(id)) {

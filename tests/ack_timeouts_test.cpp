@@ -9,32 +9,22 @@ using std::vector;
 CPPUNIT_TEST_SUITE_REGISTRATION(AckTimeoutsTest);
 
 void 
-AckTimeoutsTest::setUp()
-{
-    ack_timeouts = new AckTimeouts;
-}
-
-void 
-AckTimeoutsTest::tearDown()
-{
-    delete ack_timeouts;
-}
-
-void 
 AckTimeoutsTest::testOrdering()
 {
+    AckTimeouts timeouts;
+
     struct timespec rel = {1, 0};
     struct timespec before, after;
     TIME(before);
-    ack_timeouts->update(1, rel);
+    timeouts.update(1, rel);
     TIME(after);
     timeradd(&after, &rel, &after);
-    ack_timeouts->update(2, rel);
-    ack_timeouts->update(3, rel);
+    timeouts.update(2, rel);
+    timeouts.update(3, rel);
 
     struct timespec now;
     CPPUNIT_ASSERT_MESSAGE("Found earliest time", 
-                           ack_timeouts->get_earliest(now));
+                           timeouts.get_earliest(now));
     CPPUNIT_ASSERT_MESSAGE("Earliest time is as expected (secs)",
                            timercmp(&before, &now, <));
     CPPUNIT_ASSERT_MESSAGE("Earliest time is as expected (secs)",
@@ -42,8 +32,8 @@ AckTimeoutsTest::testOrdering()
 
     sleep(2);
 
-    ack_timeouts->update(4, rel);
-    vector<irob_id_t> ret = ack_timeouts->remove_expired();
+    timeouts.update(4, rel);
+    vector<irob_id_t> ret = timeouts.remove_expired();
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Got the right number of expired timeouts",
                                  3, (int)ret.size());
     for (int i = 0; i < 3; ++i) {
@@ -51,10 +41,31 @@ AckTimeoutsTest::testOrdering()
     }
 
     sleep(1);
-    ret = ack_timeouts->remove_expired();
+    ret = timeouts.remove_expired();
 
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Got the right number of expired timeouts",
                                  1, (int)ret.size());
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Correct IROB value", 4, (int)ret[0]);
     
+}
+
+void
+AckTimeoutsTest::testCornerCases()
+{
+    AckTimeouts timeouts;
+
+    struct timespec tv;
+    bool ret = timeouts.get_earliest(tv);
+    CPPUNIT_ASSERT_MESSAGE("No timeout returned for empty structure", !ret);
+    
+    vector<irob_id_t> vec = timeouts.remove_expired();
+    CPPUNIT_ASSERT_MESSAGE("No expired timeouts returned for empty structure",
+                           vec.empty());
+
+    tv.tv_sec = 10;
+    tv.tv_nsec = 0;
+    timeouts.update(1, tv);
+    vec = timeouts.remove_expired();
+    CPPUNIT_ASSERT_MESSAGE("No timeouts returned when none are expired",
+                           vec.empty());
 }

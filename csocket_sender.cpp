@@ -77,6 +77,17 @@ CSocketSender::Run()
                 }
             }
 
+            // resend End_IROB messages for all unACK'd IROBs whose
+            //   ack timeouts have expired.
+            // this will cause the receiver to send ACKs or
+            //   Resend_Requests for each of them.
+            vector<irob_id_t> unacked_irobs = sk->ack_timeouts.remove_expired();
+            for (size_t i = 0; i < unacked_irobs.size(); ++i) {
+                dbgprintf("ACK timeout expired for IROB %d, resending End_IROB\n",
+                          unacked_irobs[i]);
+                end_irob(IROBSchedulingData(unacked_irobs[i], false));
+            }
+
             if (schedule_work(csock->irob_indexes)) {
                 continue;
             }
@@ -84,13 +95,31 @@ CSocketSender::Run()
                 continue;
             }
             
-            if (trickle_timeout.tv_sec >= 0) {
-                dbgprintf("Waiting until %lu.%09lu to check again for trickling\n",
-                          trickle_timeout.tv_sec, trickle_timeout.tv_nsec);
+            struct timespec timeout = {-1, 0};
+            struct timespec first_ack_timeout;
+            if (sk->ack_timeouts.get_earliest(first_ack_timeout)) {
+                timeout = first_ack_timeout;
+            }
+            if (trickle_timeout.tv_sec > 0) {
+                if (timeout.tv_sec > 0) {
+                    timeout = (timercmp(&timeout, &trickle_timeout, <)
+                               ? timeout : trickle_timeout);
+                } else {
+                    timeout = trickle_timeout;
+                }
+            }
+
+            if (timeout.tv_sec > 0) {
+                dbgprintf("Waiting until %lu.%09lu to check again for ",
+                          timeout.tv_sec, timeout.tv_nsec);
+                dbgprintf_plain(timercmp(&timeout, &trickle_timeout, ==)
+                                ? "trickling\n" : "ACKs\n");
                 int rc = pthread_cond_timedwait(&sk->scheduling_state_cv,
                                                 &sk->scheduling_state_lock,
-                                                &trickle_timeout);
-                trickle_timeout.tv_sec = -1;
+                                                &timeout);
+                if (timercmp(&timeout, &trickle_timeout, ==)) {
+                    trickle_timeout.tv_sec = -1;
+                }
                 if (rc != 0) {
                     dbgprintf("pthread_cond_timedwait failed, rc=%d\n", rc);
                 }
@@ -489,13 +518,10 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
         throw CMMControlException("Socket error", hdr);
     }
     
-#if 0
-    //TODO: continue here.  Also, unit tests for AckTimeouts.
     pirob = sk->outgoing_irobs.find(data.id);
-    if (pirob) {
-        sk->ack_timeouts.update(data.id, 2*csock->RTT());
+    if (pirob && pirob->is_complete()) {
+        sk->ack_timeouts.update(data.id, csock->retransmission_timeout());
     }
-#endif
 }
 
 /* returns true if I actually sent it; false if not */
@@ -608,12 +634,16 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     if (psirob) {
         psirob->mark_sent(chunksize);
 
-        if (psirob->is_complete() && !psirob->end_announced) {
-            psirob->end_announced = true;
-            if (psirob->send_labels == 0) {
-                sk->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
-            } else {
-                csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
+        if (psirob->is_complete()) {
+            sk->ack_timeouts.update(id, csock->retransmission_timeout());
+
+            if (!psirob->end_announced) {
+                psirob->end_announced = true;
+                if (psirob->send_labels == 0) {
+                    sk->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
+                } else {
+                    csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
+                }
             }
         } 
 

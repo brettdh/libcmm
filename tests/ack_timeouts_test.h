@@ -10,13 +10,12 @@ class AckTimeoutsTest : public CppUnit::TestFixture {
 
     CPPUNIT_TEST_SUITE(AckTimeoutsTest);
     CPPUNIT_TEST(testOrdering);
+    CPPUNIT_TEST(testCornerCases);
     CPPUNIT_TEST_SUITE_END();
 
   public:
-    void setUp();
-    void tearDown();
-
     void testOrdering();
+    void testCornerCases();
 };
 
 #endif

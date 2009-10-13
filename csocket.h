@@ -50,6 +50,7 @@ class CSocket {
     // network measurements/estimates for this connection.
     u_long bandwidth();
     double RTT();
+    struct timespec retransmission_timeout();
     ssize_t trickle_chunksize();
   private:
     // only allow shared_ptr creation

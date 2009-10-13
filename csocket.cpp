@@ -173,8 +173,42 @@ double CSocket::RTT()
     return rtt;
 }
 
+struct timespec 
+CSocket::retransmission_timeout()
+{
+    struct timespec ret = {1, 0}; // default 1sec
 
-#define useconds(tv) ((tv).tv_sec*1000000 + (tv).tv_usec)
+    /*
+    struct tcp_info info;
+    socklen_t len = sizeof(info);
+    struct protoent *pe = getprotobyname("TCP");
+    int rc = -1;
+    if (pe) {
+	rc = getsockopt (osfd, pe->p_proto, TCP_INFO, &info, &len);
+        if (rc == 0) {
+            long int usecs = info.tcpi_rto;
+            ret.tv_sec = usecs / 1000000;
+            ret.tv_nsec = (usecs - (ret.tv_sec*1000000)) * 1000;
+        } else {
+            dbgprintf("getsockopt failed for TCP_INFO: %s\n",
+                      strerror(errno));
+        }
+    } else {
+        dbgprintf("getprotoent failed for TCP: %s\n",
+                  strerror(errno));
+    }
+    if (rc < 0) {
+	dbgprintf("Cannot read tcpi_rto; making a lazy guess\n");
+        //TODO: more accurate guess?
+    }
+    dbgprintf("Retransmission timeout for csock %d is %ld.%09ld\n",
+              osfd, ret.tv_sec, ret.tv_nsec);
+    */
+    return ret;
+}
+
+
+//#define useconds(tv) ((tv).tv_sec*1000000 + (tv).tv_usec)
 
 ssize_t
 CSocket::trickle_chunksize()/*struct timeval time_since_last_fg,
