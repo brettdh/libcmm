@@ -36,9 +36,9 @@ PendingReceiverIROB::PendingReceiverIROB(irob_id_t id_)
 }
 
 void
-PendingReceiverIROB::copy_metadata(PendingIROB *other)
+PendingReceiverIROB::subsume(PendingIROB *other)
 {
-    PendingIROB::copy_metadata(other);
+    PendingIROB::subsume(other);
 
     PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(other);
     assert(prirob);
@@ -47,6 +47,7 @@ PendingReceiverIROB::copy_metadata(PendingIROB *other)
     expected_bytes = prirob->expected_bytes;
     recvd_bytes = prirob->recvd_bytes;
     partial_chunk = prirob->partial_chunk; // should be {NULL, 0}
+    prirob->partial_chunk.data = NULL; // prevent double free, just in case
 }
 
 PendingReceiverIROB::~PendingReceiverIROB()

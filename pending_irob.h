@@ -102,8 +102,9 @@ class PendingIROB {
 
     friend class PendingIROBLattice;
 
+    // Copy metadata from other and take ownership of its data chunks.
     // other should be a placeholder.
-    virtual void copy_metadata(PendingIROB *other);
+    virtual void subsume(PendingIROB *other);
 
 
     /* if not NULL, points to the lattice that this IROB belongs to. 

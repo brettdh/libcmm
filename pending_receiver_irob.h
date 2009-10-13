@@ -42,7 +42,9 @@ class PendingReceiverIROB : public PendingIROB {
 
     ssize_t numbytes();
 
-    virtual void copy_metadata(PendingIROB *other);
+    // Copy metadata from other and take ownership of its data chunks.
+    // other should be a placeholder.
+    virtual void subsume(PendingIROB *other);
 
   private:
     PendingReceiverIROB(irob_id_t id);

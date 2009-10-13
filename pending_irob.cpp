@@ -134,13 +134,14 @@ PendingIROB::depends_on(irob_id_t that)
 }
 
 void
-PendingIROB::copy_metadata(PendingIROB *other)
+PendingIROB::subsume(PendingIROB *other)
 {
     dependents.insert(other->dependents.begin(),
                       other->dependents.end());
     for (size_t i = 0; i < other->chunks.size(); ++i) {
         add_chunk(other->chunks[i]);
     }
+    other->chunks.clear(); // prevent double-free
     
     complete = other->complete;
 }
@@ -199,7 +200,7 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
         assert(!pirob->placeholder);
         assert(pending_irobs[index]->placeholder);
         assert(pending_irobs[index]->id == pirob->id);
-        pirob->copy_metadata(pending_irobs[index]);
+        pirob->subsume(pending_irobs[index]);
         
         delete pending_irobs[index];
         pending_irobs[index] = pirob;
