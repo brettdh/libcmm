@@ -493,8 +493,9 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
 {
     PendingIROB *pirob = sk->outgoing_irobs.find(data.id);
     if (!pirob) {
-        // shouldn't get here if it doesn't exist
-        assert(0);
+        // This is probably a retransmission; must have already been ACK'd
+        // Just ignore it
+        return;
     }
 
     struct CMMSocketControlHdr hdr;
