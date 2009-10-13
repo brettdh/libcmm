@@ -287,10 +287,13 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
     VanillaListenerSet::accessor listener_ac;
     CMMSocketImplPtr sk;
     if (cmm_sock_hash.find(sock, sk)) {
-        PthreadScopedRWLock lock(&sk->my_lock, true);
-	sk->goodbye(false);
-        shutdown(sk->select_pipe[0], SHUT_RDWR);
-        shutdown(sk->select_pipe[1], SHUT_RDWR);
+        {
+            PthreadScopedRWLock lock(&sk->my_lock, true);
+            sk->goodbye(false);
+            shutdown(sk->select_pipe[0], SHUT_RDWR);
+            shutdown(sk->select_pipe[1], SHUT_RDWR);
+        }
+
         pthread_mutex_lock(&hashmaps_mutex);
 	cmm_sock_hash.erase(sock);
         /* the CMMSocket object gets destroyed by the shared_ptr. */
