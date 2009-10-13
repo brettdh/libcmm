@@ -78,22 +78,25 @@ CSocketSender::Run()
                 }
             }
 
+            if (schedule_work(csock->irob_indexes)) {
+                continue;
+            }
+            if (schedule_work(sk->irob_indexes)) {
+                continue;
+            }
+
             // resend End_IROB messages for all unACK'd IROBs whose
             //   ack timeouts have expired.
             // this will cause the receiver to send ACKs or
             //   Resend_Requests for each of them.
             vector<irob_id_t> unacked_irobs = sk->ack_timeouts.remove_expired();
             for (size_t i = 0; i < unacked_irobs.size(); ++i) {
-                dbgprintf("ACK timeout expired for IROB %d, resending End_IROB\n",
-                          unacked_irobs[i]);
-                end_irob(IROBSchedulingData(unacked_irobs[i], false));
-            }
-
-            if (schedule_work(csock->irob_indexes)) {
-                continue;
-            }
-            if (schedule_work(sk->irob_indexes)) {
-                continue;
+                if (sk->outgoing_irobs.find(unacked_irobs[i]) != NULL) {
+                    dbgprintf("ACK timeout expired for IROB %d, resending End_IROB\n",
+                              unacked_irobs[i]);
+                    IROBSchedulingData refinished_irob(unacked_irobs[i], false);
+                    sk->irob_indexes.finished_irobs.insert(refinished_irob);
+                }
             }
             
             struct timespec timeout = {-1, 0};
