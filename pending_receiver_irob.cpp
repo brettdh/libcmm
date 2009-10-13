@@ -340,7 +340,7 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
         bytes_passed += pirob->read_data(buf + bytes_passed,
                                          len - bytes_passed);
         if (pirob->is_complete() && pirob->numbytes() == 0) {
-            erase(pirob->id);
+            erase(pirob->id, true);
             release_dependents(pirob, ReadyIROB());
             delete pirob;
         } else {

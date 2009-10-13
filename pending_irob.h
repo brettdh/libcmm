@@ -143,9 +143,11 @@ class PendingIROBLattice {
   public:
     PendingIROBLattice();
     virtual ~PendingIROBLattice();
+    // XXX: these default args are really describing what happens at the sender.
+    //  maybe these should be moved into a PendingSenderIROBLattice.
     bool insert(PendingIROB *pirob, bool infer_deps = true);
     PendingIROB * find(irob_id_t id);
-    bool erase(irob_id_t id);
+    bool erase(irob_id_t id, bool at_receiver = false);
 
     bool past_irob_exists(irob_id_t id);
 

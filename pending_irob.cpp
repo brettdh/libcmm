@@ -347,7 +347,7 @@ PendingIROBLattice::find_locked(irob_id_t id)
 }
 
 bool
-PendingIROBLattice::erase(irob_id_t id)
+PendingIROBLattice::erase(irob_id_t id, bool at_receiver)
 {
     PthreadScopedLock lock(&membership_lock);
 
@@ -359,7 +359,9 @@ PendingIROBLattice::erase(irob_id_t id)
         return false;
     }
     past_irobs.insert(id);
-    min_dominator_set.erase(id);
+    if (at_receiver) {
+        min_dominator_set.erase(id);
+    }
 
     PendingIROB *victim = pending_irobs[index];
     pending_irobs[index] = NULL; // caller must free it
@@ -368,19 +370,23 @@ PendingIROBLattice::erase(irob_id_t id)
         offset++;
     }
 
-    dbgprintf("Notifying dependents of IROB %d's release: [ ", id);
-    for (irob_id_set::iterator it = victim->dependents.begin();
-         it != victim->dependents.end(); it++) {
-        
-        PendingIROB *dependent = this->find_locked(*it);
-        if (dependent == NULL) {
-            dbgprintf_plain("(%ld) ", *it);
-            continue;
+    // don't want to do this at the sender; want to preserve
+    // dep information until it arrives at the receiver
+    if (at_receiver) {
+        dbgprintf("Notifying dependents of IROB %d's release: [ ", id);
+        for (irob_id_set::iterator it = victim->dependents.begin();
+             it != victim->dependents.end(); it++) {
+            
+            PendingIROB *dependent = this->find_locked(*it);
+            if (dependent == NULL) {
+                dbgprintf_plain("(%ld) ", *it);
+                continue;
+            }
+            dbgprintf_plain("%ld ", dependent->id);
+            dependent->dep_satisfied(id);
         }
-        dbgprintf_plain("%ld ", dependent->id);
-        dependent->dep_satisfied(id);
+        dbgprintf_plain("]\n");
     }
-    dbgprintf_plain("]\n");
     
     --count;
     return true;
