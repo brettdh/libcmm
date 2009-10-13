@@ -248,9 +248,23 @@ void resume_operation_thunk(ResumeOperation *op)
     delete op;
 }
 
+/* Must hold sk->scheduling_state_lock when calling.
+ * It's possible that pirob will be ACK'd, removed, and deleted
+ * during the time when this function doesn't hold the lock.
+ * Therefore, it checks this after re-acquiring the lock
+ * and returns immediately if pirob has been ACK'd.  
+ * It also updates the pointer passed in, just in case
+ * 
+ */
 bool
-CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingData& data)
+CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob, 
+                                     const IROBSchedulingData& data)
 {
+    pirob = sk->outgoing_irobs.find(id);
+    if (!pirob) {
+        // already ACK'd; don't send anything for it
+        return true;
+    }
     assert(pirob);
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
@@ -268,6 +282,15 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
 
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
+    pirob = sk->outgoing_irobs.find(id);
+    if (!pirob) {
+        // just kidding; the ACK arrived while I wasn't holding the lock
+        // no need to send this message after all
+        return true;        
+    }
+    psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    assert(psirob);
+
     if (!match) {
         if (send_labels & CMM_LABEL_BACKGROUND) {
             // No actual background network, so let's trickle 
@@ -278,6 +301,9 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
 
     if (!match) {
         if (!pirob->complete) {
+            // mc_end_irob hasn't returned yet for this IROB;
+            //  we can still tell the application it failed
+            //  or otherwise block/thunk
             if (psirob->resume_handler) {
                 enqueue_handler(sk->sock,
                                 pirob->send_labels, 
@@ -299,6 +325,7 @@ CSocketSender::delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingDat
                       pirob->id);
             sk->outgoing_irobs.erase(pirob->id);
             delete pirob;
+            pirob = NULL;
         }
         return true;
     } else {
@@ -382,18 +409,18 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
 {
     irob_id_t id = data.id;
 
-    PendingIROB *pirob = sk->outgoing_irobs.find(id);
-    if (!pirob) {
-        // shouldn't get here if it doesn't exist
-        assert(0);
-    }
-
-    if (delegate_if_necessary(pirob, data)) {
+    PendingIROB *pirob = NULL;
+    if (delegate_if_necessary(id, pirob, data)) {
         // we passed it off, so make sure that we don't
         // try to re-insert data into the IROBSchedulingIndexes.
         return true;
     }
     // at this point, we know that this task is ours
+
+    if (!pirob) {
+        // must have been ACK'd already
+        return true;
+    }
 
     if (data.send_labels & CMM_LABEL_BACKGROUND &&
         !csock->matches(data.send_labels)) {
@@ -466,17 +493,18 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         sk->update_last_fg();
     }
 
+    pirob = sk->outgoing_irobs.find(id);
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
-    assert(psirob);
-    psirob->announced = true;
-    if (pirob->is_anonymous()) {
-        csock->irob_indexes.new_chunks.insert(IROBSchedulingData(pirob->id, true, data.send_labels));
-        //csock->irob_indexes.finished_irobs.insert(data);
-    } else if (pirob->chunks.size() > 0) {
-        csock->irob_indexes.new_chunks.insert(IROBSchedulingData(pirob->id, true, data.send_labels));
+    if (psirob) {
+        psirob->announced = true;
+        IROBSchedulingData new_chunk(id, true, data.send_labels);
+        if (pirob->is_anonymous()) {
+            csock->irob_indexes.new_chunks.insert(new_chunk);
+            //csock->irob_indexes.finished_irobs.insert(data);
+        } else if (pirob->chunks.size() > 0) {
+            csock->irob_indexes.new_chunks.insert(new_chunk);
+        }
     }
-    // WRONG WRONG WRONG WRONG WRONG.  only remove after ACK.
-    //sk->remove_if_unneeded(pirob);
 
     return true;
 }
@@ -531,19 +559,19 @@ bool
 CSocketSender::irob_chunk(const IROBSchedulingData& data)
 {
     irob_id_t id = data.id;
+    PendingIROB *pirob = NULL;
 
-    PendingIROB *pirob = sk->outgoing_irobs.find(id);
+    if (delegate_if_necessary(id, pirob, data)) {
+        return true;
+    }
+    // at this point, we know that this task is ours
+
     if (!pirob) {
         /* must've been ACK'd already */
         return true;
     }
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
-
-    if (delegate_if_necessary(pirob, data)) {
-        return true;
-    }
-    // at this point, we know that this task is ours
 
     // default to sending next chunk (maybe tweak to avoid extra roundtrips?)
     ssize_t chunksize = 0;
@@ -660,6 +688,7 @@ void
 CSocketSender::new_interface(struct net_interface iface)
 {
     struct CMMSocketControlHdr hdr;
+    memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
     hdr.op.new_interface.ip_addr = iface.ip_addr;
     hdr.op.new_interface.labels = htonl(iface.labels);
@@ -685,6 +714,7 @@ void
 CSocketSender::down_interface(struct net_interface iface)
 {
     struct CMMSocketControlHdr hdr;
+    memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_DOWN_INTERFACE);
     hdr.op.down_interface.ip_addr = iface.ip_addr;
 

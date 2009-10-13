@@ -27,7 +27,8 @@ class CSocketSender : public CMMThread {
     // call all these below with the scheduling_state_lock held
 
     bool schedule_work(IROBSchedulingIndexes& indexes);
-    bool delegate_if_necessary(PendingIROB *pirob, const IROBSchedulingData& data);
+    bool delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
+                               const IROBSchedulingData& data);
 
     bool okay_to_send_bg(ssize_t& chunksize);
 
