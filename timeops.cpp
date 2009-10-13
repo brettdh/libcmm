@@ -5,6 +5,8 @@ const long int& subseconds(const struct timeval&  tv) { return tv.tv_usec; }
 const long int& subseconds(const struct timespec& tv) { return tv.tv_nsec; }
 long int& subseconds(struct timeval&  tv) { return tv.tv_usec; }
 long int& subseconds(struct timespec& tv) { return tv.tv_nsec; }
+const long int& subseconds(const struct timeval  *tv) { return tv->tv_usec; }
+const long int& subseconds(const struct timespec *tv) { return tv->tv_nsec; }
 long int& subseconds(struct timeval  *tv) { return tv->tv_usec; }
 long int& subseconds(struct timespec *tv) { return tv->tv_nsec; }
 

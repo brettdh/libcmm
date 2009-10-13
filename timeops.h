@@ -12,6 +12,8 @@ const long int& subseconds(const struct timeval&  tv);
 const long int& subseconds(const struct timespec& tv);
 long int& subseconds(struct timeval&  tv);
 long int& subseconds(struct timespec& tv);
+const long int& subseconds(const struct timeval  *tv);
+const long int& subseconds(const struct timespec *tv);
 long int& subseconds(struct timeval  *tv);
 long int& subseconds(struct timespec *tv);
 

@@ -27,6 +27,7 @@ AckTimeouts::update(irob_id_t id, const struct timespec& rel_timeout)
     struct node new_tv;
     new_tv.id = id;
     TIME(new_tv.tv);
+    timeradd(&new_tv.tv, &rel_timeout, &new_tv.tv);
 
     SetType::iterator pos = timeouts.insert(new_tv);
     timeouts_by_irob[id] = pos;
