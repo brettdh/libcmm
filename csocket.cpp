@@ -176,7 +176,7 @@ double CSocket::RTT()
 struct timespec 
 CSocket::retransmission_timeout()
 {
-    struct timespec ret = {1, 0}; // default 1sec
+    struct timespec ret = {3, 0}; // default 3sec
 
     /*
     struct tcp_info info;
