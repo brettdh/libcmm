@@ -49,8 +49,13 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno) cons
 {
     vector<struct iovec> data;
 
+    dbgprintf("Getting bytes to send from IROB %d\n", id);
+    dbgprintf("   (%d chunks total; next_chunk %d chunk_offset %d\n",
+              (int)chunks.size(), next_chunk, chunk_offset);
+
     if (chunks.empty() || next_chunk >= chunks.size()) {
         bytes_requested = 0;
+        dbgprintf("...no bytes ready\n");
         return data;
     }
 
@@ -76,6 +81,9 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno) cons
         chunk_index++;
     }
 
+    dbgprintf("...returning %d bytes, seqno %d\n",
+              bytes_gathered, next_seqno_to_send);
+
     bytes_requested = bytes_gathered;
     seqno = next_seqno_to_send;
     return data;
@@ -84,6 +92,10 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno) cons
 void 
 PendingSenderIROB::mark_sent(ssize_t bytes_sent)
 {
+    dbgprintf("Advancing send pointer by %d for IROB %d\n", bytes_sent, id);
+    dbgprintf("   (%d chunks total; next_chunk %d chunk_offset %d\n",
+              (int)chunks.size(), next_chunk, chunk_offset);
+
     assert (next_chunk < chunks.size());
     while (bytes_sent > 0) {
         ssize_t chunk_bytes_left = chunks[next_chunk].datalen - chunk_offset;
