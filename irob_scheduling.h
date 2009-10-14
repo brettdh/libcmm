@@ -21,10 +21,8 @@ struct IROBSchedulingData {
     bool operator<(const IROBSchedulingData& other) const;
 
     irob_id_t id;
-    union {
-        bool chunks_ready;
-        resend_request_type_t resend_request;
-    } data;
+    bool chunks_ready;
+    resend_request_type_t resend_request;
 
     u_long send_labels;
     // more scheduling hints here?

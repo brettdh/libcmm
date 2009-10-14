@@ -242,7 +242,7 @@ void resume_operation_thunk(ResumeOperation *op)
     IROBSchedulingIndexes& indexes = (csock 
                                       ? csock->irob_indexes 
                                       : op->sk->irob_indexes);
-    if (op->data.data.chunks_ready) {
+    if (op->data.chunks_ready) {
         indexes.new_chunks.insert(op->data);
     } else {
         indexes.new_irobs.insert(op->data);
@@ -335,7 +335,7 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
         assert(match != csock); // since csock->matches returned false
 
         // pass this task to the right thread
-        if (!data.data.chunks_ready) {
+        if (!data.chunks_ready) {
             match->irob_indexes.new_irobs.insert(data);
         } else {
             match->irob_indexes.new_chunks.insert(data);
@@ -829,7 +829,7 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
     hdr.type = htons(CMM_CONTROL_MSG_RESEND_REQUEST);
     hdr.op.resend_request.id = htonl(data.id);
     hdr.op.resend_request.request =
-        (resend_request_type_t)htonl(data.data.resend_request);
+        (resend_request_type_t)htonl(data.resend_request);
     hdr.send_labels = htonl(csock->local_iface.labels);
     
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());

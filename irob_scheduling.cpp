@@ -2,6 +2,7 @@
 #include <set>
 using std::set;
 #include "common.h"
+#include "debug.h"
 
 IROBSchedulingData::IROBSchedulingData()
 {
@@ -10,17 +11,18 @@ IROBSchedulingData::IROBSchedulingData()
 
 IROBSchedulingData::IROBSchedulingData(irob_id_t id_, bool chunks_ready_,
                                        u_long send_labels_)
-    : id(id_), send_labels(send_labels_)
+    : id(id_), chunks_ready(chunks_ready_),
+      resend_request(CMM_RESEND_REQUEST_NONE),
+      send_labels(send_labels_)
 {
-    data.chunks_ready = chunks_ready_;
 }
 
 IROBSchedulingData::IROBSchedulingData(irob_id_t id_,
                                        resend_request_type_t resend_request_,
                                        u_long send_labels_)
-    : id(id_), send_labels(send_labels_)
+    : id(id_), chunks_ready(false),
+      resend_request(resend_request_), send_labels(send_labels_)
 {
-    data.resend_request = resend_request_;
 }
 
 bool 
@@ -44,6 +46,8 @@ void
 IROBPrioritySet::insert(IROBSchedulingData data)
 {
     //TODO: do something more interesting.
+    dbgprintf("Inserting scheduling request for IROB %d (%s)\n",
+              data.id, data.chunks_ready ? "chunk" : "irob");
     data.owner = owner;
     tasks.insert(data);
 }
@@ -51,7 +55,10 @@ IROBPrioritySet::insert(IROBSchedulingData data)
 bool 
 IROBPrioritySet::pop(IROBSchedulingData& data)
 {
-    return pop_item(tasks, data);
+    bool ret = pop_item(tasks, data);
+    dbgprintf("Inserting scheduling request for IROB %d (%s)\n",
+              data.id, data.chunks_ready ? "chunk" : "irob");
+    return ret;
 }
 
 IROBSchedulingIndexes::IROBSchedulingIndexes(u_long send_labels_) 
