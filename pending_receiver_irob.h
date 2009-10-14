@@ -49,6 +49,8 @@ class PendingReceiverIROB : public PendingIROB {
   private:
     PendingReceiverIROB(irob_id_t id);
 
+    void assert_valid();
+
     friend class CMMSocketImpl;
     friend class CSocketReceiver;
     friend class PendingReceiverIROBLattice;
@@ -56,7 +58,7 @@ class PendingReceiverIROB : public PendingIROB {
     /* If this IROB is in the middle of being read, 
      * the reader might have stopped in the middle of a
      * chunk.  If so, this is the offset into the first chunk. */
-    ssize_t offset;
+    size_t offset;
 
     struct irob_chunk_data partial_chunk;
 

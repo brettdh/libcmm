@@ -55,6 +55,7 @@ CMMSocketControlHdr::describe() const
     case CMM_CONTROL_MSG_IROB_CHUNK:
         stream << "IROB: " << ntohl(op.irob_chunk.id) << " ";
 	stream << "seqno: " << ntohl(op.irob_chunk.seqno) << " ";
+	stream << "offset: " << ntohl(op.irob_chunk.offset) << " ";
         stream << "datalen: " << ntohl(op.irob_chunk.datalen);
         break;
 #if 0

@@ -38,6 +38,7 @@ struct end_irob_data {
 struct irob_chunk_data {
     irob_id_t id;
     u_long seqno; /* these start at 1.  0 is invalid; see ack_data, below. */
+    size_t offset; // offset in this IROB at which this chunk's data begins
     size_t datalen;
     char *data; /* NULL in network messages
                  * Allocated and used at receiver */
@@ -93,7 +94,7 @@ struct resend_request_data {
     resend_request_type_t request;
 
     // If request includes DATA, this is how much data the receiver has
-    ssize_t offset;
+    size_t offset;
 };
 
 struct CMMSocketControlHdr {

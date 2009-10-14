@@ -320,6 +320,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         struct irob_chunk_data chunk;
         chunk.id = id;
         chunk.seqno = ntohl(hdr.op.irob_chunk.seqno);
+        chunk.offset = ntohl(hdr.op.irob_chunk.offset);
         chunk.datalen = ntohl(hdr.op.irob_chunk.datalen);
         chunk.data = hdr.op.irob_chunk.data;
         

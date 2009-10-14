@@ -46,6 +46,7 @@ PendingIROB::PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array
         chunk.id = id;
         chunk.seqno = INVALID_IROB_SEQNO;
         chunk.datalen = datalen;
+        chunk.offset = 0;
         chunk.data = data;
 
         chunks.push_back(chunk);

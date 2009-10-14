@@ -56,15 +56,58 @@ PendingReceiverIROB::~PendingReceiverIROB()
     delete [] partial_chunk.data;
 }
 
+void
+PendingReceiverIROB::assert_valid()
+{
+    assert(recvd_bytes >= 0);
+    for (size_t i = 1; i < chunks.size(); ++i) {
+        assert((chunks[i-1].offset + chunks[i-1].datalen)
+               == chunks[i].offset);
+    }
+}
+
 bool
 PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
 {
     if (!is_complete()) {
+        // since we don't release bytes until the IROB is complete
+        assert(num_bytes == recvd_bytes);
+
+        struct irob_chunk_data trimmed_chunk = chunk;
+        trimmed_chunk.data = NULL;
+        if (chunk.offset < (size_t)recvd_bytes) {
+            for (size_t i = 0; i < chunks.size(); ++i) {
+                size_t this_chunk_end = chunks[i].offset + chunks[i].datalen;
+                if (this_chunk_end > trimmed_chunk.offset) {
+                    size_t seen_datalen = this_chunk_end - trimmed_chunk.offset;
+                    dbgprintf("Ignoring %lu bytes of already-seen data at offset %lu\n",
+                              seen_datalen, trimmed_chunk.offset);
+                    if (seen_datalen >= trimmed_chunk.datalen) {
+                        // this entire chunk is redundant; ignore it
+                        return true;
+                    } else {
+                        trimmed_chunk.datalen -= seen_datalen;
+                        trimmed_chunk.offset += seen_datalen;
+                    }
+                }
+            }
+            assert(trimmed_chunk.datalen > 0);
+            if (trimmed_chunk.datalen < chunk.datalen) {
+                trimmed_chunk.data = new char[trimmed_chunk.datalen];
+                char *bufp = chunk.data + (chunk.datalen - trimmed_chunk.datalen);
+                memcpy(trimmed_chunk.data, bufp, trimmed_chunk.datalen);
+                delete [] chunk.data;
+            }
+            chunk = trimmed_chunk;
+        }
+
+        assert(chunk.offset == (size_t)recvd_bytes); // no holes
         num_bytes += chunk.datalen;
         recvd_bytes += chunk.datalen;
         chunks.push_back(chunk);
-	dbgprintf("Added chunk %d (%d bytes) to IROB %d\n", 
-		  chunk.seqno, chunk.datalen, id);
+	dbgprintf("Added chunk %d (%d bytes) to IROB %d new total %d\n", 
+		  chunk.seqno, chunk.datalen, id, num_bytes);
+        assert_valid();
     } else {
 	dbgprintf("Adding chunk %d (%d bytes) on IROB %d failed! recvd_bytes=%d, expected_bytes=%d\n",
 		  chunk.seqno, chunk.datalen, id, recvd_bytes, expected_bytes);

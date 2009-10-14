@@ -607,14 +607,18 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     hdr.send_labels = htonl(pirob->send_labels);
 
     u_long seqno = 0;
+    size_t offset = 0;
 
-    vector<struct iovec> irob_vecs = psirob->get_ready_bytes(chunksize, seqno);
+    vector<struct iovec> irob_vecs = psirob->get_ready_bytes(chunksize, 
+                                                             seqno,
+                                                             offset);
     if (chunksize == 0) {
         return true;
     }
 
     hdr.op.irob_chunk.id = htonl(id);
     hdr.op.irob_chunk.seqno = htonl(seqno);
+    hdr.op.irob_chunk.offset = htonl(offset);
     hdr.op.irob_chunk.datalen = htonl(chunksize);
     hdr.op.irob_chunk.data = NULL;
 

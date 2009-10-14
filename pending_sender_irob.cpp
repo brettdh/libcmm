@@ -16,6 +16,7 @@ PendingSenderIROB::PendingSenderIROB(irob_id_t id_,
       resume_handler(resume_handler_), rh_arg(rh_arg_),
       announced(false), end_announced(false), acked(false),
       next_seqno_to_send(next_seqno), next_chunk(0), chunk_offset(0),
+      offset(0),
       chunk_in_flight(false)
 {
 }
@@ -46,13 +47,14 @@ PendingSenderIROB::is_acked(void)
 }
 
 vector<struct iovec> 
-PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno) const
+PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno,
+                                   size_t &offset_) const
 {
     vector<struct iovec> data;
 
     dbgprintf("Getting bytes to send from IROB %d\n", id);
-    dbgprintf("   (%d chunks total; next_chunk %d chunk_offset %d\n",
-              (int)chunks.size(), next_chunk, chunk_offset);
+    dbgprintf("   (%d chunks total; next_chunk %d chunk_offset %d offset %d\n",
+              (int)chunks.size(), next_chunk, chunk_offset, offset);
 
     if (chunks.empty() || next_chunk >= chunks.size()) {
         bytes_requested = 0;
@@ -87,6 +89,7 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno) cons
 
     bytes_requested = bytes_gathered;
     seqno = next_seqno_to_send;
+    offset_ = offset;
     return data;
 }
 
@@ -94,8 +97,8 @@ void
 PendingSenderIROB::mark_sent(ssize_t bytes_sent)
 {
     dbgprintf("Advancing send pointer by %d for IROB %d\n", bytes_sent, id);
-    dbgprintf("   (%d chunks total; next_chunk %d chunk_offset %d\n",
-              (int)chunks.size(), next_chunk, chunk_offset);
+    dbgprintf("   (%d chunks total; next_chunk %d chunk_offset %d offset %d\n",
+              (int)chunks.size(), next_chunk, chunk_offset, offset);
 
     assert (next_chunk < chunks.size());
     while (bytes_sent > 0) {
@@ -103,6 +106,7 @@ PendingSenderIROB::mark_sent(ssize_t bytes_sent)
         ssize_t bytes = min(chunk_bytes_left, bytes_sent);
         bytes_sent -= bytes;
         chunk_offset += bytes;
+        offset += bytes;
         
         if (chunk_offset == chunks[next_chunk].datalen) {
             next_chunk++;
@@ -113,12 +117,13 @@ PendingSenderIROB::mark_sent(ssize_t bytes_sent)
 }
 
 void
-PendingSenderIROB::rewind(ssize_t pos)
+PendingSenderIROB::rewind(size_t pos)
 {
     dbgprintf("Resetting send pointer for IROB %d\n", id);
     next_seqno_to_send = INVALID_IROB_SEQNO + 1;
     next_chunk = 0;
     chunk_offset = 0;
+    offset = 0;
 
     mark_sent(pos);
 }

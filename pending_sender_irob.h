@@ -49,7 +49,8 @@ class PendingSenderIROB : public PendingIROB {
      * actual number of bytes returned.
      */
     std::vector<struct iovec> get_ready_bytes(ssize_t& bytes_requested, 
-                                              u_long& seqno) const;
+                                              u_long& seqno,
+                                              size_t& offset) const;
 
     /* Marks the next bytes_sent bytes as sent.  This in essence advances the
      * pointer that get_ready_bytes provides into this IROB's data. 
@@ -62,7 +63,7 @@ class PendingSenderIROB : public PendingIROB {
      *   plus offset bytes.
      * This is needed when a Resend_Request is received for the IROB's data.
      */
-    void rewind(ssize_t offset);
+    void rewind(size_t offset_);
 
     void ack();
 
@@ -88,6 +89,8 @@ class PendingSenderIROB : public PendingIROB {
     u_long next_seqno_to_send;
     size_t next_chunk;
     size_t chunk_offset;
+
+    size_t offset;
 
     // only one thread at a time should be sending app data
     bool chunk_in_flight;
