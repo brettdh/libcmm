@@ -111,3 +111,11 @@ PendingSenderIROB::mark_sent(ssize_t bytes_sent)
     }
     next_seqno_to_send++;
 }
+
+void
+PendingSenderIROB::rewind()
+{
+    next_seqno_to_send = INVALID_IROB_SEQNO + 1;
+    next_chunk = 0;
+    chunk_offset = 0;   
+}

@@ -58,6 +58,12 @@ class PendingSenderIROB : public PendingIROB {
      * in the IROB. */
     void mark_sent(ssize_t bytes_sent);
 
+    /* "Rewinds" the get_ready_bytes pointer to the beginning of this IROB.
+     * This is needed when a Resend_Request is received for the IROB's data.
+     * TODO: maybe allow rewinding partially.
+     */
+    void rewind();
+
     void ack();
 
     /* is it complete, and 
