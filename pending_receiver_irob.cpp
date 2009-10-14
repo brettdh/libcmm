@@ -165,14 +165,6 @@ PendingReceiverIROB::numbytes()
     return num_bytes;
 }
 
-#if 0
-void
-PendingReceiverIROB::discard()
-{
-    
-}
-#endif
-
 PendingReceiverIROBLattice::PendingReceiverIROBLattice(CMMSocketImpl *sk_)
     : sk(sk_), partially_read_irob(NULL)
 {

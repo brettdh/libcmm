@@ -81,7 +81,8 @@ CMMSocketControlHdr::describe() const
 	break;
     case CMM_CONTROL_MSG_RESEND_REQUEST:
         stream << "IROB: " << ntohl(op.resend_request.id) << " ";
-        stream << "request: " << ntohl(op.resend_request.request);
+        stream << "request: " << ntohl(op.resend_request.request) << " ";
+        stream << "offset: " << ntohl(op.resend_request.offset);
         break;
     default:
         break;
@@ -95,13 +96,3 @@ CMMControlException::CMMControlException(const std::string& str,
 {
     /* empty */
 }
-
-#if 0
-std::string
-CMMSocketRequest::describe() const
-{
-    std::ostringstream stream;
-    stream << "Requester thread: " << ios::hex << requester_tid << " ";
-    return stream.str() + hdr.describe();
-}
-#endif

@@ -842,6 +842,15 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
     hdr.op.resend_request.id = htonl(data.id);
     hdr.op.resend_request.request =
         (resend_request_type_t)htonl(data.resend_request);
+    hdr.op.resend_request.offset = 0;
+    if (data.resend_request & CMM_RESEND_REQUEST_DATA) {
+        PendingIROB *pirob = sk->incoming_irobs.find(data.id);
+        PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
+        if (prirob) {
+            // tell the remote sender that we have some of the bytes
+            hdr.op.resend_request.offset = htonl(prirob->numbytes());
+        }
+    }
     hdr.send_labels = htonl(csock->local_iface.labels);
     
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());

@@ -71,10 +71,10 @@ struct ack_data {
 };
 
 typedef enum {
-    CMM_RESEND_REQUEST_NONE = 0x00, // not used; only to complete type
-    CMM_RESEND_REQUEST_DEPS = 0x01,
-    CMM_RESEND_REQUEST_DATA = 0x10,
-    CMM_RESEND_REQUEST_BOTH = 0x11
+    CMM_RESEND_REQUEST_NONE = 0x0, // not used; only to complete type
+    CMM_RESEND_REQUEST_DEPS = 0x1,
+    CMM_RESEND_REQUEST_DATA = 0x2,
+    CMM_RESEND_REQUEST_BOTH = CMM_RESEND_REQUEST_DEPS|CMM_RESEND_REQUEST_DATA
 } resend_request_type_t;
 
 /* sender requesting the receiver to resend data associated
@@ -91,6 +91,9 @@ typedef enum {
 struct resend_request_data {
     irob_id_t id;
     resend_request_type_t request;
+
+    // If request includes DATA, this is how much data the receiver has
+    ssize_t offset;
 };
 
 struct CMMSocketControlHdr {

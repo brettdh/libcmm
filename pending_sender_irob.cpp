@@ -113,9 +113,12 @@ PendingSenderIROB::mark_sent(ssize_t bytes_sent)
 }
 
 void
-PendingSenderIROB::rewind()
+PendingSenderIROB::rewind(ssize_t pos)
 {
+    dbgprintf("Resetting send pointer for IROB %d\n", id);
     next_seqno_to_send = INVALID_IROB_SEQNO + 1;
     next_chunk = 0;
-    chunk_offset = 0;   
+    chunk_offset = 0;
+
+    mark_sent(pos);
 }

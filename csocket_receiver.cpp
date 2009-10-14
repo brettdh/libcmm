@@ -475,6 +475,7 @@ CSocketReceiver::do_request_resend(struct CMMSocketControlHdr hdr)
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_RESEND_REQUEST);
     irob_id_t id = ntohl(hdr.op.resend_request.id);
     resend_request_type_t request = (resend_request_type_t)ntohl(hdr.op.resend_request.request);
+    ssize_t offset = ntohl(hdr.op.resend_request.offset);
 
-    sk->resend_request_received(id, request);
+    sk->resend_request_received(id, request, offset);
 }
