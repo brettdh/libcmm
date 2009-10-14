@@ -82,6 +82,9 @@ class PendingSenderIROB : public PendingIROB {
     u_long next_seqno_to_send;
     size_t next_chunk;
     size_t chunk_offset;
+
+    // only one thread at a time should be sending app data
+    bool chunk_in_flight;
 };
 
 #endif

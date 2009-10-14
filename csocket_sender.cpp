@@ -577,6 +577,12 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
 
+    if (psirob->chunk_in_flight) {
+        // another thread is sending a chunk; it will
+        // signal for the next chunk to be sent when it is done
+        return true;
+    }
+
     // default to sending next chunk (maybe tweak to avoid extra roundtrips?)
     ssize_t chunksize = 0;
 
@@ -635,6 +641,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
 #endif
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
+    psirob->chunk_in_flight = true;
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = writev(csock->osfd, vec, irob_vecs.size() + 1);
     delete [] vec;
@@ -667,6 +674,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     psirob = dynamic_cast<PendingSenderIROB*>(sk->outgoing_irobs.find(id));
     if (psirob) {
         psirob->mark_sent(chunksize);
+        psirob->chunk_in_flight = false;
 
         if (psirob->is_complete()) {
             sk->ack_timeouts.update(id, csock->retransmission_timeout());
