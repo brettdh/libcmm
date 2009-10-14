@@ -1753,6 +1753,7 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
         irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
     }
     if (request & CMM_RESEND_REQUEST_DATA) {
+        psirob->rewind();
         irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));
     }
     pthread_cond_broadcast(&scheduling_state_cv);
