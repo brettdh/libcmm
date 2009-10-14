@@ -56,8 +56,10 @@ bool
 IROBPrioritySet::pop(IROBSchedulingData& data)
 {
     bool ret = pop_item(tasks, data);
-    dbgprintf("Inserting scheduling request for IROB %d (%s)\n",
-              data.id, data.chunks_ready ? "chunk" : "irob");
+    if (ret) {
+        dbgprintf("Grabbing scheduling request for IROB %d (%s)\n",
+                  data.id, data.chunks_ready ? "chunk" : "irob");
+    }
     return ret;
 }
 
