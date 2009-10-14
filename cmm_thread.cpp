@@ -198,15 +198,22 @@ void
 CMMThread::join_all()
 {
     std::set<pthread_t> joinable_threads_private;
-    {
-        PthreadScopedLock lock(&joinable_lock);
+
+    PthreadScopedLock lock(&joinable_lock);
+
+    while (!joinable_threads.empty()) {
         joinable_threads_private = joinable_threads;
         joinable_threads.clear();
-    }
-    void **result = NULL;
-    for (std::set<pthread_t>::iterator it = joinable_threads_private.begin();
-         it != joinable_threads_private.end(); it++) {
-        dbgprintf("pthread_join to thread %x\n", *it);
-        pthread_join(*it, result);
+
+        pthread_mutex_unlock(&joinable_lock);
+        
+        void **result = NULL;
+        for (std::set<pthread_t>::iterator it = joinable_threads_private.begin();
+             it != joinable_threads_private.end(); it++) {
+            dbgprintf("pthread_join to thread %x\n", *it);
+            pthread_join(*it, result);
+        }
+
+        pthread_mutex_lock(&joinable_lock);
     }
 }

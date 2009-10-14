@@ -662,7 +662,6 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     // It might've been ACK'd and removed, so check first
     psirob = dynamic_cast<PendingSenderIROB*>(sk->outgoing_irobs.find(id));
     if (psirob) {
-        psirob->mark_sent(chunksize);
         psirob->chunk_in_flight = false;
     }
 
@@ -680,6 +679,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     // It might've been ACK'd and removed, so check first
     //psirob = dynamic_cast<PendingSenderIROB*>(sk->outgoing_irobs.find(id));
     if (psirob) {
+        psirob->mark_sent(chunksize);
         if (psirob->is_complete()) {
             sk->ack_timeouts.update(id, csock->retransmission_timeout());
 
