@@ -25,14 +25,15 @@ class CSockMapping {
                        u_long send_label);
 
     CSocketPtr csock_with_labels(u_long send_label);
-    CSocketPtr new_csock_with_labels(u_long send_label);
+    CSocketPtr new_csock_with_labels(u_long send_label, bool locked=true);
     void remove_csock(CSocketPtr csock); // only removes, doesn't delete
 
     bool get_local_iface_by_addr(struct in_addr addr, 
                                  struct net_interface& iface);
     bool get_iface_pair(u_long send_label,
                         struct net_interface& local_iface,
-                        struct net_interface& remote_iface);
+                        struct net_interface& remote_iface,
+                        bool locked=true);
 
 
 
@@ -67,10 +68,8 @@ class CSockMapping {
 
     struct get_worker_tids;
 
-    bool get_local_iface(u_long label, struct net_interface& iface);
-    bool get_remote_iface(u_long label, struct net_interface& iface);
     bool get_iface(const NetInterfaceSet& ifaces, u_long label,
-                   struct net_interface& iface);
+                   struct net_interface& iface, bool locked);
     bool get_remote_iface_by_addr(struct in_addr addr,
                                   struct net_interface& iface);
     bool get_iface_by_addr(const NetInterfaceSet& ifaces, struct in_addr addr,

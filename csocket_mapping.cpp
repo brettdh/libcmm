@@ -150,11 +150,15 @@ class IfaceMatch {
 
 bool
 CSockMapping::get_iface(const NetInterfaceSet& ifaces, u_long label,
-                        struct net_interface& iface)
+                        struct net_interface& iface, bool locked)
 {
     CMMSocketImplPtr skp(sk);
 
-    PthreadScopedRWLock lock(&skp->my_lock, false);
+    // same scope effect, but only if locked==true
+    auto_ptr<PthreadScopedRWLock> lock_ptr;
+    if (locked) {
+        lock_ptr.reset(new PthreadScopedRWLock(&skp->my_lock, false));
+    }
 
     NetInterfaceSet::const_iterator it = find_if(ifaces.begin(), 
                                                  ifaces.end(), 
@@ -170,35 +174,23 @@ CSockMapping::get_iface(const NetInterfaceSet& ifaces, u_long label,
 bool
 CSockMapping::get_iface_pair(u_long send_label,
                              struct net_interface& local_iface,
-                             struct net_interface& remote_iface)
+                             struct net_interface& remote_iface, 
+                             bool locked)
 {
     CMMSocketImplPtr skp(sk);
-    bool ret = get_iface(skp->local_ifaces, send_label, local_iface);
+    bool ret = get_iface(skp->local_ifaces, send_label, local_iface,
+                         locked);
     if (ret) {
         return get_iface(skp->remote_ifaces, 
                          (local_iface.labels == 0) ? send_label : 0,
-                         remote_iface);
+                         remote_iface, locked);
     } else {
         return false;
     }
 }
 
-bool
-CSockMapping::get_local_iface(u_long label, struct net_interface& iface)
-{
-    CMMSocketImplPtr skp(sk);
-    return get_iface(skp->local_ifaces, label, iface);
-}
-
-bool
-CSockMapping::get_remote_iface(u_long label, struct net_interface& iface)
-{
-    CMMSocketImplPtr skp(sk);
-    return get_iface(skp->remote_ifaces, label, iface);
-}
-
 CSocketPtr 
-CSockMapping::new_csock_with_labels(u_long send_label)
+CSockMapping::new_csock_with_labels(u_long send_label, bool locked)
 {
     {
         CSocketPtr csock = csock_with_labels(send_label);
@@ -208,9 +200,7 @@ CSockMapping::new_csock_with_labels(u_long send_label)
     }
     
     struct net_interface local_iface, remote_iface;
-    //if (!(get_local_iface(send_label, local_iface) &&
-    //get_remote_iface(0, remote_iface))) { // pick any remote iface
-    if (!get_iface_pair(send_label, local_iface, remote_iface)) {
+    if (!get_iface_pair(send_label, local_iface, remote_iface, locked)) {
         /* Can't make a suitable connection for this send label */
         return CSocketPtr();
     }
