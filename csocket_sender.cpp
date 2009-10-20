@@ -426,7 +426,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     }
 
     if (data.send_labels & CMM_LABEL_BACKGROUND &&
-        !csock->matches(data.send_labels)) {
+        csock->matches(CMM_LABEL_ONDEMAND)) {
         ssize_t chunksize = 0;
         if (!okay_to_send_bg(chunksize)) {
             return false;
@@ -587,7 +587,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     ssize_t chunksize = 0;
 
     if (data.send_labels & CMM_LABEL_BACKGROUND &&
-        !csock->matches(data.send_labels)) {
+        csock->matches(CMM_LABEL_ONDEMAND)) {
         if (!okay_to_send_bg(chunksize)) {
             return false;
         }
