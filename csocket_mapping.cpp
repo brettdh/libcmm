@@ -240,11 +240,15 @@ CSockMapping::get_iface_pair(u_long send_label,
             local_iface = min_RTT_iface_pair.first;
             remote_iface = min_RTT_iface_pair.second;
             return true;
-        } else if (send_label & CMM_LABEL_LARGE &&
-                   max_bw > MIN_BG_BW) {
+        } else if (send_label & CMM_LABEL_LARGE) {
             local_iface = max_bw_iface_pair.first;
             remote_iface = max_bw_iface_pair.second;
             return true;
+        } else {
+            // TODO: try to check based on the actual size
+            local_iface = min_RTT_iface_pair.first;
+            remote_iface = min_RTT_iface_pair.second;
+            return true;            
         }
     } else if (send_label & CMM_LABEL_BACKGROUND &&
                max_bw > MIN_BG_BW) {
