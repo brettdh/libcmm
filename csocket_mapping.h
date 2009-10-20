@@ -22,6 +22,7 @@ class CMMSocketImpl;
 class CSockMapping {
   public:
     // return true iff csock is suitable for these labels.
+    /* must not be holding sk->scheduling_state_lock. */
     bool csock_matches(CSocket *csock, 
                        u_long send_label);
 

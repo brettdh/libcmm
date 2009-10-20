@@ -274,12 +274,13 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
 
     u_long send_labels = pirob->send_labels;
 
+    pthread_mutex_unlock(&sk->scheduling_state_lock);
+
     if (csock->matches(send_labels)) {
+        pthread_mutex_lock(&sk->scheduling_state_lock);
         return false;
     }
     
-    pthread_mutex_unlock(&sk->scheduling_state_lock);
-
     CSocketPtr match = 
         sk->csock_map->new_csock_with_labels(send_labels);
 
@@ -410,6 +411,21 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 bool
 CSocketSender::begin_irob(const IROBSchedulingData& data)
 {
+    if (data.send_labels & CMM_LABEL_BACKGROUND) {
+        pthread_mutex_unlock(&sk->scheduling_state_lock);
+        bool fg_sock = csock->matches(CMM_LABEL_ONDEMAND);
+        pthread_mutex_lock(&sk->scheduling_state_lock);
+        if (fg_sock) {
+            ssize_t chunksize = 0;
+            if (!okay_to_send_bg(chunksize)) {
+                return false;
+            }
+        }
+        // after this point, we've committed to sending the
+        // BG BEGIN_IROB message on the FG socket.
+    }
+    
+
     irob_id_t id = data.id;
 
     PendingIROB *pirob = NULL;
@@ -425,15 +441,16 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         return true;
     }
 
-    if (data.send_labels & CMM_LABEL_BACKGROUND &&
-        csock->matches(CMM_LABEL_ONDEMAND)) {
-        ssize_t chunksize = 0;
-        if (!okay_to_send_bg(chunksize)) {
-            return false;
-        }
-        // after this point, we've committed to sending the
-        // BG BEGIN_IROB message on the FG socket.
-    }
+//     pthread_mutex_unlock(&sk->scheduling_state_lock);
+//     if (data.send_labels & CMM_LABEL_BACKGROUND &&
+//         csock->matches(CMM_LABEL_ONDEMAND)) {
+//         ssize_t chunksize = 0;
+//         if (!okay_to_send_bg(chunksize)) {
+//             return false;
+//         }
+//         // after this point, we've committed to sending the
+//         // BG BEGIN_IROB message on the FG socket.
+//     }
 
     struct CMMSocketControlHdr hdr;
     memset(&hdr, 0, sizeof(hdr));
@@ -562,6 +579,19 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
 bool
 CSocketSender::irob_chunk(const IROBSchedulingData& data)
 {
+    // default to sending next chunk (maybe tweak to avoid extra roundtrips?)
+    ssize_t chunksize = 0;
+    if (data.send_labels & CMM_LABEL_BACKGROUND) {
+        pthread_mutex_unlock(&sk->scheduling_state_lock);
+        bool fg_sock = csock->matches(CMM_LABEL_ONDEMAND);
+        pthread_mutex_lock(&sk->scheduling_state_lock);
+        if (fg_sock) {
+            if (!okay_to_send_bg(chunksize)) {
+                return false;
+            }
+        }
+    }
+
     irob_id_t id = data.id;
     PendingIROB *pirob = NULL;
 
@@ -582,24 +612,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
         // signal for the next chunk to be sent when it is done
         return true;
     }
-
-    // default to sending next chunk (maybe tweak to avoid extra roundtrips?)
-    ssize_t chunksize = 0;
-
-    if (data.send_labels & CMM_LABEL_BACKGROUND &&
-        csock->matches(CMM_LABEL_ONDEMAND)) {
-        if (!okay_to_send_bg(chunksize)) {
-            return false;
-        }
-        
-        /*
-        chunksize = csock->trickle_chunksize(time_since_last_fg,
-                                             sk->bg_wait_time());
-        */
-
-        // after this point, we've committed to sending a
-        // BG chunk (chunksize bytes) on the FG socket.
-    }
+    //
 
     struct CMMSocketControlHdr hdr;
     memset(&hdr, 0, sizeof(hdr));

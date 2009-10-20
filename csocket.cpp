@@ -145,6 +145,7 @@ CSocket::startup_workers()
     }
 }
 
+/* must not be holding sk->scheduling_state_lock. */
 bool 
 CSocket::matches(u_long send_labels)
 {

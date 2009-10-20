@@ -42,6 +42,7 @@ class CSocket {
     //void send(CMMSocketRequest req);
     //void remove(void);
 
+    /* must not be holding sk->scheduling_state_lock. */
     bool matches(u_long send_labels);
 
     // return true iff this is the only connection possible 

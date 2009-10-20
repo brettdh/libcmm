@@ -137,6 +137,7 @@ CSockMapping::csock_with_labels(u_long send_label)
     return find_csock(LabelMatch(this, send_label));
 }
 
+/* must not be holding sk->scheduling_state_lock. */
 bool
 CSockMapping::csock_matches(CSocket *csock, u_long send_label)
 {
