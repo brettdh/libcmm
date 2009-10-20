@@ -140,6 +140,10 @@ CSockMapping::csock_with_labels(u_long send_label)
 bool
 CSockMapping::csock_matches(CSocket *csock, u_long send_label)
 {
+    if (send_label == 0) {
+        return true;
+    }
+
     struct net_interface local_iface, remote_iface;
     if (!get_iface_pair(send_label, local_iface, remote_iface, true)) {
         // there is no interface pair that suits these labels, 
@@ -246,6 +250,10 @@ CSockMapping::get_iface_pair(u_long send_label,
                max_bw > MIN_BG_BW) {
         local_iface = max_bw_iface_pair.first;
         remote_iface = max_bw_iface_pair.second;
+        return true;
+    } else if (send_label == 0) {
+        local_iface = *(skp->local_ifaces.begin());
+        remote_iface = *(skp->remote_ifaces.begin());
         return true;
     }
     
