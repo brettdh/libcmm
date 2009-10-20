@@ -3,6 +3,7 @@
 
 #include "libcmm_irob.h"
 #include "common.h"
+#include "net_interface.h"
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <string>

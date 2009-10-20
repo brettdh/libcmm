@@ -44,6 +44,10 @@ class CSocket {
 
     bool matches(u_long send_labels);
 
+    // return true iff this is the only connection possible 
+    // right now (used for trickling background data).
+    bool only_connection();
+
     int phys_connect(void);
     void startup_workers();
 

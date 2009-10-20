@@ -4,38 +4,15 @@
 #include <vector>
 #include <set>
 #include <map>
-#include <netinet/in.h>
 #include "libcmm.h"
 #include <cassert>
+#include <functional>
 
 template <typename IntegerType>
 struct IntegerHashCompare {
     size_t hash(IntegerType i) const { return (size_t)i; }
     bool equal(IntegerType i1, IntegerType i2) const { return i1==i2; }
 };
-
-struct net_interface {
-    struct in_addr ip_addr; /* contents in network byte order as usual */
-    u_long labels; /* host byte order */
-
-    // wizard-of-oz network stats.  in reality these depend on both
-    //  endpoints and will probably be measured per-CSocket
-    //  inside the library.  These might be useful as hints, though,
-    //  as supplied by the scout.  If the endpoints exchange
-    //  this information as well, each side can compute
-    //  a crude estimate of any connection's properties.
-    // both of these figures represent measurements conducted
-    // on a connection between this endpoint and a remote reference 
-    // server.
-    u_long bandwidth; // bytes/sec
-    u_long RTT; // milliseconds
-
-    bool operator<(const struct net_interface& other) const {
-        return ip_addr.s_addr < other.ip_addr.s_addr;
-    }
-};
-
-typedef std::set<struct net_interface> NetInterfaceSet;
 
 typedef std::vector<std::pair<mc_socket_t, int> > mcSocketOsfdPairList;
 

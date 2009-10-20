@@ -3,6 +3,7 @@
 
 #include "cmm_thread.h"
 #include "common.h"
+#include "net_interface.h"
 #include "libcmm_irob.h"
 #include "pending_irob.h"
 #include "cmm_socket_control.h"

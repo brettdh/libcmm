@@ -32,9 +32,11 @@ typedef int mc_socket_t;
 #define CMM_LABEL_BLUE 0x2
 #define CMM_LABEL_ONDEMAND 0x4
 #define CMM_LABEL_BACKGROUND 0x8
-#define CMM_LABEL_UNUSED 0x10
+#define CMM_LABEL_SMALL 0x10
+#define CMM_LABEL_LARGE 0x20
+#define CMM_LABEL_UNUSED 0x40
 #define CMM_LABEL_ALL (CMM_LABEL_UNUSED - 1)
-#define CMM_LABEL_COUNT 4
+#define CMM_LABEL_COUNT 6
 
 #define MAX_LABEL_LENGTH 20
 

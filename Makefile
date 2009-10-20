@@ -52,7 +52,7 @@ libcmm.so: libcmm.o libcmm_ipc.o cmm_socket.o cmm_socket_impl.o \
            pending_irob.o pending_sender_irob.o pending_receiver_irob.o \
            cmm_thread.o cmm_internal_listener.o libcmm_irob.o debug.o \
            intset.o cmm_socket_control.o irob_scheduling.o timeops.o \
-	   ack_timeouts.o
+	   ack_timeouts.o net_interface.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -shared -o $@ $^
 
 # Generate header dependency rules

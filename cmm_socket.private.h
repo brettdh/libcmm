@@ -4,6 +4,7 @@
 #include "cmm_socket.h"
 //#include "csocket.h"
 #include "common.h"
+#include "net_interface.h"
 
 #include "pending_irob.h"
 #include "pending_receiver_irob.h"
@@ -55,8 +56,6 @@ typedef LockingMap<irob_id_t, mc_socket_t> IROBSockHash;
 /*                                  void*, /\* unused; keys only, no values *\/ */
 /*                                  IntegerHashCompare<int> > VanillaListenerSet; */
 typedef LockingMap<int, void*> VanillaListenerSet;
-
-typedef std::map<in_addr_t, struct net_interface> NetInterfaceMap;
 
 class ListenerThread;
 class CMMSocketSender;

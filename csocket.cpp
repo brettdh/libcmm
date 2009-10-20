@@ -11,7 +11,7 @@
 #include "csocket_receiver.h"
 #include "csocket_mapping.h"
 #include <functional>
-using std::min; using std::max;
+using std::max;
 
 CSocketPtr
 CSocket::create(boost::weak_ptr<CMMSocketImpl> sk_,
@@ -155,15 +155,13 @@ u_long
 CSocket::bandwidth()
 {
     // TODO: replace with measurement on this socket
-    u_long bw = min(local_iface.bandwidth, remote_iface.bandwidth);
-    return bw;
+    return iface_bandwidth(local_iface, remote_iface);
 }
 
 double CSocket::RTT()
 {
     // TODO: replace with measurement on this socket
-    double rtt = 2*((local_iface.RTT / 2.0) + (remote_iface.RTT / 2.0));
-    return rtt;
+    return iface_RTT(local_iface, remote_iface);
 }
 
 struct timespec 

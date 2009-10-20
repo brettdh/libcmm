@@ -4,6 +4,7 @@
 #include "csocket.h"
 #include "csocket_mapping.h"
 #include "common.h"
+#include "net_interface.h"
 #include "libcmm.h"
 #include "libcmm_ipc.h"
 #include <sys/stat.h>
@@ -1208,6 +1209,8 @@ void
 CMMSocketImpl::setup(struct net_interface iface, bool local)
 {
     PthreadScopedRWLock lock(&my_lock, true);
+
+    csock_map->setup(iface, local);
     
     if (local) {
         PthreadScopedLock lock(&scheduling_state_lock);

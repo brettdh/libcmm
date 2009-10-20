@@ -24,6 +24,7 @@ using std::queue;
 #include "tbb/atomic.h"
 #include "tbb/concurrent_hash_map.h"
 #include "common.h"
+#include "net_interface.h"
 
 #include "cdf_sampler.h"
 #include <memory>

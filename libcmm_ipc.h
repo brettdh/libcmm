@@ -7,6 +7,7 @@
 #include <vector>
 #include <map>
 #include "common.h"
+#include "net_interface.h"
 
 /* single message queue for subscribing and unsubscribing. */
 #define SCOUT_CONTROL_MQ_NAME "/scout_control_mq"

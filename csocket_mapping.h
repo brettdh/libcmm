@@ -6,6 +6,7 @@
 #include <netinet/in.h>
 #include <sys/types.h>
 #include "common.h"
+#include "net_interface.h"
 #include "pthread_util.h"
 
 #include "csocket.h"
@@ -36,7 +37,6 @@ class CSockMapping {
                         bool locked=true);
 
 
-
     bool empty();
     
     void add_connection(int sock, 
@@ -47,6 +47,7 @@ class CSockMapping {
      * such mapping in this mc_socket. */
     void get_real_fds(mcSocketOsfdPairList &osfd_list);
 
+    void setup(struct net_interface iface, bool local);
     void teardown(struct net_interface iface, bool local);
 
     // only call when shutting down.
