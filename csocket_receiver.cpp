@@ -192,7 +192,6 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
             delete pirob;
             //throw CMMFatalError("Tried to begin committed IROB", hdr);
             dbgprintf("do_begin_irob: duplicate IROB %d, ignoring\n", id);
-            return;
         }
     }
 
@@ -304,7 +303,10 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         PendingIROB *pirob = sk->incoming_irobs.find(id);
         if (!pirob) {
             if (sk->incoming_irobs.past_irob_exists(id)) {
-                throw CMMFatalError("Tried to add to committed IROB", hdr);
+                //throw CMMFatalError("Tried to add to committed IROB", hdr);
+                dbgprintf("do_irob_chunk: duplicate chunk %s for IROB %d, ignoring\n", id);
+                delete [] buf;
+                return;
             } else {
                 //throw CMMFatalError("Tried to add to nonexistent IROB", hdr);
                 dbgprintf("Receiver got IROB_chunk for IROB %d; "
@@ -328,7 +330,9 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
         assert(prirob);
         if (!prirob->add_chunk(chunk)) {
-            throw CMMFatalError("Tried to add to completed IROB", hdr);
+            //throw CMMFatalError("Tried to add to completed IROB", hdr);
+            dbgprintf("do_irob_chunk: duplicate chunk %s for IROB %d, ignoring\n", id);
+            delete [] buf;
         } else {
             dbgprintf("Successfully added chunk %d to IROB %d\n",
                       chunk.seqno, id);
