@@ -1,0 +1,63 @@
+Looking at "Mobile Network Estimation" from MobiCom 2001 [1]:
+
+  RTT = latency + req_size/bw + service_time + latency + resp_size/bw
+
+In our case, the most natural request/response pair is IROB_data/IROB_ACK.
+That is to say, all messages for an IROB, including control headers, 
+dependency info, application data, and (potentially) retransmissions
+of these, comprise the request.  This ignores the RTT contribution of
+lower-level headers and so is an estimate of application-level goodput.
+Though this introduces some error, it may still be sufficiently accurate
+for our purposes.
+
+Considerations for measuring RTT:
+ Asymmetry
+ * The response is always only one control header (about 26 bytes).
+ * Since the request consists of at least three control headers plus
+   application data, we are mostly measuring upstream bandwidth (and
+   latency) with this figure.
+ * This is a good thing.  If we assume that the bandwidth cost of
+   sending data upstream dwarfs the cost of receiving the ACK,
+   we can measure bandwidth in each direction separately.
+ * Each endpoint, then, will measure its own upstream bandwidth and
+   report the figure to the remote peer as its downstream bandwidth.
+   Thus, we avoid the difficulty of needing to assume either 
+   symmetric network performance or synchronized clocks.
+
+ Service time
+ * The service time at the receiver is simply the time between 
+   receiving the last bit of data for the IROB and sending
+   the ACK.  The receiver can include this time in the ACK.
+ * Since IROB data (control and app data) is sent in multiple
+   messages, there may be processing/scheduling delays between 
+   the sending of network messages.  The sender should measure
+   the time between same-IROB sends and subtract this and the
+   receiver-reported service time from the RTT.
+
+ Queuing delay
+ * As the paper notes, when two requests are sent back-to-back, 
+   the RTT of the second request is inflated by the time it spends
+   queued behind the first request.  I'll compute this time as
+   described in the paper and subtract it from the measured RTT.
+   This will also need to be done for the multiple messages that
+   comprise the request as well as for queuing delays between 
+   messages that are part of different IROBs.
+
+Producing usable estimates
+
+Once we have two consecutive RTT values with different request sizes,
+we can use the above formula to separate out the latency and bandwidth,
+generating an estimate for each, keeping in mind the subtleties discussed
+in the paper.  Since network observations are noisy, I'll implement the
+"Flip-Flop" smoothing filter from the paper, as it was observed to have
+the best results for both stability and agility in most of the tested 
+scenarios.  Additionally, it appears fairly straightforward and thus
+should not be difficult to implement.
+
+
+References:
+
+[1] Minkyong Kim and Brian Noble. Mobile network estimation. In
+    MobiCom '01: Proceedings of the 7th annual international conference on
+    Mobile computing and networking, pages 298-309, New York, NY, USA,
+    2001. ACM.
