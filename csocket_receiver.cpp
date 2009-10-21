@@ -304,7 +304,8 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         if (!pirob) {
             if (sk->incoming_irobs.past_irob_exists(id)) {
                 //throw CMMFatalError("Tried to add to committed IROB", hdr);
-                dbgprintf("do_irob_chunk: duplicate chunk %s for IROB %d, ignoring\n", id);
+                dbgprintf("do_irob_chunk: duplicate chunk %s for IROB %d, ignoring\n", 
+                          ntohl(hdr.op.irob_chunk.seqno), id);
                 delete [] buf;
                 return;
             } else {
@@ -331,7 +332,8 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         assert(prirob);
         if (!prirob->add_chunk(chunk)) {
             //throw CMMFatalError("Tried to add to completed IROB", hdr);
-            dbgprintf("do_irob_chunk: duplicate chunk %s for IROB %d, ignoring\n", id);
+            dbgprintf("do_irob_chunk: duplicate chunk %s for IROB %d, ignoring\n", 
+                      chunk.seqno, id);
             delete [] buf;
         } else {
             dbgprintf("Successfully added chunk %d to IROB %d\n",
