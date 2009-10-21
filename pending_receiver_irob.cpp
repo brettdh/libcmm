@@ -74,13 +74,13 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
         assert(num_bytes == recvd_bytes);
 
         struct irob_chunk_data trimmed_chunk = chunk;
-        trimmed_chunk.data = NULL;
+        //trimmed_chunk.data = NULL;
         if (chunk.offset < (size_t)recvd_bytes) {
             for (size_t i = 0; i < chunks.size(); ++i) {
                 size_t this_chunk_end = chunks[i].offset + chunks[i].datalen;
                 if (this_chunk_end > trimmed_chunk.offset) {
                     size_t seen_datalen = this_chunk_end - trimmed_chunk.offset;
-                    dbgprintf("Ignoring %lu bytes of already-seen data at offset %lu\n",
+                    dbgprintf("Ignoring %zu bytes of already-seen data at offset %zu\n",
                               seen_datalen, trimmed_chunk.offset);
                     if (seen_datalen >= trimmed_chunk.datalen) {
                         // this entire chunk is redundant; ignore it
@@ -93,23 +93,37 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
             }
             assert(trimmed_chunk.datalen > 0);
             if (trimmed_chunk.datalen < chunk.datalen) {
-                trimmed_chunk.data = new char[trimmed_chunk.datalen];
+                //trimmed_chunk.data = new char[trimmed_chunk.datalen];
                 char *bufp = chunk.data + (chunk.datalen - trimmed_chunk.datalen);
-                memcpy(trimmed_chunk.data, bufp, trimmed_chunk.datalen);
-                delete [] chunk.data;
+                //memcpy(trimmed_chunk.data, bufp, trimmed_chunk.datalen);
+
+                // no need to reallocate; just overwrite the already-seen data,
+                // moving the good data to the start of the buffer
+                memmove(chunk.data, bufp, trimmed_chunk.datalen);
+                //delete [] chunk.data;
             }
+            // update datalen, offset
             chunk = trimmed_chunk;
         }
 
-        assert(chunk.offset == (size_t)recvd_bytes); // no holes
+        //assert(chunk.offset == (size_t)recvd_bytes); // no holes
+        assert(chunk.offset >= (size_t)recvd_bytes);
+        if (chunk.offset > (size_t)recvd_bytes) {
+            // there's a hole before this chunk.  Ignore the chunk, and
+            // request a resend starting from the bytes we've already seen
+            // (resend done above this layer)
+            dbgprintf("add_chunk: detected hole in IROB %ld before chunk %lu\n",
+                      id, chunk.seqno);
+            return false;
+        }
         num_bytes += chunk.datalen;
         recvd_bytes += chunk.datalen;
         chunks.push_back(chunk);
-	dbgprintf("Added chunk %d (%d bytes) to IROB %d new total %d\n", 
+	dbgprintf("Added chunk %lu (%d bytes) to IROB %ld new total %d\n", 
 		  chunk.seqno, chunk.datalen, id, num_bytes);
         assert_valid();
     } else {
-	dbgprintf("Adding chunk %d (%d bytes) on IROB %d failed! recvd_bytes=%d, expected_bytes=%d\n",
+	dbgprintf("Adding chunk %lu (%d bytes) on IROB %ld failed! recvd_bytes=%d, expected_bytes=%d\n",
 		  chunk.seqno, chunk.datalen, id, recvd_bytes, expected_bytes);
         return false;
     }
@@ -155,7 +169,7 @@ PendingReceiverIROB::read_data(void *buf, size_t len)
 {
     ssize_t bytes_copied = 0;
 
-    dbgprintf("Attempting to copy %lu bytes from irob %d, which has %d bytes,\n"
+    dbgprintf("Attempting to copy %zu bytes from irob %ld, which has %d bytes,\n"
 	      "                   %d untouched chunks, and %s partial chunk\n", 
 	      len, id, num_bytes, chunks.size(), (partial_chunk.data?"a":"no"));
     if (partial_chunk.data) {
@@ -198,7 +212,7 @@ PendingReceiverIROB::read_data(void *buf, size_t len)
 		  bytes, len);
     }
     num_bytes -= bytes_copied;
-    dbgprintf("Copied %d bytes from IROB %d\n", bytes_copied, id);
+    dbgprintf("Copied %d bytes from IROB %ld\n", bytes_copied, id);
     return bytes_copied;
 }
 
@@ -206,6 +220,12 @@ ssize_t
 PendingReceiverIROB::numbytes()
 {
     return num_bytes;
+}
+
+ssize_t 
+PendingReceiverIROB::recvdbytes()
+{
+    return recvd_bytes;
 }
 
 PendingReceiverIROBLattice::PendingReceiverIROBLattice(CMMSocketImpl *sk_)
@@ -250,7 +270,7 @@ PendingReceiverIROBLattice::get_ready_irob()
         }
         pirob = partially_read_irob;
         partially_read_irob = NULL;
-        dbgprintf("get_ready_irob: returning partially-read IROB %d\n", 
+        dbgprintf("get_ready_irob: returning partially-read IROB %ld\n", 
                   pirob->id);
     } else {
         /* TODO: nonblocking */
@@ -276,7 +296,7 @@ PendingReceiverIROBLattice::get_ready_irob()
             }
             pi = find(ready_irob_id);
             if (!pi) {
-                dbgprintf("Looks like IROB %d was already received; "
+                dbgprintf("Looks like IROB %ld was already received; "
                           "ignoring\n", ready_irob_id);
             }
 	}
@@ -289,7 +309,7 @@ PendingReceiverIROBLattice::get_ready_irob()
         pirob = dynamic_cast<PendingReceiverIROB*>(pi);
         assert(pirob);
 
-        dbgprintf("get_ready_irob: returning IROB %d\n", 
+        dbgprintf("get_ready_irob: returning IROB %ld\n", 
                   pirob->id);
     }
     return pirob;

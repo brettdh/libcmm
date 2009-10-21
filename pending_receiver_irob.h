@@ -41,6 +41,7 @@ class PendingReceiverIROB : public PendingIROB {
     ssize_t read_data(void *buf, size_t len);
 
     ssize_t numbytes();
+    ssize_t recvdbytes();
 
     // Copy metadata from other and take ownership of its data chunks.
     // other should be a placeholder.
@@ -128,7 +129,7 @@ PendingReceiverIROBLattice::release_if_ready(PendingReceiverIROB *pirob,
 {
     if (is_ready(pirob)) {
         /* TODO: smarter strategy for ordering ready IROBs. */
-        dbgprintf("Releasing IROB %d\n", pirob->id);
+        dbgprintf("Releasing IROB %ld\n", pirob->id);
         release(pirob->id);
     }
 }

@@ -92,11 +92,11 @@ ThreadFn(void * arg)
 	pthread_mutex_unlock(&thread->starter_mutex);
 
         thread->Run();
-	dbgprintf("Thread %08x exited normally.\n", pthread_self());
+	dbgprintf("Thread %08lx exited normally.\n", pthread_self());
     } catch(const std::exception& e) {
-	dbgprintf("Thread %08x exited: %s\n", pthread_self(), e.what());
+	dbgprintf("Thread %08lx exited: %s\n", pthread_self(), e.what());
     } catch(const CMMThreadFinish& e) {
-	dbgprintf("Thread %08x was cancelled via exception.\n", pthread_self());
+	dbgprintf("Thread %08lx was cancelled via exception.\n", pthread_self());
     }
 
     pthread_cleanup_pop(1);
@@ -117,7 +117,7 @@ CMMThread::start()
             dbgprintf("Failed to create thread! rc=%d\n", rc);
             return rc;
         }
-        dbgprintf("Created thread %x\n", tid);
+        dbgprintf("Created thread %lx\n", tid);
         joinable_threads.insert(tid);
     }
 
@@ -127,15 +127,15 @@ CMMThread::start()
 	pthread_cond_wait(&starter_cv, &starter_mutex);
     }
     if (exiting) {
-        dbgprintf("Thread %x started, but is exiting "
+        dbgprintf("Thread %lx started, but is exiting "
                   "as start() returns\n",
                   tid);
     } else {
-        dbgprintf("Thread %x is running\n", tid);
+        dbgprintf("Thread %lx is running\n", tid);
     }
     pthread_mutex_unlock(&starter_mutex);
 #endif
-    dbgprintf("Thread %x started\n", tid);
+    dbgprintf("Thread %lx started\n", tid);
 
     return 0;
 }
@@ -149,7 +149,7 @@ CMMThread::CMMThread()
 
 CMMThread::~CMMThread()
 {
-    dbgprintf("CMMThread %p (tid %x) is being destroyed\n", 
+    dbgprintf("CMMThread %p (tid %lx) is being destroyed\n", 
               this, tid);
     pthread_mutex_destroy(&starter_mutex);
     pthread_cond_destroy(&starter_cv);
@@ -210,7 +210,7 @@ CMMThread::join_all()
         void **result = NULL;
         for (std::set<pthread_t>::iterator it = joinable_threads_private.begin();
              it != joinable_threads_private.end(); it++) {
-            dbgprintf("pthread_join to thread %x\n", *it);
+            dbgprintf("pthread_join to thread %lx\n", *it);
             pthread_join(*it, result);
         }
 

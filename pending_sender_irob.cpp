@@ -52,7 +52,7 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno,
 {
     vector<struct iovec> data;
 
-    dbgprintf("Getting bytes to send from IROB %d\n", id);
+    dbgprintf("Getting bytes to send from IROB %ld\n", id);
     dbgprintf("   (%d chunks total; next_chunk %d chunk_offset %d offset %d\n",
               (int)chunks.size(), next_chunk, chunk_offset, offset);
 
@@ -84,7 +84,7 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno,
         chunk_index++;
     }
 
-    dbgprintf("...returning %d bytes, seqno %d\n",
+    dbgprintf("...returning %d bytes, seqno %lu\n",
               bytes_gathered, next_seqno_to_send);
 
     bytes_requested = bytes_gathered;
@@ -96,7 +96,7 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno,
 void 
 PendingSenderIROB::mark_sent(ssize_t bytes_sent)
 {
-    dbgprintf("Advancing send pointer by %d for IROB %d\n", bytes_sent, id);
+    dbgprintf("Advancing send pointer by %d for IROB %ld\n", bytes_sent, id);
     dbgprintf("   (%d chunks total; next_chunk %d chunk_offset %d offset %d\n",
               (int)chunks.size(), next_chunk, chunk_offset, offset);
 
@@ -119,7 +119,7 @@ PendingSenderIROB::mark_sent(ssize_t bytes_sent)
 void
 PendingSenderIROB::rewind(size_t pos)
 {
-    dbgprintf("Resetting send pointer for IROB %d\n", id);
+    dbgprintf("Resetting send pointer for IROB %ld\n", id);
     next_seqno_to_send = INVALID_IROB_SEQNO + 1;
     next_chunk = 0;
     chunk_offset = 0;

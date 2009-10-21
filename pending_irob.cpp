@@ -171,7 +171,7 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
 {
     assert(pirob);
     if (past_irobs.contains(pirob->id)) {
-        dbgprintf("Inserting IROB %d failed; it's in past_irobs\n", pirob->id);
+        dbgprintf("Inserting IROB %ld failed; it's in past_irobs\n", pirob->id);
         return false;
     }
 
@@ -184,7 +184,7 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
     if (index >= 0 && index < (int)pending_irobs.size() && 
         (pending_irobs[index] != NULL &&
          !pending_irobs[index]->placeholder)) {
-        dbgprintf("Inserting IROB %d failed; I have it already??\n", pirob->id);
+        dbgprintf("Inserting IROB %ld failed; I have it already??\n", pirob->id);
         return false;
     }
     while (index < 0) {
@@ -217,7 +217,7 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
 
     correct_deps(pirob, infer_deps);
 
-    dbgprintf("Adding IROB %d as dependent of: [ ", pirob->id);
+    dbgprintf("Adding IROB %ld as dependent of: [ ", pirob->id);
     for (irob_id_set::iterator it = pirob->deps.begin();
          it != pirob->deps.end(); it++) {
         if (past_irobs.contains(*it)) {
@@ -356,7 +356,7 @@ PendingIROBLattice::erase(irob_id_t id, bool at_receiver)
     int index = id - offset;
     if (index < 0 || index >= (int)pending_irobs.size() ||
         pending_irobs[index] == NULL) {
-        dbgprintf("WARNING: failed to remove IROB %d from lattice!\n", id);
+        dbgprintf("WARNING: failed to remove IROB %ld from lattice!\n", id);
         return false;
     }
     past_irobs.insert(id);
@@ -374,7 +374,7 @@ PendingIROBLattice::erase(irob_id_t id, bool at_receiver)
     // don't want to do this at the sender; want to preserve
     // dep information until it arrives at the receiver
     if (at_receiver) {
-        dbgprintf("Notifying dependents of IROB %d's release: [ ", id);
+        dbgprintf("Notifying dependents of IROB %ld's release: [ ", id);
         for (irob_id_set::iterator it = victim->dependents.begin();
              it != victim->dependents.end(); it++) {
             

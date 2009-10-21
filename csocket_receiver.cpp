@@ -191,7 +191,7 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
         if (!sk->incoming_irobs.insert(pirob, false)) {
             delete pirob;
             //throw CMMFatalError("Tried to begin committed IROB", hdr);
-            dbgprintf("do_begin_irob: duplicate IROB %d, ignoring\n", id);
+            dbgprintf("do_begin_irob: duplicate IROB %ld, ignoring\n", id);
         }
     }
 
@@ -201,7 +201,7 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
 
     TIME(end);
     TIMEDIFF(begin, end, diff);
-    dbgprintf("Receiver began IROB %d, took %lu.%06lu seconds\n",
+    dbgprintf("Receiver began IROB %ld, took %lu.%06lu seconds\n",
 	      id, diff.tv_sec, diff.tv_usec);
 }
 
@@ -223,13 +223,13 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
         if (!pirob) {
             if (sk->incoming_irobs.past_irob_exists(id)) {
                 //throw CMMFatalError("Tried to end committed IROB", hdr);
-                dbgprintf("do_end_irob: previously-finished IROB %d, resending ACK\n", id);
+                dbgprintf("do_end_irob: previously-finished IROB %ld, resending ACK\n", id);
                 sk->irob_indexes.waiting_acks.insert(IROBSchedulingData(id, false));
                 pthread_cond_broadcast(&sk->scheduling_state_cv);
                 return;
             } else {
                 //throw CMMFatalError("Tried to end nonexistent IROB", hdr);
-                dbgprintf("Receiver got End_IROB for IROB %d; "
+                dbgprintf("Receiver got End_IROB for IROB %ld; "
                           "creating placeholder\n", id);
                 pirob = sk->incoming_irobs.make_placeholder(id);
                 bool ret = sk->incoming_irobs.insert(pirob, false);
@@ -246,7 +246,7 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
         if (!prirob->finish(expected_bytes)) {
             //throw CMMFatalError("Tried to end already-done IROB", hdr);
-            dbgprintf("do_end_irob: already-finished IROB %d, ", id);
+            dbgprintf("do_end_irob: already-finished IROB %ld, ", id);
             if (prirob->is_complete()) {
                 dbgprintf_plain("resending ACK\n");
             } else {
@@ -280,7 +280,7 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
 
     TIME(end);
     TIMEDIFF(begin, end, diff);
-    dbgprintf("Receiver ended IROB %d, took %lu.%06lu seconds\n",
+    dbgprintf("Receiver ended IROB %ld, took %lu.%06lu seconds\n",
 	      id, diff.tv_sec, diff.tv_usec);
 }
 
@@ -304,13 +304,13 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         if (!pirob) {
             if (sk->incoming_irobs.past_irob_exists(id)) {
                 //throw CMMFatalError("Tried to add to committed IROB", hdr);
-                dbgprintf("do_irob_chunk: duplicate chunk %s for IROB %d, ignoring\n", 
+                dbgprintf("do_irob_chunk: duplicate chunk %d for IROB %ld, ignoring\n", 
                           ntohl(hdr.op.irob_chunk.seqno), id);
                 delete [] buf;
                 return;
             } else {
                 //throw CMMFatalError("Tried to add to nonexistent IROB", hdr);
-                dbgprintf("Receiver got IROB_chunk for IROB %d; "
+                dbgprintf("Receiver got IROB_chunk for IROB %ld; "
                           "creating placeholder\n", id);
                 pirob = sk->incoming_irobs.make_placeholder(id);
                 bool ret = sk->incoming_irobs.insert(pirob, false);
@@ -331,12 +331,21 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
         assert(prirob);
         if (!prirob->add_chunk(chunk)) {
-            //throw CMMFatalError("Tried to add to completed IROB", hdr);
-            dbgprintf("do_irob_chunk: duplicate chunk %s for IROB %d, ignoring\n", 
-                      chunk.seqno, id);
+            if (prirob->is_complete()) {
+                //throw CMMFatalError("Tried to add to completed IROB", hdr);
+                dbgprintf("do_irob_chunk: duplicate chunk %lu for IROB %ld, ignoring\n", 
+                          chunk.seqno, id);
+            } else {
+                dbgprintf("do_irob_chunk: hole detected in IROB %ld, "
+                          "requesting resend from offset %d\n",
+                          id, prirob->recvdbytes());
+
+                IROBSchedulingData data(id, CMM_RESEND_REQUEST_DATA);
+                csock->irob_indexes.resend_requests.insert(data);
+            }
             delete [] buf;
         } else {
-            dbgprintf("Successfully added chunk %d to IROB %d\n",
+            dbgprintf("Successfully added chunk %lu to IROB %ld\n",
                       chunk.seqno, id);
         }
 
@@ -350,7 +359,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     
     TIME(end);
     TIMEDIFF(begin, end, diff);
-    dbgprintf("Added chunk %d in IROB %d, took %lu.%06lu seconds\n",
+    dbgprintf("Added chunk %d in IROB %ld, took %lu.%06lu seconds\n",
 	      ntohl(hdr.op.irob_chunk.seqno), id, diff.tv_sec, diff.tv_usec);
 }
 
@@ -391,7 +400,7 @@ void CSocketReceiver::do_default_irob(struct CMMSocketControlHdr hdr)
 
     TIME(end);
     TIMEDIFF(begin, end, diff);
-    dbgprintf("Received default IROB %d, took %lu.%06lu seconds\n",
+    dbgprintf("Received default IROB %ld, took %lu.%06lu seconds\n",
 	      id, diff.tv_sec, diff.tv_usec);
 }
 #endif
@@ -448,8 +457,8 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
 
     TIME(end);
     TIMEDIFF(begin, end, diff);
-    dbgprintf("Receiver got ACK for IROB %d and %u others, took %lu.%06lu seconds\n",
-	      ntohl(hdr.op.ack.id), num_acks,
+    dbgprintf("Receiver got ACK for IROB %ld and %u others, took %lu.%06lu seconds\n",
+	      (irob_id_t)ntohl(hdr.op.ack.id), num_acks,
 	      diff.tv_sec, diff.tv_usec);
 }
 

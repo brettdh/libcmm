@@ -92,7 +92,7 @@ CSocketSender::Run()
             vector<irob_id_t> unacked_irobs = sk->ack_timeouts.remove_expired();
             for (size_t i = 0; i < unacked_irobs.size(); ++i) {
                 if (sk->outgoing_irobs.find(unacked_irobs[i]) != NULL) {
-                    dbgprintf("ACK timeout expired for IROB %d, resending End_IROB\n",
+                    dbgprintf("ACK timeout expired for IROB %ld, resending End_IROB\n",
                               unacked_irobs[i]);
                     IROBSchedulingData refinished_irob(unacked_irobs[i], false);
                     sk->irob_indexes.finished_irobs.insert(refinished_irob);
@@ -865,7 +865,7 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
         if (prirob) {
             // tell the remote sender that we have some of the bytes
-            hdr.op.resend_request.offset = htonl(prirob->numbytes());
+            hdr.op.resend_request.offset = htonl(prirob->recvdbytes());
         }
     }
     hdr.send_labels = htonl(csock->local_iface.labels);

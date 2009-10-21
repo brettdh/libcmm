@@ -46,7 +46,7 @@ void
 IROBPrioritySet::insert(IROBSchedulingData data)
 {
     //TODO: do something more interesting.
-    dbgprintf("Inserting scheduling request for IROB %d (%s)\n",
+    dbgprintf("Inserting scheduling request for IROB %ld (%s)\n",
               data.id, data.chunks_ready ? "chunk" : "irob");
     data.owner = owner;
     tasks.insert(data);
@@ -57,7 +57,7 @@ IROBPrioritySet::pop(IROBSchedulingData& data)
 {
     bool ret = pop_item(tasks, data);
     if (ret) {
-        dbgprintf("Grabbing scheduling request for IROB %d (%s)\n",
+        dbgprintf("Grabbing scheduling request for IROB %ld (%s)\n",
                   data.id, data.chunks_ready ? "chunk" : "irob");
     }
     return ret;

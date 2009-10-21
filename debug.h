@@ -8,9 +8,11 @@
 #endif
 
 #ifdef CMM_DEBUG
-void set_debugging(bool value);
-CDECL void dbgprintf(const char *format, ...);
-CDECL void dbgprintf_plain(const char *format, ...);
+CDECL void set_debugging(bool value);
+CDECL void dbgprintf(const char *format, ...)
+  __attribute__((format(printf, 1, 2)));
+CDECL void dbgprintf_plain(const char *format, ...)
+  __attribute__((format(printf, 1, 2)));
 #else
 #define dbgprintf(...)
 #define dbgprintf_plain(...)
