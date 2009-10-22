@@ -6,20 +6,62 @@
 #include <time.h>
 #include <pthread.h>
 #include "libcmm_irob.h"
+#include <map>
+
+
+class Estimate {
+  public:
+    // pick estimate based on control limits
+    u_long get_estimate();
+    
+    void add_observation(u_long new_spot_value);
+    
+    Estimate();
+  private:
+    /// keep as double for precision; convert to u_long on request
+    double stable_estimate;
+    double agile_estimate;
+    double spot_value;
+    double moving_range;
+    double center_line;
+    bool valid;
+    
+    bool spot_value_within_limits();
+};
+
+class QueuingDelay {
+  public:
+    /* Compute the queuing delay of a message based on the 
+     * queuing delay of the previous message, its
+     * arrival time, and the arrival time and size of the
+     * current message.
+     */
+    struct timeval add_message(size_t msg_size, u_long bw_estimate);
+    QueuingDelay();
+  private:
+    struct timeval last_msg_time;
+    struct timeval last_msg_qdelay;
+    size_t last_msg_size;
+    u_long last_bw_estimate;
+};
+
+// estimate types, for use with get_estimate
+#define NET_STATS_LATENCY 0
+#define NET_STATS_BW_UP   1
+#define NET_STATS_BW_DOWN 2
+
+#define NUM_ESTIMATES 3
 
 // each CSocket will include an object of this type, since the stats
 // are kept for each (local,remote) interface pair.
 class NetStats {
   public:
-    // Retrieve the current estimate for the three parameters of interest.
-    //  Caller may pass NULL if it is not interested in one or more
-    //  of the estimates.
+    // Retrieve the current estimate for the parameter of interest.
     // Returns true on success; false if there isn't sufficient
-    //  history to compute an estimate.
-    bool get_estimate(u_long *latency,
-                      u_long *bandwidth_up,
-                      u_long *bandwidth_down);
-
+    //  history to compute the estimate, or if either argument
+    //  is invalid.
+    bool get_estimate(unsigned short type, u_long *value);
+      
     // CSocketSender should call this immediately before it sends
     //  bytes related to an IROB.  The bytes argument should include
     //  the total number of bytes passed to the system call.
@@ -36,15 +78,48 @@ class NetStats {
     //  "service time" reported with the ACK.
     void report_ack(irob_id_t irob_id, struct timeval srv_time);
 
-    NetStats();    
+    // The remote host computes its upstream b/w and sends it to
+    //  me; it's my downstream b/w.  CSocketReceiver should
+    //  call this when it receives such a message.
+    // This value will be treated as a spot value, not as a 
+    //  smoothed estimate.
+    void report_bw_down(u_long bw_down);
+
+    NetStats(struct in_addr local_addr_, 
+             struct in_addr remote_addr_);
   private:
-    void add_queuing_delay(irob_id_t irob_id);
+    void add_queuing_delay(irob_id_t irob_id, struct timeval delay);
 
     struct in_addr local_addr;
     struct in_addr remote_addr;
 
     // Enforces safe concurrent accesses and atomic updates of stats
-    pthread_rwlock_t lock;
+    pthread_rwlock_t my_lock;
+
+    QueuingDelay outgoing_qdelay;
+    QueuingDelay incoming_qdelay;
+
+    bool estimates_valid;
+    Estimate net_estimates[NUM_ESTIMATES];
+
+    struct timeval last_RTT;
+    size_t last_reqsize;
+    
+    struct irob_measurement {
+        struct timeval arrival_time;
+
+        struct timeval total_qdelay;       // queuing delay due to self-interference
+        struct timeval total_send_delay;   // time between send calls for this IROB
+        size_t total_size;                 /* total of all IROB-related bytes sent,
+                                            *  including headers */
+
+        void add_qdelay(struct timeval qdelay);
+        void add_send_delay(struct timeval send_delay);
+    };
+
+    typedef std::map<irob_id_t, struct irob_measurement> irob_measurements;
 };
+
+void update_EWMA(double& EWMA, double spot, double gain);
 
 #endif

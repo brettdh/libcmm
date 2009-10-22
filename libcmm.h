@@ -28,12 +28,17 @@ typedef int mc_socket_t;
 #define CMM_DEFERRED -2
 
 /* available labels */
-#define CMM_LABEL_RED 0x1
-#define CMM_LABEL_BLUE 0x2
+//#define CMM_LABEL_RED 0x1
+//#define CMM_LABEL_BLUE 0x2
+
+// use at most one of these two.
 #define CMM_LABEL_ONDEMAND 0x4
 #define CMM_LABEL_BACKGROUND 0x8
+
+// use at most one of these two.
 #define CMM_LABEL_SMALL 0x10
 #define CMM_LABEL_LARGE 0x20
+
 #define CMM_LABEL_UNUSED 0x40
 #define CMM_LABEL_ALL (CMM_LABEL_UNUSED - 1)
 #define CMM_LABEL_COUNT 6

@@ -38,3 +38,21 @@ struct timespec abs_time(struct timespec rel_time)
     }
     return now;
 }
+
+suseconds_t convert_to_useconds(struct timeval tv)
+{
+    suseconds_t useconds = tv.tv_sec * 1000000;
+    if (useconds < (suseconds_t)tv.tv_sec) {
+        // overflow
+        return 0;
+    }
+    return (useconds + tv.tv_usec);
+}
+
+struct timeval convert_to_timeval(u_long useconds)
+{
+    struct timeval tv;
+    tv.tv_sec = useconds / 1000000;
+    tv.tv_usec = useconds - (tv.tv_sec * 1000000);
+    return tv;
+}

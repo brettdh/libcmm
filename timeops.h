@@ -114,4 +114,8 @@ struct TimeFunctionBody {
 };
 #endif /* DEF_TIMEOPS */
 
+/* convert between u_long and struct timeval */
+suseconds_t convert_to_useconds(struct timeval tv);
+struct timeval convert_to_timeval(u_long useconds);
+
 #endif /* timeops_h_incl */

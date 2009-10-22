@@ -1,9 +1,38 @@
-Note: this API description was last updated on 2009-07-15.
+Note: this API description was last updated on 2009-10-22.
+It still might be incomplete or otherwise out of date.
 
 -------------
 
 libcmm: Connection Manager Manager [sic]
 
+Quick start guide:
+
+1) Install prerequisites if necessary.
+    * Boost
+    * POSIX message queue support (librt)
+      (This is annoying.  I plan to exchange this
+       for SysV IPC, which seems to be the more
+       widely available default.)
+
+    * Threading Building Blocks (included; nevermind)
+      (I might phase this out eventually too.)
+
+2) $ make
+   $ sudo make install
+
+3) #include libcmm.h and libcmm_irob.h as needed.
+
+4) Make sure to run conn_scout before starting your application.
+   It takes command-line arguments to set up network bandwidth,
+   latency, and uptime/downtime.  Be sure to set these to something
+   resembling the actual characteristics of your test networks,
+   or your performance could suffer.
+
+Optional: create /etc/cmm_config with the word "debug" by itself on a line
+          if you want copious debugging printfs for some reason.
+          Possible Reason: to see if there's a bug you can yell at me about.
+
+--------------
 
 Libcmm provides wrapper functions for the standard socket library to
 enable application deal with diverse networks. Libcmm uses the notion
@@ -97,33 +126,6 @@ expected operation as needed on the underlying OS sockets (one or
 more).  Examples include cmm_select, cmm_setsockopt, cmm_getpeername,
 cmm_read, etc.
 
-/* THE FUNCTIONS DESCRIBED IN THIS SECTION ARE AND ARE NOT IMPLEMENTED
- * IN THE CURRENT VERSION, AND ARE PROBABLY NO LONGER NEEDED,
- * SINCE THE ERROR-HANDLING IS NOW DONE IN THE LIBRARY. */
-We provide two functions to help applications deal with failed network
-operations.  Firstly, the cmm_check_label function returns 0 if the
-given label is available; if the label is unavailable, it returns
-CMM_DEFERRED and registers the supplied thunk (or CMM_FAILED if no
-thunk is supplied).  If an operation fails in the middle of its system
-call (for example, due to a network becoming unavailable), we simply
-pass the error back to the caller.  This error must be dealt with by
-the application, since a portion of the original message buffer may
-have been sent.  Applications can use cmm_check_label to inform their
-error-handling code.  Secondly, the cmm_reset function restores an
-mc_socket to the state just after cmm_connect was called, before any
-network operations have occurred.  The next cmm_send (or similar) will
-attempt to connect the socket and run the application-specific
-label-up callback.  This is useful when recovering from an error in a
-non-deferrable function - cmm_read, for example.
-
 Thunks may be cancelled with the cmm_thunk_cancel function.  It flags
 all thunks matching the handler function pointer as cancelled and,
 optionally, invokes the deleter function on their stored arguments.
-
-Describing label preferences:
-[Could be done manually or by the connection scout]
-The API reads in a configuration file to determine if some interfaces are
-'superior' than others. This helps the API to dynamically choose a better
-interface if multiple are available. Check the sample configuration file
-for format.
-	 

@@ -42,6 +42,12 @@ Considerations for measuring RTT:
    This will also need to be done for the multiple messages that
    comprise the request as well as for queuing delays between 
    messages that are part of different IROBs.
+ * Don't forget to include queuing delay between ACKs as well.
+   Actually, the ACKs are so tiny that the queuing delay is
+   probably negligible.  For a single ACK header, all the 
+   following ACKs can be said to arrive at about the same time.
+   The delay of ACKs queued behind other responses, though, is 
+   important.
 
 Producing usable estimates
 
