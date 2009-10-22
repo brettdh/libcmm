@@ -155,7 +155,7 @@ void
 Estimate::add_observation(u_long new_spot_value_int)
 {
     double new_spot_value = static_cast<double>(new_spot_value_int);
-    double new_MR_value = abs(new_spot_value - spot_value);
+    double new_MR_value = fabs(new_spot_value - spot_value);
     spot_value = new_spot_value;
 
     if (!valid) {
