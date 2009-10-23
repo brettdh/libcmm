@@ -2,6 +2,7 @@
 #include <cppunit/TestAssert.h>
 #include <cppunit/extensions/HelperMacros.h>
 #include "estimation_test.h"
+#include "timeops.h"
 
 CPPUNIT_TEST_SUITE_REGISTRATION(EstimationTest);
 
@@ -9,12 +10,14 @@ void
 EstimationTest::setUp()
 {
     estimate = new Estimate;
+    delays = new QueuingDelay;
 }
 
 void
 EstimationTest::tearDown()
 {
     delete estimate;
+    delete delays;
 }
 
 #define STABLE_GAIN 0.9
@@ -59,4 +62,26 @@ EstimationTest::testFlipFlop()
                (u_long)stable_estimate, (u_long)agile_estimate,
                (u_long)estimate->get_estimate());
     }
+}
+
+void
+EstimationTest::testQueuingDelay()
+{
+    struct timeval reference = {0,0};
+    struct timeval tv;
+    tv = delays->add_message(3, 1);
+    printf("Message 1: queuing delay = %lu.%06lu\n",
+           tv.tv_sec, tv.tv_usec);
+    CPPUNIT_ASSERT_MESSAGE("First message - no queuing delay",
+                           timercmp(&reference, &tv, ==));
+
+    sleep(2);
+    tv = delays->add_message(3, 3);
+    printf("Message 2: queuing delay = %lu.%06lu\n",
+           tv.tv_sec, tv.tv_usec);
+    CPPUNIT_ASSERT_MESSAGE("First message - nonzero delay",
+                           timercmp(&reference, &tv, <));    
+    reference.tv_sec = 1;
+    CPPUNIT_ASSERT_MESSAGE("First message - less than 1 delay",
+                           timercmp(&reference, &tv, >));
 }

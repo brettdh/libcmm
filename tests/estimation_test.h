@@ -7,9 +7,11 @@
 
 class EstimationTest : public CppUnit::TestFixture {
     Estimate *estimate;
+    QueuingDelay *delays;
 
     CPPUNIT_TEST_SUITE(EstimationTest);
     CPPUNIT_TEST(testFlipFlop);
+    CPPUNIT_TEST(testQueuingDelay);
     CPPUNIT_TEST_SUITE_END();
 
   public:
@@ -17,6 +19,7 @@ class EstimationTest : public CppUnit::TestFixture {
     void tearDown();
 
     void testFlipFlop();
+    void testQueuingDelay();
 };
 
 #endif

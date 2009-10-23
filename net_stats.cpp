@@ -4,7 +4,7 @@
 #include <netinet/in.h>
 #include <sys/types.h>
 #include "timeops.h"
-
+#include <cmath>
 
 NetStats::NetStats(struct in_addr local_addr_, 
                    struct in_addr remote_addr_)
