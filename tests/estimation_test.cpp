@@ -30,6 +30,11 @@ EstimationTest::tearDown()
 #define STABLE_GAIN 0.9
 #define AGILE_GAIN 0.1
 
+static u_long round_nearest(double val)
+{
+    return static_cast<u_long>(val + 0.5);
+}
+
 void
 EstimationTest::testFlipFlop()
 {
@@ -47,7 +52,7 @@ EstimationTest::testFlipFlop()
     bool ret = estimate->get_estimate(est_value);
     CPPUNIT_ASSERT(ret);
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Returns agile estimate at first",
-                                 (u_long)agile_estimate, 
+                                 round_nearest(agile_estimate),
                                  est_value);
 
     spot_value = 2000.0;
@@ -58,12 +63,13 @@ EstimationTest::testFlipFlop()
     ret = estimate->get_estimate(est_value);
     CPPUNIT_ASSERT(ret);    
     printf("stable: %lu agile: %lu flipflop: %lu\n",
-           (u_long)stable_estimate, (u_long)agile_estimate,
+           round_nearest(stable_estimate), 
+           round_nearest(agile_estimate),
            est_value);
 
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Returns stable estimate "
                                  "when variance is too big",
-                                 (u_long)stable_estimate, 
+                                 round_nearest(stable_estimate), 
                                  est_value);
 
     for (int i = 0; i < 20; ++i) {
@@ -74,7 +80,8 @@ EstimationTest::testFlipFlop()
         ret = estimate->get_estimate(est_value);
         CPPUNIT_ASSERT(ret);    
         printf("stable: %lu agile: %lu flipflop: %lu\n",
-               (u_long)stable_estimate, (u_long)agile_estimate,
+               round_nearest(stable_estimate),
+               round_nearest(agile_estimate),
                est_value);
     }
 }
@@ -102,27 +109,90 @@ EstimationTest::testQueuingDelay()
 }
 
 void
-EstimationTest::testNetStats()
+EstimationTest::testNetStatsSimple()
 {
-    struct timeval zero = {0,0};
-    struct timespec sleeptime = {1, 40000000};
+    // true bw: 5000 Bps  true latency: 20ms
 
-    stats->report_send_event(1, 5);
+    struct timeval zero = {0,0};
+
+    // bump up bandwidth estimate to avoid rounding error
+    struct timespec sleeptime = {1, 40 * 1000 * 1000};
+
+    stats->report_send_event(1, 5000);
     nowake_nanosleep(&sleeptime);
     stats->report_ack(1, zero);
     
     sleeptime.tv_sec = 2;
-    stats->report_send_event(2, 10);
+    stats->report_send_event(2, 10000);
     nowake_nanosleep(&sleeptime);
     stats->report_ack(2, zero);
     
+    assertStatsCorrect(5000, 20);
+}
+
+void 
+EstimationTest::testNetStatsWithQueuingDelay()
+{
+    // true bw: 5000 Bps  true latency: 20ms
+    // simulate queuing delay of 3sec
+
+    // make sure we have a bandwidth estimate ready
+    testNetStatsSimple();
+
+    struct timeval zero = {0,0};
+    struct timespec sleeptime1 = {0, 500 * 1000 * 1000};
+    struct timespec sleeptime2 = {0, 540 * 1000 * 1000};
+    struct timespec sleeptime3 = {2, 0 * 1000 * 1000};
+    nowake_nanosleep(&sleeptime1);
+
+    stats->report_send_event(3, 5000);
+
+    nowake_nanosleep(&sleeptime1);
+
+    stats->report_send_event(4, 10000);
+
+    nowake_nanosleep(&sleeptime2);
+
+    stats->report_ack(3, zero);
+    
+    nowake_nanosleep(&sleeptime3);
+
+    stats->report_ack(4, zero);
+    
+    assertStatsCorrect(5000, 20);
+}
+
+void
+EstimationTest::testNetStatsWithSenderDelay()
+{
+    testNetStatsSimple();
+    
+    struct timeval zero = {0,0};
+    struct timespec sleeptime1 = {0, 300 * 1000 * 1000};
+    struct timespec sleeptime2 = {2, 40 * 1000 * 1000};
+    nowake_nanosleep(&sleeptime1);
+
+    stats->report_send_event(5, 5000);
+
+    nowake_nanosleep(&sleeptime1);
+    stats->report_send_event(5, 5000);
+
+    nowake_nanosleep(&sleeptime2);
+
+    stats->report_ack(5, zero);
+
+    assertStatsCorrect(5000, 20);
+}
+
+void
+EstimationTest::assertStatsCorrect(u_long expected_bw, 
+                                   u_long expected_latency)
+{
     u_long bw = 0, latency = 0;
     bool ret = stats->get_estimate(NET_STATS_BW_UP, bw);
     ret = ret && stats->get_estimate(NET_STATS_LATENCY, latency);
     CPPUNIT_ASSERT(ret);
 
-    u_long expected_bw = 5;
-    u_long expected_latency = 20;
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Bandwidth estimate matches expected",
                                  expected_bw, bw);
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Latency estimate matches expected",

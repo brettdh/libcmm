@@ -12,19 +12,19 @@ ReceiverLatticeTest::setUp()
 {
     pirobs = new PendingReceiverIROBLattice(NULL);
 
-    int *new_int = (int*)malloc(sizeof(int));
+    int *new_int = new int;
     *new_int = 0;
     pirob_array[0] = new PendingReceiverIROB(0, 0, NULL, sizeof(int), (char*)new_int, 0);
 
-    new_int = (int*)malloc(sizeof(int));
+    new_int = new int;
     *new_int = 1;
     pirob_array[1] = new PendingReceiverIROB(1, 0, NULL, sizeof(int), (char*)new_int, 0);
 
-    new_int = (int*)malloc(sizeof(int));
+    new_int = new int;
     *new_int = 2;
     pirob_array[2] = new PendingReceiverIROB(2, 0, NULL, sizeof(int), (char*)new_int, 0);
     
-    new_int = (int*)malloc(sizeof(int));
+    new_int = new int;
     *new_int = 3;
     pirob_array[3] = new PendingReceiverIROB(3, 0, NULL, sizeof(int), (char*)new_int, 0);
 }

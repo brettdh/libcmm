@@ -57,7 +57,7 @@ libcmm.so: libcmm.o libcmm_ipc.o cmm_socket.o cmm_socket_impl.o \
 
 .PHONY: libcmm.tgz
 libcmm.tgz:
-	make clean && tar czf ./libcmm.tgz *.h *.cpp Make* README.txt tbb *.so*
+	tar czf ./libcmm.tgz *.h *.cpp Makefile Makeconf.local.sample README.txt tbb libtbb*
 
 # Generate header dependency rules
 #   see http://stackoverflow.com/questions/204823/

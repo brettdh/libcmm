@@ -13,7 +13,9 @@ class EstimationTest : public CppUnit::TestFixture {
     CPPUNIT_TEST_SUITE(EstimationTest);
     CPPUNIT_TEST(testFlipFlop);
     CPPUNIT_TEST(testQueuingDelay);
-    CPPUNIT_TEST(testNetStats);
+    CPPUNIT_TEST(testNetStatsSimple);
+    CPPUNIT_TEST(testNetStatsWithQueuingDelay);
+    CPPUNIT_TEST(testNetStatsWithSenderDelay);
     CPPUNIT_TEST_SUITE_END();
 
   public:
@@ -22,7 +24,13 @@ class EstimationTest : public CppUnit::TestFixture {
 
     void testFlipFlop();
     void testQueuingDelay();
-    void testNetStats();
+    void testNetStatsSimple();
+    void testNetStatsWithQueuingDelay();
+    void testNetStatsWithSenderDelay();
+
+  private:
+    void assertStatsCorrect(u_long expected_bw, 
+                            u_long expected_latency);
 };
 
 #endif
