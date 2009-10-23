@@ -8,10 +8,12 @@
 class EstimationTest : public CppUnit::TestFixture {
     Estimate *estimate;
     QueuingDelay *delays;
+    NetStats *stats;
 
     CPPUNIT_TEST_SUITE(EstimationTest);
     CPPUNIT_TEST(testFlipFlop);
     CPPUNIT_TEST(testQueuingDelay);
+    CPPUNIT_TEST(testNetStats);
     CPPUNIT_TEST_SUITE_END();
 
   public:
@@ -20,6 +22,7 @@ class EstimationTest : public CppUnit::TestFixture {
 
     void testFlipFlop();
     void testQueuingDelay();
+    void testNetStats();
 };
 
 #endif

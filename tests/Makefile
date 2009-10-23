@@ -1,4 +1,4 @@
-CXXFLAGS:=-Wall -Werror -I. -I.. -m32 -g -DCMM_UNIT_TESTING #-DCMM_DEBUG 
+CXXFLAGS:=-Wall -Werror -I. -I.. -m32 -g -DCMM_UNIT_TESTING -DCMM_DEBUG 
 LDFLAGS:=-L. -L.. -lcppunit -ldl -ltbb
 
 EXECUTABLES=run_unit_tests run_lib_tests run_remote_tests run_thunk_tests run_trickle_tests
@@ -37,7 +37,8 @@ TESTOBJS := pending_irob_test.o lattice_test.o intset_test.o \
 	    ack_timeouts_test.o pending_receiver_irob_test.o \
 	    estimation_test.o
 SUPPORTOBJS := pending_irob.o intset.o debug.o pending_receiver_irob.o \
-	       pending_sender_irob.o timeops.o ack_timeouts.o net_stats.o
+	       pending_sender_irob.o timeops.o ack_timeouts.o net_stats.o \
+	       test_common.o debug.o
 
 run_unit_tests: run_all_tests.o $(TESTOBJS) $(SUPPORTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
@@ -56,7 +57,7 @@ run_thunk_tests: run_all_tests.o $(THUNKTESTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl -pthread
 
 TRICKLETESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o trickle_tests.o
-run_trickle_tests: run_all_tests.o $(TRICKLETESTOBJS)
+run_trickle_tests: run_all_tests.o $(TRICKLETESTOBJS) test_common.o
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl -pthread
 
 clean:

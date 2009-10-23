@@ -12,13 +12,14 @@
 class Estimate {
   public:
     // pick estimate based on control limits
-    u_long get_estimate();
+    // returns true on success, false if there are no observations yet
+    bool get_estimate(u_long& est);
     
     void add_observation(u_long new_spot_value);
     
     Estimate();
   private:
-    /// keep as double for precision; convert to u_long on request
+    // keep as double for precision; convert to u_long on request
     double stable_estimate;
     double agile_estimate;
     double spot_value;
@@ -45,6 +46,30 @@ class QueuingDelay {
     u_long last_bw_estimate;
 };
 
+class IROBMeasurement {
+  public:
+    IROBMeasurement();
+    void add_bytes(size_t bytes);
+    void add_delay(struct timeval delay);
+    void ack();
+
+    // don't call until after calling ack()
+    struct timeval RTT();
+    size_t num_bytes();
+  private:
+    /* total of all IROB-related
+     * bytes sent, including headers */
+    size_t total_size;
+    struct timeval arrival_time;
+    struct timeval last_activity;
+    struct timeval ack_time;
+
+    /* includes both queuing delay due to self-interference time
+     * and time between send calls for this IROB */
+    struct timeval total_delay;
+};
+
+
 // estimate types, for use with get_estimate
 #define NET_STATS_LATENCY 0
 #define NET_STATS_BW_UP   1
@@ -60,7 +85,7 @@ class NetStats {
     // Returns true on success; false if there isn't sufficient
     //  history to compute the estimate, or if either argument
     //  is invalid.
-    bool get_estimate(unsigned short type, u_long *value);
+    bool get_estimate(unsigned short type, u_long& value);
       
     // CSocketSender should call this immediately before it sends
     //  bytes related to an IROB.  The bytes argument should include
@@ -72,6 +97,11 @@ class NetStats {
     //  for IROB-related messages that are queued behind non-IROB-related
     //  messages.
     void report_send_event(size_t bytes);
+
+    // CSocketReceiver should call this immediately before it receives bytes
+    //  UNrelated to an IROB.  This is needed to compute queuing delays
+    //  for IROB-related messages that are queued behind ACKs.
+    void report_recv_event(size_t bytes);
 
     // CSocketReceiver should call this immediately after it receives
     //  the ACK for an IROB.  The srv_time argument should be the
@@ -88,8 +118,6 @@ class NetStats {
     NetStats(struct in_addr local_addr_, 
              struct in_addr remote_addr_);
   private:
-    void add_queuing_delay(irob_id_t irob_id, struct timeval delay);
-
     struct in_addr local_addr;
     struct in_addr remote_addr;
 
@@ -99,25 +127,14 @@ class NetStats {
     QueuingDelay outgoing_qdelay;
     QueuingDelay incoming_qdelay;
 
-    bool estimates_valid;
     Estimate net_estimates[NUM_ESTIMATES];
 
     struct timeval last_RTT;
-    size_t last_reqsize;
+    struct timeval last_srv_time;
+    size_t last_req_size;
     
-    struct irob_measurement {
-        struct timeval arrival_time;
-
-        struct timeval total_qdelay;       // queuing delay due to self-interference
-        struct timeval total_send_delay;   // time between send calls for this IROB
-        size_t total_size;                 /* total of all IROB-related bytes sent,
-                                            *  including headers */
-
-        void add_qdelay(struct timeval qdelay);
-        void add_send_delay(struct timeval send_delay);
-    };
-
-    typedef std::map<irob_id_t, struct irob_measurement> irob_measurements;
+    typedef std::map<irob_id_t, IROBMeasurement> irob_measurements_t;
+    irob_measurements_t irob_measurements;
 };
 
 void update_EWMA(double& EWMA, double spot, double gain);

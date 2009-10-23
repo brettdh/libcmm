@@ -18,6 +18,7 @@
 
 #include <pthread.h>
 #include "../pthread_util.h"
+#include "test_common.h"
 
 CPPUNIT_TEST_SUITE_REGISTRATION(TrickleTests);
 
@@ -31,19 +32,6 @@ struct thread_args {
 };
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
-static void nowake_nanosleep(const struct timespec *duration)
-{
-    struct timespec time_left;
-    struct timespec sleep_time = *duration;
-    while (nanosleep(&sleep_time, &time_left) < 0) {
-        if (errno != EINTR) {
-            perror("nanosleep");
-            exit(-1);
-        }
-        sleep_time = time_left;
-    }
-}
 
 void *SenderThread(void *arg)
 {

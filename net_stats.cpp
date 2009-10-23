@@ -11,50 +11,200 @@ NetStats::NetStats(struct in_addr local_addr_,
     : local_addr(local_addr_), remote_addr(remote_addr_)
 {
     pthread_rwlock_init(&my_lock, NULL);
-    estimates_valid = false;
+    last_RTT.tv_sec = last_srv_time.tv_sec = -1;
+    last_RTT.tv_usec = last_srv_time.tv_usec = 0;
+    last_req_size = 0;
 }
 
 bool 
-NetStats::get_estimate(unsigned short type, u_long *value)
+NetStats::get_estimate(unsigned short type, u_long& value)
 {
-    if (type >= NUM_ESTIMATES || value == NULL) {
+    if (type >= NUM_ESTIMATES) {
         return false;
     }
 
     PthreadScopedRWLock lock(&my_lock, false);
 
-    if (!estimates_valid) {
-        // not enough data yet
-        return false;
-    }
-
-    *value = net_estimates[type].get_estimate();
-    return true;
+    return net_estimates[type].get_estimate(value);
 }
 
 void 
 NetStats::report_send_event(irob_id_t irob_id, size_t bytes)
 {
-    
+    PthreadScopedRWLock lock(&my_lock, true);
+    // inserts if not already present
+    IROBMeasurement& measurement = irob_measurements[irob_id];
+    measurement.add_bytes(bytes);
+ 
+    u_long bw_est = 0;
+    if (net_estimates[NET_STATS_BW_UP].get_estimate(bw_est)) {
+        struct timeval qdelay = outgoing_qdelay.add_message(bytes, bw_est);
+        measurement.add_delay(qdelay);
+    }
+    // TODO: anything else?
 }
 
 void 
 NetStats::report_send_event(size_t bytes)
 {
+    PthreadScopedRWLock lock(&my_lock, true);
+    u_long bw_est = 0;
+    if (net_estimates[NET_STATS_BW_UP].get_estimate(bw_est)) {
+        (void)outgoing_qdelay.add_message(bytes, bw_est);
+    }
+}
 
+void
+NetStats::report_recv_event(size_t bytes)
+{
+    PthreadScopedRWLock lock(&my_lock, true);
+    u_long bw_est = 0;
+    if (net_estimates[NET_STATS_BW_DOWN].get_estimate(bw_est)) {
+        (void)incoming_qdelay.add_message(bytes, bw_est);
+    }
 }
 
 void 
 NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
 {
+    PthreadScopedRWLock lock(&my_lock, true);
+    assert(irob_measurements.find(irob_id) !=
+           irob_measurements.end());
+    IROBMeasurement measurement = irob_measurements[irob_id];
+    irob_measurements.erase(irob_id);
 
+    measurement.ack();
+    
+    dbgprintf("Reporting new ACK\n");
+
+    struct timeval RTT = measurement.RTT();
+    size_t req_size = measurement.num_bytes();
+
+    if (last_RTT.tv_sec != -1) {
+        // solving simple system of 2 linear equations, from paper
+        /* We want this:
+         * u_long bw_up_estimate = ((req_size - last_req_size) /
+         *                          (RTT - last_RTT + 
+         *                           last_srv_time - srv_time));
+         * but done with struct timevals to avoid overflow.
+         */
+
+        // XXX: this code is gross.  Better to just write timeops
+        // that work for negative values.
+
+        size_t numerator = ((req_size > last_req_size)
+                            ? (req_size - last_req_size)
+                            : (last_req_size - req_size));
+        struct timeval RTT_diff, srv_time_diff;
+        struct timeval denominator;
+        bool RTT_diff_pos = timercmp(&last_RTT, &RTT, <);
+        if (RTT_diff_pos) {
+            TIMEDIFF(last_RTT, RTT, RTT_diff);
+        } else {
+            TIMEDIFF(RTT, last_RTT, RTT_diff);
+        }
+        bool srv_time_diff_pos = timercmp(&last_srv_time, &srv_time, <);
+        if (srv_time_diff_pos) {
+            TIMEDIFF(last_srv_time, srv_time, srv_time_diff);
+        } else {
+            TIMEDIFF(srv_time, last_srv_time, srv_time_diff);
+        }
+
+        if ((RTT_diff_pos && srv_time_diff_pos) ||
+            !(RTT_diff_pos || srv_time_diff_pos)) {
+            timeradd(&RTT_diff, &srv_time_diff, &denominator);
+        } else if (RTT_diff_pos) {
+            timersub(&RTT_diff, &srv_time_diff, &denominator);
+        } else if (srv_time_diff_pos) {
+            timersub(&RTT_diff, &srv_time_diff, &denominator);
+        } else assert(0);
+
+        // get bandwidth estimate in bytes/sec, rather than bytes/usec
+        double bw = ((double)numerator / convert_to_useconds(denominator)) * 1000000.0;
+
+        /* latency = ((RTT - srv_time)/1000 - (req_size/bw)*1000); */
+        struct timeval diff;
+        assert(timercmp(&RTT, &srv_time, >));
+        timersub(&RTT, &srv_time, &diff);
+        double latency = (convert_to_useconds(diff)/1000.0 - 
+                          (req_size / bw * 1000.0)) / 2.0;
+
+        u_long bw_est = static_cast<u_long>(bw);
+        u_long latency_est = static_cast<u_long>(latency);
+        net_estimates[NET_STATS_BW_UP].add_observation(bw_est);
+        net_estimates[NET_STATS_LATENCY].add_observation(latency_est);
+
+        bool ret = net_estimates[NET_STATS_BW_UP].get_estimate(bw_est);
+        ret = ret && net_estimates[NET_STATS_LATENCY].get_estimate(latency_est);
+        assert(ret);
+        dbgprintf("New estimates: bw_up %lu bytes/sec, latency %lu ms\n", 
+                  bw_est, latency_est);
+        // TODO: send bw_up estimate to remote peer as its bw_down.  Or maybe do that
+        //       in CSocketReceiver, after calling this.
+    }
+
+    last_RTT = RTT;
+    last_req_size = req_size;
+    last_srv_time = srv_time;
+}
+
+IROBMeasurement::IROBMeasurement()
+{
+    total_size = 0;
+    TIME(arrival_time);
+    last_activity = arrival_time;
+    ack_time.tv_sec = -1;
+    ack_time.tv_usec = 0;
+    total_delay.tv_sec = 0;
+    total_delay.tv_usec = 0;
+}
+
+size_t
+IROBMeasurement::num_bytes()
+{
+    return total_size;
+}
+
+void 
+IROBMeasurement::add_bytes(size_t bytes)
+{
+    struct timeval diff, now;
+    TIME(now);
+    TIMEDIFF(last_activity, now, diff);
+
+    // add scheduling delay
+    timeradd(&total_delay, &diff, &total_delay);
+    
+    total_size += bytes;
+}
+
+void 
+IROBMeasurement::add_delay(struct timeval delay)
+{
+    timeradd(&total_delay, &delay, &total_delay);
+}
+
+struct timeval
+IROBMeasurement::RTT()
+{
+    assert(ack_time.tv_sec != -1);
+    assert(timercmp(&arrival_time, &ack_time, <));
+
+    struct timeval rtt;
+    TIMEDIFF(arrival_time, ack_time, rtt);
+
+    assert(timercmp(&rtt, &total_delay, >));
+
+    timersub(&rtt, &total_delay, &rtt);
+    return rtt;
 }
 
 void
-NetStats::add_queuing_delay(irob_id_t irob_id, struct timeval delay)
+IROBMeasurement::ack()
 {
-    
+    TIME(ack_time);
 }
+
 
 QueuingDelay::QueuingDelay()
 {
@@ -75,6 +225,13 @@ QueuingDelay::QueuingDelay()
 struct timeval 
 QueuingDelay::add_message(size_t msg_size, u_long bw_estimate)
 {
+    if (bw_estimate == 0) {
+        // invalid bandwidth estimate; ignore queuing delay 
+        // for this message
+        struct timeval zero = {0, 0};
+        return zero;
+    }
+
     struct timeval cur_msg_time;
     TIME(cur_msg_time);
 
@@ -123,16 +280,27 @@ Estimate::Estimate()
 {
 }
 
-u_long
-Estimate::get_estimate()
+bool
+Estimate::get_estimate(u_long& est)
 {
+    // Estimate can be:
+    //  * nothing if there have been no spot values (returns false)
+    //  * the first spot value if there's only been one (returns true)
+    //  * A real estimate based on two or more spot values (returns true)
+
     double ret;
+    
+    if (!valid) {
+        return false;
+    }
+
     if (spot_value_within_limits()) {
         ret = agile_estimate;
     } else {
         ret = stable_estimate;
     }
-    return static_cast<u_long>(ret);
+    est = static_cast<u_long>(ret);
+    return true;
 }
 
 #define STABLE_GAIN 0.9
