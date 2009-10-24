@@ -7,3 +7,6 @@ vanilla_test_receiver
 cmm_throughput_test
 vanilla_throughput_test
 libcmm.so
+.*.dep
+*.o
+.*install

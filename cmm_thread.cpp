@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <pthread.h>
 #include <assert.h>
+#include <string.h>
 #include "pthread_util.h"
 #include <algorithm>
 #include <functional>

@@ -5,6 +5,7 @@
 #ifdef CMM_TIMING
 #include "timeops.h"
 #include <map>
+#include <sys/types.h>
 
 #include <pthread.h>
 extern pthread_mutex_t timing_mutex;

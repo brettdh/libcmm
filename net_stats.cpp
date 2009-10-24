@@ -196,7 +196,7 @@ IROBMeasurement::num_bytes()
 }
 
 void 
-IROBMeasurement::add_bytes(size_t bytes, struct timeval qdelay)
+IROBMeasurement::add_bytes(size_t bytes)
 {
     struct timeval diff, now;
     TIME(now);
