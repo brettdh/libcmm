@@ -6,14 +6,23 @@
 #include "timeops.h"
 #include <cmath>
 
-NetStats::NetStats(struct in_addr local_addr_, 
-                   struct in_addr remote_addr_)
-    : local_addr(local_addr_), remote_addr(remote_addr_)
+NetStats::NetStats(struct net_interface local_iface, 
+                   struct net_interface remote_iface)
+    : local_addr(local_iface.ip_addr), remote_addr(remote_iface.ip_addr)
 {
     pthread_rwlock_init(&my_lock, NULL);
     last_RTT.tv_sec = last_srv_time.tv_sec = -1;
     last_RTT.tv_usec = last_srv_time.tv_usec = 0;
     last_req_size = 0;
+
+    u_long init_bandwidth = iface_bandwidth(local_iface, remote_iface);
+    u_long init_latency = iface_RTT(local_iface, remote_iface) / 2;
+    if (init_bandwidth > 0) {
+        net_estimates[NET_STATS_BW_UP].add_observation(init_bandwidth);
+    }
+    if (init_latency > 0) {
+        net_estimates[NET_STATS_LATENCY].add_observation(init_latency);
+    }
 }
 
 bool 
@@ -36,9 +45,11 @@ NetStats::report_send_event(irob_id_t irob_id, size_t bytes)
     u_long bw_est = 0;
     (void)net_estimates[NET_STATS_BW_UP].get_estimate(bw_est);
     
-    struct timeval queuable_time = outgoing_qdelay.get_queuable_time();
+    struct timeval queuable_time = outgoing_qdelay.get_queuable_time(irob_id);
     // queuable_time is the earliest time that this message 
-    //  could hit the network
+    //  could hit the network (or else it's {0, 0}, if
+    //  the last message was from a different IROB; that is,
+    //  if the message could go immediately)
 
     // inserts if not already present
     IROBMeasurement& measurement = irob_measurements[irob_id];
@@ -293,8 +304,13 @@ static struct timeval time_to_send(size_t msg_size, u_long bw_estimate)
 }
 
 struct timeval 
-QueuingDelay::get_queuable_time() const
+QueuingDelay::get_queuable_time(irob_id_t irob_id) const
 {
+    if (irob_id != last_irob) {
+        struct timeval inval = {0, 0};
+        return inval;
+    }
+
     struct timeval queuable_time = last_msg_time;
     timeradd(&queuable_time, &last_msg_qdelay, &queuable_time);
     

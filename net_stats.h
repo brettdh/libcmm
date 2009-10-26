@@ -1,8 +1,7 @@
 #ifndef net_stats_h_incl
 #define net_stats_h_incl
 
-#include <netinet/in.h>
-#include <sys/types.h>
+#include "net_interface.h"
 #include <time.h>
 #include <pthread.h>
 #include "libcmm_irob.h"
@@ -44,7 +43,7 @@ class QueuingDelay {
     //  the previous message:
     //     last_msg_time + last_msg_qdelay + 
     //     (last_msg_size/last_bw_estimate)
-    struct timeval get_queuable_time() const;
+    struct timeval get_queuable_time(irob_id_t irob_id) const;
 
     bool caused_by(irob_id_t irob_id) const;
 
@@ -133,8 +132,8 @@ class NetStats {
     //  smoothed estimate.
     void report_bw_down(u_long bw_down);
 
-    NetStats(struct in_addr local_addr_, 
-             struct in_addr remote_addr_);
+    NetStats(struct net_interface local_iface, 
+             struct net_interface remote_iface);
   private:
     struct in_addr local_addr;
     struct in_addr remote_addr;

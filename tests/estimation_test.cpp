@@ -6,6 +6,7 @@
 #include "test_common.h"
 #include <netinet/in.h>
 #include <sys/types.h>
+#include "net_interface.h"
 
 CPPUNIT_TEST_SUITE_REGISTRATION(EstimationTest);
 
@@ -15,7 +16,8 @@ EstimationTest::setUp()
     estimate = new Estimate;
     delays = new QueuingDelay;
 
-    struct in_addr dummy = {0};
+    struct net_interface dummy;
+    memset(&dummy, 0, sizeof(dummy));
     stats = new NetStats(dummy, dummy);
 }
 
