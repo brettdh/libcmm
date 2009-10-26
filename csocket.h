@@ -10,6 +10,8 @@
 //#include "cmm_socket.private.h"
 #include "pending_irob.h"
 
+#include "net_stats.h"
+
 //class CMMSocketSender;
 //class CMMSocketReceiver;
 class CMMSocketImpl;
@@ -33,6 +35,7 @@ class CSocket {
     //CMMSocketReceiver *recvr;
     struct net_interface local_iface;
     struct net_interface remote_iface;
+    NetStats stats;
 
     static CSocketPtr create(boost::weak_ptr<CMMSocketImpl> sk_, 
                              struct net_interface local_iface_,

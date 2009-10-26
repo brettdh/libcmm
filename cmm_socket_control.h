@@ -70,6 +70,9 @@ struct ack_data {
     size_t num_acks; // this many acks follow the header
     irob_id_t id; // the first of potentially many ACKs
     // (it's common for large IROBs to only be ACK'd one at a time)
+
+    // time from receiving all bytes to sending ACK
+    struct timeval srv_time; 
 };
 
 typedef enum {

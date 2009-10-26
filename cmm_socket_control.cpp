@@ -6,7 +6,7 @@
 #include <arpa/inet.h>
 
 #include <iomanip>
-using std::ios;
+using std::setfill; using std::setw;
 
 const char *
 CMMSocketControlHdr::type_str() const
@@ -76,7 +76,10 @@ CMMSocketControlHdr::describe() const
         break;
     case CMM_CONTROL_MSG_ACK:
         stream << "num_acks: " << ntohl(op.ack.num_acks) << " ";
-        stream << "IROB: " << ntohl(op.ack.id);
+        stream << "IROB: " << ntohl(op.ack.id) << " ";
+        stream << "srv_time: " << ntohl(op.ack.srv_time.tv_sec) << "." 
+               << setfill('0') << setw(6) 
+               << ntohl(op.ack.srv_time.tv_usec);
         break;
     case CMM_CONTROL_MSG_GOODBYE:
 	break;

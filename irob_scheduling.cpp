@@ -3,6 +3,7 @@
 using std::set;
 #include "common.h"
 #include "debug.h"
+#include "timeops.h"
 
 IROBSchedulingData::IROBSchedulingData()
 {
@@ -15,6 +16,8 @@ IROBSchedulingData::IROBSchedulingData(irob_id_t id_, bool chunks_ready_,
       resend_request(CMM_RESEND_REQUEST_NONE),
       send_labels(send_labels_)
 {
+    completion_time.tv_sec = -1;
+    completion_time.tv_usec = 0;
 }
 
 IROBSchedulingData::IROBSchedulingData(irob_id_t id_,
@@ -22,6 +25,18 @@ IROBSchedulingData::IROBSchedulingData(irob_id_t id_,
                                        u_long send_labels_)
     : id(id_), chunks_ready(false),
       resend_request(resend_request_), send_labels(send_labels_)
+{
+    completion_time.tv_sec = -1;
+    completion_time.tv_usec = 0;
+}
+
+IROBSchedulingData::IROBSchedulingData(irob_id_t id_, 
+                                       struct timeval completion_time_,
+                                       u_long send_labels_)
+    : id(id_), chunks_ready(false), 
+      resend_request(CMM_RESEND_REQUEST_NONE),
+      completion_time(completion_time_),
+      send_labels(send_labels_)
 {
 }
 
@@ -39,6 +54,7 @@ IROBSchedulingData::operator<(const IROBSchedulingData& other) const
     }
 
     return ((owner && (owner->send_labels & send_labels)) ||
+            (timercmp(&completion_time, &other.completion_time, <)) ||
             (id < other.id));
 }
 

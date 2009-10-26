@@ -123,6 +123,9 @@ class NetStats {
     //  "service time" reported with the ACK.
     void report_ack(irob_id_t irob_id, struct timeval srv_time);
 
+    // remove this IROB without adding a new measurement.
+    void remove(irob_id_t irob_id);
+
     // The remote host computes its upstream b/w and sends it to
     //  me; it's my downstream b/w.  CSocketReceiver should
     //  call this when it receives such a message.

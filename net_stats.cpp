@@ -192,6 +192,12 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
     last_srv_time = srv_time;
 }
 
+void
+NetStats::remove(irob_id_t irob_id)
+{
+    irob_measurements.erase(irob_id);
+}
+
 IROBMeasurement::IROBMeasurement()
 {
     total_size = 0;

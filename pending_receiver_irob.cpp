@@ -42,6 +42,7 @@ PendingReceiverIROB::subsume(PendingIROB *other)
 
     PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(other);
     assert(prirob);
+
     offset = prirob->offset; // should be zero
     num_bytes = prirob->num_bytes;
     expected_bytes = prirob->expected_bytes;
@@ -127,6 +128,7 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
 		  chunk.seqno, chunk.datalen, id, recvd_bytes, expected_bytes);
         return false;
     }
+
     return true;
 }
 

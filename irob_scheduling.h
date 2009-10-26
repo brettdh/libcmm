@@ -18,11 +18,15 @@ struct IROBSchedulingData {
     IROBSchedulingData(irob_id_t id, 
                        resend_request_type_t resend_request_,
                        u_long send_labels_=0);
+    IROBSchedulingData(irob_id_t id, struct timeval completion_time_,
+                       u_long send_labels_=0);
+
     bool operator<(const IROBSchedulingData& other) const;
 
     irob_id_t id;
     bool chunks_ready;
     resend_request_type_t resend_request;
+    struct timeval completion_time; // for ACKs
 
     u_long send_labels;
     // more scheduling hints here?

@@ -31,6 +31,7 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
                  int accepted_sock)
     : sk(sk_),
       local_iface(local_iface_), remote_iface(remote_iface_),
+      stats(local_iface.ip_addr, remote_iface.ip_addr),
       csock_sendr(NULL), csock_recvr(NULL), irob_indexes(local_iface_.labels)
 {
     assert(sk);
@@ -155,14 +156,22 @@ CSocket::matches(u_long send_labels)
 u_long
 CSocket::bandwidth()
 {
-    // TODO: replace with measurement on this socket
-    return iface_bandwidth(local_iface, remote_iface);
+    u_long bw_est;
+    if (stats.get_estimate(NET_STATS_BW_UP, bw_est)) {
+        return bw_est;
+    } else {
+        return iface_bandwidth(local_iface, remote_iface);
+    }
 }
 
 double CSocket::RTT()
 {
-    // TODO: replace with measurement on this socket
-    return iface_RTT(local_iface, remote_iface);
+    u_long latency_est;
+    if (stats.get_estimate(NET_STATS_LATENCY, latency_est)) {
+        return (double)(latency_est * 2);
+    } else {
+        return iface_RTT(local_iface, remote_iface);
+    }
 }
 
 struct timespec 

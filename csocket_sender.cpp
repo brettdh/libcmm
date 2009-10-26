@@ -497,6 +497,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     }
     dbgprintf_plain("\n");
     pthread_mutex_unlock(&sk->scheduling_state_lock);
+    csock->stats.report_send_event(id, bytes);
     int rc = writev(csock->osfd, vec, count);
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
@@ -558,6 +559,7 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
+    csock->stats.report_send_event(data.id, sizeof(hdr));
     int rc = write(csock->osfd, &hdr, sizeof(hdr));
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
@@ -660,6 +662,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     psirob->chunk_in_flight = true;
     pthread_mutex_unlock(&sk->scheduling_state_lock);
+    csock->stats.report_send_event(id, sizeof(hdr) + chunksize);
     int rc = writev(csock->osfd, vec, irob_vecs.size() + 1);
     delete [] vec;
     pthread_mutex_lock(&sk->scheduling_state_lock);
@@ -732,6 +735,7 @@ CSocketSender::new_interface(struct net_interface iface)
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
+    csock->stats.report_send_event(sizeof(hdr));
     int rc = write(csock->osfd, &hdr, sizeof(hdr));
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
@@ -755,6 +759,7 @@ CSocketSender::down_interface(struct net_interface iface)
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
+    csock->stats.report_send_event(sizeof(hdr));
     int rc = write(csock->osfd, &hdr, sizeof(hdr));
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
@@ -776,6 +781,16 @@ CSocketSender::send_acks(const IROBSchedulingData& data,
     hdr.type = htons(CMM_CONTROL_MSG_ACK);
     hdr.send_labels = htonl(csock->local_iface.labels);
     hdr.op.ack.id = htonl(data.id);
+
+    struct timeval now, srv_time;
+    TIME(now);
+    if (data.completion_time.tv_sec == -1) {
+        srv_time = data.completion_time;
+    } else {
+        TIMEDIFF(data.completion_time, now, srv_time);
+    }
+    hdr.op.ack.srv_time.tv_sec = htonl(srv_time.tv_sec);
+    hdr.op.ack.srv_time.tv_usec = htonl(srv_time.tv_usec);
     
     irob_id_t acked_irobs[MAX_ACKS];
     memset(acked_irobs, 0, MAX_ACKS * sizeof(irob_id_t));
@@ -785,7 +800,6 @@ CSocketSender::send_acks(const IROBSchedulingData& data,
     std::set<IROBSchedulingData>::iterator it = head;
     while (ack_count < MAX_ACKS && it != indexes.waiting_acks.end()) {
         acked_irobs[ack_count] = htonl(it->id);
-
         ++it;
         ++ack_count;
     }
@@ -811,6 +825,7 @@ CSocketSender::send_acks(const IROBSchedulingData& data,
     dbgprintf("About to send %d ACKs\n", ack_count + 1);
 
     pthread_mutex_unlock(&sk->scheduling_state_lock);
+    csock->stats.report_send_event(datalen);
     int rc = writev(csock->osfd, vec, numvecs);
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
@@ -834,6 +849,7 @@ CSocketSender::goodbye()
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
+    csock->stats.report_send_event(sizeof(hdr));
     int rc = write(csock->osfd, &hdr, sizeof(hdr));
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
@@ -872,6 +888,7 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
     
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
+    csock->stats.report_send_event(sizeof(hdr));
     int rc = write(csock->osfd, &hdr, sizeof(hdr));
     pthread_mutex_lock(&sk->scheduling_state_lock);
     

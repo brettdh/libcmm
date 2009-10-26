@@ -53,6 +53,7 @@ class PendingReceiverIROB : public PendingIROB {
     void assert_valid();
 
     friend class CMMSocketImpl;
+    friend class CSocketSender;
     friend class CSocketReceiver;
     friend class PendingReceiverIROBLattice;
 
