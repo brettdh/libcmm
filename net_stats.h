@@ -37,19 +37,34 @@ class QueuingDelay {
      * arrival time, and the arrival time and size of the
      * current message.
      */
-    struct timeval add_message(size_t msg_size, u_long bw_estimate);
+    struct timeval add_message(size_t msg_size, u_long bw_estimate,
+                               irob_id_t last_irob_id = -1);
+
+    // returns the earliest time that a message could follow 
+    //  the previous message:
+    //     last_msg_time + last_msg_qdelay + 
+    //     (last_msg_size/last_bw_estimate)
+    struct timeval get_queuable_time() const;
+
+    bool caused_by(irob_id_t irob_id) const;
+
     QueuingDelay();
   private:
     struct timeval last_msg_time;
     struct timeval last_msg_qdelay;
     size_t last_msg_size;
     u_long last_bw_estimate;
+    irob_id_t last_irob;
 };
 
 class IROBMeasurement {
   public:
     IROBMeasurement();
-    void add_bytes(size_t bytes);
+
+    // args: bytes = size of message
+    //       dtime = departure time of message
+    //               (arrival time plus queuing delay)
+    void add_bytes(size_t bytes, struct timeval dtime);
     void add_delay(struct timeval delay);
     void ack();
 

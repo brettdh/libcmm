@@ -168,8 +168,8 @@ EstimationTest::testNetStatsWithSenderDelay()
     testNetStatsSimple();
     
     struct timeval zero = {0,0};
-    struct timespec sleeptime1 = {0, 300 * 1000 * 1000};
-    struct timespec sleeptime2 = {2, 40 * 1000 * 1000};
+    struct timespec sleeptime1 = {1, 300 * 1000 * 1000};
+    struct timespec sleeptime2 = {1, 40 * 1000 * 1000};
     nowake_nanosleep(&sleeptime1);
 
     stats->report_send_event(5, 5000);
@@ -180,6 +180,36 @@ EstimationTest::testNetStatsWithSenderDelay()
     nowake_nanosleep(&sleeptime2);
 
     stats->report_ack(5, zero);
+
+    assertStatsCorrect(5000, 20);
+}
+
+// There should be no queuing delay compensation between
+//  messages in a single IROB.
+void
+EstimationTest::testNetStatsSingleIROBQueuingDelay()
+{
+    testNetStatsSimple();
+    
+    struct timeval zero = {0,0};
+    struct timespec sleeptime1 = {0, 300 * 1000 * 1000};
+    struct timespec sleeptime2 = {0, 700 * 1000 * 1000};
+    struct timespec sleeptime3 = {1, 40 * 1000 * 1000};
+    struct timespec sleeptime4 = {1, 0 * 1000 * 1000};
+    nowake_nanosleep(&sleeptime1);
+
+    stats->report_send_event(5, 5000);
+
+    nowake_nanosleep(&sleeptime1);
+    stats->report_send_event(5, 5000);
+
+    nowake_nanosleep(&sleeptime2);
+    stats->report_send_event(6, 5000);
+    nowake_nanosleep(&sleeptime3);
+
+    stats->report_ack(5, zero);
+    nowake_nanosleep(&sleeptime4);
+    stats->report_ack(6, zero);
 
     assertStatsCorrect(5000, 20);
 }

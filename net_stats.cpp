@@ -32,21 +32,26 @@ void
 NetStats::report_send_event(irob_id_t irob_id, size_t bytes)
 {
     PthreadScopedRWLock lock(&my_lock, true);
- 
+
     u_long bw_est = 0;
     (void)net_estimates[NET_STATS_BW_UP].get_estimate(bw_est);
-    struct timeval qdelay = outgoing_qdelay.add_message(bytes, bw_est);
-    dbgprintf("Adding %lu.%06lu queuing delay to IROB %ld\n",
-              qdelay.tv_sec, qdelay.tv_usec, irob_id);
+    
+    struct timeval queuable_time = outgoing_qdelay.get_queuable_time();
+    // queuable_time is the earliest time that this message 
+    //  could hit the network
 
     // inserts if not already present
     IROBMeasurement& measurement = irob_measurements[irob_id];
-    measurement.add_bytes(bytes); // accounts for inter-send delay
-    measurement.add_delay(qdelay);
-    // XXX: problem: the inter-send delay should only be removed from the RTT
-    //  if it wasn't taken up by queuing delay.  how to do that?
+    measurement.add_bytes(bytes, queuable_time); // accounts for inter-send delay
 
-    // TODO: anything else?
+    // don't add queuing delay between parts of an IROB, since 
+    //  that delay doesn't come into the IROB's RTT measurement
+    // QueuingDelay class takes care of this now; returns 0.0 if irob_id is the
+    //  same as the last one
+    struct timeval qdelay = outgoing_qdelay.add_message(bytes, bw_est, irob_id);
+    dbgprintf("Adding %lu.%06lu queuing delay to IROB %ld\n",
+              qdelay.tv_sec, qdelay.tv_usec, irob_id);
+    measurement.add_delay(qdelay);
 }
 
 void 
@@ -83,10 +88,11 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
 
     measurement.ack();
     
-    dbgprintf("Reporting new ACK\n");
-
     struct timeval RTT = measurement.RTT();
     size_t req_size = measurement.num_bytes();
+
+    dbgprintf("Reporting new ACK for IROB %ld; RTT %lu.%06lu  size %zu\n",
+              irob_id, RTT.tv_sec, RTT.tv_usec, req_size);
 
     if (last_RTT.tv_sec != -1) {
         // solving simple system of 2 linear equations, from paper
@@ -145,6 +151,9 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
             bw_est = round_nearest(bw);
             latency_est = round_nearest(latency);
             valid_result = (bw > 0 && latency > 0);
+            if (!valid_result) {
+                dbgprintf("Spot values indicate invalid observation; ignoring\n");
+            }
         } else if(net_estimates[NET_STATS_BW_UP].get_estimate(bw_est)) {
             /* latency = ((RTT - srv_time)/1000 - (req_size/bw)*1000); */
             double bw = static_cast<double>(bw_est);
@@ -155,6 +164,12 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
                               (req_size / bw * 1000.0)) / 2.0;
             latency_est = round_nearest(latency);
             valid_result = (bw > 0 && latency > 0);
+            if (!valid_result) {
+                dbgprintf("Spot values indicate invalid observation; ignoring\n");
+            }
+        } else {
+            dbgprintf("Couldn't produce spot values; equal message "
+                      "sizes and no prior bw estimate\n");
         }
 
         if (valid_result) {
@@ -196,7 +211,7 @@ IROBMeasurement::num_bytes()
 }
 
 void 
-IROBMeasurement::add_bytes(size_t bytes)
+IROBMeasurement::add_bytes(size_t bytes, struct timeval queuable_time)
 {
     struct timeval diff, now;
     TIME(now);
@@ -204,11 +219,21 @@ IROBMeasurement::add_bytes(size_t bytes)
     if (arrival_time.tv_sec == -1) {
         arrival_time = now;
     } else {
-        TIMEDIFF(last_activity, now, diff);
-        // add scheduling delay
-        dbgprintf("Adding %lu.%06lu of scheduling delay\n",
-                  diff.tv_sec, diff.tv_usec);
-        timeradd(&total_delay, &diff, &total_delay);
+        // the time at which the message was ready to be sent
+        //   (max of the last activity and the time at which
+        //    this message could hit the network)
+        queuable_time = (timercmp(&last_activity, &queuable_time, <)
+                         ? queuable_time : last_activity);
+        // by checking this time, we make sure not to double-count
+        // scheduling delay that overlaps queuing delay
+
+        if (timercmp(&queuable_time, &now, <)) {
+            TIMEDIFF(queuable_time, now, diff);
+            // add scheduling delay
+            dbgprintf("Adding %lu.%06lu of scheduling delay\n",
+                      diff.tv_sec, diff.tv_usec);
+            timeradd(&total_delay, &diff, &total_delay);
+        }
     }
     last_activity = now;
     
@@ -250,8 +275,27 @@ QueuingDelay::QueuingDelay()
     last_msg_qdelay.tv_usec = 0;
     last_msg_size = 0;
     last_bw_estimate = 0;
+    last_irob = -1;
 }
 
+static struct timeval time_to_send(size_t msg_size, u_long bw_estimate)
+{
+    double bw_seconds = ((double)msg_size) / bw_estimate;
+    useconds_t bw_time_usecs = (useconds_t)(bw_seconds * 1000000);
+    struct timeval bw_time = convert_to_timeval(bw_time_usecs);
+    return bw_time;
+}
+
+struct timeval 
+QueuingDelay::get_queuable_time() const
+{
+    struct timeval queuable_time = last_msg_time;
+    timeradd(&queuable_time, &last_msg_qdelay, &queuable_time);
+    
+    struct timeval bw_time = time_to_send(last_msg_size, last_bw_estimate);
+    timeradd(&queuable_time, &bw_time, &queuable_time);
+    return queuable_time;
+}
 
 /* qdelay(t) = 0 if t == 0 (the first message is the
  *                          first in the queue)
@@ -261,8 +305,10 @@ QueuingDelay::QueuingDelay()
  * (see paper)
  */
 struct timeval 
-QueuingDelay::add_message(size_t msg_size, u_long bw_estimate)
+QueuingDelay::add_message(size_t msg_size, u_long bw_estimate, 
+                          irob_id_t irob_id)
 {
+    struct timeval zero = {0, 0};
     struct timeval cur_msg_time;
     TIME(cur_msg_time);
 
@@ -272,45 +318,52 @@ QueuingDelay::add_message(size_t msg_size, u_long bw_estimate)
         last_msg_qdelay.tv_sec = 0;
         last_msg_size = msg_size;
         last_bw_estimate = bw_estimate;
+        last_irob = irob_id;
         return last_msg_qdelay;
     }
 
     if (bw_estimate == 0) {
         // invalid bandwidth estimate; ignore queuing delay 
         // for this message
-        struct timeval zero = {0, 0};
         return zero;
     }
 
-    // size(t)/bandwidth(t)
-    double prev_bw_seconds = ((double)last_msg_size) / last_bw_estimate;
-    useconds_t prev_bw_time_usecs = (useconds_t)(prev_bw_seconds * 1000000);
-    struct timeval prev_bw_time = convert_to_timeval(prev_bw_time_usecs);
-    
-    struct timeval qdelay_calc = {0, 0};
-    // qdelay(t) + size(t)/bandwidth(t)
-    timeradd(&last_msg_qdelay, &prev_bw_time, &qdelay_calc);
+    if (irob_id == last_irob && irob_id != -1) {
+        dbgprintf("Same IROB as last time; adding to size\n");
+        last_msg_size += msg_size;
+        last_bw_estimate = bw_estimate;
 
-    // msg_time(t+1) - msg_time(t)
-    struct timeval diff;
-    TIMEDIFF(last_msg_time, cur_msg_time, diff);
-
-    if (timercmp(&qdelay_calc, &diff, >)) {
-        // qdelay(t) + size(t)/bandwidth(t) - (msg_time(t+1) - msg_time(t))
-        timersub(&qdelay_calc, &diff, &qdelay_calc);
-        // now, qdelay_calc == qdelay(t+1)
-        last_msg_qdelay = qdelay_calc;
+        return zero;
     } else {
-        last_msg_qdelay.tv_sec = 0;
-        last_msg_qdelay.tv_usec = 0;
+        // size(t)/bandwidth(t)
+        struct timeval prev_bw_time = time_to_send(last_msg_size,
+                                                   last_bw_estimate);
+        
+        struct timeval qdelay_calc = {0, 0};
+        // qdelay(t) + size(t)/bandwidth(t)
+        timeradd(&last_msg_qdelay, &prev_bw_time, &qdelay_calc);
+
+        // msg_time(t+1) - msg_time(t)
+        struct timeval diff;
+        TIMEDIFF(last_msg_time, cur_msg_time, diff);
+        
+        if (timercmp(&qdelay_calc, &diff, >)) {
+            // qdelay(t) + size(t)/bandwidth(t) - (msg_time(t+1) - msg_time(t))
+            timersub(&qdelay_calc, &diff, &qdelay_calc);
+            // now, qdelay_calc == qdelay(t+1)
+            last_msg_qdelay = qdelay_calc;
+        } else {
+            last_msg_qdelay.tv_sec = 0;
+            last_msg_qdelay.tv_usec = 0;
+        }
+        last_msg_time = cur_msg_time;
+        last_msg_size = msg_size;
+        last_irob = irob_id;
+        last_bw_estimate = bw_estimate;
+
+        return last_msg_qdelay;
     }
-    last_msg_time = cur_msg_time;
-    last_msg_size = msg_size;
-    last_bw_estimate = bw_estimate;
-
-    return last_msg_qdelay;
 }
-
 
 Estimate::Estimate()
     : stable_estimate(0.0), agile_estimate(0.0), spot_value(0.0),
