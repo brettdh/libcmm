@@ -154,8 +154,12 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
 
             /* latency = ((RTT - srv_time)/1000 - (req_size/bw)*1000); */
             struct timeval diff;
-            assert(timercmp(&RTT, &srv_time, >));
-            timersub(&RTT, &srv_time, &diff);
+            if (timercmp(&RTT, &srv_time, >)) {
+                timersub(&RTT, &srv_time, &diff);
+            } else {
+                diff.tv_sec = 0;
+                diff.tv_usec = 0;
+            }
             double latency = (convert_to_useconds(diff)/1000.0 - 
                               (req_size / bw * 1000.0)) / 2.0;
 
@@ -169,8 +173,12 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
             /* latency = ((RTT - srv_time)/1000 - (req_size/bw)*1000); */
             double bw = static_cast<double>(bw_est);
             struct timeval diff;
-            assert(timercmp(&RTT, &srv_time, >));
-            timersub(&RTT, &srv_time, &diff);
+            if (timercmp(&RTT, &srv_time, >)) {
+                timersub(&RTT, &srv_time, &diff);
+            } else {
+                diff.tv_sec = 0;
+                diff.tv_usec = 0;
+            }
             double latency = (convert_to_useconds(diff)/1000.0 - 
                               (req_size / bw * 1000.0)) / 2.0;
             latency_est = round_nearest(latency);
