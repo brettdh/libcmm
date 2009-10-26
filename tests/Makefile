@@ -60,5 +60,17 @@ TRICKLETESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o trickle_tests
 run_trickle_tests: run_all_tests.o $(TRICKLETESTOBJS) test_common.o
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl -pthread
 
+
+# Generate header dependency rules
+#   see http://stackoverflow.com/questions/204823/
+# ---
+SRCS=$(wildcard *.cpp)
+DEPS=$(SRCS:%.cpp=.%.dep)
+
+.%.dep: %.cpp
+	g++ -MM $(CXXFLAGS) $< >$@
+
+include $(DEPS)
+
 clean:
 	rm -f *.o *~ $(EXECUTABLES)

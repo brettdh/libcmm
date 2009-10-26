@@ -45,7 +45,7 @@ EstimationTest::testFlipFlop()
     for (int i = 0; i < 10; ++i) {
         update_EWMA(stable_estimate, spot_value, STABLE_GAIN);
         update_EWMA(agile_estimate, spot_value, AGILE_GAIN);
-        estimate->add_observation(spot_value);
+        estimate->add_observation((u_long)spot_value);
     }
 
     u_long est_value;
@@ -58,7 +58,7 @@ EstimationTest::testFlipFlop()
     spot_value = 2000.0;
     update_EWMA(stable_estimate, spot_value, STABLE_GAIN);
     update_EWMA(agile_estimate, spot_value, AGILE_GAIN);
-    estimate->add_observation(spot_value);
+    estimate->add_observation((u_long)spot_value);
 
     ret = estimate->get_estimate(est_value);
     CPPUNIT_ASSERT(ret);    
@@ -75,7 +75,7 @@ EstimationTest::testFlipFlop()
     for (int i = 0; i < 20; ++i) {
         update_EWMA(stable_estimate, spot_value, STABLE_GAIN);
         update_EWMA(agile_estimate, spot_value, AGILE_GAIN);
-        estimate->add_observation(spot_value);
+        estimate->add_observation((u_long)spot_value);
 
         ret = estimate->get_estimate(est_value);
         CPPUNIT_ASSERT(ret);    
