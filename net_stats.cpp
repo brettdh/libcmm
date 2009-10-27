@@ -6,6 +6,8 @@
 #include "timeops.h"
 #include <cmath>
 
+class InvalidEstimateException {};
+
 NetStats::NetStats(struct net_interface local_iface, 
                    struct net_interface remote_iface)
     : local_addr(local_iface.ip_addr), remote_addr(remote_iface.ip_addr)
@@ -115,7 +117,7 @@ void
 NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
 {
     PthreadScopedRWLock lock(&my_lock, true);
-    if (irob_measurements.find(irob_id) ==irob_measurements.end()) {
+    if (irob_measurements.find(irob_id) == irob_measurements.end()) {
         dbgprintf("Got ACK for IROB %ld, but I've forgotten it.  Ignoring.\n",
                   irob_id);
         return;
@@ -126,7 +128,15 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
 
     measurement.ack();
     
-    struct timeval RTT = measurement.RTT();
+    struct timeval RTT;
+
+    try {
+        RTT = measurement.RTT();
+    } catch (const InvalidEstimateException &e) {
+        dbgprintf("Invalid measurement detected; ignoring\n");
+        return;
+    }
+
     size_t req_size = measurement.num_bytes();
 
     dbgprintf("Reporting new ACK for IROB %ld; RTT %lu.%06lu  size %zu\n",
@@ -315,7 +325,9 @@ IROBMeasurement::RTT()
     struct timeval rtt;
     TIMEDIFF(arrival_time, ack_time, rtt);
 
-    assert(timercmp(&rtt, &total_delay, >));
+    if (!timercmp(&rtt, &total_delay, >)) {
+        throw InvalidEstimateException();
+    }
 
     timersub(&rtt, &total_delay, &rtt);
     return rtt;
