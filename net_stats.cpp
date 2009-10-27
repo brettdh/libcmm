@@ -49,6 +49,12 @@ NetStats::NetStats(struct net_interface local_iface,
     if (init_latency > 0) {
         net_estimates.estimates[NET_STATS_LATENCY].add_observation(init_latency);
     }
+    cache_save();
+}
+
+NetStats::~NetStats()
+{
+    cache_save();
 }
 
 void
@@ -191,136 +197,140 @@ static u_long round_nearest(double val)
 void 
 NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
 {
-    PthreadScopedRWLock lock(&my_lock, true);
-    if (irob_measurements.find(irob_id) == irob_measurements.end()) {
-        dbgprintf("Got ACK for IROB %ld, but I've forgotten it.  Ignoring.\n",
-                  irob_id);
-        return;
-    }
+    {
+        PthreadScopedRWLock lock(&my_lock, true);
+        if (irob_measurements.find(irob_id) == irob_measurements.end()) {
+            dbgprintf("Got ACK for IROB %ld, but I've forgotten it.  Ignoring.\n",
+                      irob_id);
+            return;
+        }
 
-    IROBMeasurement measurement = irob_measurements[irob_id];
-    irob_measurements.erase(irob_id);
+        IROBMeasurement measurement = irob_measurements[irob_id];
+        irob_measurements.erase(irob_id);
 
-    measurement.ack();
+        measurement.ack();
     
-    struct timeval RTT;
+        struct timeval RTT;
 
-    try {
-        RTT = measurement.RTT();
-    } catch (const InvalidEstimateException &e) {
-        dbgprintf("Invalid measurement detected; ignoring\n");
-        return;
-    }
-
-    size_t req_size = measurement.num_bytes();
-
-    dbgprintf("Reporting new ACK for IROB %ld; RTT %lu.%06lu  size %zu\n",
-              irob_id, RTT.tv_sec, RTT.tv_usec, req_size);
-
-    if (last_RTT.tv_sec != -1) {
-        // solving simple system of 2 linear equations, from paper
-        /* We want this:
-         * u_long bw_up_estimate = ((req_size - last_req_size) /
-         *                          (RTT - last_RTT + 
-         *                           last_srv_time - srv_time));
-         * but done with struct timevals to avoid overflow.
-         */
-
-        // XXX: this code is gross.  Better to just write timeops
-        // that work for negative values.
-
-        u_long bw_est = 0, latency_est = 0;
-        bool valid_result = false;
-
-        if (req_size != last_req_size) {
-            size_t numerator = ((req_size > last_req_size)
-                                ? (req_size - last_req_size)
-                                : (last_req_size - req_size));
-
-            struct timeval denominator;
-            struct timeval RTT_diff, srv_time_diff;
-            bool RTT_diff_pos = timercmp(&last_RTT, &RTT, <);
-            if (RTT_diff_pos) {
-                TIMEDIFF(last_RTT, RTT, RTT_diff);
-            } else {
-                TIMEDIFF(RTT, last_RTT, RTT_diff);
-            }
-            bool srv_time_diff_pos = timercmp(&last_srv_time, &srv_time, <);
-            if (srv_time_diff_pos) {
-                TIMEDIFF(last_srv_time, srv_time, srv_time_diff);
-            } else {
-                TIMEDIFF(srv_time, last_srv_time, srv_time_diff);
-            }
-
-            if ((RTT_diff_pos && srv_time_diff_pos) ||
-                !(RTT_diff_pos || srv_time_diff_pos)) {
-                timeradd(&RTT_diff, &srv_time_diff, &denominator);
-            } else if (RTT_diff_pos) {
-                timersub(&RTT_diff, &srv_time_diff, &denominator);
-            } else if (srv_time_diff_pos) {
-                timersub(&RTT_diff, &srv_time_diff, &denominator);
-            } else assert(0);
-
-            // get bandwidth estimate in bytes/sec, rather than bytes/usec
-            double bw = ((double)numerator / convert_to_useconds(denominator)) * 1000000.0;
-
-            /* latency = ((RTT - srv_time)/1000 - (req_size/bw)*1000); */
-            struct timeval diff;
-            if (timercmp(&RTT, &srv_time, >)) {
-                timersub(&RTT, &srv_time, &diff);
-            } else {
-                diff.tv_sec = 0;
-                diff.tv_usec = 0;
-            }
-            double latency = (convert_to_useconds(diff)/1000.0 - 
-                              (req_size / bw * 1000.0)) / 2.0;
-
-            bw_est = round_nearest(bw);
-            latency_est = round_nearest(latency);
-            valid_result = (bw > 0 && latency > 0);
-            if (!valid_result) {
-                dbgprintf("Spot values indicate invalid observation; ignoring\n");
-            }
-        } else if(net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est)) {
-            /* latency = ((RTT - srv_time)/1000 - (req_size/bw)*1000); */
-            double bw = static_cast<double>(bw_est);
-            struct timeval diff;
-            if (timercmp(&RTT, &srv_time, >)) {
-                timersub(&RTT, &srv_time, &diff);
-            } else {
-                diff.tv_sec = 0;
-                diff.tv_usec = 0;
-            }
-            double latency = (convert_to_useconds(diff)/1000.0 - 
-                              (req_size / bw * 1000.0)) / 2.0;
-            latency_est = round_nearest(latency);
-            valid_result = (bw > 0 && latency > 0);
-            if (!valid_result) {
-                dbgprintf("Spot values indicate invalid observation; ignoring\n");
-            }
-        } else {
-            dbgprintf("Couldn't produce spot values; equal message "
-                      "sizes and no prior bw estimate\n");
+        try {
+            RTT = measurement.RTT();
+        } catch (const InvalidEstimateException &e) {
+            dbgprintf("Invalid measurement detected; ignoring\n");
+            return;
         }
 
-        if (valid_result) {
-            net_estimates.estimates[NET_STATS_BW_UP].add_observation(bw_est);
-            net_estimates.estimates[NET_STATS_LATENCY].add_observation(latency_est);
-            dbgprintf("New spot values: bw %lu latency %lu\n", bw_est, latency_est);
+        size_t req_size = measurement.num_bytes();
+
+        dbgprintf("Reporting new ACK for IROB %ld; RTT %lu.%06lu  size %zu\n",
+                  irob_id, RTT.tv_sec, RTT.tv_usec, req_size);
+
+        if (last_RTT.tv_sec != -1) {
+            // solving simple system of 2 linear equations, from paper
+            /* We want this:
+             * u_long bw_up_estimate = ((req_size - last_req_size) /
+             *                          (RTT - last_RTT + 
+             *                           last_srv_time - srv_time));
+             * but done with struct timevals to avoid overflow.
+             */
+
+            // XXX: this code is gross.  Better to just write timeops
+            // that work for negative values.
+
+            u_long bw_est = 0, latency_est = 0;
+            bool valid_result = false;
+
+            if (req_size != last_req_size) {
+                size_t numerator = ((req_size > last_req_size)
+                                    ? (req_size - last_req_size)
+                                    : (last_req_size - req_size));
+
+                struct timeval denominator;
+                struct timeval RTT_diff, srv_time_diff;
+                bool RTT_diff_pos = timercmp(&last_RTT, &RTT, <);
+                if (RTT_diff_pos) {
+                    TIMEDIFF(last_RTT, RTT, RTT_diff);
+                } else {
+                    TIMEDIFF(RTT, last_RTT, RTT_diff);
+                }
+                bool srv_time_diff_pos = timercmp(&last_srv_time, &srv_time, <);
+                if (srv_time_diff_pos) {
+                    TIMEDIFF(last_srv_time, srv_time, srv_time_diff);
+                } else {
+                    TIMEDIFF(srv_time, last_srv_time, srv_time_diff);
+                }
+
+                if ((RTT_diff_pos && srv_time_diff_pos) ||
+                    !(RTT_diff_pos || srv_time_diff_pos)) {
+                    timeradd(&RTT_diff, &srv_time_diff, &denominator);
+                } else if (RTT_diff_pos) {
+                    timersub(&RTT_diff, &srv_time_diff, &denominator);
+                } else if (srv_time_diff_pos) {
+                    timersub(&RTT_diff, &srv_time_diff, &denominator);
+                } else assert(0);
+
+                // get bandwidth estimate in bytes/sec, rather than bytes/usec
+                double bw = ((double)numerator / convert_to_useconds(denominator)) * 1000000.0;
+
+                /* latency = ((RTT - srv_time)/1000 - (req_size/bw)*1000); */
+                struct timeval diff;
+                if (timercmp(&RTT, &srv_time, >)) {
+                    timersub(&RTT, &srv_time, &diff);
+                } else {
+                    diff.tv_sec = 0;
+                    diff.tv_usec = 0;
+                }
+                double latency = (convert_to_useconds(diff)/1000.0 - 
+                                  (req_size / bw * 1000.0)) / 2.0;
+
+                bw_est = round_nearest(bw);
+                latency_est = round_nearest(latency);
+                valid_result = (bw > 0 && latency > 0);
+                if (!valid_result) {
+                    dbgprintf("Spot values indicate invalid observation; ignoring\n");
+                }
+            } else if(net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est)) {
+                /* latency = ((RTT - srv_time)/1000 - (req_size/bw)*1000); */
+                double bw = static_cast<double>(bw_est);
+                struct timeval diff;
+                if (timercmp(&RTT, &srv_time, >)) {
+                    timersub(&RTT, &srv_time, &diff);
+                } else {
+                    diff.tv_sec = 0;
+                    diff.tv_usec = 0;
+                }
+                double latency = (convert_to_useconds(diff)/1000.0 - 
+                                  (req_size / bw * 1000.0)) / 2.0;
+                latency_est = round_nearest(latency);
+                valid_result = (bw > 0 && latency > 0);
+                if (!valid_result) {
+                    dbgprintf("Spot values indicate invalid observation; ignoring\n");
+                }
+            } else {
+                dbgprintf("Couldn't produce spot values; equal message "
+                          "sizes and no prior bw estimate\n");
+            }
+
+            if (valid_result) {
+                net_estimates.estimates[NET_STATS_BW_UP].add_observation(bw_est);
+                net_estimates.estimates[NET_STATS_LATENCY].add_observation(latency_est);
+                dbgprintf("New spot values: bw %lu latency %lu\n", bw_est, latency_est);
             
-            bool ret = net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est);
-            ret = ret && net_estimates.estimates[NET_STATS_LATENCY].get_estimate(latency_est);
-            assert(ret);
-            dbgprintf("New estimates: bw_up %lu bytes/sec, latency %lu ms\n", 
-                      bw_est, latency_est);
-            // TODO: send bw_up estimate to remote peer as its bw_down.  Or maybe do that
-            //       in CSocketReceiver, after calling this.
-        }
-    }
+                bool ret = net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est);
+                ret = ret && net_estimates.estimates[NET_STATS_LATENCY].get_estimate(latency_est);
+                assert(ret);
+                dbgprintf("New estimates: bw_up %lu bytes/sec, latency %lu ms\n", 
+                          bw_est, latency_est);
 
-    last_RTT = RTT;
-    last_req_size = req_size;
-    last_srv_time = srv_time;
+                // TODO: send bw_up estimate to remote peer as its bw_down.  Or maybe do that
+                //       in CSocketReceiver, after calling this.
+            }
+        }
+
+        last_RTT = RTT;
+        last_req_size = req_size;
+        last_srv_time = srv_time;
+    }
+    cache_save();
 }
 
 void

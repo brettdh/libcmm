@@ -15,7 +15,7 @@ class EstimationTest : public CppUnit::TestFixture {
     CPPUNIT_TEST(testQueuingDelay);
     CPPUNIT_TEST(testNetStatsSimple);
     CPPUNIT_TEST(testNetStatsWithQueuingDelay);
-    CPPUNIT_TEST(testNetStatsWithSenderDelay);
+    //CPPUNIT_TEST(testNetStatsWithSenderDelay);
     CPPUNIT_TEST(testNetStatsSingleIROBQueuingDelay);
     CPPUNIT_TEST(testQueuingDelayInterleaved);
     CPPUNIT_TEST_SUITE_END();

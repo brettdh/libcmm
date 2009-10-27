@@ -156,6 +156,7 @@ class NetStats {
 
     NetStats(struct net_interface local_iface, 
              struct net_interface remote_iface);
+    ~NetStats();
   private:
     struct in_addr local_addr;
     struct in_addr remote_addr;
