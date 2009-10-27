@@ -14,6 +14,7 @@ NetStats::NetStats(struct net_interface local_iface,
     last_RTT.tv_sec = last_srv_time.tv_sec = -1;
     last_RTT.tv_usec = last_srv_time.tv_usec = 0;
     last_req_size = 0;
+    last_irob = -1;
 
     u_long init_bandwidth = iface_bandwidth(local_iface, remote_iface);
     u_long init_latency = iface_RTT(local_iface, remote_iface) / 2;
@@ -42,17 +43,39 @@ NetStats::report_send_event(irob_id_t irob_id, size_t bytes)
 {
     PthreadScopedRWLock lock(&my_lock, true);
 
+    if (past_irobs.contains(irob_id)) {
+        dbgprintf("Ignoring send event from previously-ignored IROB %ld\n",
+                  irob_id);
+        return;
+    }
+    
     u_long bw_est = 0;
     (void)net_estimates[NET_STATS_BW_UP].get_estimate(bw_est);
     
+    if (irob_id != last_irob) {
+        if (irob_measurements.find(last_irob) != irob_measurements.end()) {
+            irob_measurements[last_irob].finish();
+        }
+        last_irob = irob_id;
+    }
+
+    IROBMeasurement& measurement = irob_measurements[irob_id];
+    measurement.set_id(irob_id); // in case it is new
+    if (measurement.is_finished()) {
+        dbgprintf("Saw an interleaving for IROB %ld; "
+                  "ignoring and removing it\n",
+                  irob_id);
+        irob_measurements.erase(irob_id);
+        past_irobs.insert(irob_id);
+        return;
+    }
+
     struct timeval queuable_time = outgoing_qdelay.get_queuable_time(irob_id);
     // queuable_time is the earliest time that this message 
     //  could hit the network (or else it's {0, 0}, if
     //  the last message was from a different IROB; that is,
     //  if the message could go immediately)
 
-    // inserts if not already present
-    IROBMeasurement& measurement = irob_measurements[irob_id];
     measurement.add_bytes(bytes, queuable_time); // accounts for inter-send delay
 
     // don't add queuing delay between parts of an IROB, since 
@@ -92,8 +115,12 @@ void
 NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
 {
     PthreadScopedRWLock lock(&my_lock, true);
-    assert(irob_measurements.find(irob_id) !=
-           irob_measurements.end());
+    if (irob_measurements.find(irob_id) ==irob_measurements.end()) {
+        dbgprintf("Got ACK for IROB %ld, but I've forgotten it.  Ignoring.\n",
+                  irob_id);
+        return;
+    }
+
     IROBMeasurement measurement = irob_measurements[irob_id];
     irob_measurements.erase(irob_id);
 
@@ -218,6 +245,7 @@ NetStats::remove(irob_id_t irob_id)
 }
 
 IROBMeasurement::IROBMeasurement()
+    : id(-1), finished(false)
 {
     total_size = 0;
     //TIME(arrival_time);
@@ -228,6 +256,13 @@ IROBMeasurement::IROBMeasurement()
     total_delay.tv_sec = 0;
     total_delay.tv_usec = 0;
 }
+
+void 
+IROBMeasurement::set_id(irob_id_t id_)
+{
+    id = id_;
+}
+
 
 size_t
 IROBMeasurement::num_bytes()
@@ -255,8 +290,8 @@ IROBMeasurement::add_bytes(size_t bytes, struct timeval queuable_time)
         if (timercmp(&queuable_time, &now, <)) {
             TIMEDIFF(queuable_time, now, diff);
             // add scheduling delay
-            dbgprintf("Adding %lu.%06lu of scheduling delay\n",
-                      diff.tv_sec, diff.tv_usec);
+            dbgprintf("Adding %lu.%06lu of scheduling delay to IROB %ld\n",
+                      diff.tv_sec, diff.tv_usec, id);
             timeradd(&total_delay, &diff, &total_delay);
         }
     }

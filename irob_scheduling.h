@@ -41,6 +41,7 @@ class IROBPrioritySet {
   public:
     void insert(IROBSchedulingData data);
     bool pop(IROBSchedulingData& data);
+    bool remove(irob_id_t id, IROBSchedulingData& data);
     bool empty() const { return tasks.empty(); }
 
     typedef TaskSet::iterator iterator;

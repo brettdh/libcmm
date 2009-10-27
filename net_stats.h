@@ -5,6 +5,7 @@
 #include <time.h>
 #include <pthread.h>
 #include "libcmm_irob.h"
+#include "intset.h"
 #include <map>
 
 
@@ -59,6 +60,7 @@ class QueuingDelay {
 class IROBMeasurement {
   public:
     IROBMeasurement();
+    void set_id(irob_id_t id_);
 
     // args: bytes = size of message
     //       dtime = departure time of message
@@ -70,9 +72,17 @@ class IROBMeasurement {
     // don't call until after calling ack()
     struct timeval RTT();
     size_t num_bytes();
+
+    bool is_finished() const {
+        return finished;
+    }
+    void finish() {
+        finished = true;
+    };
   private:
     /* total of all IROB-related
      * bytes sent, including headers */
+    irob_id_t id;
     size_t total_size;
     struct timeval arrival_time;
     struct timeval last_activity;
@@ -81,6 +91,12 @@ class IROBMeasurement {
     /* includes both queuing delay due to self-interference time
      * and time between send calls for this IROB */
     struct timeval total_delay;
+
+    // If I see another IROB's bytes after my own, I assume that I've
+    //  seen all my bytes and set finished=true.  If this turns out later
+    //  to be false, I'll just throw out this measurement to avoid the
+    //  nasty subtleties in the queuing delay compensation.
+    bool finished;
 };
 
 
@@ -149,9 +165,13 @@ class NetStats {
     struct timeval last_RTT;
     struct timeval last_srv_time;
     size_t last_req_size;
+
+    irob_id_t last_irob;
     
     typedef std::map<irob_id_t, IROBMeasurement> irob_measurements_t;
     irob_measurements_t irob_measurements;
+
+    IntSet past_irobs;
 };
 
 void update_EWMA(double& EWMA, double spot, double gain);

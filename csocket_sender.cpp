@@ -169,18 +169,38 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
     IROBSchedulingData data;
 
     if (indexes.new_irobs.pop(data)) {
+        irob_id_t id = data.id;
         if (!begin_irob(data)) {
             indexes.new_irobs.insert(data);
         } else {
             did_something = true;
+            while (indexes.new_chunks.remove(id, data)) {
+                if (!irob_chunk(data)) {
+                    indexes.new_chunks.insert(data);
+                    break;
+                }
+            }
+            if (indexes.finished_irobs.remove(id, data)) {
+                end_irob(data);
+            }
         }
     }
     
     if (indexes.new_chunks.pop(data)) {
+        irob_id_t id = data.id;
         if (!irob_chunk(data)) {
             indexes.new_chunks.insert(data);
         } else {
             did_something = true;
+            while (indexes.new_chunks.remove(id, data)) {
+                if (!irob_chunk(data)) {
+                    indexes.new_chunks.insert(data);
+                    break;
+                }
+            }
+            if (indexes.finished_irobs.remove(id, data)) {
+                end_irob(data);
+            }
         }
     }
     

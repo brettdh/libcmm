@@ -217,6 +217,47 @@ EstimationTest::testNetStatsSingleIROBQueuingDelay()
 }
 
 void
+EstimationTest::testQueuingDelayInterleaved()
+{
+    testNetStatsSimple();
+    
+    struct timeval zero = {0,0};
+    struct timespec sleeptime1 = {0, 300 * 1000 * 1000};
+    struct timespec sleeptime2 = {0, 700 * 1000 * 1000};
+    struct timespec sleeptime3 = {1, 40 * 1000 * 1000};
+    struct timespec sleeptime4 = {1, 0 * 1000 * 1000};
+    nowake_nanosleep(&sleeptime1);
+
+    // 0:00.00
+    stats->report_send_event(5, 5000);
+    nowake_nanosleep(&sleeptime1);
+
+    // 0:00.30
+    stats->report_send_event(5, 5000);
+    nowake_nanosleep(&sleeptime2);
+
+    // 0:01.00
+    stats->report_send_event(6, 5000);
+    stats->report_send_event(5, 5000);
+    nowake_nanosleep(&sleeptime4);
+    // 0:02.00
+    nowake_nanosleep(&sleeptime4);
+
+    // 0:03.00
+    stats->report_send_event(6, 5000);
+    nowake_nanosleep(&sleeptime3);
+
+    // 0:04.04
+    stats->report_ack(5, zero); // RTT = 4.04 - 0.0 - 1.0 = 3.04
+    nowake_nanosleep(&sleeptime4);
+
+    // 0:05.04
+    stats->report_ack(6, zero);
+
+    assertStatsCorrect(5000, 20);    
+}
+
+void
 EstimationTest::assertStatsCorrect(u_long expected_bw, 
                                    u_long expected_latency)
 {
