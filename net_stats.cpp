@@ -5,8 +5,29 @@
 #include <sys/types.h>
 #include "timeops.h"
 #include <cmath>
+#include <map>
+using std::make_pair;
 
 class InvalidEstimateException {};
+
+NetStats::StatsCache NetStats::stats_cache;
+pthread_rwlock_t NetStats::stats_cache_lock;
+NetStats::static_initializer NetStats::init;
+
+NetStats::static_initializer::static_initializer()
+{
+    pthread_rwlock_init(&NetStats::stats_cache_lock, NULL);
+}
+
+
+static struct timeval time_to_send(size_t msg_size, u_long bw_estimate)
+{
+    double bw_seconds = ((double)msg_size) / bw_estimate;
+    useconds_t bw_time_usecs = (useconds_t)(bw_seconds * 1000000);
+    struct timeval bw_time = convert_to_timeval(bw_time_usecs);
+    return bw_time;
+}
+
 
 NetStats::NetStats(struct net_interface local_iface, 
                    struct net_interface remote_iface)
@@ -18,14 +39,68 @@ NetStats::NetStats(struct net_interface local_iface,
     last_req_size = 0;
     last_irob = -1;
 
+    cache_restore();
+
     u_long init_bandwidth = iface_bandwidth(local_iface, remote_iface);
     u_long init_latency = iface_RTT(local_iface, remote_iface) / 2;
     if (init_bandwidth > 0) {
-        net_estimates[NET_STATS_BW_UP].add_observation(init_bandwidth);
+        net_estimates.estimates[NET_STATS_BW_UP].add_observation(init_bandwidth);
     }
     if (init_latency > 0) {
-        net_estimates[NET_STATS_LATENCY].add_observation(init_latency);
+        net_estimates.estimates[NET_STATS_LATENCY].add_observation(init_latency);
     }
+}
+
+void
+NetStats::cache_save()
+{
+    PthreadScopedRWLock wrlock(&stats_cache_lock, true);
+    PthreadScopedRWLock rd_self_lock(&my_lock, false);
+
+    struct net_interface local_iface, remote_iface;
+    local_iface.ip_addr = local_addr;
+    remote_iface.ip_addr = remote_addr;
+    StatsCache::key_type key = make_pair(local_iface, remote_iface);
+    for (size_t i = 0; i < NUM_ESTIMATES; ++i) {
+        stats_cache[key].estimates[i] = net_estimates.estimates[i];
+    }
+}
+
+void
+NetStats::cache_restore()
+{
+    PthreadScopedRWLock rdlock(&stats_cache_lock, false);
+    PthreadScopedRWLock wr_self_lock(&my_lock, true);
+
+    struct net_interface local_iface, remote_iface;
+    local_iface.ip_addr = local_addr;
+    remote_iface.ip_addr = remote_addr;
+    StatsCache::key_type key = make_pair(local_iface, remote_iface);
+    for (size_t i = 0; i < NUM_ESTIMATES; ++i) {
+        u_long value;
+        if (stats_cache[key].estimates[i].get_estimate(value)) {
+            net_estimates.estimates[i] = stats_cache[key].estimates[i];
+        }
+    }
+}
+
+bool 
+NetStats::get_estimate(const struct net_interface& local_iface, 
+                       const struct net_interface& remote_iface,
+                       unsigned short type, u_long& value)
+{
+    if (type >= NUM_ESTIMATES) {
+        return false;
+    }
+
+    PthreadScopedRWLock rdlock(&stats_cache_lock, false);
+
+    StatsCache::key_type key = make_pair(local_iface, remote_iface);
+    StatsCache::iterator pos = stats_cache.find(key) ;
+    if (pos != stats_cache.end()) {
+        return pos->second.estimates[type].get_estimate(value);
+    }
+    return false;
 }
 
 bool 
@@ -37,7 +112,7 @@ NetStats::get_estimate(unsigned short type, u_long& value)
 
     PthreadScopedRWLock lock(&my_lock, false);
 
-    return net_estimates[type].get_estimate(value);
+    return net_estimates.estimates[type].get_estimate(value);
 }
 
 void 
@@ -52,7 +127,7 @@ NetStats::report_send_event(irob_id_t irob_id, size_t bytes)
     }
     
     u_long bw_est = 0;
-    (void)net_estimates[NET_STATS_BW_UP].get_estimate(bw_est);
+    (void)net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est);
     
     if (irob_id != last_irob) {
         if (irob_measurements.find(last_irob) != irob_measurements.end()) {
@@ -78,7 +153,7 @@ NetStats::report_send_event(irob_id_t irob_id, size_t bytes)
     //  the last message was from a different IROB; that is,
     //  if the message could go immediately)
 
-    measurement.add_bytes(bytes, queuable_time); // accounts for inter-send delay
+    measurement.add_bytes(bytes, queuable_time, bw_est); // accounts for inter-send delay
 
     // don't add queuing delay between parts of an IROB, since 
     //  that delay doesn't come into the IROB's RTT measurement
@@ -95,7 +170,7 @@ NetStats::report_send_event(size_t bytes)
 {
     PthreadScopedRWLock lock(&my_lock, true);
     u_long bw_est = 0;
-    (void)net_estimates[NET_STATS_BW_UP].get_estimate(bw_est);
+    (void)net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est);
     (void)outgoing_qdelay.add_message(bytes, bw_est);
 }
 
@@ -104,7 +179,7 @@ NetStats::report_recv_event(size_t bytes)
 {
     PthreadScopedRWLock lock(&my_lock, true);
     u_long bw_est = 0;
-    (void)net_estimates[NET_STATS_BW_DOWN].get_estimate(bw_est);
+    (void)net_estimates.estimates[NET_STATS_BW_DOWN].get_estimate(bw_est);
     (void)incoming_qdelay.add_message(bytes, bw_est);
 }
 
@@ -206,7 +281,7 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
             if (!valid_result) {
                 dbgprintf("Spot values indicate invalid observation; ignoring\n");
             }
-        } else if(net_estimates[NET_STATS_BW_UP].get_estimate(bw_est)) {
+        } else if(net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est)) {
             /* latency = ((RTT - srv_time)/1000 - (req_size/bw)*1000); */
             double bw = static_cast<double>(bw_est);
             struct timeval diff;
@@ -229,12 +304,12 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
         }
 
         if (valid_result) {
-            net_estimates[NET_STATS_BW_UP].add_observation(bw_est);
-            net_estimates[NET_STATS_LATENCY].add_observation(latency_est);
+            net_estimates.estimates[NET_STATS_BW_UP].add_observation(bw_est);
+            net_estimates.estimates[NET_STATS_LATENCY].add_observation(latency_est);
             dbgprintf("New spot values: bw %lu latency %lu\n", bw_est, latency_est);
             
-            bool ret = net_estimates[NET_STATS_BW_UP].get_estimate(bw_est);
-            ret = ret && net_estimates[NET_STATS_LATENCY].get_estimate(latency_est);
+            bool ret = net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est);
+            ret = ret && net_estimates.estimates[NET_STATS_LATENCY].get_estimate(latency_est);
             assert(ret);
             dbgprintf("New estimates: bw_up %lu bytes/sec, latency %lu ms\n", 
                       bw_est, latency_est);
@@ -281,7 +356,8 @@ IROBMeasurement::num_bytes()
 }
 
 void 
-IROBMeasurement::add_bytes(size_t bytes, struct timeval queuable_time)
+IROBMeasurement::add_bytes(size_t bytes, struct timeval queuable_time,
+                           u_long bw_est)
 {
     struct timeval diff, now;
     TIME(now);
@@ -296,13 +372,24 @@ IROBMeasurement::add_bytes(size_t bytes, struct timeval queuable_time)
                          ? queuable_time : last_activity);
         // by checking this time, we make sure not to double-count
         // scheduling delay that overlaps queuing delay
+        
+        struct timeval bw_time = time_to_send(total_size, bw_est);
+        struct timeval self_queuable_time;
+        timeradd(&arrival_time, &bw_time, &self_queuable_time);
+        queuable_time = (timercmp(&queuable_time, &self_queuable_time, >)
+                         ? queuable_time : self_queuable_time);
 
         if (timercmp(&queuable_time, &now, <)) {
             TIMEDIFF(queuable_time, now, diff);
             // add scheduling delay
-            dbgprintf("Adding %lu.%06lu of scheduling delay to IROB %ld\n",
-                      diff.tv_sec, diff.tv_usec, id);
-            timeradd(&total_delay, &diff, &total_delay);
+            dbgprintf("Adding %lu.%06lu of scheduling delay to IROB %ld\n"
+                      "(Actually ignoring it; see %s:%d)\n",
+                      diff.tv_sec, diff.tv_usec, id, 
+                      __FILE__, __LINE__);
+            // In practice, this is either so tiny as to be negligible,
+            //   or else absurdly large and seemingly bogus.
+            // So we'll assume it's negligible.
+            //add_delay(diff);
         }
     }
     last_activity = now;
@@ -348,14 +435,6 @@ QueuingDelay::QueuingDelay()
     last_msg_size = 0;
     last_bw_estimate = 0;
     last_irob = -1;
-}
-
-static struct timeval time_to_send(size_t msg_size, u_long bw_estimate)
-{
-    double bw_seconds = ((double)msg_size) / bw_estimate;
-    useconds_t bw_time_usecs = (useconds_t)(bw_seconds * 1000000);
-    struct timeval bw_time = convert_to_timeval(bw_time_usecs);
-    return bw_time;
 }
 
 struct timeval 

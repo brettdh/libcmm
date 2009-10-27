@@ -62,10 +62,8 @@ class IROBMeasurement {
     IROBMeasurement();
     void set_id(irob_id_t id_);
 
-    // args: bytes = size of message
-    //       dtime = departure time of message
-    //               (arrival time plus queuing delay)
-    void add_bytes(size_t bytes, struct timeval dtime);
+    void add_bytes(size_t bytes, struct timeval queuable_time,
+                   u_long bw_est);
     void add_delay(struct timeval delay);
     void ack();
 
@@ -107,6 +105,10 @@ class IROBMeasurement {
 
 #define NUM_ESTIMATES 3
 
+struct estimate_set {
+    Estimate estimates[NUM_ESTIMATES];
+};
+
 // each CSocket will include an object of this type, since the stats
 // are kept for each (local,remote) interface pair.
 class NetStats {
@@ -116,6 +118,10 @@ class NetStats {
     //  history to compute the estimate, or if either argument
     //  is invalid.
     bool get_estimate(unsigned short type, u_long& value);
+
+    static bool get_estimate(const struct net_interface& local_iface, 
+                             const struct net_interface& remote_iface,
+                             unsigned short type, u_long& value);
       
     // CSocketSender should call this immediately before it sends
     //  bytes related to an IROB.  The bytes argument should include
@@ -160,7 +166,8 @@ class NetStats {
     QueuingDelay outgoing_qdelay;
     QueuingDelay incoming_qdelay;
 
-    Estimate net_estimates[NUM_ESTIMATES];
+    //Estimate net_estimates[NUM_ESTIMATES];
+    struct estimate_set net_estimates;
 
     struct timeval last_RTT;
     struct timeval last_srv_time;
@@ -172,6 +179,19 @@ class NetStats {
     irob_measurements_t irob_measurements;
 
     IntSet past_irobs;
+
+    typedef std::map<std::pair<struct net_interface, 
+                               struct net_interface>,
+                     struct estimate_set> StatsCache;
+    static StatsCache stats_cache;
+    static pthread_rwlock_t stats_cache_lock;
+    void cache_save();
+    void cache_restore();
+
+    struct static_initializer {
+        static_initializer();
+    };
+    static static_initializer init;
 };
 
 void update_EWMA(double& EWMA, double spot, double gain);

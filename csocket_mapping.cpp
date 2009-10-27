@@ -221,8 +221,17 @@ CSockMapping::get_iface_pair(u_long send_label,
          i != skp->local_ifaces.end(); ++i) {
         for (NetInterfaceSet::iterator j = skp->remote_ifaces.begin();
              j != skp->remote_ifaces.end(); ++j) {
-            u_long bw = iface_bandwidth(*i, *j);
-            u_long RTT = iface_RTT(*i, *j);
+            //u_long bw = iface_bandwidth(*i, *j);
+            //u_long RTT = iface_RTT(*i, *j);
+            u_long bw, RTT;
+            if (!NetStats::get_estimate(*i, *j, NET_STATS_BW_UP, bw)) {
+                bw = iface_bandwidth(*i, *j);
+            }
+            if (!NetStats::get_estimate(*i, *j, NET_STATS_LATENCY, RTT)) {
+                RTT = iface_RTT(*i, *j);
+            } else {
+                RTT = RTT * 2;
+            }
             
             if (bw > max_bw) {
                 max_bw = bw;
