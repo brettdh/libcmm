@@ -660,19 +660,20 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
             }
             
             assert(sk);
-            PthreadScopedRWLock lock(&sk->my_lock, true);
-            char junk[64];
-            int bytes_cleared = 0;
-            dbgprintf("Emptying select pipe for msocket %d\n", i);
-            int ret = read(sk->select_pipe[0], &junk, 64);
-            while (ret > 0) {
-                bytes_cleared += ret;
-                // empty the pipe so future select()s have to
-                //  check the incoming_irobs structure
-                ret = read(sk->select_pipe[0], &junk, 64);
-            }
-            dbgprintf("Cleared out %d bytes for msocket %d\n",
-                      bytes_cleared, i);
+            sk->clear_select_pipe();
+//             PthreadScopedRWLock lock(&sk->my_lock, true);
+//             char junk[64];
+//             int bytes_cleared = 0;
+//             dbgprintf("Emptying select pipe for msocket %d\n", i);
+//             int ret = read(sk->select_pipe[0], &junk, 64);
+//             while (ret > 0) {
+//                 bytes_cleared += ret;
+//                 // empty the pipe so future select()s have to
+//                 //  check the incoming_irobs structure
+//                 ret = read(sk->select_pipe[0], &junk, 64);
+//             }
+//             dbgprintf("Cleared out %d bytes for msocket %d\n",
+//                       bytes_cleared, i);
         }
     }
     
@@ -683,8 +684,24 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
     return rc;
 }
 
-/* TODO: similar to select(), make sure poll gets updated with 
- * new fds as needed */
+void
+CMMSocketImpl::clear_select_pipe()
+{
+    PthreadScopedRWLock lock(&my_lock, true);
+    char junk[64];
+    int bytes_cleared = 0;
+    dbgprintf("Emptying select pipe for msocket %d\n", sock);
+    int ret = read(select_pipe[0], &junk, 64);
+    while (ret > 0) {
+        bytes_cleared += ret;
+        // empty the pipe so future select()s have to
+        //  check the incoming_irobs structure
+        ret = read(select_pipe[0], &junk, 64);
+    }
+    dbgprintf("Cleared out %d bytes for msocket %d\n",
+              bytes_cleared, sock);
+}
+
 int 
 CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 {
@@ -701,7 +718,13 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 	} else {
 	    assert(sk);
             PthreadScopedRWLock lock(&sk->my_lock, false);
-	    sk->csock_map->get_real_fds(osfd_list);
+	    //sk->csock_map->get_real_fds(osfd_list);
+            if (fds[i].events & POLLIN) {
+                sk->get_fds_for_select(osfd_list, true);
+            }
+            if (fds[i].events & POLLOUT) {
+                sk->get_fds_for_select(osfd_list, false);
+            }
 	    if (osfd_list.size() == 0) {
 		/* XXX: is this right? should we instead
 		 * wait for connections to poll on? */
@@ -745,6 +768,9 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
              * If an event happened on any of the underlying FDs, 
              * it happened on the multi-socket */
             origfd->revents |= realfds[i].revents;
+            if (realfds[i].revents & POLLIN) {
+                sk->clear_select_pipe();
+            }
 	}
         if (orig_fds.find(origfd->fd) == orig_fds.end()) {
             orig_fds.insert(origfd->fd);

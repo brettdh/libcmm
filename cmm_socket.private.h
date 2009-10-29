@@ -163,6 +163,11 @@ class CMMSocketImpl : public CMMSocket {
     // actually created by socketpair() now, so that I can use shutdown.
     int select_pipe[2]; /* pipe for waking up read-selects */
 
+    // empty the select pipe so that the next select/poll
+    // will check the incoming_irobs data structure
+    void clear_select_pipe();
+
+
     CSockMapping *csock_map;
 
     struct timeval last_fg;  // the time of the last foreground activity.
