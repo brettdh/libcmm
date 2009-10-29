@@ -708,6 +708,13 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
     /* maps osfds to pointers into the original fds array */
     map<int, struct pollfd*> osfds_to_pollfds;
     vector<struct pollfd> real_fds_list;
+
+    dbgprintf("mc_poll with %lu fds [ ", nfds);
+    for(nfds_t i=0; i<nfds; i++) {
+        dbgprintf_plain("%d ", fds[i].fd);
+    }
+    dbgprintf_plain("]\n");
+
     for(nfds_t i=0; i<nfds; i++) {
 	mcSocketOsfdPairList osfd_list;
         CMMSocketImplPtr sk;
@@ -742,9 +749,13 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 
     nfds_t real_nfds = real_fds_list.size();
     struct pollfd *realfds = new struct pollfd[real_nfds];
+    dbgprintf("About to call poll(): %zd fds [ ",
+              real_fds_list.size());
     for (nfds_t i = 0; i < real_nfds; i++) {
 	realfds[i] = real_fds_list[i];
+        dbgprintf_plain("%d ", realfds[i].fd);
     }
+    dbgprintf_plain("]\n");
 
     int rc = poll(realfds, real_nfds, timeout);
     if (rc <= 0) {

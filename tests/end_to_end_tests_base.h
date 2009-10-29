@@ -30,6 +30,7 @@ class EndToEndTestsBase : public CppUnit::TestFixture {
 
     void testRandomBytesReceivedCorrectly();
     void testNoInterleaving();
+    void testCMMPoll();
   private:
     void setupReceiver();
     void startReceiver();

@@ -269,6 +269,45 @@ EndToEndTestsBase::testNoInterleaving()
     }
 }
 
+void
+EndToEndTestsBase::testCMMPoll()
+{
+    const char ANSWER = 42;
+    if (isReceiver()) {
+        struct pollfd fd;
+        fd.fd = read_sock;
+        fd.events = POLLIN;
+        fd.revents = 0;
+
+        printf("Receiver: polling for 3 seconds\n");
+        int rc = cmm_poll(&fd, 1, 3000);
+        CPPUNIT_ASSERT_EQUAL_MESSAGE("First poll times out",
+                                     0, rc);
+        printf("Receiver: polling for 3 seconds\n");
+        rc = cmm_poll(&fd, 1, -1);
+        CPPUNIT_ASSERT_EQUAL_MESSAGE("Second poll returns 1",
+                                     1, rc);
+        CPPUNIT_ASSERT_MESSAGE("Data ready for reading",
+                               fd.revents & POLLIN);
+        char c = 0;
+        rc = cmm_read(read_sock, &c, 1, NULL);
+        CPPUNIT_ASSERT_EQUAL_MESSAGE("Reading one byte succeeds",
+                                     1, rc);
+        CPPUNIT_ASSERT_EQUAL_MESSAGE("Received byte is correct",
+                                     ANSWER, c);
+    } else {
+        printf("Sender: waiting 5 seconds\n");
+        sleep(5);
+        printf("Sender: sending one byte\n");
+        char c = ANSWER;
+        int rc = cmm_send(send_sock, &c, 1, 0, 0, NULL, NULL);
+        CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending one byte succeeds",
+                                     1, rc);
+        sleep(3);
+    }
+}
+
+
 void handle_error(bool condition, const char *msg)
 {
     if (condition) {
