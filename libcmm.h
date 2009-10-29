@@ -83,6 +83,9 @@ typedef void (*resume_handler_t)(void* arg);
 ssize_t cmm_send(mc_socket_t sock, const void *buf, size_t len, int flags,
 		 u_long send_labels, 
                  resume_handler_t handler, void *arg);
+ssize_t cmm_write(mc_socket_t sock, const void *buf, size_t len,
+		 u_long send_labels, 
+                 resume_handler_t handler, void *arg);
 int cmm_writev(mc_socket_t sock, const struct iovec *vector, int count,
                u_long send_labels, 
                resume_handler_t handler, void *arg);

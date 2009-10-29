@@ -254,6 +254,13 @@ ssize_t cmm_send(mc_socket_t sock, const void *buf, size_t len, int flags,
                                             resume_handler, arg);
 }
 
+ssize_t cmm_write(mc_socket_t sock, const void *buf, size_t len,
+                  u_long send_labels, 
+                  void (*resume_handler)(void*), void *arg)
+{
+    return cmm_send(sock, buf, len, 0, send_labels, resume_handler, arg);
+}
+
 int cmm_writev(mc_socket_t sock, const struct iovec *vec, int count,
                u_long send_labels, 
                void (*resume_handler)(void*), void *arg)
