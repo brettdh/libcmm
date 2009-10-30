@@ -157,6 +157,8 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
         
         if (bootstrap_sock != -1) {
             /* we are accepting a connection */
+            dbgprintf("Accepting connection; using socket %d "
+                      "to bootstrap\n", bootstrap_sock);
             recv_remote_listeners(bootstrap_sock);
             send_local_listeners(bootstrap_sock);
         } else {
@@ -176,6 +178,8 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
                     throw rc;
                 }
 		
+                dbgprintf("Initiating connection; using socket %d "
+                          "to bootstrap\n", bootstrap_sock);
                 send_local_listeners(bootstrap_sock);
                 recv_remote_listeners(bootstrap_sock);
             } catch (int error_rc) {
@@ -1077,6 +1081,8 @@ CMMSocketImpl::mc_listen(int listener_sock, int backlog)
         if (addr.sa_family != AF_INET) {
             // do pass-through for all other socket types,
             // since we only support AF_INET right now
+            dbgprintf("Warning: only AF_INET supported.  cmm_listen returns "
+                      "pass-through listen() for AF %d.\n", addr.sa_family);
             return rc;
         }
     }
@@ -1102,6 +1108,8 @@ CMMSocketImpl::mc_accept(int listener_sock,
     VanillaListenerSet::const_accessor ac;
     if (!cmm_listeners.find(ac, listener_sock)) {
         /* pass-through */
+        dbgprintf("cmm_accept returning pass-through accept() "
+                  "for listener_sock %d\n", listener_sock);
         return accept(listener_sock, addr, addrlen);
     }
 
