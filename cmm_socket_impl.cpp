@@ -205,6 +205,8 @@ CMMSocketImpl::create(int family, int type, int protocol)
     if (family != PF_INET) {
         // TODO: remove this restriction and support 
         // more socket types.
+        dbgprintf("Warning: only AF_INET supported.  cmm_socket returns "
+                  "pass-through listen() for AF %d.\n", family);
         return socket(family, type, protocol);
     }
 
