@@ -17,8 +17,13 @@ CMMSocketPassThrough::mc_send(const void *buf, size_t len, int flags,
                               u_long send_labels, 
                               resume_handler_t rh, void *arg)
 {
-    passthrough_debug_alert("cmm_send");
-    return send(sock, buf, len, flags);
+    if (flags == 0) {
+        passthrough_debug_alert("cmm_write");
+        return write(sock, buf, len);
+    } else {
+        passthrough_debug_alert("cmm_send");
+        return send(sock, buf, len, flags);
+    }
 }
 
 int 
@@ -42,8 +47,13 @@ int
 CMMSocketPassThrough::mc_recv(void *buf, size_t count, int flags,
                               u_long *recv_labels)
 {
-    passthrough_debug_alert("cmm_recv");
-    return recv(sock, buf, count, flags);
+    if (flags == 0) {
+        passthrough_debug_alert("cmm_read");
+        return read(sock, buf, count);
+    } else {
+        passthrough_debug_alert("cmm_recv");
+        return recv(sock, buf, count, flags);
+    }
 }
 
 int 
