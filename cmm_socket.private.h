@@ -57,6 +57,7 @@ typedef LockingMap<irob_id_t, mc_socket_t> IROBSockHash;
 /*                                  IntegerHashCompare<int> > VanillaListenerSet; */
 typedef LockingMap<int, void*> VanillaListenerSet;
 
+class ConnBootstrapper;
 class ListenerThread;
 class CMMSocketSender;
 class CMMSocketReceiver;
@@ -133,6 +134,7 @@ class CMMSocketImpl : public CMMSocket {
     friend class CSocketSender;
     friend class CSocketReceiver;
     friend class ListenerThread;
+    friend class ConnBootstrapper;
     friend class PendingReceiverIROBLattice;
 
     static pthread_mutex_t hashmaps_mutex;
@@ -157,16 +159,21 @@ class CMMSocketImpl : public CMMSocket {
                              socklen_t addrlen,
                              int bootstrap_sock = -1);
 
+    bool connect_finished(bool& success);
+
+    ConnBootstrapper *bootstrapper;
+
     CMMSocketImpl(int family, int type, int protocol);
 
     mc_socket_t sock; /* file-descriptor handle for this multi-socket */
 
     // actually created by socketpair() now, so that I can use shutdown.
     int select_pipe[2]; /* pipe for waking up read-selects */
+    int write_ready_pipe[2]; /* pipe for waking up write-selects */
 
     // empty the select pipe so that the next select/poll
     // will check the incoming_irobs data structure
-    void clear_select_pipe();
+    void clear_select_pipe(int fd);
 
 
     CSockMapping *csock_map;
@@ -302,7 +309,8 @@ class CMMSocketImpl : public CMMSocket {
     IROBSchedulingIndexes irob_indexes;
     bool sending_goodbye;
 
-    int non_blocking; /* 1 if non blocking, 0 otherwise */
+    bool non_blocking;
+    bool is_non_blocking(); // considers calls to fcntl with O_NONBLOCK
 
     /* these are used for creating new physical sockets */
     int sock_family;
@@ -312,10 +320,12 @@ class CMMSocketImpl : public CMMSocket {
 
     irob_id_t next_irob;
 
-    void get_fds_for_select(mcSocketOsfdPairList &osfd_list, bool reading);
+    void get_fds_for_select(mcSocketOsfdPairList &osfd_list, 
+                            bool reading, bool writing);
     static int make_real_fd_set(int nfds, fd_set *fds,
                                 mcSocketOsfdPairList &osfd_list, 
-                                int *maxosfd, bool reading);
+                                int *maxosfd, 
+                                bool reading, bool writing);
     static int make_mc_fd_set(fd_set *fds, 
                               const mcSocketOsfdPairList &osfd_list);
 

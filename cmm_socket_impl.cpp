@@ -1,6 +1,7 @@
 #include "cmm_socket.h"
 #include "cmm_socket.private.h"
 #include "cmm_internal_listener.h"
+#include "cmm_conn_bootstrapper.h"
 #include "csocket.h"
 #include "csocket_mapping.h"
 #include "common.h"
@@ -135,11 +136,12 @@ CMMSocketImpl::add_connection(int sock,
     csock_map->add_connection(sock, local_addr, remote_iface);
 }
 
+
+
 int
 CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr, 
                                     socklen_t addrlen, int bootstrap_sock)
 {
-    /* TODO: non-blocking considerations? */
     try {
         int rc;
         {
@@ -151,42 +153,22 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
             }
         }
     
-        PthreadScopedLock scoped_lock(&hashmaps_mutex);
-        PthreadScopedRWLock sock_lock(&my_lock, true);
-        local_ifaces = ifaces;
+        {
+            PthreadScopedLock scoped_lock(&hashmaps_mutex);
+            PthreadScopedRWLock sock_lock(&my_lock, true);
+            local_ifaces = ifaces;
+        }
         
-        if (bootstrap_sock != -1) {
-            /* we are accepting a connection */
-            dbgprintf("Accepting connection; using socket %d "
-                      "to bootstrap\n", bootstrap_sock);
-            recv_remote_listeners(bootstrap_sock);
-            send_local_listeners(bootstrap_sock);
-        } else {
-            /* we are connecting */
-            assert(remote_addr);
-
-            bootstrap_sock = socket(sock_family, sock_type, sock_protocol);
-            if (bootstrap_sock < 0) {
-                throw bootstrap_sock;
+        bootstrapper = new ConnBootstrapper(this, bootstrap_sock, 
+                                            remote_addr, addrlen);
+        bootstrapper->start();
+        if (!is_non_blocking()) {
+            bootstrapper->join();
+            if (!bootstrapper->succeeded()) {
+                delete bootstrapper;
+                throw -1;
             }
-
-            try {
-                int rc = connect(bootstrap_sock, remote_addr, addrlen);
-                if (rc < 0) {
-		    perror("connect");
-		    dbgprintf("Error connecting bootstrap socket\n");
-                    throw rc;
-                }
-		
-                dbgprintf("Initiating connection; using socket %d "
-                          "to bootstrap\n", bootstrap_sock);
-                send_local_listeners(bootstrap_sock);
-                recv_remote_listeners(bootstrap_sock);
-            } catch (int error_rc) {
-                close(bootstrap_sock);
-                throw;
-            }
-            close(bootstrap_sock);
+            delete bootstrapper;
         }
     } catch (int error_rc) {
         PthreadScopedLock lock(&scheduling_state_lock);
@@ -199,6 +181,25 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
     return 0;
 }
 
+bool
+CMMSocketImpl::connect_finished(bool& success)
+{
+    PthreadScopedRWLock sock_lock(&my_lock, false);
+    if (!is_non_blocking()) {
+        // must be finished in connection_bootstrap()
+        success = true;
+        return true;
+    }
+
+    bool ret = false;
+    assert(bootstrapper);
+    if (bootstrapper->done()) {
+        ret = true;
+        success = bootstrapper->succeeded();
+    }
+    return ret;
+}
+
 mc_socket_t
 CMMSocketImpl::create(int family, int type, int protocol)
 {
@@ -206,7 +207,7 @@ CMMSocketImpl::create(int family, int type, int protocol)
         // TODO: remove this restriction and support 
         // more socket types.
         dbgprintf("Warning: only AF_INET supported.  cmm_socket returns "
-                  "pass-through listen() for AF %d.\n", family);
+                  "pass-through calls for AF %d.\n", family);
         return socket(family, type, protocol);
     }
 
@@ -320,16 +321,9 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
     }
 }
 
-static void
-set_selectpipe_sockopts(int fd)
-{
-    int flags = fcntl(fd, F_GETFL);
-    int rc = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-    assert(rc == 0);
-}
-
 CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
-    : listener_thread(NULL),
+    : bootstrapper(NULL),
+      listener_thread(NULL),
       remote_listener_port(0),
       shutting_down(false),
       remote_shutdown(false),
@@ -352,11 +346,23 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
 
     int rc = socketpair(AF_UNIX, SOCK_STREAM, 0, select_pipe);
     if (rc < 0) { 
+        perror("socketpair");
         close(sock);
         throw rc;
     }
-    set_selectpipe_sockopts(select_pipe[0]);
-    set_selectpipe_sockopts(select_pipe[1]);
+    set_nonblocking(select_pipe[0]);
+    set_nonblocking(select_pipe[1]);
+
+    rc = socketpair(AF_UNIX, SOCK_STREAM, 0, write_ready_pipe);
+    if (rc < 0) {
+        perror("socketpair");
+        close(select_pipe[0]);
+        close(select_pipe[1]);
+        close(sock);
+        throw rc;
+    }
+    set_nonblocking(write_ready_pipe[0]);
+    set_nonblocking(write_ready_pipe[1]);
 
     /* so we can identify this FD as a mc_socket later */
     /* XXX: This won't work when we yank out Juggler. */
@@ -370,7 +376,7 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
     sock_type = type;
     sock_protocol = protocol;
 
-    non_blocking=0;
+    non_blocking = false;
 
     csock_map = NULL;
     //csock_map = new CSockMapping(this);
@@ -404,6 +410,8 @@ CMMSocketImpl::~CMMSocketImpl()
     //free(remote_addr);
     close(select_pipe[0]);
     close(select_pipe[1]);
+    close(write_ready_pipe[0]);
+    close(write_ready_pipe[1]);
     close(sock);
 
     pthread_mutex_destroy(&shutdown_mutex);
@@ -420,21 +428,22 @@ CMMSocketImpl::mc_connect(const struct sockaddr *serv_addr,
         CMMSocketImplPtr sk;
 	if (!cmm_sock_hash.find(sock, sk)) {
             assert(0);
+	}
+    }
 
-	    fprintf(stderr, 
-		    "Error: tried to cmm_connect socket %d "
-		    "not created by cmm_socket\n", sock);
-	    errno = EBADF;
-	    return CMM_FAILED; /* assert(0)? */
-	}
-        PthreadScopedRWLock lock(&sk->my_lock, false);
-	if (!sk->remote_ifaces.empty()) {
-	    fprintf(stderr, 
-		    "Warning: tried to cmm_connect an "
-		    "already-connected socket %d\n", sock);
-	    errno = EISCONN;
-	    return CMM_FAILED;
-	}
+    if (bootstrapper) {
+        bool success = false;
+        if (connect_finished(success)) {
+            // connection in progress
+            if (success) {
+                errno = EISCONN;
+            } else {
+                errno = bootstrapper->status();
+            }
+        } else {
+            errno = EALREADY;
+        }
+        return CMM_FAILED;
     }
 
     if (!serv_addr) {
@@ -442,11 +451,6 @@ CMMSocketImpl::mc_connect(const struct sockaddr *serv_addr,
         return CMM_FAILED;
     }
 
-//     CMMSockHash::accessor ac;
-//     if (!cmm_sock_hash.find(ac, sock)) {
-// 	/* already checked this above */
-// 	assert(0);
-//     }
     
     int rc = connection_bootstrap(serv_addr, addrlen);
     
@@ -483,9 +487,10 @@ CMMSocketImpl::set_all_sockopts(int osfd)
 
 void
 CMMSocketImpl::get_fds_for_select(mcSocketOsfdPairList &osfd_list,
-                                  bool reading)
+                                  bool reading, bool writing)
 {
     if (reading) {
+        assert(!writing);
         osfd_list.push_back(make_pair(sock, select_pipe[0]));
         if (incoming_irobs.data_is_ready()) {
             // select can return now, so make sure it does
@@ -501,19 +506,31 @@ CMMSocketImpl::get_fds_for_select(mcSocketOsfdPairList &osfd_list,
         }
         dbgprintf("Swapped msocket fd %d for select_pipe input, fd %d\n",
                   sock, select_pipe[0]);
+    } else if (writing) {
+        assert(!reading);
+        osfd_list.push_back(make_pair(sock, write_ready_pipe[0]));
+        bool dummy;
+        if (connect_finished(dummy)) {
+            char c = 42;
+            (void)send(write_ready_pipe[1], &c, 1, MSG_NOSIGNAL);
+            dbgprintf("write-selecting on msocket %d; won't block\n", sock);
+        } else {
+            dbgprintf("write-selecting on msocket %d; blocking\n", sock);
+        }
+        dbgprintf("Swapped msocket fd %d for write_ready_pipe input, fd %d\n",
+                  sock, write_ready_pipe[0]);
     } else {
+        // not reading, not writing; this must be for xcptfds
+        // XXX: what about some fakery here?
         csock_map->get_real_fds(osfd_list);
     }
 }
 
-/* assume the fds in mc_fds are mc_socket_t's.  
- * add the real osfds to os_fds, and
- * also put them in osfd_list, so we can iterate through them. 
- * maxosfd gets the largest osfd seen. */
 int 
 CMMSocketImpl::make_real_fd_set(int nfds, fd_set *fds,
 				mcSocketOsfdPairList &osfd_list, 
-				int *maxosfd, bool reading = false)
+				int *maxosfd, 
+                                bool reading, bool writing)
 {
     if (!fds) {
 	return 0;
@@ -534,19 +551,10 @@ CMMSocketImpl::make_real_fd_set(int nfds, fd_set *fds,
 	    FD_CLR(s, fds);
 	    assert(sk);
             PthreadScopedRWLock lock(&sk->my_lock, false);
-	    sk->get_fds_for_select(osfd_list, reading);
-	    if (osfd_list.size() == 0) {
-#if 0
-		/* XXX: what about the nonblocking case? */
-		/* XXX: what if the socket is connected, but currently
-		 * lacks physical connections? */
-		fprintf(stderr,
-			"DBG: cmm_select on a disconnected socket\n");
-		errno = EBADF;
-		return -1;
-#endif
-	    }
+	    sk->get_fds_for_select(osfd_list, reading, writing);
 	}
+        
+        
     }
 
     if (osfd_list.size() == 0) {
@@ -614,34 +622,43 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
 
     dbgprintf("libcmm: mc_select: making real fd_sets\n");
 
-    if (writefds) {
-	tmp_writefds = *writefds;
-	rc = make_real_fd_set(nfds, &tmp_writefds, writeosfd_list, &maxosfd);
+    if (exceptfds) {
+	tmp_exceptfds = *exceptfds;
+	rc = make_real_fd_set(nfds, &tmp_exceptfds, exceptosfd_list,&maxosfd, false, false);
         if (rc < 0) {
             return -1;
         }
     }
-    if (exceptfds) {
-	tmp_exceptfds = *exceptfds;
-	rc = make_real_fd_set(nfds, &tmp_exceptfds, exceptosfd_list,&maxosfd);
+
+    if (writefds) {
+	tmp_writefds = *writefds; 
+	rc = make_real_fd_set(nfds, &tmp_writefds, writeosfd_list, &maxosfd, false, true);
         if (rc < 0) {
-          return -1;
+            return -1;
         }
     }
     if (readfds) {
 	tmp_readfds = *readfds;
-	rc = make_real_fd_set(nfds, &tmp_readfds, readosfd_list, &maxosfd, true);
+	rc = make_real_fd_set(nfds, &tmp_readfds, readosfd_list, &maxosfd, true, false);
         if (rc < 0) {
             return -1;
         }
     }
 
+    // any write_ready_pipe[0] fds in tmp_writefds really belong in
+    //  tmp_readfds when I call select()
+    // (they'll be mapped back to writefds afterwards)
+    for (size_t i = 0; i < writeosfd_list.size(); ++i) {
+        int fd = writeosfd_list[i].second;
+        assert(FD_ISSET(fd, &tmp_writefds));
+        FD_CLR(fd, &tmp_writefds);
+        FD_SET(fd, &tmp_readfds);
+    }
+
     dbgprintf("libcmm: about to call select(), maxosfd=%d\n", maxosfd);
 
-    //unblock_select_signals();
     rc = select(maxosfd + 1, &tmp_readfds, &tmp_writefds, &tmp_exceptfds, 
 		timeout);
-    //block_select_signals();
 
     dbgprintf("libcmm: returned from select()\n");
     
@@ -650,14 +667,23 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
 	return rc;
     }
 
+    for (size_t i = 0; i < writeosfd_list.size(); ++i) {
+        int fd = writeosfd_list[i].second;
+        if (FD_ISSET(fd, &tmp_readfds)) {
+            FD_SET(fd, &tmp_writefds);
+            FD_CLR(fd, &tmp_readfds);
+        }
+    }
+
     /* map osfds back to mc_sockets, and correct for duplicates */
     rc -= make_mc_fd_set(&tmp_readfds, readosfd_list);
     rc -= make_mc_fd_set(&tmp_writefds, writeosfd_list);
     rc -= make_mc_fd_set(&tmp_exceptfds, exceptosfd_list);
 
     for (int i = 0; i < nfds; ++i) {
-        if (FD_ISSET(i, &tmp_readfds)) {
-            dbgprintf("SELECT_DEBUG fd %d is set in tmp_readfds\n", i);
+        if (FD_ISSET(i, &tmp_readfds) ||
+            FD_ISSET(i, &tmp_writefds)) {
+
             CMMSocketImplPtr sk;
             if (!cmm_sock_hash.find(i, sk)) {
                 /* This must be a real file descriptor, 
@@ -666,20 +692,15 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
             }
             
             assert(sk);
-            sk->clear_select_pipe();
-//             PthreadScopedRWLock lock(&sk->my_lock, true);
-//             char junk[64];
-//             int bytes_cleared = 0;
-//             dbgprintf("Emptying select pipe for msocket %d\n", i);
-//             int ret = read(sk->select_pipe[0], &junk, 64);
-//             while (ret > 0) {
-//                 bytes_cleared += ret;
-//                 // empty the pipe so future select()s have to
-//                 //  check the incoming_irobs structure
-//                 ret = read(sk->select_pipe[0], &junk, 64);
-//             }
-//             dbgprintf("Cleared out %d bytes for msocket %d\n",
-//                       bytes_cleared, i);
+
+            if (FD_ISSET(i, &tmp_readfds)) {
+                dbgprintf("SELECT_DEBUG fd %d is set in tmp_readfds\n", i);
+                sk->clear_select_pipe(sk->select_pipe[0]);
+            }
+            if (FD_ISSET(i, &tmp_writefds)) {
+                dbgprintf("SELECT_DEBUG fd %d is set in tmp_writefds\n", i);
+                sk->clear_select_pipe(sk->write_ready_pipe[0]);
+            }
         }
     }
     
@@ -691,18 +712,18 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
 }
 
 void
-CMMSocketImpl::clear_select_pipe()
+CMMSocketImpl::clear_select_pipe(int fd)
 {
     PthreadScopedRWLock lock(&my_lock, true);
     char junk[64];
     int bytes_cleared = 0;
-    dbgprintf("Emptying select pipe for msocket %d\n", sock);
-    int ret = read(select_pipe[0], &junk, 64);
+    dbgprintf("Emptying select pipe %d for msocket %d\n", fd, sock);
+    int ret = read(fd, &junk, 64);
     while (ret > 0) {
         bytes_cleared += ret;
         // empty the pipe so future select()s have to
         //  check the incoming_irobs structure
-        ret = read(select_pipe[0], &junk, 64);
+        ret = read(fd, &junk, 64);
     }
     dbgprintf("Cleared out %d bytes for msocket %d\n",
               bytes_cleared, sock);
@@ -721,6 +742,8 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
     }
     dbgprintf_plain("]\n");
 
+    set<int> write_fds;
+
     for(nfds_t i=0; i<nfds; i++) {
 	mcSocketOsfdPairList osfd_list;
         CMMSocketImplPtr sk;
@@ -733,10 +756,16 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
             PthreadScopedRWLock lock(&sk->my_lock, false);
 	    //sk->csock_map->get_real_fds(osfd_list);
             if (fds[i].events & POLLIN) {
-                sk->get_fds_for_select(osfd_list, true);
+                sk->get_fds_for_select(osfd_list, true, false);
             }
             if (fds[i].events & POLLOUT) {
-                sk->get_fds_for_select(osfd_list, false);
+                mcSocketOsfdPairList tmp_list;
+                sk->get_fds_for_select(tmp_list, false, true);
+                for (size_t i = 0; i < tmp_list.size(); ++i) {
+                    int fd = tmp_list[i].second;
+                    write_fds.insert(fd);
+                    osfd_list.push_back(tmp_list[i]);
+                }
             }
 	    if (osfd_list.size() == 0) {
 		/* XXX: is this right? should we instead
@@ -748,6 +777,16 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 		/* copy struct pollfd, overwrite fd */
 		real_fds_list.push_back(fds[i]);
 		real_fds_list.back().fd = osfd_list[j].second;
+
+                // a POLLOUT poll request on a multisocket
+                //  must be translated to a POLLIN request 
+                //  on its write_ready_pipe[0]
+                //  (and back again later)
+                if (write_fds.count(fds[i].fd) == 1) {
+                    assert(real_fds_list.back().events & POLLOUT);
+                    real_fds_list.back().events &= ~POLLOUT;
+                    real_fds_list.back().events |= POLLIN;
+                }
 		osfds_to_pollfds[osfd_list[j].second] = &fds[i];
 	    }
 	}
@@ -781,12 +820,21 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 	    //assert(sk);
 	    //sk->poll_map_back(origfd, &realfds[i]);
 
-            /* XXX: does this make sense? 
-             * If an event happened on any of the underlying FDs, 
-             * it happened on the multi-socket */
+            // if a read event happened on write_ready_pipe[0],
+            // it really means that POLLOUT happened on the multisocket
+            if (write_fds.count(realfds[i].fd) == 1) {
+                if (realfds[i].revents & POLLIN) {
+                    realfds[i].revents &= ~POLLIN;
+                    realfds[i].revents |= POLLOUT;
+                }
+            }
+
             origfd->revents |= realfds[i].revents;
-            if (realfds[i].revents & POLLIN) {
-                sk->clear_select_pipe();
+            if (origfd->revents & POLLIN) {
+                sk->clear_select_pipe(sk->select_pipe[0]);
+            }
+            if (origfd->revents & POLLOUT) {
+                sk->clear_select_pipe(sk->write_ready_pipe[0]);
             }
 	}
         if (orig_fds.find(origfd->fd) == orig_fds.end()) {
@@ -1201,9 +1249,16 @@ struct set_sock_opt {
     }
 };
 
+bool
+CMMSocketImpl::is_non_blocking()
+{
+    return (non_blocking ||
+            (fcntl(sock, F_GETFL, 0) & O_NONBLOCK));
+}
+
 int
 CMMSocketImpl::mc_setsockopt(int level, int optname, 
-                               const void *optval, socklen_t optlen)
+                             const void *optval, socklen_t optlen)
 {
     int rc = 0;
     PthreadScopedRWLock lock(&my_lock, true);
@@ -1212,27 +1267,37 @@ CMMSocketImpl::mc_setsockopt(int level, int optname,
 	non_blocking = true;
     }
 
-    rc = csock_map->for_each(set_sock_opt(level, optname, optval, optlen));
-    if (rc < 0) {
-	return rc;
-    }
-    /* all succeeded */
+    if (optname != O_NONBLOCK) {
+        rc = setsockopt(sock, level, optname, optval, optlen);
+        if (rc < 0) {
+            dbgprintf("warning: failed setting socket option on "
+                      "dummy socket\n");
+        }
 
-    rc = setsockopt(sock, level, optname, optval, optlen);
-    if (rc < 0) {
-        dbgprintf("warning: failed setting socket option on "
-                  "dummy socket\n");
-    }
+        rc = csock_map->for_each(set_sock_opt(level, optname, optval, optlen));
+        if (rc < 0) {
+            return rc;
+        }
+        /* all succeeded */
 
-    /* inserts if not present */
-    struct sockopt &opt = sockopts[level][optname];
-    if (opt.optval) {
-	free(opt.optval);
+        /* inserts if not present */
+        struct sockopt &opt = sockopts[level][optname];
+        if (opt.optval) {
+            free(opt.optval);
+        }
+        opt.optlen = optlen;
+        opt.optval = malloc(optlen);
+        assert(opt.optval);
+        memcpy(opt.optval, optval, optlen);
+    } else {
+        // don't call setsockopt for the real sockets; the library
+        //   depends on blocking I/O for them.
+        // Instead, we give the illusion of non-blocking I/O
+        //   by always returning immediately from the 
+        //   relevant calls.
+        // This is trivially done for all calls except 
+        //   cmm_connect and cmm_accept; they require special care.
     }
-    opt.optlen = optlen;
-    opt.optval = malloc(optlen);
-    assert(opt.optval);
-    memcpy(opt.optval, optval, optlen);
 
     return 0;
 }
@@ -1382,7 +1447,7 @@ CMMSocketImpl::get_csock(u_long send_labels,
                                 resume_handler, rh_arg);
                 return CMM_DEFERRED;
             } else {
-                if (blocking) {
+                if (blocking && !this->is_non_blocking()) {
                     while (!csock) {
                         int rc = wait_for_labels(send_labels);
                         if (rc < 0) {
@@ -1405,8 +1470,8 @@ CMMSocketImpl::get_csock(u_long send_labels,
     }
 }
 
-/* This function blocks until the data has been sent.
- * If the socket is non-blocking, we need to implement that here.
+/* This function blocks until a network is available.
+ * If the socket is non-blocking, that's not appropriate.  XXX
  */
 int
 CMMSocketImpl::begin_irob(irob_id_t next_irob, 
@@ -1546,8 +1611,8 @@ CMMSocketImpl::end_irob(irob_id_t id)
 }
 
 
-/* This function blocks until the data has been sent.
- * If the socket is non-blocking, we need to implement that here.
+/* This function blocks until a network is available.
+ * If the socket is non-blocking, that's not appropriate.  XXX
  */
 long
 CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len, 

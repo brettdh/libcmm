@@ -296,9 +296,10 @@ CSockMapping::new_csock_with_labels(u_long send_label, bool locked)
     int rc = csock->phys_connect();
     if (rc < 0) {
 	if (errno==EINPROGRESS || errno==EWOULDBLOCK) {
-	    /* XXX: handle this sanely for non-blocking connect. */
-	    //is this what we want for the 'send', 
-	    //i.e wait until the sock is conn'ed.
+            // All library-level sockets are blocking; non-blocking semantics
+            //   are faked on top of this.
+            assert(0);
+
 	    errno = EAGAIN;
 	} else {
 	    dbgprintf("Failed to connect new csock\n");

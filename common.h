@@ -7,6 +7,8 @@
 #include "libcmm.h"
 #include <cassert>
 #include <functional>
+#include <unistd.h>
+#include <fcntl.h>
 
 template <typename IntegerType>
 struct IntegerHashCompare {
@@ -48,5 +50,13 @@ bool pop_item(ContainerType& container, ItemType& item)
     container.erase(container.begin());
     return true;
 }
+
+#define set_nonblocking(fd_arg)                                 \
+    do {                                                        \
+        int fd = fd_arg;                                        \
+        int flags = fcntl(fd, F_GETFL);                         \
+        int rc = fcntl(fd, F_SETFL, flags | O_NONBLOCK);        \
+        assert(rc == 0);                                        \
+    } while (0)
 
 #endif

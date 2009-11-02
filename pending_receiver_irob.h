@@ -121,6 +121,11 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
     void release_dependents(PendingReceiverIROB *pirob, Predicate is_ready);
 
     PendingReceiverIROB *partially_read_irob;
+
+    // get_ready_irob will return &empty_sentinel_irob if the
+    //  socket is non-blocking and there are no more IROBs
+    //  ready.
+    static PendingReceiverIROB empty_sentinel_irob;
 };
 
 template <typename Predicate>

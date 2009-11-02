@@ -255,6 +255,8 @@ PendingReceiverIROBLattice::data_is_ready()
     return (partially_read_irob || !ready_irobs.empty());
 }
 
+PendingReceiverIROB PendingReceiverIROBLattice::empty_sentinel_irob(-1);
+
 /* REQ: call with scheduling_state_lock held
  *
  * There's a race on partially_read_irob between get_ready_irob and 
@@ -288,6 +290,11 @@ PendingReceiverIROBLattice::get_ready_irob()
                         dbgprintf("get_ready_irob: returning NULL\n");
                         return NULL;
                     }
+                }
+                if (sk->non_blocking) {
+                    dbgprintf("get_ready_irob: none ready and non-blocking, "
+                              "so I'm returning NULL\n");
+                    return &empty_sentinel_irob;
                 }
                 pthread_cond_wait(&sk->scheduling_state_cv, &sk->scheduling_state_lock);
             }
@@ -338,7 +345,6 @@ PendingReceiverIROBLattice::release(irob_id_t id)
 /* This is where all the scheduling logic happens. 
  * This function decides how to pass IROB data to the application. 
  */
-/* TODO: nonblocking mode */
 ssize_t
 PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
                                  u_long *recv_labels)
@@ -382,6 +388,16 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
             }
 #endif
 	}
+
+        if (pirob->numbytes() == 0) {
+            // sentinel; no bytes are ready
+            assert(sk->non_blocking);
+            assert(pirob == &empty_sentinel_irob);
+            if (bytes_passed == 0) {
+                errno = EWOULDBLOCK;
+            }
+            break;
+        }
 
         /* after the IROB is returned here, no other thread will
          * unsafely modify it.
