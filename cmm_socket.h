@@ -45,7 +45,8 @@ class CMMSocket {
     static mc_socket_t mc_accept(int listener_sock, 
                                  struct sockaddr *addr, socklen_t *addrlen);
 
-    virtual int mc_read(void *buf, size_t count, u_long *recv_labels) = 0;
+    virtual int mc_recv(void *buf, size_t count, int flags,
+                        u_long *recv_labels) = 0;
 
     virtual int mc_getpeername(struct sockaddr *address, 
 			       socklen_t *address_len) = 0;

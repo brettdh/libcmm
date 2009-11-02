@@ -39,10 +39,11 @@ CMMSocketPassThrough::mc_getpeername(struct sockaddr *address,
 }
 
 int 
-CMMSocketPassThrough::mc_read(void *buf, size_t count, u_long *recv_labels)
+CMMSocketPassThrough::mc_recv(void *buf, size_t count, int flags,
+                              u_long *recv_labels)
 {
-    passthrough_debug_alert("cmm_read");
-    return read(sock, buf, count);
+    passthrough_debug_alert("cmm_recv");
+    return recv(sock, buf, count, flags);
 }
 
 int 

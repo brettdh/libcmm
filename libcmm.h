@@ -96,6 +96,8 @@ int cmm_writev(mc_socket_t sock, const struct iovec *vector, int count,
  *  remote sender specified for this operation.
  */
 int cmm_read(mc_socket_t sock, void *buf, size_t count, u_long *recv_labels);
+int cmm_recv(mc_socket_t sock, void *buf, size_t count, int flags,
+             u_long *recv_labels);
 
 /* simple, no-thunk wrappers */
 int cmm_getsockopt(mc_socket_t sock, int level, int optname, 

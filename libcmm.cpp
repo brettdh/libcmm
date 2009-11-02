@@ -317,7 +317,13 @@ mc_socket_t cmm_accept(int listener_sock,
 
 int cmm_read(mc_socket_t sock, void *buf, size_t count, u_long *recv_labels)
 {
-    return CMMSocket::lookup(sock)->mc_read(buf, count, recv_labels);
+    return cmm_recv(sock, buf, count, 0, recv_labels);
+}
+
+int cmm_recv(mc_socket_t sock, void *buf, size_t count, int flags,
+             u_long *recv_labels)
+{
+    return CMMSocket::lookup(sock)->mc_recv(buf, count, flags, recv_labels);
 }
 
 int cmm_getsockopt(mc_socket_t sock, int level, int optname, 

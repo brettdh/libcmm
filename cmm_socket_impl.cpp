@@ -1136,7 +1136,8 @@ CMMSocketImpl::mc_accept(int listener_sock,
 }
 
 int 
-CMMSocketImpl::mc_read(void *buf, size_t count, u_long *recv_labels)
+CMMSocketImpl::mc_recv(void *buf, size_t count, int flags,
+                       u_long *recv_labels)
 {
     //CMMSockHash::const_accessor ac;
     //read_lock(ac);
@@ -1144,7 +1145,7 @@ CMMSocketImpl::mc_read(void *buf, size_t count, u_long *recv_labels)
 
     struct timeval begin, end, diff;
     TIME(begin);
-    int rc = incoming_irobs.recv(buf, count, 0, recv_labels);
+    int rc = incoming_irobs.recv(buf, count, flags, recv_labels);
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("mc_read (%d bytes) took %lu.%06lu seconds, start-to-finish\n", 

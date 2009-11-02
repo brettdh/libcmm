@@ -101,7 +101,8 @@ class CMMSocketImpl : public CMMSocket {
     static mc_socket_t mc_accept(int listener_sock, 
                                  struct sockaddr *addr, socklen_t *addrlen);
 
-    virtual int mc_read(void *buf, size_t count, u_long *recv_labels);
+    virtual int mc_recv(void *buf, size_t count, int flags,
+                        u_long *recv_labels);
 
     virtual int mc_getpeername(struct sockaddr *address, 
                                socklen_t *address_len);
@@ -337,7 +338,8 @@ class CMMSocketPassThrough : public CMMSocket {
                                socklen_t *address_len);
     //virtual int reset();
     //virtual int check_label(u_long label, resume_handler_t fn, void *arg);
-    virtual int mc_read(void *buf, size_t count, u_long *recv_labels);
+    virtual int mc_recv(void *buf, size_t count, int flags,
+                        u_long *recv_labels);
     virtual int mc_getsockopt(int level, int optname, 
                               void *optval, socklen_t *optlen);
     virtual int mc_setsockopt(int level, int optname, 
