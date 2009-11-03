@@ -52,6 +52,7 @@ void ConnBootstrapper::Run()
     PthreadScopedRWLock sock_lock(&sk->my_lock, true);
       
     if (sk->is_non_blocking()) {
+        dbgprintf("Non-blocking bootstrap.  Bootstrap thread detaching.\n");
         detach();
     }
 
