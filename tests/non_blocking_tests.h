@@ -8,6 +8,7 @@
 class NonBlockingTestsBase {
   protected:
     void testTransferNB(EndToEndTestsBase *base);
+    void testFragmentationNB(EndToEndTestsBase *base);
 
     void setupReceiverNB(EndToEndTestsBase *base);
     void startReceiverNB(EndToEndTestsBase *base);
@@ -15,16 +16,18 @@ class NonBlockingTestsBase {
 };
 
 #define DEFINE_WRAPPER_METHOD(classname, methodname)    \
-    void classname::methodname(void)              \
+    void classname::methodname(void)                    \
     {                                                   \
-        NonBlockingTestsBase::methodname##NB(this);   \
+        NonBlockingTestsBase::methodname##NB(this);     \
     }
 
 #define DEFINE_WRAPPER_METHODS(classname)               \
     DEFINE_WRAPPER_METHOD(classname,setupReceiver)      \
     DEFINE_WRAPPER_METHOD(classname,startReceiver)      \
     DEFINE_WRAPPER_METHOD(classname,startSender)        \
-    DEFINE_WRAPPER_METHOD(classname,testTransfer)
+    DEFINE_WRAPPER_METHOD(classname,testTransfer)       \
+    DEFINE_WRAPPER_METHOD(classname,testFragmentation)
+    
 
 #define DECLARE_WRAPPER_METHOD(methodname)      \
     virtual void methodname();
@@ -33,6 +36,7 @@ class NonBlockingTestsBase {
     DECLARE_WRAPPER_METHOD(setupReceiver)       \
     DECLARE_WRAPPER_METHOD(startReceiver)       \
     DECLARE_WRAPPER_METHOD(startSender)         \
-    DECLARE_WRAPPER_METHOD(testTransfer)
+    DECLARE_WRAPPER_METHOD(testTransfer)        \
+    DECLARE_WRAPPER_METHOD(testFragmentation)
 
 #endif

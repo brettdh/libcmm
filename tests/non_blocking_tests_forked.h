@@ -8,9 +8,10 @@
 
 class NonBlockingTestsForked : public EndToEndTestsForked, 
                                public NonBlockingTestsBase {
-
+  public:
     CPPUNIT_TEST_SUITE(NonBlockingTestsForked);
     CPPUNIT_TEST(testTransfer);
+    CPPUNIT_TEST(testFragmentation);
     CPPUNIT_TEST_SUITE_END();
 
   protected:

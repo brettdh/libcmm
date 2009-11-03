@@ -173,7 +173,6 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
                 delete bootstrapper;
                 throw -1;
             }
-            //delete bootstrapper;
         } else {
             // EINPROGRESS an error
             errno = bootstrapper->status();
@@ -189,7 +188,6 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
     return 0;
 }
 
-// TODO: pepper socket calls with calls to this function.
 int
 CMMSocketImpl::connect_status()
 {

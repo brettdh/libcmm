@@ -16,12 +16,25 @@
 #include <openssl/sha.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-
+#include <functional>
+using std::min;
 
 static void set_nonblocking(int sock)
 {
     (void)fcntl(sock, F_SETFL, 
                 fcntl(sock, F_GETFL) | O_NONBLOCK);
+}
+
+static void sock_wait(int sock, bool input)
+{
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(sock, &fds);
+    int rc = cmm_select(sock + 1, 
+                        input ? &fds : NULL,
+                        input ? NULL : &fds,
+                        NULL, NULL);
+    handle_error(rc != 1, "cmm_select");
 }
 
 void
@@ -37,11 +50,7 @@ NonBlockingTestsBase::startReceiverNB(EndToEndTestsBase *base)
     struct sockaddr_in addr;
     socklen_t addrlen = sizeof(addr);
 
-    fd_set fds;
-    FD_ZERO(&fds);
-    FD_SET(base->listen_sock, &fds);
-    int rc = select(base->listen_sock + 1, &fds, NULL, NULL, NULL);
-    handle_error(rc < 0, "read-select");
+    sock_wait(base->listen_sock, true);
 
     base->read_sock = cmm_accept(base->listen_sock, 
                                  (struct sockaddr *)&addr,
@@ -83,11 +92,7 @@ NonBlockingTestsBase::startSenderNB(EndToEndTestsBase *base)
                  "unexpected connect() failure");
 
     fprintf(stderr, "Sender connection is in progress.\n");
-    fd_set fds;
-    FD_ZERO(&fds);
-    FD_SET(base->send_sock, &fds);
-    rc = cmm_select(base->send_sock + 1, NULL, &fds, NULL, NULL);
-    handle_error(rc < 0, "write-select");
+    sock_wait(base->send_sock, false);
 
     int err = 0;
     socklen_t len = sizeof(err);
@@ -123,12 +128,8 @@ NonBlockingTestsBase::testTransferNB(EndToEndTestsBase *base)
                        0, NULL, NULL);
         handle_error(rc != 4, "cmm_write");
 
-        fd_set fds;
-        FD_ZERO(&fds);
-        FD_SET(base->read_sock, &fds);
         fprintf(stderr, "Receiver about to select\n");
-        rc = cmm_select(base->read_sock + 1, &fds, NULL, NULL, NULL);
-        handle_error(rc != 1, "cmm_select");
+        sock_wait(base->read_sock, true);
 
         fprintf(stderr, "Receiver about to read %zd bytes\n", sizeof(data));
         rc = cmm_read(base->read_sock, &data, sizeof(data), NULL);
@@ -143,12 +144,8 @@ NonBlockingTestsBase::testTransferNB(EndToEndTestsBase *base)
         CPPUNIT_ASSERT_EQUAL_MESSAGE("First write succeeds",
                                      (int)sizeof(data), rc);
 
-        fd_set fds;
-        FD_ZERO(&fds);
-        FD_SET(base->send_sock, &fds);
         fprintf(stderr, "Sender about to select\n");
-        rc = cmm_select(base->send_sock + 1, &fds, NULL, NULL, NULL);
-        handle_error(rc != 1, "cmm_select");        
+        sock_wait(base->send_sock, true);
 
         rc = cmm_read(base->send_sock, &data, sizeof(data), NULL);
         handle_error(rc != sizeof(data), "cmm_read");
@@ -160,5 +157,49 @@ NonBlockingTestsBase::testTransferNB(EndToEndTestsBase *base)
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Second write succeeds",
                                      (int)sizeof(data), rc);
         fprintf(stderr, "Sender done.\n");
+    }
+}
+
+void
+NonBlockingTestsBase::testFragmentationNB(EndToEndTestsBase *base)
+{
+    const char msg[] = "Hello and welcome to Milliway's";
+    const int msglen = sizeof(msg);
+    if (base->isReceiver()) {
+        char buf[msglen];
+        memset(buf, 0, msglen);
+        int bytes_recvd = 0;
+        while (bytes_recvd < msglen) {
+            int rc = cmm_read(base->read_sock, buf + bytes_recvd, 
+                              msglen - bytes_recvd, NULL);
+            if (rc > 0) {
+                bytes_recvd += rc;
+            } else {
+                CPPUNIT_ASSERT_MESSAGE("failed recv returns -1", rc < 0);
+                CPPUNIT_ASSERT_EQUAL_MESSAGE("failed recv is EAGAIN", 
+                                             EAGAIN, errno);
+                sock_wait(base->read_sock, true);
+            }
+        }
+        CPPUNIT_ASSERT_EQUAL_MESSAGE("Received all bytes",
+                                     msglen, bytes_recvd);
+        CPPUNIT_ASSERT_EQUAL_MESSAGE("Message is correct",
+                                     0, strcmp(msg, buf));
+    } else {
+        sock_wait(base->send_sock, false);
+        
+        int bytes_sent = 0;
+        while (bytes_sent < msglen) {
+            sleep(1);
+            int chunksize = 3;
+            chunksize = min(chunksize, msglen - bytes_sent);
+            int rc = cmm_write(base->send_sock, msg + bytes_sent,
+                               chunksize, 0, NULL, NULL);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("cmm_send succeeds",
+                                         chunksize, rc);
+            bytes_sent += rc;
+        }
+        CPPUNIT_ASSERT_EQUAL_MESSAGE("Sent all bytes",
+                                     msglen, bytes_sent);
     }
 }

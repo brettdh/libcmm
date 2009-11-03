@@ -11,6 +11,7 @@ class NonBlockingTestsRemote : public EndToEndTestsRemote,
   public:
     CPPUNIT_TEST_SUITE(NonBlockingTestsRemote);
     CPPUNIT_TEST(testTransfer);
+    CPPUNIT_TEST(testFragmentation);
     CPPUNIT_TEST_SUITE_END();
 
   protected:
