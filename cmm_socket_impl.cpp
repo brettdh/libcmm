@@ -1188,7 +1188,7 @@ CMMSocketImpl::mc_accept(int listener_sock,
     CMMSocketImpl *sk_impl = dynamic_cast<CMMSocketImpl*>(get_pointer(sk));
     assert(sk_impl);
     int rc = sk_impl->connection_bootstrap(addr, *addrlen, sock);
-    close(sock);
+    //close(sock);
         
     if (rc < 0) {
         mc_close(mc_sock);
