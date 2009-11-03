@@ -51,7 +51,7 @@ void ConnBootstrapper::Run()
 
     PthreadScopedRWLock sock_lock(&sk->my_lock, true);
       
-    if (sk->non_blocking) {
+    if (sk->is_non_blocking()) {
         detach();
     }
 
@@ -69,15 +69,17 @@ void ConnBootstrapper::Run()
             bootstrap_sock = socket(sk->sock_family, sk->sock_type, 
                                     sk->sock_protocol);
             if (bootstrap_sock < 0) {
+                dbgprintf("Error creating bootstrap socket: %s\n",
+                          strerror(errno));
                 return;
             }
             
             struct sockaddr *addr = (struct sockaddr *)remote_addr;
             int rc = connect(bootstrap_sock, addr, addrlen);
             if (rc < 0) {
-                perror("connect");
                 status_ = errno;
-                dbgprintf("Error connecting bootstrap socket\n");
+                dbgprintf("Error connecting bootstrap socket: %s\n",
+                          strerror(errno));
                 throw rc;
             }
             
