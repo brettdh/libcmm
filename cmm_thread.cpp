@@ -122,7 +122,7 @@ CMMThread::start()
         joinable_threads.insert(tid);
     }
 
-#if 0
+    //#if 0
     pthread_mutex_lock(&starter_mutex);
     while (!running && !exiting) {
 	pthread_cond_wait(&starter_cv, &starter_mutex);
@@ -135,7 +135,7 @@ CMMThread::start()
         dbgprintf("Thread %lx is running\n", tid);
     }
     pthread_mutex_unlock(&starter_mutex);
-#endif
+    //#endif
     dbgprintf("Thread %lx started\n", tid);
 
     return 0;
