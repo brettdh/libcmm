@@ -17,7 +17,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-static const short TEST_PORT = 4242;
+const short EndToEndTestsBase::TEST_PORT = 4242;
 
 bool EndToEndTestsBase::static_inited = false;
 int EndToEndTestsBase::listen_sock = -1;
@@ -48,7 +48,7 @@ EndToEndTestsBase::setupReceiver()
     
     rc = cmm_listen(listen_sock, 5);
     handle_error(rc < 0, "cmm_listen");
-    printf("Receiver is listening...\n");
+    fprintf(stderr, "Receiver is listening...\n");
 }
 
 void 
@@ -75,7 +75,7 @@ EndToEndTestsBase::setUp()
     } else {
         waitForReceiver();
 
-        printf("Starting sender\n");
+        fprintf(stderr, "Starting sender\n");
         startSender();
     }
 }
@@ -102,7 +102,7 @@ EndToEndTestsBase::startReceiver()
                            (struct sockaddr *)&addr,
                            &addrlen);
     handle_error(read_sock < 0, "cmm_accept");
-    printf("Receiver accepted connection %d\n", read_sock);
+    fprintf(stderr, "Receiver accepted connection %d\n", read_sock);
 }
 
 void
@@ -121,8 +121,8 @@ EndToEndTestsBase::startSender()
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    
-    printf("Looking up %s\n", hostname);
+
+    fprintf(stderr, "Looking up %s\n", hostname);
     struct hostent *he = gethostbyname(hostname);
     if (!he) {
         herror("gethostbyname");
@@ -130,16 +130,16 @@ EndToEndTestsBase::startSender()
     }
 
     memcpy(&addr.sin_addr, he->h_addr, he->h_length);
-    printf("Resolved %s to %s\n", hostname, inet_ntoa(addr.sin_addr));
+    fprintf(stderr, "Resolved %s to %s\n", hostname, inet_ntoa(addr.sin_addr));
     addr.sin_port = htons(TEST_PORT);
 
     socklen_t addrlen = sizeof(addr);
 
-    printf("Sender is connecting...\n");
+    fprintf(stderr, "Sender is connecting...\n");
     int rc = cmm_connect(send_sock, (struct sockaddr*)&addr, addrlen);
     handle_error(rc < 0, "cmm_connect");
 
-    printf("Sender is connected.\n");
+    fprintf(stderr, "Sender is connected.\n");
 }
 
 void
@@ -151,7 +151,7 @@ EndToEndTestsBase::receiveAndChecksum()
                                  (int)sizeof(bytes), rc);
     
     bytes = ntohl(bytes);
-    printf("Receiving %d random bytes and digest\n", bytes);
+    fprintf(stderr, "Receiving %d random bytes and digest\n", bytes);
     
     unsigned char *buf = new unsigned char[bytes];
     rc = cmm_read(read_sock, buf, bytes, NULL);
@@ -172,8 +172,8 @@ EndToEndTestsBase::receiveAndChecksum()
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiver: checking that digests match", 
                                  0, rc);
     
-    printf("Received %d bytes, digest matches.\n", bytes);
-    printf("Receiver finished.\n");
+    fprintf(stderr, "Received %d bytes, digest matches.\n", bytes);
+    fprintf(stderr, "Receiver finished.\n");
 }
 
 void
@@ -209,7 +209,7 @@ EndToEndTestsBase::testRandomBytesReceivedCorrectly()
         int rand_fd = open("/dev/urandom", O_RDONLY);
         CPPUNIT_ASSERT_MESSAGE("Opening /dev/urandom", rand_fd != -1);
         
-        //printf("Reading %d bytes from /dev/urandom\n", bytes);
+        //fprintf(stderr, "Reading %d bytes from /dev/urandom\n", bytes);
         int rc = read(rand_fd, buf, bytes);
         if (rc != bytes) {
             fprintf(stderr, "Failed to read random bytes! rc=%d, errno=%d\n",
@@ -219,14 +219,14 @@ EndToEndTestsBase::testRandomBytesReceivedCorrectly()
                                      bytes, rc);
         close(rand_fd);
         
-        printf("Sending %d random bytes and digest\n", bytes);
+        fprintf(stderr, "Sending %d random bytes and digest\n", bytes);
         sendMessageSize(bytes);
         rc = cmm_send(send_sock, buf, bytes, 0, 0, NULL, NULL);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending message", bytes, rc);
         
         sendChecksum(buf, bytes);
 
-        printf("Sender finished.\n");
+        fprintf(stderr, "Sender finished.\n");
     }
 }
 
@@ -244,7 +244,7 @@ EndToEndTestsBase::testNoInterleaving()
             irob_ids[i] = -1;
         }
 
-        printf("Sending %d integers in byte-sized chunks, "
+        fprintf(stderr, "Sending %d integers in byte-sized chunks, "
                "in separate IROBs\n", numints);
         sendMessageSize(sizeof(int)*numints);
         for (int i = 0; i < (int)sizeof(int); ++i) {
@@ -265,7 +265,7 @@ EndToEndTestsBase::testNoInterleaving()
             }
         }
         sendChecksum((unsigned char*)ints, sizeof(int)*numints);
-        printf("Sender finished.\n");
+        fprintf(stderr, "Sender finished.\n");
     }
 }
 
@@ -279,11 +279,11 @@ EndToEndTestsBase::testCMMPoll()
         fd.events = POLLIN;
         fd.revents = 0;
 
-        printf("Receiver: polling for 3 seconds\n");
+        fprintf(stderr, "Receiver: polling for 3 seconds\n");
         int rc = cmm_poll(&fd, 1, 3000);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("First poll times out",
                                      0, rc);
-        printf("Receiver: polling for 3 seconds\n");
+        fprintf(stderr, "Receiver: polling for 3 seconds\n");
         rc = cmm_poll(&fd, 1, -1);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Second poll returns 1",
                                      1, rc);
@@ -296,9 +296,9 @@ EndToEndTestsBase::testCMMPoll()
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Received byte is correct",
                                      ANSWER, c);
     } else {
-        printf("Sender: waiting 5 seconds\n");
+        fprintf(stderr, "Sender: waiting 5 seconds\n");
         sleep(5);
-        printf("Sender: sending one byte\n");
+        fprintf(stderr, "Sender: sending one byte\n");
         char c = ANSWER;
         int rc = cmm_send(send_sock, &c, 1, 0, 0, NULL, NULL);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending one byte succeeds",
@@ -338,12 +338,12 @@ EndToEndTestsBase::receiverAssertIntsSorted(int nums[], size_t n)
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiving integers",
                                  (int)(n*sizeof(int)), rc);
     
-    printf("Received 10 integers, checking sorting\n");
+    fprintf(stderr, "Received 10 integers, checking sorting\n");
     for (size_t i = 0; i < n; ++i) {
         nums[i] = ntohl(nums[i]);
     }
     CPPUNIT_ASSERT_MESSAGE("Integers are sorted least-to-greatest",
                            is_sorted(nums, n));
 
-    printf("Received integers in correct order.\n");
+    fprintf(stderr, "Received integers in correct order.\n");
 }

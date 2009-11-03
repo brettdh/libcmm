@@ -18,3 +18,9 @@ void nowake_nanosleep(const struct timespec *duration)
     }
 }
 
+void print_on_error(bool err, const char *str)
+{
+    if (err) {
+        perror(str);
+    }
+}

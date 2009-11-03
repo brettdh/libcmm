@@ -159,7 +159,7 @@ class CMMSocketImpl : public CMMSocket {
                              socklen_t addrlen,
                              int bootstrap_sock = -1);
 
-    bool connect_finished(bool& success);
+    int connect_status();
 
     ConnBootstrapper *bootstrapper;
 
@@ -173,7 +173,7 @@ class CMMSocketImpl : public CMMSocket {
 
     // empty the select pipe so that the next select/poll
     // will check the incoming_irobs data structure
-    void clear_select_pipe(int fd);
+    void clear_select_pipe(int fd, bool already_locked = false);
 
 
     CSockMapping *csock_map;

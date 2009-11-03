@@ -4,5 +4,6 @@
 #include <time.h>
 
 void nowake_nanosleep(const struct timespec *duration);
+void print_on_error(bool err, const char *str);
 
 #endif

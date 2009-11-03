@@ -4,16 +4,18 @@
 #include <cppunit/TestFixture.h>
 #include <libcmm.h>
 
-class EndToEndTestsBase : public CppUnit::TestFixture {
-    static bool static_inited;
-    static int listen_sock;
-    static char *hostname;
-
+class EndToEndTestsBase :  public CppUnit::TestFixture {
   public:
     void setUp();
     void tearDown();
 
+    void testRandomBytesReceivedCorrectly();
+    void testNoInterleaving();
+    void testCMMPoll();
+
   protected:
+    friend class NonBlockingTestsBase;
+
     // Should only be called once, in chooseRole().
     void setRemoteHost(const char *hostname_);
 
@@ -28,17 +30,18 @@ class EndToEndTestsBase : public CppUnit::TestFixture {
     mc_socket_t read_sock;
     mc_socket_t send_sock;
 
-    void testRandomBytesReceivedCorrectly();
-    void testNoInterleaving();
-    void testCMMPoll();
-  private:
-    void setupReceiver();
-    void startReceiver();
-    void startSender();
+    virtual void setupReceiver();
+    virtual void startReceiver();
+    virtual void startSender();
 
     void receiveAndChecksum();
     void sendChecksum(unsigned char *bytes, size_t size);
     void sendMessageSize(int size);
+
+    static bool static_inited;
+    static int listen_sock;
+    static char *hostname;
+    static const short TEST_PORT;
 };
 
 void handle_error(bool condition, const char *msg);

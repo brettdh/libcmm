@@ -291,7 +291,7 @@ PendingReceiverIROBLattice::get_ready_irob()
                         return NULL;
                     }
                 }
-                if (sk->non_blocking) {
+                if (sk->is_non_blocking()) {
                     dbgprintf("get_ready_irob: none ready and non-blocking, "
                               "so I'm returning NULL\n");
                     return &empty_sentinel_irob;
@@ -389,15 +389,18 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
 #endif
 	}
 
+#ifndef CMM_UNIT_TESTING
         if (pirob->numbytes() == 0) {
             // sentinel; no bytes are ready
-            assert(sk->non_blocking);
+            assert(sk->is_non_blocking());
             assert(pirob == &empty_sentinel_irob);
             if (bytes_passed == 0) {
+                bytes_passed = -1;
                 errno = EWOULDBLOCK;
             }
             break;
         }
+#endif
 
         /* after the IROB is returned here, no other thread will
          * unsafely modify it.

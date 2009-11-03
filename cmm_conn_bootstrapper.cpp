@@ -46,7 +46,7 @@ void ConnBootstrapper::Run()
 {
     char name[MAX_NAME_LEN+1];
     memset(name, 0, MAX_NAME_LEN+1);
-    snprintf(name, MAX_NAME_LEN, "Bootstrapper %d", bootstrap_sock);
+    snprintf(name, MAX_NAME_LEN, "Bootstrapper %d", sk->sock);
     set_thread_name(name);
 
     PthreadScopedRWLock sock_lock(&sk->my_lock, true);

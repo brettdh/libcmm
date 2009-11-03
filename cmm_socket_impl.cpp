@@ -16,6 +16,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <memory>
+using std::auto_ptr;
+
 #include <signal.h>
 #include "signals.h"
 #include "thunks.h"
@@ -165,10 +168,15 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
         if (!is_non_blocking()) {
             bootstrapper->join();
             if (!bootstrapper->succeeded()) {
+                dbgprintf("Bootstrap failed: %s\n",
+                          strerror(bootstrapper->status()));
                 delete bootstrapper;
                 throw -1;
             }
-            delete bootstrapper;
+            //delete bootstrapper;
+        } else {
+            // EINPROGRESS an error
+            errno = bootstrapper->status();
         }
     } catch (int error_rc) {
         PthreadScopedLock lock(&scheduling_state_lock);
@@ -181,23 +189,13 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
     return 0;
 }
 
-bool
-CMMSocketImpl::connect_finished(bool& success)
+// TODO: pepper socket calls with calls to this function.
+int
+CMMSocketImpl::connect_status()
 {
     PthreadScopedRWLock sock_lock(&my_lock, false);
-    if (!is_non_blocking()) {
-        // must be finished in connection_bootstrap()
-        success = true;
-        return true;
-    }
-
-    bool ret = false;
     assert(bootstrapper);
-    if (bootstrapper->done()) {
-        ret = true;
-        success = bootstrapper->succeeded();
-    }
-    return ret;
+    return bootstrapper->status();
 }
 
 mc_socket_t
@@ -432,15 +430,10 @@ CMMSocketImpl::mc_connect(const struct sockaddr *serv_addr,
     }
 
     if (bootstrapper) {
-        bool success = false;
-        if (connect_finished(success)) {
-            // connection in progress
-            if (success) {
-                errno = EISCONN;
-            } else {
-                errno = bootstrapper->status();
-            }
-        } else {
+        int conn_status = connect_status();
+        if (conn_status == 0) {
+            errno = EISCONN;
+        } else if (conn_status == EINPROGRESS) {
             errno = EALREADY;
         }
         return CMM_FAILED;
@@ -490,8 +483,10 @@ CMMSocketImpl::get_fds_for_select(mcSocketOsfdPairList &osfd_list,
                                   bool reading, bool writing)
 {
     if (reading) {
+        PthreadScopedRWLock lock(&my_lock, true);
         assert(!writing);
         osfd_list.push_back(make_pair(sock, select_pipe[0]));
+        clear_select_pipe(select_pipe[0], true);
         if (incoming_irobs.data_is_ready()) {
             // select can return now, so make sure it does
             char c = 42; // value will be ignored
@@ -507,10 +502,10 @@ CMMSocketImpl::get_fds_for_select(mcSocketOsfdPairList &osfd_list,
         dbgprintf("Swapped msocket fd %d for select_pipe input, fd %d\n",
                   sock, select_pipe[0]);
     } else if (writing) {
+        PthreadScopedRWLock lock(&my_lock, true);
         assert(!reading);
         osfd_list.push_back(make_pair(sock, write_ready_pipe[0]));
-        bool dummy;
-        if (connect_finished(dummy)) {
+        if (bootstrapper->status() != EINPROGRESS) {
             char c = 42;
             (void)send(write_ready_pipe[1], &c, 1, MSG_NOSIGNAL);
             dbgprintf("write-selecting on msocket %d; won't block\n", sock);
@@ -520,6 +515,7 @@ CMMSocketImpl::get_fds_for_select(mcSocketOsfdPairList &osfd_list,
         dbgprintf("Swapped msocket fd %d for write_ready_pipe input, fd %d\n",
                   sock, write_ready_pipe[0]);
     } else {
+        PthreadScopedRWLock lock(&my_lock, false);
         // not reading, not writing; this must be for xcptfds
         // XXX: what about some fakery here?
         csock_map->get_real_fds(osfd_list);
@@ -550,7 +546,9 @@ CMMSocketImpl::make_real_fd_set(int nfds, fd_set *fds,
 
 	    FD_CLR(s, fds);
 	    assert(sk);
-            PthreadScopedRWLock lock(&sk->my_lock, false);
+            // lock only needed for get_fds_for_select, which now
+            //   does its own locking
+            //PthreadScopedRWLock lock(&sk->my_lock, false);
 	    sk->get_fds_for_select(osfd_list, reading, writing);
 	}
         
@@ -712,9 +710,13 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
 }
 
 void
-CMMSocketImpl::clear_select_pipe(int fd)
+CMMSocketImpl::clear_select_pipe(int fd, bool already_locked)
 {
-    PthreadScopedRWLock lock(&my_lock, true);
+    auto_ptr<PthreadScopedRWLock> lock_ptr;
+    if (!already_locked) {
+        lock_ptr.reset(new PthreadScopedRWLock(&my_lock, true));
+    }
+
     char junk[64];
     int bytes_cleared = 0;
     dbgprintf("Emptying select pipe %d for msocket %d\n", fd, sock);
@@ -753,7 +755,9 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 	    continue; //this is a non mc_socket
 	} else {
 	    assert(sk);
-            PthreadScopedRWLock lock(&sk->my_lock, false);
+            // lock only needed for get_fds_for_select, which now
+            //   does its own locking
+            //PthreadScopedRWLock lock(&sk->my_lock, false); 
 	    //sk->csock_map->get_real_fds(osfd_list);
             if (fds[i].events & POLLIN) {
                 sk->get_fds_for_select(osfd_list, true, false);
@@ -858,11 +862,16 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
 	errno = EINVAL;
 	return -1;
     }
-#ifdef IMPORT_RULES
-    /** Rules Part 3: Update labels if a better interface is available**/
-    /* TODO-IMPL: move/reference this code as necessary */
-    labels = set_superior_label(sock, labels);	
-#endif
+    
+    int cstatus = connect_status();
+    if (cstatus != 0) {
+        if (cstatus == EINPROGRESS) {
+            errno = EAGAIN;
+        }  else {
+            errno = ENOTCONN;
+        }
+        return -1;
+    }
 
     struct timeval begin, end, diff;
     TIME(begin);
@@ -911,6 +920,16 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
 	return 0;
     }
 
+    int cstatus = connect_status();
+    if (cstatus != 0) {
+        if (cstatus == EINPROGRESS) {
+            errno = EAGAIN;
+        }  else {
+            errno = ENOTCONN;
+        }
+        return -1;
+    }
+
     ssize_t total_bytes = 0;
     for (int i = 0; i < count; i++) {
 	ssize_t bytes = total_bytes;
@@ -925,11 +944,6 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
 	    return -1;
 	}
     }
-#ifdef IMPORT_RULES
-    /** Rules Part 3: Update labels if a better interface is available**/
-    /* TODO-IMPL: move/reference this code as necessary */
-    labels = set_superior_label(sock, labels);	
-#endif
 
     struct timeval begin, end, diff;
     TIME(begin);
@@ -1191,6 +1205,16 @@ CMMSocketImpl::mc_recv(void *buf, size_t count, int flags,
     //read_lock(ac);
     // Not needed; incoming_irobs.recv is thread-safe.
 
+    int cstatus = connect_status();
+    if (cstatus != 0) {
+        if (cstatus == EINPROGRESS) {
+            errno = EAGAIN;
+        }  else {
+            errno = ENOTCONN;
+        }
+        return -1;
+    }
+
     struct timeval begin, end, diff;
     TIME(begin);
     int rc = incoming_irobs.recv(buf, count, flags, recv_labels);
@@ -1207,6 +1231,24 @@ CMMSocketImpl::mc_getsockopt(int level, int optname,
                              void *optval, socklen_t *optlen)
 {
     PthreadScopedRWLock lock(&my_lock, false);
+
+    if (optname == SO_ERROR) {
+        // note that this doesn't clear the error
+        // like normal SO_ERROR does.  Shouldn't matter;
+        // once there's an error of this sort, can't do
+        // much besides close the socket.
+        if (!optval || !optlen) {
+            errno = EFAULT;
+            return -1;
+        }
+        if (level != SOL_SOCKET) {
+            errno = ENOPROTOOPT;
+            return -1;
+        }
+        *optlen = sizeof(int);
+        *((int*)optval) = bootstrapper ? bootstrapper->status() : 0;
+        return 0;
+    }
 
     CSocketPtr csock = csock_map->csock_with_labels(0);
     if (csock) {

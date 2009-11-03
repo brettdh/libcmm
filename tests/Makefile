@@ -1,7 +1,8 @@
 CXXFLAGS:=-Wall -Werror -I. -I.. -m32 -g -DCMM_UNIT_TESTING -DCMM_DEBUG 
 LDFLAGS:=-L. -L.. -lcppunit -ldl -ltbb
 
-EXECUTABLES=run_unit_tests run_lib_tests run_remote_tests run_thunk_tests run_trickle_tests
+EXECUTABLES=run_unit_tests run_lib_tests run_remote_tests run_thunk_tests run_trickle_tests \
+	    run_lib_tests_nb run_remote_tests_nb
 
 .gitignore: Makefile
 	echo "$(EXECUTABLES)" | sed -e 's/\s+/ /' | tr ' ' '\n' > .gitignore
@@ -43,14 +44,27 @@ SUPPORTOBJS := pending_irob.o intset.o debug.o pending_receiver_irob.o \
 run_unit_tests: run_all_tests.o $(TESTOBJS) $(SUPPORTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
 
-LIBTESTOBJS:=end_to_end_tests_base.o end_to_end_tests_forked.o
+LIBTESTOBJS:=end_to_end_tests_base.o end_to_end_tests_forked.o forked_tests.o
 
-run_lib_tests: run_all_tests.o $(LIBTESTOBJS)
+run_lib_tests: run_all_tests.o test_common.o $(LIBTESTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
 
 REMOTETESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o remote_tests.o
 run_remote_tests: run_all_tests.o $(REMOTETESTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
+
+
+NBOBJS:=end_to_end_tests_base.o non_blocking_tests.o 
+
+LIBTESTNBOBJS:=end_to_end_tests_forked.o non_blocking_tests_forked.o
+REMOTETESTNBOBJS:=end_to_end_tests_remote.o non_blocking_tests_remote.o
+
+run_lib_tests_nb: run_all_tests.o test_common.o $(NBOBJS) $(LIBTESTNBOBJS)
+	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
+run_remote_tests_nb: run_all_tests.o $(NBOBJS) $(REMOTETESTNBOBJS)
+	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
+
+
 
 THUNKTESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o thunk_tests.o
 run_thunk_tests: run_all_tests.o $(THUNKTESTOBJS)

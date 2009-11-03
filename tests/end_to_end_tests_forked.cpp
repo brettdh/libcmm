@@ -12,8 +12,9 @@
 #include <assert.h>
 #include <libcmm.h>
 #include <libcmm_irob.h>
+#include "test_common.h"
 
-CPPUNIT_TEST_SUITE_REGISTRATION(EndToEndTestsForked);
+//CPPUNIT_TEST_SUITE_REGISTRATION(EndToEndTestsForked);
 
 pid_t EndToEndTestsForked::receiver_pid = -1;
 EndToEndTestsForked::static_destroyer EndToEndTestsForked::destroyer;
@@ -46,7 +47,7 @@ EndToEndTestsForked::waitForReceiver()
         exit(EXIT_FAILURE);
     }
     
-    printf("Receiver started, pid=%d\n", receiver_pid);
+    fprintf(stderr, "Receiver started, pid=%d\n", receiver_pid);
 }
 
 void
@@ -60,11 +61,12 @@ EndToEndTestsForked::testOrderingSimple()
     if (isReceiver()) {
         receiverAssertIntsSorted(nums, NUMINTS);
     } else {
-        printf("Sending 10 sorted integers, in order\n");
+        fprintf(stderr, "Sending 10 sorted integers, in order\n");
         for (size_t i = 0; i < NUMINTS; i++) {
             nums[i] = htonl(nums[i]);
             int rc = cmm_send(send_sock, &nums[i], sizeof(nums[i]), 0,
                               0, NULL, NULL);
+            print_on_error(rc < 0, "cmm_send");
             CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending integers", 
                                          (int)sizeof(nums[i]), rc);
         }
@@ -82,7 +84,7 @@ EndToEndTestsForked::testOrderingReverse()
     if (isReceiver()) {
         receiverAssertIntsSorted(nums, NUMINTS);
     } else {
-        printf("Sending 10 sorted integers, ordered by "
+        fprintf(stderr, "Sending 10 sorted integers, ordered by "
                "IROBs, sending in reverse order\n");
 
         irob_id_t irobs[NUMINTS];
