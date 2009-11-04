@@ -12,6 +12,7 @@ class RemoteTests : public EndToEndTestsRemote {
     CPPUNIT_TEST(testRandomBytesReceivedCorrectly);
     CPPUNIT_TEST(testDefaultIROBOrdering);
     CPPUNIT_TEST(testNoInterleaving);
+    CPPUNIT_TEST(testPartialRecv);
     CPPUNIT_TEST(testCMMPoll);
     CPPUNIT_TEST_SUITE_END();
 

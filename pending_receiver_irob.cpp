@@ -260,9 +260,17 @@ PendingReceiverIROB PendingReceiverIROBLattice::empty_sentinel_irob(-1);
 /* REQ: call with scheduling_state_lock held
  *
  * There's a race on partially_read_irob between get_ready_irob and 
- * partially_read below, but they are only called sequentially. */
+ * partially_read below, but they are only called sequentially. 
+ *
+ * if block_for_data is true and the socket is blocking, we'll wait
+ *  for an IROB to be released.  (for implementing MSG_WAITALL)
+ * if block_for_data is false and/or the socket is non-blocking,
+ *  we'll return immediately if no IROBs are ready. In the case that
+ *  the socket is blocking, this allows us to return however many
+ *  bytes are ready, as blocking recv should do.
+ */
 PendingReceiverIROB *
-PendingReceiverIROBLattice::get_ready_irob()
+PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
 {
     irob_id_t ready_irob_id = -1;
     PendingIROB *pi = NULL;
@@ -277,7 +285,6 @@ PendingReceiverIROBLattice::get_ready_irob()
         dbgprintf("get_ready_irob: returning partially-read IROB %ld\n", 
                   pirob->id);
     } else {
-        /* TODO: nonblocking */
 	struct timeval begin, end, diff;
 	TIME(begin);
         while (pi == NULL) {
@@ -287,13 +294,17 @@ PendingReceiverIROBLattice::get_ready_irob()
                 {
                     PthreadScopedLock lock(&sk->shutdown_mutex);
                     if (sk->remote_shutdown && sk->csock_map->empty()) {
-                        dbgprintf("get_ready_irob: returning NULL\n");
+                        dbgprintf("get_ready_irob: socket shutting down; "
+                                  "returning NULL\n");
                         return NULL;
                     }
                 }
-                if (sk->is_non_blocking()) {
-                    dbgprintf("get_ready_irob: none ready and non-blocking, "
-                              "so I'm returning NULL\n");
+                if (!block_for_data || sk->is_non_blocking()) {
+                    dbgprintf("get_ready_irob: none ready and %s; "
+                              "I'm returning NULL\n",
+                              sk->is_non_blocking()
+                              ? "socket is non-blocking"
+                              : "bytes previously returned");
                     return &empty_sentinel_irob;
                 }
                 pthread_cond_wait(&sk->scheduling_state_cv, &sk->scheduling_state_lock);
@@ -368,7 +379,10 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
     while ((size_t)bytes_passed < len) {
 	struct timeval one_begin, one_end, one_diff;
 	TIME(one_begin);
-        PendingReceiverIROB *pirob = get_ready_irob();
+        // if the socket is in blocking mode, this will block
+        //    if bytes_passed == 0
+        bool block_for_data = ((bytes_passed == 0) || (flags & MSG_WAITALL));
+        PendingReceiverIROB *pirob = get_ready_irob(block_for_data);
 	TIME(one_end);
 	TIMEDIFF(one_begin, one_end, one_diff);
 	dbgprintf("Getting one ready IROB took %lu.%06lu seconds\n",
@@ -391,10 +405,15 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
 
 #ifndef CMM_UNIT_TESTING
         if (pirob->numbytes() == 0) {
-            // sentinel; no bytes are ready
-            assert(sk->is_non_blocking());
+            // sentinel; no more bytes are ready
             assert(pirob == &empty_sentinel_irob);
             if (bytes_passed == 0) {
+                if (!sk->is_non_blocking()) {
+                    // impossible; get_ready_irob would have blocked
+                    //  until there was data ready to return
+                    assert(0);
+                }
+
                 bytes_passed = -1;
                 errno = EWOULDBLOCK;
             }

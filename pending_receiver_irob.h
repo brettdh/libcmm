@@ -92,7 +92,9 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
     /* First take: this won't ever return an incomplete IROB. 
      *  (we may want to loosen this restriction in the future) */
     /* Hard rule: this won't ever return a non-ready IROB. */
-    PendingReceiverIROB *get_ready_irob();
+    // also, if the socket is in blocking mode and block_for_data == true,
+    //  this will block if no IROBs are ready.
+    PendingReceiverIROB *get_ready_irob(bool block_for_data);
 
     bool data_is_ready();
 

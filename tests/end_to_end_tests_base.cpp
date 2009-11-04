@@ -16,6 +16,9 @@
 #include <openssl/sha.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <functional>
+using std::min;
+
 
 const short EndToEndTestsBase::TEST_PORT = 4242;
 
@@ -146,7 +149,8 @@ void
 EndToEndTestsBase::receiveAndChecksum()
 {
     int bytes = -1;
-    int rc = cmm_read(read_sock, &bytes, sizeof(bytes), NULL);
+    int rc = cmm_recv(read_sock, &bytes, sizeof(bytes), 
+                      MSG_WAITALL, NULL);
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiving message size", 
                                  (int)sizeof(bytes), rc);
     
@@ -154,11 +158,13 @@ EndToEndTestsBase::receiveAndChecksum()
     fprintf(stderr, "Receiving %d random bytes and digest\n", bytes);
     
     unsigned char *buf = new unsigned char[bytes];
-    rc = cmm_read(read_sock, buf, bytes, NULL);
+    rc = cmm_recv(read_sock, buf, bytes, 
+                  MSG_WAITALL, NULL);
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiving message", bytes, rc);
     
     unsigned char digest[SHA_DIGEST_LENGTH];
-    rc = cmm_read(read_sock, digest, SHA_DIGEST_LENGTH, NULL);
+    rc = cmm_recv(read_sock, digest, SHA_DIGEST_LENGTH, 
+                  MSG_WAITALL, NULL);
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiving digest", 
                                  SHA_DIGEST_LENGTH, rc);
     
@@ -270,6 +276,59 @@ EndToEndTestsBase::testNoInterleaving()
 }
 
 void
+EndToEndTestsBase::testPartialRecv()
+{
+    /* Property: if recv is called for N bytes and M bytes are
+     *           available, and M < N, recv will not block for the
+     *           full N bytes but will intstead return the M available
+     *           bytes.  cmm_recv should do likewise.
+     */
+
+    const char msg[] = "Hi, I'm Woody! Howdy howdy howdy.";
+    int msglen = sizeof(msg);
+    int send_chunksize = 3;
+    if (isReceiver()) {
+        const int blocksize = msglen;
+        char buf[blocksize];
+        memset(buf, 0, blocksize);
+
+        fprintf(stderr, "Attempting to receive %d bytes "
+                "with a stuttering sender\n", msglen);
+
+        int bytes_recvd = 0;
+        while (bytes_recvd < msglen) {
+            int rc = cmm_read(read_sock, buf, blocksize, NULL);
+            handle_error(rc <= 0, "cmm_read");
+            int expected_chunksize = min(send_chunksize, msglen - bytes_recvd);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Recv returns data as it arrives",
+                                         expected_chunksize, rc);
+
+            int cmp = memcmp(msg + bytes_recvd, buf, rc);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Block content matches msg", 0, cmp);
+            
+            bytes_recvd += rc;
+        }
+        fprintf(stderr, "Received %d bytes successfully.\n",
+                bytes_recvd);
+        CPPUNIT_ASSERT_EQUAL_MESSAGE("Received all bytes",
+                                     msglen, bytes_recvd);        
+    } else {
+        int bytes_sent = 0;
+        while (bytes_sent < msglen) {
+            send_chunksize = min(send_chunksize, msglen - bytes_sent);
+            int rc = cmm_write(send_sock, msg + bytes_sent,
+                               send_chunksize, 0, NULL, NULL);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("cmm_send succeeds",
+                                         send_chunksize, rc);
+            bytes_sent += rc;
+            sleep(1);
+        }
+        CPPUNIT_ASSERT_EQUAL_MESSAGE("Sent all bytes",
+                                     msglen, bytes_sent);
+    }
+}
+
+void
 EndToEndTestsBase::testCMMPoll()
 {
     const char ANSWER = 42;
@@ -312,7 +371,7 @@ void handle_error(bool condition, const char *msg)
 {
     if (condition) {
         perror(msg);
-        exit(EXIT_FAILURE);
+        abort();
     }
 }
 
@@ -334,7 +393,8 @@ static bool is_sorted(const int nums[], size_t n)
 void
 EndToEndTestsBase::receiverAssertIntsSorted(int nums[], size_t n)
 {
-    int rc = cmm_read(read_sock, nums, n*sizeof(int), NULL);
+    int rc = cmm_recv(read_sock, nums, n*sizeof(int), 
+                      MSG_WAITALL, NULL);
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiving integers",
                                  (int)(n*sizeof(int)), rc);
     

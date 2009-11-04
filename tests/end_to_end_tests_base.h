@@ -11,6 +11,7 @@ class EndToEndTestsBase :  public CppUnit::TestFixture {
 
     void testRandomBytesReceivedCorrectly();
     void testNoInterleaving();
+    void testPartialRecv();
     void testCMMPoll();
 
   protected:
