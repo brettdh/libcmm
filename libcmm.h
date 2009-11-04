@@ -111,7 +111,16 @@ int cmm_select(mc_socket_t nfds,
 	       struct timeval *timeout);
 
 int cmm_poll(struct pollfd fds[], nfds_t nfds, int timeout);
+
+// XXX: broken.  Kind of silly, too, since if you called
+//    cmm_connect, you know the answer already.
 int cmm_getpeername(int socket, struct sockaddr *address, socklen_t *address_len);
+
+// XXX: getsockname doesn't make a lot of sense for multisockets.
+//   right now it's just a bit of fakery. Code that uses it
+//   for anything more significant than debug  printfs is probably
+//   going to break.
+int cmm_getsockname(int socket, struct sockaddr *address, socklen_t *address_len);
 
 /* devnote: conn_[down|up]_cbs are no longer necessary when we own
  * a piece at both ends of the connection (which we will; see also

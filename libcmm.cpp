@@ -304,6 +304,12 @@ int cmm_getpeername(mc_socket_t sock, struct sockaddr *address,
     return CMMSocket::lookup(sock)->mc_getpeername(address, address_len);
 }
 
+int cmm_getsockname(mc_socket_t sock, struct sockaddr *address, 
+		    socklen_t *address_len)
+{
+    return CMMSocket::lookup(sock)->mc_getsockname(address, address_len);
+}
+
 int cmm_listen(int listener_sock, int backlog)
 {
     return CMMSocket::mc_listen(listener_sock, backlog);

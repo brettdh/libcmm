@@ -44,6 +44,14 @@ CMMSocketPassThrough::mc_getpeername(struct sockaddr *address,
 }
 
 int 
+CMMSocketPassThrough::mc_getsockname(struct sockaddr *address, 
+                                     socklen_t *address_len)
+{
+    passthrough_debug_alert("cmm_getsockname");
+    return getsockname(sock, address, address_len);
+}
+
+int 
 CMMSocketPassThrough::mc_recv(void *buf, size_t count, int flags,
                               u_long *recv_labels)
 {

@@ -1358,6 +1358,20 @@ CMMSocketImpl::mc_getpeername(struct sockaddr *address,
     return getpeername(csock->osfd, address, address_len);
 }
 
+int 
+CMMSocketImpl::mc_getsockname(struct sockaddr *address, 
+                              socklen_t *address_len)
+{
+    PthreadScopedRWLock lock(&my_lock, false);
+
+    CSocketPtr csock = csock_map->csock_with_labels(0);
+    if (!csock) {
+        return getsockname(sock, address, address_len);
+    } 
+
+    return getsockname(csock->osfd, address, address_len);
+}
+
 void
 CMMSocketImpl::setup(struct net_interface iface, bool local)
 {

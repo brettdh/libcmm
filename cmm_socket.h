@@ -50,6 +50,8 @@ class CMMSocket {
 
     virtual int mc_getpeername(struct sockaddr *address, 
 			       socklen_t *address_len) = 0;
+    virtual int mc_getsockname(struct sockaddr *address, 
+			       socklen_t *address_len) = 0;
     virtual int mc_getsockopt(int level, int optname, 
                               void *optval, socklen_t *optlen) = 0;
     virtual int mc_setsockopt(int level, int optname, 

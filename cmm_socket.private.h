@@ -107,6 +107,8 @@ class CMMSocketImpl : public CMMSocket {
 
     virtual int mc_getpeername(struct sockaddr *address, 
                                socklen_t *address_len);
+    virtual int mc_getsockname(struct sockaddr *address, 
+                               socklen_t *address_len);
     //virtual int reset();
     virtual int mc_getsockopt(int level, int optname, 
                               void *optval, socklen_t *optlen);
@@ -345,6 +347,8 @@ class CMMSocketPassThrough : public CMMSocket {
     CMMSocketPassThrough(mc_socket_t sock_);
 
     virtual int mc_getpeername(struct sockaddr *address, 
+                               socklen_t *address_len);
+    virtual int mc_getsockname(struct sockaddr *address, 
                                socklen_t *address_len);
     //virtual int reset();
     //virtual int check_label(u_long label, resume_handler_t fn, void *arg);
