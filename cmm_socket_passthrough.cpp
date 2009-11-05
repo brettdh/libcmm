@@ -4,7 +4,7 @@
 
 static void passthrough_debug_alert(const char *fn)
 {
-    dbgprintf("Passthrough socket function called: %s\n", fn);
+    //dbgprintf("Passthrough socket function called: %s\n", fn);
 }
 
 CMMSocketPassThrough::CMMSocketPassThrough(mc_socket_t sock_)

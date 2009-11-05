@@ -738,11 +738,16 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 
     dbgprintf("mc_poll with %lu fds [ ", nfds);
     for(nfds_t i=0; i<nfds; i++) {
-        dbgprintf_plain("%d ", fds[i].fd);
+        dbgprintf_plain("%d%s%s ", fds[i].fd,
+                        (fds[i].events & POLLIN)?"i":"",
+                        (fds[i].events & POLLOUT)?"o":"");
+        fds[i].revents = 0;
     }
     dbgprintf_plain("]\n");
 
-    set<int> write_fds;
+    // contains the write_ready_pipe fds that are to be
+    //   POLLIN'd (in order to POLLOUT on a multisocket)
+    //set<int> write_fds;
 
     for(nfds_t i=0; i<nfds; i++) {
 	mcSocketOsfdPairList osfd_list;
@@ -761,13 +766,16 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
                 sk->get_fds_for_select(osfd_list, true, false);
             }
             if (fds[i].events & POLLOUT) {
+                sk->get_fds_for_select(osfd_list, false, true);
+                /*
                 mcSocketOsfdPairList tmp_list;
                 sk->get_fds_for_select(tmp_list, false, true);
                 for (size_t i = 0; i < tmp_list.size(); ++i) {
-                    int fd = tmp_list[i].second;
-                    write_fds.insert(fd);
+                    //int fd = tmp_list[i].second;
+                    //write_fds.insert(fd);
                     osfd_list.push_back(tmp_list[i]);
                 }
+                */
             }
 	    if (osfd_list.size() == 0) {
 		/* XXX: is this right? should we instead
@@ -778,16 +786,23 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 	    for (size_t j = 0; j < osfd_list.size(); j++) {
 		/* copy struct pollfd, overwrite fd */
 		real_fds_list.push_back(fds[i]);
-		real_fds_list.back().fd = osfd_list[j].second;
+                struct pollfd& real_fd = real_fds_list.back();
+		real_fd.fd = osfd_list[j].second;
 
                 // a POLLOUT poll request on a multisocket
                 //  must be translated to a POLLIN request 
                 //  on its write_ready_pipe[0]
                 //  (and back again later)
-                if (write_fds.count(fds[i].fd) == 1) {
-                    assert(real_fds_list.back().events & POLLOUT);
-                    real_fds_list.back().events &= ~POLLOUT;
-                    real_fds_list.back().events |= POLLIN;
+                if (real_fd.fd == sk->select_pipe[0]) {
+                    // strip flags that are not POLLIN
+                    assert(real_fd.events & POLLIN);
+                    real_fd.events = POLLIN;
+                } else if (real_fd.fd == sk->write_ready_pipe[0]) { 
+                    //write_fds.count(real_fd.fd) == 1) {
+                    assert(real_fd.events & POLLOUT);
+                    //real_fd.events &= ~POLLOUT;
+                    //real_fd.events |= POLLIN;
+                    real_fd.events = POLLIN;
                 }
 		osfds_to_pollfds[osfd_list[j].second] = &fds[i];
 	    }
@@ -796,15 +811,25 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 
     nfds_t real_nfds = real_fds_list.size();
     struct pollfd *realfds = new struct pollfd[real_nfds];
-    dbgprintf("About to call poll(): %zd fds [ ",
-              real_fds_list.size());
+    dbgprintf("About to call poll(): %lu fds [ ",
+              real_nfds);
     for (nfds_t i = 0; i < real_nfds; i++) {
 	realfds[i] = real_fds_list[i];
-        dbgprintf_plain("%d ", realfds[i].fd);
+        dbgprintf_plain("%d%s%s ", realfds[i].fd,
+                        (realfds[i].events & POLLIN)?"i":"",
+                        (realfds[i].events & POLLOUT)?"o":"");
     }
     dbgprintf_plain("]\n");
 
     int rc = poll(realfds, real_nfds, timeout);
+    dbgprintf("poll() returns %d: %lu fds [ ",
+              rc, real_nfds);
+    for(nfds_t i=0; i < real_nfds; i++) {
+        dbgprintf_plain("%d%s%s ", realfds[i].fd,
+                        (realfds[i].revents & POLLIN)?"i":"",
+                        (realfds[i].revents & POLLOUT)?"o":"");
+    }
+    dbgprintf_plain("]\n");
     if (rc <= 0) {
 	return rc;
     }
@@ -824,30 +849,45 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 
             // if a read event happened on write_ready_pipe[0],
             // it really means that POLLOUT happened on the multisocket
-            if (write_fds.count(realfds[i].fd) == 1) {
+            if (realfds[i].fd == sk->write_ready_pipe[0]) { 
+                //write_fds.count(realfds[i].fd) == 1) {
                 if (realfds[i].revents & POLLIN) {
-                    realfds[i].revents &= ~POLLIN;
-                    realfds[i].revents |= POLLOUT;
+                    //realfds[i].revents &= ~POLLIN;
+                    realfds[i].revents = POLLOUT;
                 }
             }
 
             origfd->revents |= realfds[i].revents;
             if (origfd->revents & POLLIN) {
+                dbgprintf("multisocket %d has POLLIN revent\n",
+                          sk->sock);
                 sk->clear_select_pipe(sk->select_pipe[0]);
             }
             if (origfd->revents & POLLOUT) {
+                dbgprintf("multisocket %d has POLLOUT revent\n",
+                          sk->sock);
                 sk->clear_select_pipe(sk->write_ready_pipe[0]);
             }
 	}
-        if (orig_fds.find(origfd->fd) == orig_fds.end()) {
-            orig_fds.insert(origfd->fd);
-        } else {
-            /* correct return value for duplicates */
-            rc--;
+        if (origfd->revents & (POLLIN | POLLOUT)) {
+            if (orig_fds.find(origfd->fd) == orig_fds.end()) {
+                orig_fds.insert(origfd->fd);
+            } else {
+                /* correct return value for duplicates */
+                rc--;
+            }
         }
     }
     delete realfds;
 
+    dbgprintf("Returning %d from mc_poll(): %lu fds [ ",
+              rc, nfds);
+    for(nfds_t i=0; i<nfds; i++) {
+        dbgprintf_plain("%d%s%s ", fds[i].fd,
+                        (fds[i].revents & POLLIN)?"i":"",
+                        (fds[i].revents & POLLOUT)?"o":"");
+    }
+    dbgprintf_plain("]\n");
     return rc;
 }
 
