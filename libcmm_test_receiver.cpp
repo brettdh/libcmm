@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include "libcmm.h"
 #include "libcmm_test.h"
+#include "common.h"
 #include <errno.h>
 #include "timeops.h"
 
@@ -115,9 +116,7 @@ void * Worker(void * arg)
 int main()
 {
     int listen_sock = socket(PF_INET, SOCK_STREAM, 0);
-    if (listen_sock < 0) {
-        handle_error("socket");
-    }
+    handle_error(listen_sock < 0, "socket");
     
     int on = 1;
     int rc = setsockopt (listen_sock, SOL_SOCKET, SO_REUSEADDR,
@@ -132,18 +131,14 @@ int main()
     addr.sin_port = htons(LISTEN_PORT);
 
     rc = bind(listen_sock, (struct sockaddr *)&addr, (socklen_t)sizeof(addr));
-    if (rc < 0) {
-        handle_error("bind");
-    }
+    handle_error(rc < 0, "bind");
     
 #ifdef NOMULTISOCK
     rc = listen(listen_sock, 5);
 #else
     rc = cmm_listen(listen_sock, 5);
 #endif
-    if (rc < 0) {
-        handle_error("cmm_listen");
-    }
+    handle_error(rc < 0, "cmm_listen");
 
     running = true;
     signal(SIGINT, handler);

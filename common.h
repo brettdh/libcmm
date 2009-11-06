@@ -59,4 +59,6 @@ bool pop_item(ContainerType& container, ItemType& item)
         assert(rc == 0);                                        \
     } while (0)
 
+#define handle_error(cond, str) do { if (cond) { perror(str); exit(-1); } } while (0)
+
 #endif

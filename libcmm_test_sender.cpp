@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "libcmm.h"
 #include "libcmm_test.h"
+#include "common.h"
 #include "tbb/atomic.h"
 #include "tbb/concurrent_queue.h"
 using tbb::atomic;

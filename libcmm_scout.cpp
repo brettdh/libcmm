@@ -12,12 +12,14 @@
 #include <stdlib.h>
 
 #include <queue>
-using std::queue;
+#include <deque>
 #include <vector>
 #include <map>
+using std::queue; using std::deque;
 
 #include <sys/time.h>
 #include <time.h>
+#include "timeops.h"
 
 #include "libcmm.h"
 #include "libcmm_ipc.h"
@@ -44,7 +46,7 @@ tbb::concurrent_hash_map<pid_t, subscriber_proc,
 static SubscriberProcHash subscriber_procs;
 
 static bool running;
-static atomic<u_long> labels_available;
+//static atomic<u_long> labels_available;
 
 static pthread_mutex_t ifaces_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -52,11 +54,14 @@ typedef std::vector<struct net_interface> IfaceList;
 typedef std::map<in_addr_t, struct net_interface> NetInterfaceMap;
 static NetInterfaceMap net_interfaces;
 
-#define UP_LABELS (CMM_LABEL_BACKGROUND|CMM_LABEL_ONDEMAND)
-#define DOWN_LABELS (CMM_LABEL_ONDEMAND)
+//#define UP_LABELS (CMM_LABEL_BACKGROUND|CMM_LABEL_ONDEMAND)
+//#define DOWN_LABELS (CMM_LABEL_ONDEMAND)
 
 // #define FG_IP_ADDRESS "10.0.0.42"
 // #define BG_IP_ADDRESS "10.0.0.2"
+
+#define EMULATION_BOX_IP   "10.0.0.12"
+#define EMULATION_BOX_PORT 4422
 
 
 int notify_subscriber(pid_t pid, mqd_t mq_fd,
@@ -295,26 +300,37 @@ void usage(char *argv[])
 	    "                    cdf <encounter duration cdf file>\n"
 	    "                        <disconnect duration cdf file>\n");
     fprintf(stderr, 
-            "Usage 3: conn_scout -l <FG iface> <BG iface>\n"
-            "   -Listens for a connection from the emulation box, which\n"
-            "     will transmit the trace of network measurements.\n");
+            "Usage 3: conn_scout replay <FG iface> <BG iface>\n"
+            "   -Connects to the emulation box, which will transmit\n"
+            "     the trace of network measurements.\n");
     exit(-1);
 }
+
+void thread_sleep(struct timeval tv);
 
 void thread_sleep(double fseconds)
 {
     double iseconds = -1.0;
     double fnseconds = modf(fseconds, &iseconds);
-    struct timespec timeout, rem;
+    struct timeval timeout;
     timeout.tv_sec = (time_t)iseconds;
-    timeout.tv_nsec = (long)(fnseconds*1000000000);
-    rem.tv_sec = 0;
-    rem.tv_nsec = 0;
+    timeout.tv_usec = (long)(fnseconds*1000000);
 
-    if (timeout.tv_sec < 0.0) {
-	fprintf(stderr, "Error: fseconds negative (or just too big!)\n");
+    if (fseconds <= 0.0) {
+	fprintf(stderr, "Error: fseconds <= 0.0 (or just too big!)\n");
 	raise(SIGINT);
     }
+
+    thread_sleep(timeout);
+}
+
+void thread_sleep(struct timeval tv)
+{
+    struct timespec timeout, rem;
+    timeout.tv_sec = tv.tv_sec;
+    timeout.tv_nsec = tv.tv_usec * 1000;
+    rem.tv_sec = 0;
+    rem.tv_nsec = 0;
 
     while (nanosleep(&timeout, &rem) < 0) {
 	if (!running) return;
@@ -359,7 +375,84 @@ int get_ip_address(const char *ifname, struct in_addr *ip_addr)
     return rc;
 }
 
-#define MIN_TIME 1
+struct trace_slice {
+    struct timeval start;
+    u_long wifi_bw_down;
+    u_long wifi_bw_up;
+    u_long wifi_RTT;
+    u_long cellular_bw_down;
+    u_long cellular_bw_up;
+    u_long cellular_RTT;
+
+    void ntohl() {
+        const size_t numints = sizeof(trace_slice) / sizeof(u_long);
+        assert(numints*sizeof(u_long) == sizeof(trace_slice)); // no truncation
+        for (size_t i = 0; i < numints; ++i) {
+            u_long *pos = ((u_long*)this) + i;
+            *pos = ::ntohl(*pos);
+        }
+    }
+};
+
+int get_trace(deque<struct trace_slice>& trace)
+{
+    int sock = socket(PF_INET, SOCK_STREAM, 0);
+    handle_error(sock < 0, "Error creating socket to get trace");
+    
+    struct sockaddr_in addr;
+    socklen_t addrlen = sizeof(addr);
+    memset(&addr, 0, addrlen);
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = inet_addr(EMULATION_BOX_IP);
+    addr.sin_port = htons(EMULATION_BOX_PORT);
+    
+    int rc = connect(sock, (struct sockaddr*)&addr, addrlen);
+    handle_error(rc < 0, "Error connecting to get trace");
+
+    int trace_size = 0;
+    rc = recv(sock, &trace_size, sizeof(trace_size), MSG_WAITALL);
+    handle_error(rc != sizeof(trace_size), "Error receiving trace size");
+
+    trace_size = ntohl(trace_size);
+    if (trace_size <= 0) {
+        fprintf(stderr, "Received invalid trace size %d\n", trace_size);
+        exit(EXIT_FAILURE);
+    }
+    
+    struct timeval trace_start = {-1, 0};
+    struct timeval last_slice_start = {0, 0};
+    for (int i = 0; i < trace_size; ++i) {
+        struct trace_slice slice;
+        rc = recv(sock, &slice, sizeof(slice), MSG_WAITALL);
+        handle_error(rc != sizeof(slice), "Error receiving trace slice");
+
+        slice.ntohl();
+        if (slice.start.tv_sec < 0) {
+            fprintf(stderr, "Error: invalid timestamp received with slice\n");
+            exit(EXIT_FAILURE);
+        }
+        if (trace_start.tv_sec == -1) {
+            trace_start = slice.start;
+            slice.start.tv_sec = slice.start.tv_usec = 0;
+        } else {
+            timersub(&slice.start, &trace_start, &slice.start);
+            
+            if (!timercmp(&slice.start, &last_slice_start, >)) {
+                fprintf(stderr, "Error: out-of-order timestamps in trace\n");
+                exit(EXIT_FAILURE);
+            }
+            last_slice_start = slice.start;
+        }
+        trace.push_back(slice);
+    }
+    
+    return sock;
+}
+
+static void emulate_slice(struct trace_slice slice, struct timeval end,
+                          struct net_interface cellular_iface,
+                          struct net_interface wifi_iface);
+#define MIN_TIME 0.0
 
 int main(int argc, char *argv[])
 {
@@ -368,26 +461,32 @@ int main(int argc, char *argv[])
     }
 
     bool trace_replay = false;
-    int listen_sock = -1;
     bool sampling = false;
     CDFSampler *up_time_samples = NULL;
     CDFSampler *down_time_samples = NULL;
     double presample_duration = 3600.0;
 
-    int argi = 1;
-    if (!strcmp(argv[argi], "-l")) {
-        trace_replay = true;
-    }
-    const char *fg_iface_name = argv[argi++];
+    char *fg_iface_name = NULL;
     char *bg_iface_name = NULL;
 
-    u_long fg_bandwidth, fg_RTT, bg_bandwidth, bg_RTT;
-    fg_bandwidth = atoi(argv[argi++]);
-    fg_RTT = atoi(argv[argi++]);
+    u_long fg_bandwidth=0, fg_RTT=0, bg_bandwidth=0, bg_RTT=0;
+
+    int argi = 1;
+    if (!strcmp(argv[argi], "replay")) {
+        trace_replay = true;
+        argi++;
+
+        fg_iface_name = argv[argi++];
+        bg_iface_name = argv[argi++];
+    } else {
+        fg_iface_name = argv[argi++];
+        fg_bandwidth = atoi(argv[argi++]);
+        fg_RTT = atoi(argv[argi++]);
+    }
 
     double up_time = 30.0;
     double down_time = 5.0;
-    if (argc > argi) {
+    if (!trace_replay && argc > argi) {
         if ((argc - argi) < 3) {
             usage(argv);
         }
@@ -424,15 +523,15 @@ int main(int argc, char *argv[])
 	    if (up_time < MIN_TIME || down_time < MIN_TIME) {
 		fprintf(stderr, 
 			"Error: uptime and downtime must be greater than "
-			"%u second.\n", MIN_TIME);
+			"%f seconds.\n", MIN_TIME);
 		exit(-1);
 	    }
 	}
     }
-    
+
     signal(SIGINT, handle_term);
 
-    labels_available = UP_LABELS;
+    //labels_available = UP_LABELS;
     
     /* Add the interfaces, wizard-of-oz-style */
     struct net_interface ifs[2] = {
@@ -470,6 +569,14 @@ int main(int argc, char *argv[])
 	bg_iface_list.push_back(bg_iface);
     }
 
+    deque<struct trace_slice> trace;
+    int emu_sock = -1;
+
+    if (trace_replay) {
+        emu_sock = get_trace(trace);
+        assert(!trace.empty());
+    }
+
     running = true;
 
     pthread_t tid;
@@ -480,6 +587,13 @@ int main(int argc, char *argv[])
 	exit(-1);
     }
 
+    if (trace_replay) {
+        char ch = 0;
+        rc = write(emu_sock, &ch, 1);
+        handle_error(rc < 0, "Error sending response to emu_box");
+        close(emu_sock);
+    }
+
     if (!bg_iface_name) {
 	/* no background interface; 
 	 * just sleep until SIGINT, then exit */
@@ -488,10 +602,24 @@ int main(int argc, char *argv[])
     }
 
     while (running) {
+        if (trace_replay) {
+            struct trace_slice slice = trace[0];
+            trace.pop_front();
+            struct timeval end = {-1, 0};
+            if (!trace.empty()) {
+                end = trace[0].start;
+            }
+
+            struct net_interface cellular_iface = ifs[0];
+            struct net_interface wifi_iface = ifs[1];
+            emulate_slice(slice, end, cellular_iface, wifi_iface);
+            continue;
+        }
+
 	if (sampling) {
 	    up_time = up_time_samples->sample();
 	}
-	labels_available = UP_LABELS;
+	//labels_available = UP_LABELS;
         
 	fprintf(stderr, "%s is up for %lf seconds\n", bg_iface_name, up_time);
         pthread_mutex_lock(&ifaces_lock);
@@ -505,7 +633,7 @@ int main(int argc, char *argv[])
 	if (sampling) {
 	    down_time = down_time_samples->sample();
 	}
-	labels_available = DOWN_LABELS;
+	//labels_available = DOWN_LABELS;
 	fprintf(stderr, "%s is down for %lf seconds\n", bg_iface_name, down_time);
 
         pthread_mutex_lock(&ifaces_lock);
@@ -522,4 +650,44 @@ int main(int argc, char *argv[])
     pthread_join(tid, NULL);
     fprintf(stderr, "Scout gracefully quit.\n");
     return 0;
+}
+
+static void emulate_slice(struct trace_slice slice, struct timeval end,
+                          struct net_interface cellular_iface,
+                          struct net_interface wifi_iface)
+{
+    IfaceList changed_ifaces, down_ifaces;
+    cellular_iface.bandwidth = slice.cellular_bw_up;
+    cellular_iface.RTT = slice.cellular_RTT;
+    wifi_iface.bandwidth = slice.wifi_bw_up;
+    wifi_iface.RTT = slice.wifi_RTT;
+
+    pthread_mutex_lock(&ifaces_lock);
+    if (wifi_iface.bandwidth == 0) {
+        if (net_interfaces.count(wifi_iface.ip_addr.s_addr) == 1) {
+            down_ifaces.push_back(wifi_iface);
+        }
+    } else {
+        net_interfaces[wifi_iface.ip_addr.s_addr] = wifi_iface;
+        changed_ifaces.push_back(wifi_iface);
+    }
+    if (cellular_iface.bandwidth == 0) {
+        if (net_interfaces.count(cellular_iface.ip_addr.s_addr) == 1) {
+            down_ifaces.push_back(cellular_iface);
+        }
+    } else {
+        net_interfaces[cellular_iface.ip_addr.s_addr] = cellular_iface;
+        changed_ifaces.push_back(cellular_iface);
+    }
+    pthread_mutex_unlock(&ifaces_lock);
+    notify_all_subscribers(changed_ifaces, down_ifaces);
+
+    if (end.tv_sec != -1) {
+        struct timeval duration;
+        TIMEDIFF(slice.start, end, duration);
+        thread_sleep(duration);
+    } else {
+        // all done with the trace, so just sleep until SIGINT
+	(void)select(0, NULL, NULL, NULL, NULL);
+    }
 }
