@@ -100,6 +100,8 @@ CSockMapping::setup(struct net_interface iface, bool local)
         } else {
             matches[i]->remote_iface = iface;
         }
+        matches[i]->stats.update(matches[i]->local_iface,
+                                 matches[i]->remote_iface);
     }
 }
 

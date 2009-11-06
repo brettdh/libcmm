@@ -154,6 +154,10 @@ class NetStats {
     //  smoothed estimate.
     void report_bw_down(u_long bw_down);
 
+    // Add an external spot observation (from the scout).
+    void update(struct net_interface local_iface,
+                struct net_interface remote_iface);
+
     NetStats(struct net_interface local_iface, 
              struct net_interface remote_iface);
     ~NetStats();

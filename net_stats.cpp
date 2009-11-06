@@ -52,6 +52,26 @@ NetStats::NetStats(struct net_interface local_iface,
     cache_save();
 }
 
+void
+NetStats::update(struct net_interface local_iface,
+                 struct net_interface remote_iface)
+{
+    {
+        PthreadScopedRWLock lock(&my_lock, true);
+
+        u_long spot_bandwidth = iface_bandwidth(local_iface, remote_iface);
+        u_long spot_latency = iface_RTT(local_iface, remote_iface) / 2;
+        if (spot_bandwidth > 0) {
+            net_estimates.estimates[NET_STATS_BW_UP].add_observation(spot_bandwidth);
+        }
+        if (spot_latency > 0) {
+            net_estimates.estimates[NET_STATS_LATENCY].add_observation(spot_latency);
+        }
+    }
+    cache_save();
+}
+
+
 NetStats::~NetStats()
 {
     cache_save();
