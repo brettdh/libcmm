@@ -294,6 +294,10 @@ void usage(char *argv[])
             "                    <BG iface> <bandwidth> <RTT>\n"
 	    "                    cdf <encounter duration cdf file>\n"
 	    "                        <disconnect duration cdf file>\n");
+    fprintf(stderr, 
+            "Usage 3: conn_scout -l <FG iface> <BG iface>\n"
+            "   -Listens for a connection from the emulation box, which\n"
+            "     will transmit the trace of network measurements.\n");
     exit(-1);
 }
 
@@ -363,12 +367,17 @@ int main(int argc, char *argv[])
 	usage(argv);
     }
 
+    bool trace_replay = false;
+    int listen_sock = -1;
     bool sampling = false;
     CDFSampler *up_time_samples = NULL;
     CDFSampler *down_time_samples = NULL;
     double presample_duration = 3600.0;
 
     int argi = 1;
+    if (!strcmp(argv[argi], "-l")) {
+        trace_replay = true;
+    }
     const char *fg_iface_name = argv[argi++];
     char *bg_iface_name = NULL;
 
