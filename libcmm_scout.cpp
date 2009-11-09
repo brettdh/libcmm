@@ -588,6 +588,13 @@ int main(int argc, char *argv[])
     }
 
     if (trace_replay) {
+        fprintf(stderr, "Starting trace replay in ");
+        for (int i = 3; i > 0; --i) {
+            fprintf(stderr, "%d..", i);
+            sleep(1);
+        }
+        fprintf(stderr, "\n");
+
         char ch = 0;
         rc = write(emu_sock, &ch, 1);
         handle_error(rc < 0, "Error sending response to emu_box");
@@ -661,6 +668,28 @@ static void emulate_slice(struct trace_slice slice, struct timeval end,
     cellular_iface.RTT = slice.cellular_RTT;
     wifi_iface.bandwidth = slice.wifi_bw_up;
     wifi_iface.RTT = slice.wifi_RTT;
+
+    fprintf(stderr, "Trace slice  start %lu.%06lu  end ",
+            slice.start.tv_sec, slice.start.tv_usec);
+    if (end.tv_sec != -1) {
+        fprintf(stderr, "%lu.%06lu\n", end.tv_sec, end.tv_usec);
+    } else {
+        fprintf(stderr, " (never)\n");
+    }
+    fprintf(stderr, "  Cellular: %15s %9lu down  %9lu up  %5lu ms RTT\n",
+            inet_ntoa(cellular_iface.ip_addr),
+            slice.cellular_bw_down, slice.cellular_bw_up,
+            slice.cellular_RTT);
+
+    fprintf(stderr, "  WiFi:     %15s ",
+            inet_ntoa(wifi_iface.ip_addr));
+    if (wifi_iface.bandwidth == 0) {
+        fprintf(stderr, "(unavailable)\n");
+    } else {
+        fprintf(stderr, "%9lu down  %9lu up  %5lu ms RTT\n",
+                slice.wifi_bw_down, slice.wifi_bw_up,
+                slice.wifi_RTT);
+    }
 
     pthread_mutex_lock(&ifaces_lock);
     if (wifi_iface.bandwidth == 0) {
