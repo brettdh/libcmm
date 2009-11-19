@@ -608,14 +608,17 @@ int main(int argc, char *argv[])
 	running = false;
     }
 
+    size_t cur_trace_slice = 0;
     while (running) {
         if (trace_replay) {
-            struct trace_slice slice = trace[0];
-            trace.pop_front();
-            struct timeval end = {-1, 0};
-            if (!trace.empty()) {
-                end = trace[0].start;
-            }
+	    if (cur_trace_slice + 1 == trace.size()) {
+		fprintf(stderr, "Looping the trace\n");
+		cur_trace_slice = 0;
+		continue;
+	    }
+            struct trace_slice slice = trace[cur_trace_slice++];
+	    assert(cur_trace_slice < trace.size());
+            struct timeval end = trace[cur_trace_slice].start;
 
             struct net_interface cellular_iface = ifs[0];
             struct net_interface wifi_iface = ifs[1];
