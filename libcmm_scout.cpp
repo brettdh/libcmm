@@ -700,14 +700,20 @@ static void emulate_slice(struct trace_slice slice, struct timeval end,
         net_interfaces[wifi_iface.ip_addr.s_addr] = wifi_iface;
         changed_ifaces.push_back(wifi_iface);
     }
+    /*
     if (cellular_iface.bandwidth == 0) {
         if (net_interfaces.count(cellular_iface.ip_addr.s_addr) == 1) {
             down_ifaces.push_back(cellular_iface);
         }
     } else {
-        net_interfaces[cellular_iface.ip_addr.s_addr] = cellular_iface;
-        changed_ifaces.push_back(cellular_iface);
-    }
+    */
+    // if cellular_iface.bandwidth == 0, it could be
+    //  a temporary situation, so instead of telling apps
+    //  that the iface is gone, just tell them that it's
+    //  really slow.  That way, connections can continue uninterrupted.
+    net_interfaces[cellular_iface.ip_addr.s_addr] = cellular_iface;
+    changed_ifaces.push_back(cellular_iface);
+    //}
     pthread_mutex_unlock(&ifaces_lock);
     notify_all_subscribers(changed_ifaces, down_ifaces);
 

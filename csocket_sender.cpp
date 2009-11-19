@@ -387,6 +387,17 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
                  &rel_timeout);
         */
     } else {
+	chunksize = csock->trickle_chunksize();
+	
+	// hack to increase trickling rate when FG traffic ceases
+	struct timeval time_since_last_fg, now;
+	TIME(now);
+	TIMEDIFF(sk->last_fg, now, time_since_last_fg);
+	if (time_since_last_fg.tv_sec > 5) {
+	    chunksize = csock->bandwidth();
+	    do_trickle = true;
+	}
+
         int unsent_bytes = 0;
         int rc = ioctl(csock->osfd, SIOCOUTQ, &unsent_bytes);
         if (rc < 0) {
@@ -394,7 +405,7 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
             //strerror(errno));
             do_trickle = false;
             //rel_timeout = sk->bg_wait_time();
-        } else if (unsent_bytes >= csock->trickle_chunksize()) {
+        } else if (unsent_bytes >= chunksize) {
             /*dbgprintf("     ...socket buffer has %d bytes left; more than %d\n",
               unsent_bytes, csock->trickle_chunksize());*/
             do_trickle = false;
@@ -406,7 +417,7 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
             rel_timeout.tv_usec = clear_time - (rel_timeout.tv_sec * 1000000);
             */
         } else {
-            chunksize = csock->trickle_chunksize() - unsent_bytes;
+            chunksize = chunksize - unsent_bytes;
         }
     }
 
