@@ -114,10 +114,10 @@ CSocketSender::Run()
             }
 
             if (timeout.tv_sec > 0) {
-                dbgprintf("Waiting until %lu.%09lu to check again for ",
-                          timeout.tv_sec, timeout.tv_nsec);
-                dbgprintf_plain(timercmp(&timeout, &trickle_timeout, ==)
-                                ? "trickling\n" : "ACKs\n");
+		if (!timercmp(&timeout, &trickle_timeout, ==)) {
+		    dbgprintf("Waiting until %lu.%09lu to check again for ACKs",
+			      timeout.tv_sec, timeout.tv_nsec);
+		}
                 int rc = pthread_cond_timedwait(&sk->scheduling_state_cv,
                                                 &sk->scheduling_state_lock,
                                                 &timeout);
