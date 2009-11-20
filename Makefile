@@ -15,7 +15,7 @@ EXECUTABLES:=conn_scout cmm_test_sender cmm_test_receiver cdf_test\
 	     cmm_throughput_test vanilla_throughput_test
 
 .gitignore: Makefile
-	echo "$(EXECUTABLES) $(LIBRARIES)" | sed -e 's/\s+/ /' | tr ' ' '\n' > .gitignore
+	echo "$(EXECUTABLES) $(LIBRARIES) libcmm.tgz" | sed -e 's/\s+/ /' | tr ' ' '\n' > .gitignore
 
 all: $(LIBRARIES) $(EXECUTABLES)
 
