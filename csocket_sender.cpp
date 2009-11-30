@@ -16,6 +16,8 @@
 #include <vector>
 using std::vector;
 
+#include <errno.h>
+
 #include "cmm_timing.h"
 
 CSocketSender::CSocketSender(CSocketPtr csock_) 
@@ -537,7 +539,13 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     if (rc != (ssize_t)bytes) {
         sk->irob_indexes.new_irobs.insert(data);
         pthread_cond_broadcast(&sk->scheduling_state_cv);
-        perror("CSocketSender: writev");
+        if (rc < 0) {
+            dbgprintf("CSocketSender: writev error: %s\n",
+                      strerror(errno));
+        } else {
+            dbgprintf("CSocketSender: writev sent only %d of %zu bytes\n",
+                      rc, bytes);
+        }
         throw CMMControlException("Socket error", hdr);
     }
 
@@ -597,7 +605,13 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
     if (rc != sizeof(hdr)) {
         sk->irob_indexes.finished_irobs.insert(data);
         pthread_cond_broadcast(&sk->scheduling_state_cv);
-        perror("CSocketSender: write");
+        if (rc < 0) {
+            dbgprintf("CSocketSender: write error: %s\n",
+                      strerror(errno));
+        } else {
+            dbgprintf("CSocketSender: write sent only %d of %zu bytes\n",
+                      rc, sizeof(hdr));
+        }
         throw CMMControlException("Socket error", hdr);
     }
     
@@ -683,7 +697,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "%lu.%06lu CSocketSender: IROB %ld about to send %d bytes with label %lu\n", 
+            fprintf(timing_file, "%lu.%06lu CSocketSender: IROB %ld about to send %lu bytes with label %lu\n", 
                     now.tv_sec, now.tv_usec, id,
                     (sizeof(hdr) + chunksize), data.send_labels);
         }
@@ -714,12 +728,24 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     psirob = dynamic_cast<PendingSenderIROB*>(sk->outgoing_irobs.find(id));
     if (psirob) {
         psirob->chunk_in_flight = false;
+
+        if (rc > (ssize_t)sizeof(hdr)) {
+            // this way, I won't have to resend bytes that were
+            //  already received
+            psirob->mark_sent(rc - (ssize_t)sizeof(hdr));
+        }
     }
 
     if (rc != (ssize_t)(sizeof(hdr) + chunksize)) {
         sk->irob_indexes.new_chunks.insert(data);
         pthread_cond_broadcast(&sk->scheduling_state_cv);
-        perror("CSocketSender: writev");
+        if (rc < 0) {
+            dbgprintf("CSocketSender: writev error: %s\n",
+                      strerror(errno));
+        } else {
+            dbgprintf("CSocketSender: writev sent only %d of %zd bytes\n",
+                      rc, (ssize_t)(sizeof(hdr) + chunksize));
+        }
         throw CMMControlException("Socket error", hdr);
     }
 
@@ -730,7 +756,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     // It might've been ACK'd and removed, so check first
     //psirob = dynamic_cast<PendingSenderIROB*>(sk->outgoing_irobs.find(id));
     if (psirob) {
-        psirob->mark_sent(chunksize);
+        //psirob->mark_sent(chunksize);
         if (psirob->is_complete()) {
             sk->ack_timeouts.update(id, csock->retransmission_timeout());
 
@@ -773,7 +799,13 @@ CSocketSender::new_interface(struct net_interface iface)
     if (rc != sizeof(hdr)) {
         sk->changed_local_ifaces.insert(iface);
         pthread_cond_broadcast(&sk->scheduling_state_cv);
-        perror("CSocketSender: write");
+        if (rc < 0) {
+            dbgprintf("CSocketSender: write error: %s\n",
+                      strerror(errno));
+        } else {
+            dbgprintf("CSocketSender: write sent only %d of %zu bytes\n",
+                      rc, sizeof(hdr));
+        }
         throw CMMControlException("Socket error", hdr);        
     }
 }
@@ -797,7 +829,13 @@ CSocketSender::down_interface(struct net_interface iface)
     if (rc != sizeof(hdr)) {
         sk->changed_local_ifaces.insert(iface);
         pthread_cond_broadcast(&sk->scheduling_state_cv);
-        perror("CSocketSender: write");
+        if (rc < 0) {
+            dbgprintf("CSocketSender: write error: %s\n",
+                      strerror(errno));
+        } else {
+            dbgprintf("CSocketSender: write sent only %d of %zu bytes\n",
+                      rc, sizeof(hdr));
+        }
         throw CMMControlException("Socket error", hdr);        
     }
 }
@@ -853,7 +891,7 @@ CSocketSender::send_acks(const IROBSchedulingData& data,
     }
     
     size_t datalen = vec[0].iov_len + vec[1].iov_len;
-    dbgprintf("About to send %d ACKs\n", ack_count + 1);
+    dbgprintf("About to send %zu ACKs\n", ack_count + 1);
 
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     csock->stats.report_send_event(datalen);
@@ -865,7 +903,13 @@ CSocketSender::send_acks(const IROBSchedulingData& data,
         sk->irob_indexes.waiting_acks.insert_range(tmp.begin(), tmp.end());
 
         pthread_cond_broadcast(&sk->scheduling_state_cv);
-        perror("CSocketSender: write");
+        if (rc < 0) {
+            dbgprintf("CSocketSender: writev error: %s\n",
+                      strerror(errno));
+        } else {
+            dbgprintf("CSocketSender: writev sent only %d of %zu bytes\n",
+                      rc, datalen);
+        }
         throw CMMControlException("Socket error", hdr);
     }
 }
@@ -887,7 +931,13 @@ CSocketSender::goodbye()
     if (rc != sizeof(hdr)) {
         sk->sending_goodbye = false;
         pthread_cond_broadcast(&sk->scheduling_state_cv);
-        perror("CSocketSender: write");
+        if (rc < 0) {
+            dbgprintf("CSocketSender: writev error: %s\n",
+                      strerror(errno));
+        } else {
+            dbgprintf("CSocketSender: writev sent only %d of %zu bytes\n",
+                      rc, sizeof(hdr));
+        }
         throw CMMControlException("Socket error", hdr);
     }
     
@@ -926,7 +976,13 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
     if (rc != sizeof(hdr)) {
         sk->irob_indexes.resend_requests.insert(data);
         pthread_cond_broadcast(&sk->scheduling_state_cv);
-        perror("CSocketSender: write");
+        if (rc < 0) {
+            dbgprintf("CSocketSender: write error: %s\n",
+                      strerror(errno));
+        } else {
+            dbgprintf("CSocketSender: write sent only %d of %zu bytes\n",
+                      rc, sizeof(hdr));
+        }
         throw CMMControlException("Socket error", hdr);        
     }
 }
