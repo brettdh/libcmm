@@ -697,7 +697,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "%lu.%06lu CSocketSender: IROB %ld about to send %lu bytes with label %lu\n", 
+            fprintf(timing_file, "%lu.%06lu CSocketSender: IROB %ld about to send %u bytes with label %lu\n", 
                     now.tv_sec, now.tv_usec, id,
                     (sizeof(hdr) + chunksize), data.send_labels);
         }
