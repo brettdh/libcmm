@@ -384,7 +384,7 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
         /*
         dbgprintf("     ...too soon after last FG transmission\n");
         do_trickle = false;
-        struct timeval wait_time = sk->bg_wait_time();
+        struct timeval wait_time = bg_wait_time();
         timersub(&wait_time, &time_since_last_fg, 
                  &rel_timeout);
         */
@@ -394,7 +394,7 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 	// hack to increase trickling rate when FG traffic ceases
 	struct timeval time_since_last_fg, now;
 	TIME(now);
-	TIMEDIFF(sk->last_fg, now, time_since_last_fg);
+	TIMEDIFF(CMMSocketImpl::last_fg, now, time_since_last_fg);
 	if (time_since_last_fg.tv_sec > 5) {
 	    chunksize = csock->bandwidth();
 	    do_trickle = true;
@@ -406,7 +406,7 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
             //dbgprintf("     ...failed to check socket send buffer: %s\n",
             //strerror(errno));
             do_trickle = false;
-            //rel_timeout = sk->bg_wait_time();
+            //rel_timeout = bg_wait_time();
         } else if (unsent_bytes >= chunksize) {
             /*dbgprintf("     ...socket buffer has %d bytes left; more than %d\n",
               unsent_bytes, csock->trickle_chunksize());*/
@@ -550,7 +550,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     }
 
     if (data.send_labels & CMM_LABEL_ONDEMAND) {
-        sk->update_last_fg();
+        CMMSocketImpl::update_last_fg();
     }
 
     pirob = sk->outgoing_irobs.find(id);
@@ -750,7 +750,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     }
 
     if (data.send_labels & CMM_LABEL_ONDEMAND) {
-        sk->update_last_fg();
+        CMMSocketImpl::update_last_fg();
     }
 
     // It might've been ACK'd and removed, so check first

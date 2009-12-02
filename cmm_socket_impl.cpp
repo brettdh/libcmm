@@ -44,6 +44,11 @@ NetInterfaceSet CMMSocketImpl::ifaces;
 IROBSockHash CMMSocketImpl::irob_sock_hash;
 pthread_mutex_t CMMSocketImpl::hashmaps_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+struct timeval CMMSocketImpl::last_fg;
+struct timeval CMMSocketImpl::total_inter_fg_time;
+size_t CMMSocketImpl::fg_count;
+
+
 void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
 {
     struct CMMSocketControlHdr hdr = {0};
