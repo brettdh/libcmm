@@ -195,7 +195,7 @@ CSocket::retransmission_timeout()
     if (bw == 0) {
 	return default_rto;
     }
-    u_long rto = ((bufsize / bandwidth()) + 2 * RTT()) * 2;
+    u_long rto = ((bufsize / bandwidth()) + 2 * (u_long)RTT()) * 2;
     struct timeval tv = convert_to_timeval(rto);
     struct timespec ts_rto = {tv.tv_sec, tv.tv_usec * 1000};
 
