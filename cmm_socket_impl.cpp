@@ -941,7 +941,7 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "%lu.%06lu IROB %ld %d bytes sent with label %lu in %lu.%06lu seconds\n", 
+            fprintf(timing_file, "%lu.%06lu IROB %ld %d bytes enqueued with label %lu in %lu.%06lu seconds\n", 
                     now.tv_sec, now.tv_usec, id, rc, send_labels, diff.tv_sec, diff.tv_usec);
         }
         //global_stats.bytes_sent[send_labels] += rc;
@@ -1014,7 +1014,7 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "%lu.%06lu IROB %ld %d bytes sent with label %lu in %lu.%06lu seconds\n", 
+            fprintf(timing_file, "%lu.%06lu IROB %ld %d bytes enqueued with label %lu in %lu.%06lu seconds\n", 
                     now.tv_sec, now.tv_usec, id, rc, send_labels, diff.tv_sec, diff.tv_usec);
         }
         //global_stats.bytes_sent[send_labels] += rc;
@@ -1131,10 +1131,24 @@ CMMSocketImpl::mc_irob_writev(irob_id_t id,
 void
 CMMSocketImpl::interface_up(struct net_interface up_iface)
 {
+#ifdef CMM_TIMING
+    {
+        PthreadScopedLock lock(&timing_mutex);
+        if (timing_file) {
+            struct timeval now;
+            TIME(now);
+            fprintf(timing_file, "%lu.%06lu  Bringing up %s, bw %lu rtt %lu\n",
+		    now.tv_sec, now.tv_usec, inet_ntoa(up_iface.ip_addr),
+		    up_iface.bandwidth, up_iface.RTT);
+        }
+    }
+#endif
+
     pthread_mutex_lock(&hashmaps_mutex);
 
     dbgprintf("Bringing up %s, label %lu\n",
               inet_ntoa(up_iface.ip_addr), up_iface.labels);
+    
     ifaces.insert(up_iface);
 
     for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
@@ -1150,6 +1164,18 @@ CMMSocketImpl::interface_up(struct net_interface up_iface)
 void
 CMMSocketImpl::interface_down(struct net_interface down_iface)
 {
+#ifdef CMM_TIMING
+    {
+        PthreadScopedLock lock(&timing_mutex);
+        if (timing_file) {
+            struct timeval now;
+            TIME(now);
+            fprintf(timing_file, "%lu.%06lu  Bringing down %s\n",
+		    now.tv_sec, now.tv_usec, inet_ntoa(down_iface.ip_addr));
+        }
+    }
+#endif
+
     pthread_mutex_lock(&hashmaps_mutex);
 
     dbgprintf("Bringing down %s, label %lu\n",
@@ -1801,7 +1827,7 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "%lu.%06lu IROB %ld %u bytes sent with label %lu in %lu.%06lu seconds\n", 
+            fprintf(timing_file, "%lu.%06lu IROB %ld %u bytes enqueued with label %lu in %lu.%06lu seconds\n", 
                     now.tv_sec, now.tv_usec, id, len, send_labels, diff.tv_sec, diff.tv_usec);
         }
         //global_stats.bytes_sent[send_labels] += rc;

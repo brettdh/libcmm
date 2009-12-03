@@ -39,7 +39,6 @@ struct subscriber_proc {
     mqd_t mq_fd;
 };
 
-
 typedef 
 tbb::concurrent_hash_map<pid_t, subscriber_proc, 
                          IntegerHashCompare<pid_t> > SubscriberProcHash;
@@ -662,6 +661,33 @@ int main(int argc, char *argv[])
     return 0;
 }
 
+static void print_slice(FILE *fp, struct trace_slice slice, struct timeval end,
+			struct net_interface cellular_iface,
+			struct net_interface wifi_iface)
+{
+    fprintf(fp, "Trace slice  start %lu.%06lu  end ",
+            slice.start.tv_sec, slice.start.tv_usec);
+    if (end.tv_sec != -1) {
+        fprintf(fp, "%lu.%06lu\n", end.tv_sec, end.tv_usec);
+    } else {
+        fprintf(fp, " (never)\n");
+    }
+    fprintf(fp, "  Cellular: %15s %9lu down  %9lu up  %5lu ms RTT\n",
+            inet_ntoa(cellular_iface.ip_addr),
+            slice.cellular_bw_down, slice.cellular_bw_up,
+            slice.cellular_RTT);
+
+    fprintf(fp, "  WiFi:     %15s ",
+            inet_ntoa(wifi_iface.ip_addr));
+    if (wifi_iface.bandwidth == 0) {
+        fprintf(fp, "(unavailable)\n");
+    } else {
+        fprintf(fp, "%9lu down  %9lu up  %5lu ms RTT\n",
+                slice.wifi_bw_down, slice.wifi_bw_up,
+                slice.wifi_RTT);
+    }    
+}
+
 static void emulate_slice(struct trace_slice slice, struct timeval end,
                           struct net_interface cellular_iface,
                           struct net_interface wifi_iface)
@@ -672,27 +698,7 @@ static void emulate_slice(struct trace_slice slice, struct timeval end,
     wifi_iface.bandwidth = slice.wifi_bw_up;
     wifi_iface.RTT = slice.wifi_RTT;
 
-    fprintf(stderr, "Trace slice  start %lu.%06lu  end ",
-            slice.start.tv_sec, slice.start.tv_usec);
-    if (end.tv_sec != -1) {
-        fprintf(stderr, "%lu.%06lu\n", end.tv_sec, end.tv_usec);
-    } else {
-        fprintf(stderr, " (never)\n");
-    }
-    fprintf(stderr, "  Cellular: %15s %9lu down  %9lu up  %5lu ms RTT\n",
-            inet_ntoa(cellular_iface.ip_addr),
-            slice.cellular_bw_down, slice.cellular_bw_up,
-            slice.cellular_RTT);
-
-    fprintf(stderr, "  WiFi:     %15s ",
-            inet_ntoa(wifi_iface.ip_addr));
-    if (wifi_iface.bandwidth == 0) {
-        fprintf(stderr, "(unavailable)\n");
-    } else {
-        fprintf(stderr, "%9lu down  %9lu up  %5lu ms RTT\n",
-                slice.wifi_bw_down, slice.wifi_bw_up,
-                slice.wifi_RTT);
-    }
+    print_slice(stderr, slice, end, cellular_iface, wifi_iface);
 
     pthread_mutex_lock(&ifaces_lock);
     if (wifi_iface.bandwidth == 0) {

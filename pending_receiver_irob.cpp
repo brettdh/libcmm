@@ -463,7 +463,7 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "[%lu.%06lu] %d bytes received with label %lu in %lu.%06lu seconds\n\n", 
+            fprintf(timing_file, "[%lu.%06lu] %d bytes received with label %lu in %lu.%06lu seconds\n", 
                     now.tv_sec, now.tv_usec, bytes_passed, timing_recv_labels,
                     diff.tv_sec, diff.tv_usec);
         }

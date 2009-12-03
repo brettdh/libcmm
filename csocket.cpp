@@ -177,7 +177,32 @@ double CSocket::RTT()
 struct timespec 
 CSocket::retransmission_timeout()
 {
-    struct timespec ret = {3, 0}; // default 3sec
+    // have a fairly high floor on this so that we don't
+    //  flood the socket with spurious retransmissions
+    struct timespec min_rto = {30, 0};
+    struct timespec default_rto = {120, 0};
+    
+    int bufsize = 0;
+    socklen_t len = sizeof(bufsize);
+    int rc = getsockopt(osfd, SOL_SOCKET, SO_SNDBUF, &bufsize, &len);
+    if (rc < 0) {
+	dbgprintf("Failed to get socket send buffer size: %s\n", strerror(errno));
+	dbgprintf("   returning default RTO\n");
+	return default_rto;
+    }
+
+    u_long bw = bandwidth();
+    if (bw == 0) {
+	return default_rto;
+    }
+    u_long rto = ((bufsize / bandwidth()) + 2 * RTT()) * 2;
+    struct timeval tv = convert_to_timeval(rto);
+    struct timespec ts_rto = {tv.tv_sec, tv.tv_usec * 1000};
+
+    if (ts_rto.tv_sec < min_rto.tv_sec) {
+	return min_rto;
+    }
+    return ts_rto;
 
     /*
     struct tcp_info info;
@@ -205,7 +230,6 @@ CSocket::retransmission_timeout()
     dbgprintf("Retransmission timeout for csock %d is %ld.%09ld\n",
               osfd, ret.tv_sec, ret.tv_nsec);
     */
-    return ret;
 }
 
 

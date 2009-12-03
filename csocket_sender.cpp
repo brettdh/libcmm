@@ -13,6 +13,9 @@
 #include "timeops.h"
 #include <sys/ioctl.h>
 #include <linux/sockios.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <vector>
 using std::vector;
 
@@ -399,7 +402,7 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 	    chunksize = csock->bandwidth();
 	    do_trickle = true;
 	}
-
+	
         int unsent_bytes = 0;
         int rc = ioctl(csock->osfd, SIOCOUTQ, &unsent_bytes);
         if (rc < 0) {
@@ -419,10 +422,22 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
             rel_timeout.tv_usec = clear_time - (rel_timeout.tv_sec * 1000000);
             */
         } else {
-            chunksize = chunksize - unsent_bytes;
+#ifdef CMM_TIMING
+	    {
+		PthreadScopedLock lock(&timing_mutex);
+		if (timing_file) {
+		    struct timeval now;
+		    TIME(now);
+		    fprintf(timing_file, "%lu.%06lu  bw est %lu trickle size %zd   sockbuf has %d bytes\n",
+			    now.tv_sec, now.tv_usec, csock->bandwidth(), chunksize, unsent_bytes);
+		}
+	    }
+#endif
+	    
+	    chunksize = chunksize - unsent_bytes;
         }
     }
-
+    
     if (do_trickle) {
         //dbgprintf("     ...yes.\n");
     } else {
@@ -697,9 +712,11 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "%lu.%06lu CSocketSender: IROB %ld about to send %u bytes with label %lu\n", 
+            fprintf(timing_file, "%lu.%06lu CSocketSender: IROB %ld about to send %u bytes with label %lu on %s est bw %lu rtt %lu\n",
                     now.tv_sec, now.tv_usec, id,
-                    (sizeof(hdr) + chunksize), data.send_labels);
+                    (sizeof(hdr) + chunksize), data.send_labels,
+		    inet_ntoa(csock->local_iface.ip_addr),
+		    csock->bandwidth(), (u_long)csock->RTT());
         }
     }
 #endif

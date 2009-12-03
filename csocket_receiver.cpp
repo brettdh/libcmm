@@ -7,6 +7,7 @@
 #include "cmm_socket.private.h"
 #include "csocket_mapping.h"
 #include "pthread_util.h"
+#include "cmm_timing.h"
 
 CSocketReceiver::handler_fn_t CSocketReceiver::handlers[] = {
     &CSocketReceiver::unrecognized_control_msg, /* HELLO not expected */
@@ -413,7 +414,18 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
     csock->stats.report_ack(id, srv_time);
 
     sk->ack_received(id);
+
     size_t num_acks = ntohl(hdr.op.ack.num_acks);
+#ifdef CMM_TIMING
+    PthreadScopedLock lock(&timing_mutex);
+    if (timing_file) {
+	struct timeval now;
+	TIME(now);
+	fprintf(timing_file, "%lu.%06lu : ACKs received for %d IROBs: %ld ", 
+		now.tv_sec, now.tv_usec, num_acks + 1, id);
+    }
+#endif
+
     if (num_acks > 0) {
         irob_id_t *acked_irobs = new irob_id_t[num_acks];
         int datalen = num_acks * sizeof(irob_id_t);
@@ -433,9 +445,19 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
             id = ntohl(acked_irobs[i]);
             csock->stats.report_ack(id, srv_time);
             sk->ack_received(id);
+#ifdef CMM_TIMING
+	    if (timing_file) {
+		fprintf(timing_file, "%ld ", id);
+	    }
+#endif
         }
         delete [] acked_irobs;
     }
+#ifdef CMM_TIMING
+    if (timing_file) {
+	fprintf(timing_file, "\n");
+    }
+#endif
 
     TIME(end);
     TIMEDIFF(begin, end, diff);
