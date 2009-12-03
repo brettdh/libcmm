@@ -211,7 +211,7 @@ CSockMapping::get_iface_pair(u_long send_label,
     // they serve to prevent a low-bandwidth network
     // from being used for large BG traffic (unless
     // it's trickling)
-    const u_long MIN_BG_BW = 25000;
+    //const u_long MIN_BG_BW = 25000;
     //const u_long MAX_FG_RTT = 50;
 
     u_long max_bw = 0;
@@ -262,8 +262,8 @@ CSockMapping::get_iface_pair(u_long send_label,
             remote_iface = min_RTT_iface_pair.second;
             return true;            
         }
-    } else if (send_label & CMM_LABEL_BACKGROUND &&
-               max_bw > MIN_BG_BW) {
+    } else if (send_label & CMM_LABEL_BACKGROUND 
+	       /* && max_bw > MIN_BG_BW */) {
         local_iface = max_bw_iface_pair.first;
         remote_iface = max_bw_iface_pair.second;
         return true;

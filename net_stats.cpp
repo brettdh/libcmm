@@ -214,6 +214,40 @@ static u_long round_nearest(double val)
     return static_cast<u_long>(val + 0.5);
 }
 
+// latency_RTT is the RTT that has essentially no bandwidth component.
+// bw_RTT is the RTT that has a non-negligible bandwidth component.
+//  latency_srv_time and bw_srv_time are the service times associated 
+//  with those RTTs.
+// bw_req_size is the request size associated with bw_RTT.
+static void
+calculate_bw_latency(struct timeval latency_RTT, struct timeval bw_RTT,
+		     struct timeval latency_srv_time, struct timeval bw_srv_time, 
+		     size_t bw_req_size, double& bw, double& latency)
+{
+    bw = 0.0;
+    latency = 0.0;
+    
+    // Treat size as if it were zero, since the bandwidth
+    //  component of the RTT is so small
+    // Then the calculation becomes very simple:
+    //   latency = (RTT - service) / 2
+    if (timercmp(&latency_RTT, &latency_srv_time, >)) {
+	struct timeval diff;
+	timersub(&latency_RTT, &latency_srv_time, &diff);
+	latency = convert_to_useconds(diff) * 1000.0 / 2.0; // ms
+    } // else: invalid measurement, ignore
+    
+    if (latency > 0.0) {
+	//  bw = last_req_size / (last_RTT - 2*latency - lastservice)
+	struct timeval diff;
+	if (timercmp(&bw_RTT, &bw_srv_time, >)) {
+	    timersub(&bw_RTT, &bw_srv_time, &diff);
+	    bw = (((double)bw_req_size) / 
+		  (1000*convert_to_useconds(diff) - (u_long)(2*latency)));
+	} // else: invalid measurement, ignore
+    }
+}
+
 void 
 NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
 {
@@ -261,26 +295,35 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
 	    bool bw_valid = false, lat_valid = false;
 
 	    const size_t MIN_SIZE_FOR_BW_ESTIMATE = 1500; // ethernet MTU
-            if ((req_size - last_req_size) >= MIN_SIZE_FOR_BW_ESTIMATE) {
+	    size_t size_diff = ((req_size > last_req_size)
+				? (req_size - last_req_size)
+				: (last_req_size - req_size));
+            if (size_diff >= MIN_SIZE_FOR_BW_ESTIMATE && 
+		(req_size >= MIN_SIZE_FOR_BW_ESTIMATE ||
+		 last_req_size >= MIN_SIZE_FOR_BW_ESTIMATE)) {
 		if (req_size < MIN_SIZE_FOR_BW_ESTIMATE) {
-		    bw_valid = net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est);
+		    assert (last_req_size >= MIN_SIZE_FOR_BW_ESTIMATE);
+		    double bw = 0.0, latency = 0.0;
+		    calculate_bw_latency(RTT, last_RTT, srv_time, last_srv_time,
+					 last_req_size, bw, latency);
 		    
-		    double latency = 0.0;
-
-		    // Treat size as if it were zero, since the bandwidth
-		    //  component of the RTT is so small
-		    // Then the calculation becomes very simple:
-		    //   latency = (RTT - service) / 2
-		    if (timercmp(&RTT, &srv_time, >)) {
-			struct timeval diff;
-			timersub(&RTT, &srv_time, &diff);
-			latency = convert_to_useconds(diff) * 1000.0 / 2.0; // ms
-		    } // else: invalid measurement, ignore
-
+		    bw_est = round_nearest(bw);
 		    latency_est = round_nearest(latency);
 		    lat_valid = (latency > 0.0);
 		    valid_result = (bw_valid || lat_valid);
+		} else if (last_req_size < MIN_SIZE_FOR_BW_ESTIMATE) {
+		    assert (req_size >= MIN_SIZE_FOR_BW_ESTIMATE);
+		    double bw = 0.0, latency = 0.0;
+		    calculate_bw_latency(last_RTT, RTT, last_srv_time, srv_time,
+					 req_size, bw, latency);
+		    
+		    bw_est = round_nearest(bw);
+		    latency_est = round_nearest(latency);
+		    lat_valid = (latency > 0.0);
+		    valid_result = (bw_valid || lat_valid);		    
 		} else {
+		    // both contribute substantially to bw cost, and
+		    // they differ sufficiently
 		    size_t numerator = ((req_size > last_req_size)
 					? (req_size - last_req_size)
 					: (last_req_size - req_size));
