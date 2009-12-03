@@ -258,56 +258,81 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
 
             u_long bw_est = 0, latency_est = 0;
             bool valid_result = false;
+	    bool bw_valid = false, lat_valid = false;
 
-            if (req_size != last_req_size) {
-                size_t numerator = ((req_size > last_req_size)
-                                    ? (req_size - last_req_size)
-                                    : (last_req_size - req_size));
+	    const size_t MIN_SIZE_FOR_BW_ESTIMATE = 1500; // ethernet MTU
+            if ((req_size - last_req_size) >= MIN_SIZE_FOR_BW_ESTIMATE) {
+		if (req_size < MIN_SIZE_FOR_BW_ESTIMATE) {
+		    bw_valid = net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est);
+		    
+		    double latency = 0.0;
 
-                struct timeval denominator;
-                struct timeval RTT_diff, srv_time_diff;
-                bool RTT_diff_pos = timercmp(&last_RTT, &RTT, <);
-                if (RTT_diff_pos) {
-                    TIMEDIFF(last_RTT, RTT, RTT_diff);
-                } else {
-                    TIMEDIFF(RTT, last_RTT, RTT_diff);
-                }
-                bool srv_time_diff_pos = timercmp(&last_srv_time, &srv_time, <);
-                if (srv_time_diff_pos) {
-                    TIMEDIFF(last_srv_time, srv_time, srv_time_diff);
-                } else {
-                    TIMEDIFF(srv_time, last_srv_time, srv_time_diff);
-                }
+		    // Treat size as if it were zero, since the bandwidth
+		    //  component of the RTT is so small
+		    // Then the calculation becomes very simple:
+		    //   latency = (RTT - service) / 2
+		    if (timercmp(&RTT, &srv_time, >)) {
+			struct timeval diff;
+			timersub(&RTT, &srv_time, &diff);
+			latency = convert_to_useconds(diff) * 1000.0 / 2.0; // ms
+		    } // else: invalid measurement, ignore
 
-                if ((RTT_diff_pos && srv_time_diff_pos) ||
-                    !(RTT_diff_pos || srv_time_diff_pos)) {
-                    timeradd(&RTT_diff, &srv_time_diff, &denominator);
-                } else if (RTT_diff_pos) {
-                    timersub(&RTT_diff, &srv_time_diff, &denominator);
-                } else if (srv_time_diff_pos) {
-                    timersub(&RTT_diff, &srv_time_diff, &denominator);
-                } else assert(0);
+		    latency_est = round_nearest(latency);
+		    lat_valid = (latency > 0.0);
+		    valid_result = (bw_valid || lat_valid);
+		} else {
+		    size_t numerator = ((req_size > last_req_size)
+					? (req_size - last_req_size)
+					: (last_req_size - req_size));
+		    
+		    struct timeval denominator;
+		    struct timeval RTT_diff, srv_time_diff;
+		    bool RTT_diff_pos = timercmp(&last_RTT, &RTT, <);
+		    if (RTT_diff_pos) {
+			TIMEDIFF(last_RTT, RTT, RTT_diff);
+		    } else {
+			TIMEDIFF(RTT, last_RTT, RTT_diff);
+		    }
+		    bool srv_time_diff_pos = timercmp(&last_srv_time, &srv_time, <);
+		    if (srv_time_diff_pos) {
+			TIMEDIFF(last_srv_time, srv_time, srv_time_diff);
+		    } else {
+			TIMEDIFF(srv_time, last_srv_time, srv_time_diff);
+		    }
+		    
+		    if ((RTT_diff_pos && srv_time_diff_pos) ||
+			!(RTT_diff_pos || srv_time_diff_pos)) {
+			timeradd(&RTT_diff, &srv_time_diff, &denominator);
+		    } else if (RTT_diff_pos) {
+			timersub(&RTT_diff, &srv_time_diff, &denominator);
+		    } else if (srv_time_diff_pos) {
+			timersub(&RTT_diff, &srv_time_diff, &denominator);
+		    } else assert(0);
+		    
+		    // get bandwidth estimate in bytes/sec, rather than bytes/usec
+		    double bw = ((double)numerator / convert_to_useconds(denominator)) * 1000000.0;
+		    
+		    /* latency = ((RTT - srv_time)/1000 - (req_size/bw)*1000); */
+		    struct timeval diff;
+		    if (timercmp(&RTT, &srv_time, >)) {
+			timersub(&RTT, &srv_time, &diff);
+		    } else {
+			diff.tv_sec = 0;
+			diff.tv_usec = 0;
+		    }
+		    double latency = (convert_to_useconds(diff)/1000.0 - 
+				      (req_size / bw * 1000.0)) / 2.0;
+		    
+		    bw_est = round_nearest(bw);
+		    latency_est = round_nearest(latency);
 
-                // get bandwidth estimate in bytes/sec, rather than bytes/usec
-                double bw = ((double)numerator / convert_to_useconds(denominator)) * 1000000.0;
-
-                /* latency = ((RTT - srv_time)/1000 - (req_size/bw)*1000); */
-                struct timeval diff;
-                if (timercmp(&RTT, &srv_time, >)) {
-                    timersub(&RTT, &srv_time, &diff);
-                } else {
-                    diff.tv_sec = 0;
-                    diff.tv_usec = 0;
-                }
-                double latency = (convert_to_useconds(diff)/1000.0 - 
-                                  (req_size / bw * 1000.0)) / 2.0;
-
-                bw_est = round_nearest(bw);
-                latency_est = round_nearest(latency);
-                valid_result = (bw > 0 && latency > 0);
-                if (!valid_result) {
-                    dbgprintf("Spot values indicate invalid observation; ignoring\n");
-                }
+		    bw_valid = (bw > 0);
+		    lat_valid = (latency > 0);
+		    valid_result = (bw_valid && lat_valid);
+		}
+		if (!valid_result) {
+		    dbgprintf("Spot values indicate invalid observation; ignoring\n");
+		}
             } else if(net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est)) {
                 /* latency = ((RTT - srv_time)/1000 - (req_size/bw)*1000); */
                 double bw = static_cast<double>(bw_est);
@@ -321,7 +346,10 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
                 double latency = (convert_to_useconds(diff)/1000.0 - 
                                   (req_size / bw * 1000.0)) / 2.0;
                 latency_est = round_nearest(latency);
-                valid_result = (bw > 0 && latency > 0);
+
+		bw_valid = (bw > 0);
+		lat_valid = (latency > 0);
+		valid_result = (bw_valid && lat_valid);
                 if (!valid_result) {
                     dbgprintf("Spot values indicate invalid observation; ignoring\n");
                 }
@@ -331,9 +359,16 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
             }
 
             if (valid_result) {
-                net_estimates.estimates[NET_STATS_BW_UP].add_observation(bw_est);
-                net_estimates.estimates[NET_STATS_LATENCY].add_observation(latency_est);
-                dbgprintf("New spot values: bw %lu latency %lu\n", bw_est, latency_est);
+                dbgprintf("New spot values: ");
+		if (bw_valid) {
+		    net_estimates.estimates[NET_STATS_BW_UP].add_observation(bw_est);
+		    dbgprintf_plain("bw %lu\n", bw_est);
+		}
+		if (lat_valid) {
+		    net_estimates.estimates[NET_STATS_LATENCY].add_observation(latency_est);
+		    dbgprintf_plain(" latency %lu", latency_est);
+		}
+		dbgprintf_plain("\n");
             
                 bool ret = net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est);
                 ret = ret && net_estimates.estimates[NET_STATS_LATENCY].get_estimate(latency_est);
