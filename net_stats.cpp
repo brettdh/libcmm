@@ -413,11 +413,17 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
 		}
 		dbgprintf_plain("\n");
             
-                bool ret = net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est);
-                ret = ret && net_estimates.estimates[NET_STATS_LATENCY].get_estimate(latency_est);
-                assert(ret);
-                dbgprintf("New estimates: bw_up %lu bytes/sec, latency %lu ms\n", 
-                          bw_est, latency_est);
+                dbgprintf("New estimates: bw_up ");
+                if (net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est)) {
+                    dbgprintf_plain("%lu bytes/sec, ", bw_est);
+                } else {
+                    dbgprintf_plain("(invalid), ");
+                }
+                if (net_estimates.estimates[NET_STATS_LATENCY].get_estimate(latency_est)) {
+                    dbgprintf_plain("latency %lu ms\n", latency_est);
+                } else {
+                    dbgprintf_plain("latency (invalid)\n");
+                }
 
                 // TODO: send bw_up estimate to remote peer as its bw_down.  Or maybe do that
                 //       in CSocketReceiver, after calling this.
