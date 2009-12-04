@@ -461,7 +461,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
 {
     if (data.send_labels & CMM_LABEL_BACKGROUND) {
         pthread_mutex_unlock(&sk->scheduling_state_lock);
-        bool fg_sock = csock->matches(CMM_LABEL_ONDEMAND);
+        bool fg_sock = csock->is_fg();
         pthread_mutex_lock(&sk->scheduling_state_lock);
         if (fg_sock) {
             ssize_t chunksize = 0;
@@ -491,7 +491,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
 
 //     pthread_mutex_unlock(&sk->scheduling_state_lock);
 //     if (data.send_labels & CMM_LABEL_BACKGROUND &&
-//         csock->matches(CMM_LABEL_ONDEMAND)) {
+//         csock->is_fg()) {
 //         ssize_t chunksize = 0;
 //         if (!okay_to_send_bg(chunksize)) {
 //             return false;
@@ -645,7 +645,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     ssize_t chunksize = 0;
     if (data.send_labels & CMM_LABEL_BACKGROUND) {
         pthread_mutex_unlock(&sk->scheduling_state_lock);
-        bool fg_sock = csock->matches(CMM_LABEL_ONDEMAND);
+        bool fg_sock = csock->is_fg();
         pthread_mutex_lock(&sk->scheduling_state_lock);
         if (fg_sock) {
             if (!okay_to_send_bg(chunksize)) {

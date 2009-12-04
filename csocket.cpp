@@ -153,6 +153,14 @@ CSocket::matches(u_long send_labels)
     return sk->csock_map->csock_matches(this, send_labels);
 }
 
+/* must not be holding sk->scheduling_state_lock. */
+bool CSocket::is_fg()
+{
+    return (matches(CMM_LABEL_ONDEMAND|CMM_LABEL_SMALL) ||
+            matches(CMM_LABEL_ONDEMAND|CMM_LABEL_LARGE));
+}
+
+
 u_long
 CSocket::bandwidth()
 {

@@ -48,6 +48,11 @@ class CSocket {
     /* must not be holding sk->scheduling_state_lock. */
     bool matches(u_long send_labels);
 
+    /* shortcut for (matches(CMM_LABEL_ONDEMAND|CMM_LABEL_SMALL) ||
+     *               matches(CMM_LABEL_ONDEMAND|CMM_LABEL_LARGE))
+     * must not be holding sk->scheduling_state_lock. */
+    bool is_fg();
+
     // return true iff this is the only connection possible 
     // right now (used for trickling background data).
     bool only_connection();
