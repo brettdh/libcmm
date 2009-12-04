@@ -45,6 +45,7 @@ tbb::concurrent_hash_map<pid_t, subscriber_proc,
 static SubscriberProcHash subscriber_procs;
 
 static bool running;
+static int emu_sock = -1;
 //static atomic<u_long> labels_available;
 
 static pthread_mutex_t ifaces_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -282,6 +283,7 @@ void handle_term(int)
 {
     fprintf(stderr, "Scout attempting to quit gracefully...\n");
     running = false;
+    shutdown(emu_sock, SHUT_RDWR);
 }
 
 void usage(char *argv[])
@@ -450,7 +452,8 @@ int get_trace(deque<struct trace_slice>& trace)
 
 static void emulate_slice(struct trace_slice slice, struct timeval end,
                           struct net_interface cellular_iface,
-                          struct net_interface wifi_iface);
+                          struct net_interface wifi_iface,
+			  int emu_sock);
 #define MIN_TIME 0.0
 
 int main(int argc, char *argv[])
@@ -569,7 +572,6 @@ int main(int argc, char *argv[])
     }
 
     deque<struct trace_slice> trace;
-    int emu_sock = -1;
 
     if (trace_replay) {
         emu_sock = get_trace(trace);
@@ -587,17 +589,19 @@ int main(int argc, char *argv[])
     }
 
     if (trace_replay) {
-        fprintf(stderr, "Starting trace replay in ");
+        fprintf(stderr, "Starting trace replay\n");
+	/*
         for (int i = 3; i > 0; --i) {
             fprintf(stderr, "%d..", i);
             sleep(1);
         }
         fprintf(stderr, "\n");
+	*/
 
         char ch = 0;
         rc = write(emu_sock, &ch, 1);
         handle_error(rc < 0, "Error sending response to emu_box");
-        close(emu_sock);
+        //close(emu_sock);
     }
 
     if (!bg_iface_name) {
@@ -621,7 +625,7 @@ int main(int argc, char *argv[])
 
             struct net_interface cellular_iface = ifs[0];
             struct net_interface wifi_iface = ifs[1];
-            emulate_slice(slice, end, cellular_iface, wifi_iface);
+            emulate_slice(slice, end, cellular_iface, wifi_iface, emu_sock);
             continue;
         }
 
@@ -657,6 +661,7 @@ int main(int argc, char *argv[])
     delete up_time_samples;
     delete down_time_samples;
     pthread_join(tid, NULL);
+    close(emu_sock);
     fprintf(stderr, "Scout gracefully quit.\n");
     return 0;
 }
@@ -690,8 +695,32 @@ static void print_slice(FILE *fp, struct trace_slice slice, struct timeval end,
 
 static void emulate_slice(struct trace_slice slice, struct timeval end,
                           struct net_interface cellular_iface,
-                          struct net_interface wifi_iface)
+                          struct net_interface wifi_iface,
+			  int emu_sock)
 {
+    struct timeval emu_slice_start = {-1, 0};
+    int rc = recv(emu_sock, &emu_slice_start, sizeof(emu_slice_start),
+		  MSG_WAITALL);
+    if (rc != sizeof(emu_slice_start)) {
+	if (running) {
+	    handle_error(rc != sizeof(emu_slice_start), "recv");
+	} else {
+	    /* exiting due to SIGINT */
+	    return;
+	}
+    }
+
+    emu_slice_start.tv_sec = ntohl(emu_slice_start.tv_sec);
+    emu_slice_start.tv_usec = ntohl(emu_slice_start.tv_usec);
+    if (!timercmp(&emu_slice_start, &slice.start, ==)) {
+	fprintf(stderr, "slice.start=%lu.%06lu, but "
+		"emubox says it's %lu.%06lu; exiting\n",
+		slice.start.tv_sec, slice.start.tv_usec, 
+		emu_slice_start.tv_sec, emu_slice_start.tv_usec);
+	running = false;
+	return;
+    }
+
     IfaceList changed_ifaces, down_ifaces;
     cellular_iface.bandwidth = slice.cellular_bw_up;
     cellular_iface.RTT = slice.cellular_RTT;
@@ -727,9 +756,13 @@ static void emulate_slice(struct trace_slice slice, struct timeval end,
     notify_all_subscribers(changed_ifaces, down_ifaces);
 
     if (end.tv_sec != -1) {
+	/*
         struct timeval duration;
         TIMEDIFF(slice.start, end, duration);
         thread_sleep(duration);
+	*/
+	//struct timeval next_slice_start = {-1, 0};
+	
     } else {
         // all done with the trace, so just sleep until SIGINT
 	(void)select(0, NULL, NULL, NULL, NULL);
