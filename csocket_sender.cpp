@@ -303,6 +303,11 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
 
     if (csock->matches(send_labels)) {
         pthread_mutex_lock(&sk->scheduling_state_lock);
+	pirob = sk->outgoing_irobs.find(id);
+	if (!pirob) {
+	    // already ACK'd; don't send anything for it
+	    return true;
+	}
         return false;
     }
     
