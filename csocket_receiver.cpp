@@ -417,8 +417,8 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
 
     size_t num_acks = ntohl(hdr.op.ack.num_acks);
 #ifdef CMM_TIMING
-    PthreadScopedLock lock(&timing_mutex);
     if (timing_file) {
+	PthreadScopedLock lock(&timing_mutex);
 	struct timeval now;
 	TIME(now);
 	fprintf(timing_file, "%lu.%06lu : ACKs received for %d IROBs: %ld ", 
@@ -447,6 +447,7 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
             sk->ack_received(id);
 #ifdef CMM_TIMING
 	    if (timing_file) {
+		PthreadScopedLock lock(&timing_mutex);
 		fprintf(timing_file, "%ld ", id);
 	    }
 #endif
@@ -455,6 +456,7 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
     }
 #ifdef CMM_TIMING
     if (timing_file) {
+	PthreadScopedLock lock(&timing_mutex);
 	fprintf(timing_file, "\n");
     }
 #endif
