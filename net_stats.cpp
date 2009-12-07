@@ -234,7 +234,7 @@ calculate_bw_latency(struct timeval latency_RTT, struct timeval bw_RTT,
     if (timercmp(&latency_RTT, &latency_srv_time, >)) {
 	struct timeval diff;
 	timersub(&latency_RTT, &latency_srv_time, &diff);
-	latency = convert_to_useconds(diff) * 1000.0 / 2.0; // ms
+	latency = (convert_to_useconds(diff) / 1000.0) / 2.0; // ms
     } // else: invalid measurement, ignore
     
     if (latency > 0.0) {
@@ -243,7 +243,7 @@ calculate_bw_latency(struct timeval latency_RTT, struct timeval bw_RTT,
 	if (timercmp(&bw_RTT, &bw_srv_time, >)) {
 	    timersub(&bw_RTT, &bw_srv_time, &diff);
 	    bw = (((double)bw_req_size) / 
-		  (1000*convert_to_useconds(diff) - (u_long)(2*latency)));
+		  ((convert_to_useconds(diff)/1000000.0) - (2.0*latency/1000.0)));
 	} // else: invalid measurement, ignore
     }
 }
@@ -309,6 +309,7 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
 		    
 		    bw_est = round_nearest(bw);
 		    latency_est = round_nearest(latency);
+		    bw_valid = (bw > 0.0);
 		    lat_valid = (latency > 0.0);
 		    valid_result = (bw_valid || lat_valid);
 		} else if (last_req_size < MIN_SIZE_FOR_BW_ESTIMATE) {
@@ -319,6 +320,7 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
 		    
 		    bw_est = round_nearest(bw);
 		    latency_est = round_nearest(latency);
+		    bw_valid = (bw > 0.0);
 		    lat_valid = (latency > 0.0);
 		    valid_result = (bw_valid || lat_valid);
 		} else {
