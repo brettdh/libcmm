@@ -722,11 +722,12 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "%lu.%06lu CSocketSender: IROB %ld about to send %u bytes with label %lu on %s est bw %lu rtt %lu\n",
+            fprintf(timing_file, "%lu.%06lu CSocketSender: IROB %ld about to send %u bytes with label %lu on %s est bw %lu rtt %lu multisocket %d\n",
                     now.tv_sec, now.tv_usec, id,
                     (sizeof(hdr) + chunksize), data.send_labels,
 		    inet_ntoa(csock->local_iface.ip_addr),
-		    csock->bandwidth(), (u_long)csock->RTT());
+		    csock->bandwidth(), (u_long)csock->RTT(),
+                    sk->sock);
         }
     }
 #endif

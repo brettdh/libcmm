@@ -950,8 +950,8 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "%lu.%06lu IROB %ld %d bytes enqueued with label %lu in %lu.%06lu seconds\n", 
-                    now.tv_sec, now.tv_usec, id, rc, send_labels, diff.tv_sec, diff.tv_usec);
+            fprintf(timing_file, "%lu.%06lu IROB %ld %d bytes enqueued with label %lu in %lu.%06lu seconds multisocket %d\n", 
+                    now.tv_sec, now.tv_usec, id, rc, send_labels, diff.tv_sec, diff.tv_usec, sock);
         }
         //global_stats.bytes_sent[send_labels] += rc;
         //global_stats.send_count[send_labels]++;
@@ -1023,8 +1023,8 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "%lu.%06lu IROB %ld %d bytes enqueued with label %lu in %lu.%06lu seconds\n", 
-                    now.tv_sec, now.tv_usec, id, rc, send_labels, diff.tv_sec, diff.tv_usec);
+            fprintf(timing_file, "%lu.%06lu IROB %ld %d bytes enqueued with label %lu in %lu.%06lu seconds multisocket %d\n", 
+                    now.tv_sec, now.tv_usec, id, rc, send_labels, diff.tv_sec, diff.tv_usec, sock);
         }
         //global_stats.bytes_sent[send_labels] += rc;
         //global_stats.send_count[send_labels]++;
@@ -1836,8 +1836,8 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "%lu.%06lu IROB %ld %u bytes enqueued with label %lu in %lu.%06lu seconds\n", 
-                    now.tv_sec, now.tv_usec, id, len, send_labels, diff.tv_sec, diff.tv_usec);
+            fprintf(timing_file, "%lu.%06lu IROB %ld %u bytes enqueued with label %lu in %lu.%06lu seconds multisocket %d\n", 
+                    now.tv_sec, now.tv_usec, id, len, send_labels, diff.tv_sec, diff.tv_usec, sock);
         }
         //global_stats.bytes_sent[send_labels] += rc;
         //global_stats.send_count[send_labels]++;
