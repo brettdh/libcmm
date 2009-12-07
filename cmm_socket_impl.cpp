@@ -70,7 +70,10 @@ void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
     new_listener.bandwidth = ntohl(hdr.op.new_interface.bandwidth);
     new_listener.RTT = ntohl(hdr.op.new_interface.RTT);
     
-    remote_ifaces.insert(new_listener);
+    {
+        PthreadScopedRWLock sock_lock(&my_lock, true);
+        remote_ifaces.insert(new_listener);
+    }
     dbgprintf("Got new remote interface %s with labels %lu, "
               "bandwidth %lu bytes/sec RTT %lu ms\n",
 	      inet_ntoa(new_listener.ip_addr), new_listener.labels,
@@ -87,7 +90,10 @@ void CMMSocketImpl::recv_remote_listeners(int bootstrap_sock)
         throw -1;
     }
 
-    remote_listener_port = hdr.op.hello.listen_port;
+    {
+        PthreadScopedRWLock sock_lock(&my_lock, true);
+        remote_listener_port = hdr.op.hello.listen_port;
+    }
 
     int num_ifaces = ntohl(hdr.op.hello.num_ifaces);
     for (int i = 0; i < num_ifaces; i++) {
@@ -119,20 +125,23 @@ void CMMSocketImpl::send_local_listeners(int bootstrap_sock)
     struct CMMSocketControlHdr hdr = {0};
     hdr.type = htons(CMM_CONTROL_MSG_HELLO);
 
-    assert(listener_thread);
-    hdr.op.hello.listen_port = listener_thread->port();
-    hdr.op.hello.num_ifaces = htonl(local_ifaces.size());
-
-    int rc = send(bootstrap_sock, &hdr, sizeof(hdr), 0);
-    if (rc != sizeof(hdr)) {
-	perror("send");
-	dbgprintf("Error sending local listeners\n");
-        throw -1;
-    }
-
-    for (NetInterfaceSet::iterator it = local_ifaces.begin();
-         it != local_ifaces.end(); it++) {
-        send_local_listener(bootstrap_sock, *it);
+    {
+        PthreadScopedRWLock sock_lock(&my_lock, false);
+        assert(listener_thread);
+        hdr.op.hello.listen_port = listener_thread->port();
+        hdr.op.hello.num_ifaces = htonl(local_ifaces.size());
+        
+        int rc = send(bootstrap_sock, &hdr, sizeof(hdr), 0);
+        if (rc != sizeof(hdr)) {
+            perror("send");
+            dbgprintf("Error sending local listeners\n");
+            throw -1;
+        }
+        
+        for (NetInterfaceSet::iterator it = local_ifaces.begin();
+             it != local_ifaces.end(); it++) {
+            send_local_listener(bootstrap_sock, *it);
+        }
     }
 }
 

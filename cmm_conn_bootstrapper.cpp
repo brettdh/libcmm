@@ -49,11 +49,16 @@ void ConnBootstrapper::Run()
     snprintf(name, MAX_NAME_LEN, "Bootstrapper %d", sk->sock);
     set_thread_name(name);
 
-    PthreadScopedRWLock sock_lock(&sk->my_lock, true);
-      
-    if (sk->is_non_blocking()) {
-        dbgprintf("Non-blocking bootstrap.  Bootstrap thread detaching.\n");
-        detach();
+    // This would hold the mutex for too long.
+    //  Instead, let the functions that actually need to
+    //  hold the mutex (send/recv_listener(s)) grab it when needed.
+
+    {
+        PthreadScopedRWLock sock_lock(&sk->my_lock, false);
+        if (sk->is_non_blocking()) {
+            dbgprintf("Non-blocking bootstrap. Bootstrap thread detaching.\n");
+            detach();
+        }
     }
 
     try {
@@ -66,13 +71,16 @@ void ConnBootstrapper::Run()
         } else {
             /* we are connecting */
             assert(remote_addr);
-            
-            bootstrap_sock = socket(sk->sock_family, sk->sock_type, 
-                                    sk->sock_protocol);
-            if (bootstrap_sock < 0) {
-                dbgprintf("Error creating bootstrap socket: %s\n",
-                          strerror(errno));
-                return;
+
+            {
+                PthreadScopedRWLock sock_lock(&sk->my_lock, false);
+                bootstrap_sock = socket(sk->sock_family, sk->sock_type, 
+                                        sk->sock_protocol);
+                if (bootstrap_sock < 0) {
+                    dbgprintf("Error creating bootstrap socket: %s\n",
+                              strerror(errno));
+                    return;
+                }
             }
             
             struct sockaddr *addr = (struct sockaddr *)remote_addr;
