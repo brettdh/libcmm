@@ -133,8 +133,6 @@ CSocketReceiver::read_deps_array(irob_id_t id, int numdeps,
             }
             delete [] deps;
 
-            IROBSchedulingData data(id, CMM_RESEND_REQUEST_DEPS);
-            csock->irob_indexes.resend_requests.insert(data);
             throw CMMControlException("Socket error", hdr);
         }
 
@@ -164,8 +162,6 @@ CSocketReceiver::read_data_buffer(irob_id_t id, int datalen,
         }
         delete [] buf;
         
-        IROBSchedulingData data(id, CMM_RESEND_REQUEST_DATA);
-        csock->irob_indexes.resend_requests.insert(data);
         throw CMMControlException("Socket error", hdr);
     }
 
@@ -181,7 +177,17 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_BEGIN_IROB);
     irob_id_t id = ntohl(hdr.op.begin_irob.id);
     int numdeps = ntohl(hdr.op.begin_irob.numdeps);
-    irob_id_t *deps = read_deps_array(id, numdeps, hdr);
+    irob_id_t *deps = NULL;
+    try {
+	deps = read_deps_array(id, numdeps, hdr);
+    } catch (CMMControlException& e) {
+	PthreadScopedLock lock(&sk->scheduling_state_lock);
+
+	IROBSchedulingData data(id, CMM_RESEND_REQUEST_DEPS);
+	csock->irob_indexes.resend_requests.insert(data);
+	pthread_cond_broadcast(&sk->scheduling_state_cv);
+	throw;
+    }
 
 
     PendingIROB *pirob = new PendingReceiverIROB(id, numdeps, deps, 0, NULL,
@@ -286,8 +292,11 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
             TIME(completion_time);
             IROBSchedulingData data(id, completion_time);
             csock->irob_indexes.waiting_acks.insert(data);
-            pthread_cond_broadcast(&sk->scheduling_state_cv);
         }
+
+	if (prirob->is_complete() || resend_request) {
+	    pthread_cond_broadcast(&sk->scheduling_state_cv);
+	}
     }
 
     TIME(end);
@@ -305,7 +314,17 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_IROB_CHUNK);
     irob_id_t id = ntohl(hdr.op.irob_chunk.id);
     int datalen = ntohl(hdr.op.irob_chunk.datalen);
-    char *buf = read_data_buffer(id, datalen, hdr);
+    char *buf = NULL;
+    try {
+	buf = read_data_buffer(id, datalen, hdr);
+    } catch (CMMControlException& e) {
+	PthreadScopedLock lock(&sk->scheduling_state_lock);
+
+        IROBSchedulingData data(id, CMM_RESEND_REQUEST_DATA);
+        csock->irob_indexes.resend_requests.insert(data);
+	pthread_cond_broadcast(&sk->scheduling_state_cv);
+	throw;
+    }
 
     hdr.op.irob_chunk.data = buf;
 
@@ -330,6 +349,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
 
                 IROBSchedulingData data(id, CMM_RESEND_REQUEST_DEPS);
                 csock->irob_indexes.resend_requests.insert(data);
+		pthread_cond_broadcast(&sk->scheduling_state_cv);
             }
         }
         struct irob_chunk_data chunk;
@@ -354,6 +374,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
 
                 IROBSchedulingData data(id, CMM_RESEND_REQUEST_DATA);
                 csock->irob_indexes.resend_requests.insert(data);
+		pthread_cond_broadcast(&sk->scheduling_state_cv);
             }
             delete [] buf;
         } else {
