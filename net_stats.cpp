@@ -320,7 +320,7 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
 		    bw_est = round_nearest(bw);
 		    latency_est = round_nearest(latency);
 		    lat_valid = (latency > 0.0);
-		    valid_result = (bw_valid || lat_valid);		    
+		    valid_result = (bw_valid || lat_valid);
 		} else {
 		    // both contribute substantially to bw cost, and
 		    // they differ sufficiently
@@ -405,7 +405,7 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
                 dbgprintf("New spot values: ");
 		if (bw_valid) {
 		    net_estimates.estimates[NET_STATS_BW_UP].add_observation(bw_est);
-		    dbgprintf_plain("bw %lu\n", bw_est);
+		    dbgprintf_plain("bw %lu", bw_est);
 		}
 		if (lat_valid) {
 		    net_estimates.estimates[NET_STATS_LATENCY].add_observation(latency_est);

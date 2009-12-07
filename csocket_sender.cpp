@@ -173,6 +173,11 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
 
     IROBSchedulingData data;
 
+    if (indexes.waiting_acks.pop(data)) {
+        send_acks(data, indexes);
+        did_something = true;
+    }
+
     if (indexes.new_irobs.pop(data)) {
         irob_id_t id = data.id;
         if (!begin_irob(data)) {
@@ -214,11 +219,6 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
         did_something = true;
     }
     
-    if (indexes.waiting_acks.pop(data)) {
-        send_acks(data, indexes);
-        did_something = true;
-    }
-
     if (indexes.resend_requests.pop(data)) {
         resend_request(data);
         did_something = true;
