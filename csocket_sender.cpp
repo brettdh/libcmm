@@ -383,7 +383,7 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 {
     bool do_trickle = true;
     ssize_t min_chunksize = 1500; // Ethernet MTU
-
+    
     //dbgprintf("Checking whether to trickle background data...\n");
 
     struct timeval rel_timeout;
@@ -410,10 +410,6 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 	    do_trickle = true;
 	}
 	
-        if (chunksize < min_chunksize) {
-            chunksize = min_chunksize;
-        }
-
         int unsent_bytes = 0;
         int rc = ioctl(csock->osfd, SIOCOUTQ, &unsent_bytes);
         if (rc < 0) {
@@ -450,6 +446,9 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
     }
     
     if (do_trickle) {
+        if (chunksize < min_chunksize) {
+            chunksize = min_chunksize;
+        }
         //dbgprintf("     ...yes.\n");
     } else {
         rel_timeout.tv_sec = 0;
