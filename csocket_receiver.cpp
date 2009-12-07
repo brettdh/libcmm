@@ -237,7 +237,7 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
                 //  probably large if the original ACK was dropped, so
                 //  just tell the other end to ignore this IROB for
                 //  measurement purposes
-                struct timeval inval = {-1, 0};
+                struct timeval inval = {0, -1};
                 IROBSchedulingData data(id, inval);
                 sk->irob_indexes.waiting_acks.insert(data);
                 pthread_cond_broadcast(&sk->scheduling_state_cv);

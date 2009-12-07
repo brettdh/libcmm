@@ -101,6 +101,7 @@ CSocketSender::Run()
                               unacked_irobs[i]);
                     IROBSchedulingData refinished_irob(unacked_irobs[i], false);
                     sk->irob_indexes.finished_irobs.insert(refinished_irob);
+		    pthread_cond_broadcast(&sk->scheduling_state_cv);
                 }
             }
             
@@ -786,6 +787,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
                 psirob->end_announced = true;
                 if (psirob->send_labels == 0) {
                     sk->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
+		    pthread_cond_broadcast(&sk->scheduling_state_cv);
                 } else {
                     csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
                 }
@@ -875,8 +877,8 @@ CSocketSender::send_acks(const IROBSchedulingData& data,
 
     struct timeval now, srv_time;
     TIME(now);
-    if (data.completion_time.tv_sec == -1) {
-        srv_time = data.completion_time;
+    if (data.completion_time.tv_usec == -1) {
+	srv_time = data.completion_time;
     } else {
         TIMEDIFF(data.completion_time, now, srv_time);
     }

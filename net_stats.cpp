@@ -251,6 +251,15 @@ calculate_bw_latency(struct timeval latency_RTT, struct timeval bw_RTT,
 void 
 NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
 {
+    if (srv_time.tv_usec == -1) {
+	/* the original ACK was dropped, so it's not wise to use 
+	 * this one for a measurement, since the srv_time is
+	 * invalid. */
+	dbgprintf("Got ACK for IROB %ld, but srv_time is invalid. Ignoring.\n",
+		  irob_id);
+	return;
+    }
+
     {
         PthreadScopedRWLock lock(&my_lock, true);
         if (irob_measurements.find(irob_id) == irob_measurements.end()) {
