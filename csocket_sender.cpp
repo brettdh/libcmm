@@ -382,6 +382,7 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
 bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 {
     bool do_trickle = true;
+    ssize_t min_chunksize = 1500; // Ethernet MTU
 
     //dbgprintf("Checking whether to trickle background data...\n");
 
@@ -409,6 +410,10 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 	    do_trickle = true;
 	}
 	
+        if (chunksize < min_chunksize) {
+            chunksize = min_chunksize;
+        }
+
         int unsent_bytes = 0;
         int rc = ioctl(csock->osfd, SIOCOUTQ, &unsent_bytes);
         if (rc < 0) {
