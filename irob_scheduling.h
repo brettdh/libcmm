@@ -64,11 +64,8 @@ class IROBPrioritySet {
     struct IROBSchedulingIndexes *owner;
 };
 
-class CSocket;
-
 struct IROBSchedulingIndexes {
-    IROBSchedulingIndexes(u_long send_labels_, 
-                          CSocket *csock_ = NULL);
+    IROBSchedulingIndexes(u_long send_labels_);
 
     void add(const IROBSchedulingIndexes& other);
 
@@ -81,7 +78,6 @@ struct IROBSchedulingIndexes {
     IROBPrioritySet resend_requests;
 
     u_long send_labels;
-    CSocket *csock;
 };
 
 #endif

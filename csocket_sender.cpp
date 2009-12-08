@@ -382,8 +382,7 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
 bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 {
     bool do_trickle = true;
-    ssize_t min_chunksize = 1500; // Ethernet MTU
-    
+
     //dbgprintf("Checking whether to trickle background data...\n");
 
     struct timeval rel_timeout;
@@ -405,57 +404,47 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 	struct timeval time_since_last_fg, now;
 	TIME(now);
 	TIMEDIFF(CMMSocketImpl::last_fg, now, time_since_last_fg);
-        if (1) { 
-            // XXX: hack: turn off trickling - that is, turn off this override
-        } else if (time_since_last_fg.tv_sec > 5) {
+	if (time_since_last_fg.tv_sec > 5) {
 	    chunksize = csock->bandwidth();
 	    do_trickle = true;
 	}
 	
-        if (1) {
-            // XXX: hack: turn trickling off
-	    do_trickle = true;
+        int unsent_bytes = 0;
+        int rc = ioctl(csock->osfd, SIOCOUTQ, &unsent_bytes);
+        if (rc < 0) {
+            //dbgprintf("     ...failed to check socket send buffer: %s\n",
+            //strerror(errno));
+            do_trickle = false;
+            //rel_timeout = bg_wait_time();
+        } else if (unsent_bytes >= chunksize) {
+            /*dbgprintf("     ...socket buffer has %d bytes left; more than %d\n",
+              unsent_bytes, csock->trickle_chunksize());*/
+            do_trickle = false;
+
+            /*
+            u_long clear_time = (u_long)((unsent_bytes * (1000000.0 / csock->bandwidth()))
+                                         + (csock->RTT() * 1000.0));
+            rel_timeout.tv_sec = clear_time / 1000000;
+            rel_timeout.tv_usec = clear_time - (rel_timeout.tv_sec * 1000000);
+            */
         } else {
-            int unsent_bytes = 0;
-            int rc = ioctl(csock->osfd, SIOCOUTQ, &unsent_bytes);
-            if (rc < 0) {
-                //dbgprintf("     ...failed to check socket send buffer: %s\n",
-                //strerror(errno));
-                do_trickle = false;
-                //rel_timeout = bg_wait_time();
-            } else if (unsent_bytes >= chunksize) {
-                /*dbgprintf("     ...socket buffer has %d bytes left; more than %d\n",
-                  unsent_bytes, csock->trickle_chunksize());*/
-                do_trickle = false;
-                
-                /*
-                  u_long clear_time = (u_long)((unsent_bytes * (1000000.0 / csock->bandwidth()))
-                  + (csock->RTT() * 1000.0));
-                  rel_timeout.tv_sec = clear_time / 1000000;
-                  rel_timeout.tv_usec = clear_time - (rel_timeout.tv_sec * 1000000);
-                */
-            } else {
 #ifdef CMM_TIMING
-                {
-                    PthreadScopedLock lock(&timing_mutex);
-                    if (timing_file) {
-                        struct timeval now;
-                        TIME(now);
-                        fprintf(timing_file, "%lu.%06lu  bw est %lu trickle size %zd   sockbuf has %d bytes\n",
-                                now.tv_sec, now.tv_usec, csock->bandwidth(), chunksize, unsent_bytes);
-                    }
-                }
+	    {
+		PthreadScopedLock lock(&timing_mutex);
+		if (timing_file) {
+		    struct timeval now;
+		    TIME(now);
+		    fprintf(timing_file, "%lu.%06lu  bw est %lu trickle size %zd   sockbuf has %d bytes\n",
+			    now.tv_sec, now.tv_usec, csock->bandwidth(), chunksize, unsent_bytes);
+		}
+	    }
 #endif
-                
-                chunksize = chunksize - unsent_bytes;
-            }
+	    
+	    chunksize = chunksize - unsent_bytes;
         }
     }
     
     if (do_trickle) {
-        if (chunksize < min_chunksize) {
-            chunksize = min_chunksize;
-        }
         //dbgprintf("     ...yes.\n");
     } else {
         rel_timeout.tv_sec = 0;
@@ -729,12 +718,11 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "%lu.%06lu CSocketSender: IROB %ld about to send %u bytes with label %lu on %s est bw %lu rtt %lu multisocket %d\n",
+            fprintf(timing_file, "%lu.%06lu CSocketSender: IROB %ld about to send %u bytes with label %lu on %s est bw %lu rtt %lu\n",
                     now.tv_sec, now.tv_usec, id,
                     (sizeof(hdr) + chunksize), data.send_labels,
 		    inet_ntoa(csock->local_iface.ip_addr),
-		    csock->bandwidth(), (u_long)csock->RTT(),
-                    sk->sock);
+		    csock->bandwidth(), (u_long)csock->RTT());
         }
     }
 #endif

@@ -57,20 +57,9 @@ IROBSchedulingData::operator<(const IROBSchedulingData& other) const
         return false;
     }
 
-    return ((id < other.id) || 
-            (timercmp(&completion_time, &other.completion_time, <)));
-
-    /*
-    if (owner && owner->matches(send_labels)) {
-        return ((id < other.id) || 
-                (timercmp(&completion_time, &other.completion_time, <)));
-    } else {
-        
-
-    //return ((owner && owner->matches(send_labels)) ||
-    //        (timercmp(&completion_time, &other.completion_time, <)) ||
-    //        (id < other.id));
-    */
+    return ((owner && (owner->send_labels & send_labels)) ||
+            (timercmp(&completion_time, &other.completion_time, <)) ||
+            (id < other.id));
 }
 
 void 
@@ -109,9 +98,8 @@ IROBPrioritySet::remove(irob_id_t id, IROBSchedulingData& data)
     return false;
 }
 
-IROBSchedulingIndexes::IROBSchedulingIndexes(u_long send_labels_,
-                                             CSocket *csock_) 
-    : send_labels(send_labels_), csock(csock_)
+IROBSchedulingIndexes::IROBSchedulingIndexes(u_long send_labels_) 
+    : send_labels(send_labels_) 
 {
     new_irobs.owner = this;
     new_chunks.owner = this;
@@ -119,18 +107,6 @@ IROBSchedulingIndexes::IROBSchedulingIndexes(u_long send_labels_,
     waiting_acks.owner = this;
     resend_requests.owner = this;
 }
-
-#if 0
-bool
-IROBSchedulingIndexes::matches(u_long send_labels)
-{
-    if (csock) {
-        return csock->matches(send_labels);
-    } else {
-        return send_labels & this->send_labels_;
-    }
-}
-#endif
 
 void
 IROBSchedulingIndexes::add(const IROBSchedulingIndexes& other)

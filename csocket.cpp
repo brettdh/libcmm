@@ -252,9 +252,7 @@ ssize_t
 CSocket::trickle_chunksize()/*struct timeval time_since_last_fg,
                               struct timeval bg_wait_time)*/
 {
-    //const long int max_tolerable_fg_delay = 50; //ms
-    // XXX: hack: turn off trickling
-    const long int max_tolerable_fg_delay = 10000; //ms
+    const long int max_tolerable_fg_delay = 50; //ms
     ssize_t max_chunksize = (bandwidth() * max_tolerable_fg_delay) / 1000;
     //ssize_t min_chunksize = 64;
     /*
