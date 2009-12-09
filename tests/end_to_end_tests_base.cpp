@@ -125,15 +125,21 @@ EndToEndTestsBase::startSender()
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
 
-    fprintf(stderr, "Looking up %s\n", hostname);
-    struct hostent *he = gethostbyname(hostname);
-    if (!he) {
-        herror("gethostbyname");
-        exit(EXIT_FAILURE);
+    if (!strcmp(hostname, "localhost")) {
+        fprintf(stderr, "Using INADDR_LOOPBACK\n");
+        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    } else {
+        fprintf(stderr, "Looking up %s\n", hostname);
+        struct hostent *he = gethostbyname(hostname);
+        if (!he) {
+            herror("gethostbyname");
+            exit(EXIT_FAILURE);
+        }
+        
+        memcpy(&addr.sin_addr, he->h_addr, he->h_length);
+        fprintf(stderr, "Resolved %s to %s\n", 
+                hostname, inet_ntoa(addr.sin_addr));
     }
-
-    memcpy(&addr.sin_addr, he->h_addr, he->h_length);
-    fprintf(stderr, "Resolved %s to %s\n", hostname, inet_ntoa(addr.sin_addr));
     addr.sin_port = htons(TEST_PORT);
 
     socklen_t addrlen = sizeof(addr);

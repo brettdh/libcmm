@@ -175,9 +175,9 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
             PthreadScopedRWLock sock_lock(&my_lock, true);
             struct sockaddr_in *ip_sockaddr = 
                 (struct sockaddr_in *)remote_addr;
-            if (ip_sockaddr->sin_addr.s_addr == INADDR_LOOPBACK) {
+            if (ip_sockaddr->sin_addr.s_addr == htonl(INADDR_LOOPBACK)) {
                 struct net_interface localhost;
-                localhost.ip_addr.s_addr = INADDR_LOOPBACK;
+                localhost.ip_addr.s_addr = htonl(INADDR_LOOPBACK);
                 localhost.labels = 0;
                 localhost.bandwidth = 100000000;
                 localhost.RTT = 0;
@@ -1472,12 +1472,14 @@ CMMSocketImpl::isLoopbackOnly(bool locked)
         lock_ptr.reset(new PthreadScopedRWLock(&my_lock, false));
     }
 
-    if (local_ifaces.size() == 1 && 
-        local_ifaces.begin()->ip_addr.s_addr == INADDR_LOOPBACK) {
-        return true;
-    } else {
-        return false;
+    if (local_ifaces.size() == 1) {
+        struct net_interface the_iface = *local_ifaces.begin();
+        if (the_iface.ip_addr.s_addr == htonl(INADDR_LOOPBACK) ||
+            !strcmp("127.0.0.1", inet_ntoa(the_iface.ip_addr))) {
+            return true;
+        }
     }
+    return false;
 }
 
 void
