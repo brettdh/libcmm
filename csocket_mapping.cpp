@@ -202,9 +202,26 @@ CSockMapping::get_iface_pair(u_long send_label,
                              bool locked)
 {
     CMMSocketImplPtr skp(sk);
+
     auto_ptr<PthreadScopedRWLock> lock_ptr;
     if (locked) {
         lock_ptr.reset(new PthreadScopedRWLock(&skp->my_lock, false));
+    }
+
+    {
+        auto_ptr<PthreadScopedRWLock> short_lock_ptr;
+        if (!locked) {
+            short_lock_ptr.reset(new PthreadScopedRWLock(&skp->my_lock, 
+                                                         false));
+        }
+
+        if (skp->isLoopbackOnly(false)) {
+            // only ever use one interface pair, 
+            //  so it's the one for all labels.
+            local_iface = *skp->local_ifaces.begin();
+            remote_iface = *skp->remote_ifaces.begin();
+            return true;
+        }
     }
 
     // these numbers are arbitrary.

@@ -169,11 +169,23 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
                 throw rc;
             }
         }
-    
+        
         {
             PthreadScopedLock scoped_lock(&hashmaps_mutex);
             PthreadScopedRWLock sock_lock(&my_lock, true);
-            local_ifaces = ifaces;
+            struct sockaddr_in *ip_sockaddr = 
+                (struct sockaddr_in *)remote_addr;
+            if (ip_sockaddr->sin_addr.s_addr == INADDR_LOOPBACK) {
+                struct net_interface localhost;
+                localhost.ip_addr.s_addr = INADDR_LOOPBACK;
+                localhost.labels = 0;
+                localhost.bandwidth = 100000000;
+                localhost.RTT = 0;
+
+                local_ifaces.insert(localhost);
+            } else {
+                local_ifaces = ifaces;
+            }
         }
         
         bootstrapper = new ConnBootstrapper(this, bootstrap_sock, 
@@ -1452,9 +1464,30 @@ CMMSocketImpl::mc_getsockname(struct sockaddr *address,
     return getsockname(csock->osfd, address, address_len);
 }
 
+bool
+CMMSocketImpl::isLoopbackOnly(bool locked)
+{
+    auto_ptr<PthreadScopedRWLock> lock_ptr;
+    if (locked) {
+        lock_ptr.reset(new PthreadScopedRWLock(&my_lock, false));
+    }
+
+    if (local_ifaces.size() == 1 && 
+        local_ifaces.begin()->ip_addr.s_addr == INADDR_LOOPBACK) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 void
 CMMSocketImpl::setup(struct net_interface iface, bool local)
 {
+    // ignore updates from the scout for a loopback multisocket
+    if (isLoopbackOnly()) {
+        return;
+    }
+
     PthreadScopedRWLock lock(&my_lock, true);
 
     csock_map->setup(iface, local);
@@ -1482,6 +1515,11 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
 void
 CMMSocketImpl::teardown(struct net_interface iface, bool local)
 {
+    // ignore updates from the scout for a loopback multisocket
+    if (isLoopbackOnly()) {
+        return;
+    }
+
     PthreadScopedRWLock sock_lock(&my_lock, true);
     
     csock_map->teardown(iface, local);

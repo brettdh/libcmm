@@ -195,6 +195,11 @@ class CMMSocketImpl : public CMMSocket {
     in_port_t remote_listener_port; /* network byte order, 
                                      * recv'd from remote host */
 
+    // returns true if this multisocket is loopback-based - that is,
+    //   two endpoints connected to loopback on the same machine.
+    // If locked==true, read-lock the multisocket first.
+    bool isLoopbackOnly(bool locked=true);
+
     // Functions to manipulate IROB data structures
     // and other data that the network threads are monitoring
     int begin_irob(irob_id_t next_irob, 
