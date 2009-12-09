@@ -1474,8 +1474,7 @@ CMMSocketImpl::isLoopbackOnly(bool locked)
 
     if (local_ifaces.size() == 1) {
         struct net_interface the_iface = *local_ifaces.begin();
-        if (the_iface.ip_addr.s_addr == htonl(INADDR_LOOPBACK) ||
-            !strcmp("127.0.0.1", inet_ntoa(the_iface.ip_addr))) {
+        if (the_iface.ip_addr.s_addr == htonl(INADDR_LOOPBACK)) {
             return true;
         }
     }
