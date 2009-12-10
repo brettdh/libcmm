@@ -142,6 +142,8 @@ class CMMSocketImpl : public CMMSocket {
     static pthread_mutex_t hashmaps_mutex;
     static CMMSockHash cmm_sock_hash;
     static IROBSockHash irob_sock_hash;
+    static irob_id_t g_next_irob;
+
     static VanillaListenerSet cmm_listeners;
     static NetInterfaceSet ifaces;
 
@@ -324,8 +326,6 @@ class CMMSocketImpl : public CMMSocket {
     int sock_type;
     int sock_protocol;
     SockOptHash sockopts;
-
-    irob_id_t next_irob;
 
     void get_fds_for_select(mcSocketOsfdPairList &osfd_list, 
                             bool reading, bool writing);

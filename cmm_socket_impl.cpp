@@ -42,6 +42,7 @@ CMMSockHash CMMSocketImpl::cmm_sock_hash;
 VanillaListenerSet CMMSocketImpl::cmm_listeners;
 NetInterfaceSet CMMSocketImpl::ifaces;
 IROBSockHash CMMSocketImpl::irob_sock_hash;
+irob_id_t CMMSocketImpl::g_next_irob;
 pthread_mutex_t CMMSocketImpl::hashmaps_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 struct timeval CMMSocketImpl::last_fg;
@@ -352,8 +353,7 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
       goodbye_sent(false),
       incoming_irobs(this),
       irob_indexes(0),
-      sending_goodbye(false),
-      next_irob(0)
+      sending_goodbye(false)
 {
     TIME(last_fg);
     total_inter_fg_time.tv_sec = total_inter_fg_time.tv_usec = 0;
@@ -942,8 +942,8 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
     
     irob_id_t id = -1;
     {
-        PthreadScopedRWLock sock_lock(&my_lock, true);
-        id = next_irob++;
+        PthreadScopedLock maps_lock(&hashmaps_mutex);
+        id = g_next_irob++;
     }
     PthreadScopedRWLock sock_lock(&my_lock, false);
 
@@ -1014,8 +1014,8 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
     
     irob_id_t id = -1;
     {
-        PthreadScopedRWLock sock_lock(&my_lock, true);
-        id = next_irob++;
+        PthreadScopedLock maps_lock(&hashmaps_mutex);
+        id = g_next_irob++;
     }
     PthreadScopedRWLock sock_lock(&my_lock, false);
 
@@ -1078,8 +1078,8 @@ CMMSocketImpl::mc_begin_irob(int numdeps, const irob_id_t *deps,
 {
     irob_id_t id = -1;
     {
-        PthreadScopedRWLock sock_lock(&my_lock, true);
-        id = next_irob++;
+        PthreadScopedLock maps_lock(&hashmaps_mutex);
+        id = g_next_irob++;
     }
     PthreadScopedRWLock sock_lock(&my_lock, false);
     int rc = begin_irob(id, numdeps, deps, 
