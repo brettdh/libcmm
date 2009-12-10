@@ -1272,6 +1272,10 @@ CMMSocketImpl::mc_accept(int listener_sock,
         return sock;
     }
     ac.release();
+
+    struct sockaddr_in *ip_sockaddr = (struct sockaddr_in *)addr;
+    dbgprintf("mc_accept: Accepting connection from %s\n",
+              inet_ntoa(ip_sockaddr->sin_addr));
     
     mc_socket_t mc_sock = CMMSocketImpl::create(PF_INET, SOCK_STREAM, 0);
     CMMSocketPtr sk = CMMSocketImpl::lookup(mc_sock);
@@ -1281,6 +1285,7 @@ CMMSocketImpl::mc_accept(int listener_sock,
     //close(sock);
         
     if (rc < 0) {
+        dbgprintf("mc_accept: failed to bootstrap incoming connection\n");
         mc_close(mc_sock);
         return rc;
     }
