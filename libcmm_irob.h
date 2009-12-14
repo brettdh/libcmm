@@ -67,6 +67,35 @@ ssize_t irob_send(irob_id_t irob_id, const void *buf, size_t len, int flags);
 int irob_writev(irob_id_t irob_id, const struct iovec *vector, int count);
 /* ...etc. */
 
+/* Shortcut functions */
+/* These are here for convenience; they are replacements for the
+ *  following construct: 
+ *
+ * irob_id_t id = begin_irob(...);
+ * ssize_t rc = irob_send(...);
+ * end_irob(id);
+ * 
+ *  which can now instead be written as:
+ *
+ * irob_id_t id;
+ * ssize_t rc = cmm_send_with_deps(..., &id);
+ */
+ssize_t 
+cmm_write_with_deps(mc_socket_t sock, const void *buf, size_t len,
+		    int numdeps, const irob_id_t *deps, 
+		    u_long send_labels, resume_handler_t fn, void *arg,
+		    irob_id_t *irob_id);
+ssize_t 
+cmm_send_with_deps(mc_socket_t sock, const void *buf, size_t len, int flags,
+		   int numdeps, const irob_id_t *deps, 
+		   u_long send_labels, resume_handler_t fn, void *arg,
+		   irob_id_t *irob_id);
+int 
+cmm_writev_with_deps(mc_socket_t sock, const struct iovec *vector, int count,
+		     int numdeps, const irob_id_t *deps, 
+		     u_long send_labels, resume_handler_t fn, void *arg,
+		     irob_id_t *irob_id);
+
 /* ---------------------------------------------------------------- * 
  * NOTE: everything below this point is comments and unimplemented  *
  * functions, as per the NOTE at the top of this header.            *
