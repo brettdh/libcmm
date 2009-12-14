@@ -77,3 +77,30 @@
 
 * Add bandwidth and latency estimates to the CSocket structure.
   The scout will update them periodically.
+
+
+Post-Mobisys TODO items
+------------------------
+* Consider adding irob_cancel and irob_change_label to the API.
+* Fix the round-robin-scheduling bug; an IROB should be sent in its
+   entirety before moving on to the next IROB of that label.
+* Fix the inefficiency in retransmitting lost IROB data; ask the receiver
+   how much data has been received before retransmitting any.
+* Track down and squash the bugs that resulted in very high variance
+   and sporadic failure in the BlueFS intermittent scenario (due to app-level 
+   timeouts that shouldn't be happening).
+
+* Debug the existing IMAP caching proxy and get it working for the
+  current simple no-caching, pass-through sanity check.
+* Think of an interesting benchmark for the Thunderbird->IMAPCachingProxy app.
+  * Iterate:
+    * Build the necessary features in that app.
+    * Try it out.
+    * Refine the benchmark and the application modifications.
+* Think of a third mobile application to modify.
+* Think of an interesting use case for said app using IntNW.
+  * Iterate:
+    * Modify the app.
+    * Construct a benchmark and run some tests.
+    * Refine the benchmark and the app.
+...
