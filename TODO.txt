@@ -103,4 +103,7 @@ Post-Mobisys TODO items
     * Modify the app.
     * Construct a benchmark and run some tests.
     * Refine the benchmark and the app.
-...
+
+* Figure out a way to make our traffic reordering/prioritizing/trickling
+   work for applications with multiple multisockets?
+

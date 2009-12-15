@@ -263,7 +263,10 @@ CSockMapping::get_iface_pair(u_long send_label,
         }
     }
     
-    if (send_label & CMM_LABEL_ONDEMAND) {
+    const u_long LABELMASK_FGBG = CMM_LABEL_ONDEMAND | CMM_LABEL_BACKGROUND;
+    
+    if (send_label & CMM_LABEL_ONDEMAND ||
+        !(send_label & LABELMASK_FGBG)) {
         if (send_label & CMM_LABEL_SMALL &&
             min_RTT < ULONG_MAX) {
             local_iface = min_RTT_iface_pair.first;
