@@ -416,6 +416,7 @@ CMMSocketImpl::~CMMSocketImpl()
     cancel_all_thunks(sock);
 
     delete csock_map;
+    delete bootstrapper;
 
     {
         PthreadScopedLock lock(&scheduling_state_lock);
@@ -1065,6 +1066,10 @@ CMMSocketImpl::mc_shutdown(int how)
     if (how == SHUT_RD || how == SHUT_RDWR) {
         shutdown(select_pipe[0], SHUT_RDWR);
         shutdown(select_pipe[1], SHUT_RDWR);
+    }
+    if (how == SHUT_WR || how == SHUT_RDWR) {
+        shutdown(write_ready_pipe[0], SHUT_RDWR);
+        shutdown(write_ready_pipe[1], SHUT_RDWR);
     }
     //rc = csock_map->for_each(shutdown_each(how));
 
@@ -2079,12 +2084,15 @@ void CMMSocketImpl::remove_if_unneeded(PendingIROB *pirob)
 void
 CMMSocketImpl::goodbye(bool remote_initiated)
 {
-    if (is_shutting_down()) {
+    PthreadScopedLock lock(&scheduling_state_lock);
+    if (shutting_down) {
         //csock_map->join_to_all_workers();
+
+	// make sure recv()s get woken up if they need to fail
+	pthread_cond_broadcast(&scheduling_state_cv);
 	return;
     }
 
-    PthreadScopedLock lock(&scheduling_state_lock);
     {
         PthreadScopedLock sh_lock(&shutdown_mutex);
         shutting_down = true; // picked up by sender-scheduler

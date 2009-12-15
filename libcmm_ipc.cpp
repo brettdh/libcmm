@@ -162,7 +162,10 @@ void scout_ipc_init()
 	mq_unlink(mq_name);
 	mq_name[0] = '\0';
     } else {
-        rc = pthread_create(&ipc_thread_id, NULL, IPCThread, NULL);
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+        rc = pthread_create(&ipc_thread_id, &attr, IPCThread, NULL);
     }
 }
 

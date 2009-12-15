@@ -92,18 +92,27 @@ Post-Mobisys TODO items
 
 * Debug the existing IMAP caching proxy and get it working for the
   current simple no-caching, pass-through sanity check.
-* Think of an interesting benchmark for the Thunderbird->IMAPCachingProxy app.
+* Construct an interesting benchmark for the Thunderbird->IMAPCachingProxy app.
   * Iterate:
     * Build the necessary features in that app.
     * Try it out.
     * Refine the benchmark and the application modifications.
-* Think of a third mobile application to modify.
-* Think of an interesting use case for said app using IntNW.
+
+* Pick a third mobile application with an interesting use case for IntNW.
   * Iterate:
-    * Modify the app.
-    * Construct a benchmark and run some tests.
-    * Refine the benchmark and the app.
+    * Modify the app as needed.
+    * Construct and run a benchmark.
+    * Refine the benchmark and the app/use case.
 
 * Figure out a way to make our traffic reordering/prioritizing/trickling
-   work for applications with multiple multisockets?
+   work for applications with multiple multisockets?  Higher priority if 
+   we think our applications will benefit.
 
+* Get a live network test working with active measurements.
+  (Once this works, we can run the active measurements also while doing
+   the trace-based evaluation.)
+
+* Walking trace, and/or trace with more WiFi?
+
+* Understand the real cost of trickling, so that we can make sense of
+   our experimental results.
