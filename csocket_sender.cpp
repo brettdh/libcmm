@@ -778,6 +778,11 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     psirob->chunk_in_flight = true;
     pthread_mutex_unlock(&sk->scheduling_state_lock);
+    if (waiting_ack_irob != -1) {
+        csock->stats.report_send_event(sizeof(ack_hdr));
+        dbgprintf("    Piggybacking ACK for IROB %ld on this message\n",
+                  waiting_ack_irob);
+    }
     csock->stats.report_send_event(id, sizeof(hdr) + chunksize);
     int rc = writev(csock->osfd, vec, veccount);
     delete [] vec;
