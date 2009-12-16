@@ -95,11 +95,14 @@ void send_bytes(int sock, char *buf, size_t bytes)
 }
 
 void send_bytes_by_chunk(int sock, char *buf, size_t bytes, size_t chunksize,
-			 struct timeval *avg_time)
+			 u_long stutter_ms, 
+			 struct timeval *avg_time, struct timeval *avg_stutter_time)
 {
     struct timeval total_time = {0,0};
+    struct timeval total_stutter_time = {0,0};
     int count = 0;
     size_t bytes_sent = 0;
+    struct timespec stutter = {0, stutter_ms * 1000 * 1000};
     while (bytes_sent < bytes) {
 	struct timeval begin, end, diff;
 	size_t len = (chunksize > (bytes - bytes_sent)) 
@@ -113,19 +116,33 @@ void send_bytes_by_chunk(int sock, char *buf, size_t bytes, size_t chunksize,
 	count++;
 
 	bytes_sent += len;
+
+	if (stutter_ms > 0) {
+	    TIME(begin);
+	    nanosleep(&stutter, NULL);
+	    TIME(end);
+	    TIMEDIFF(begin, end, diff);
+	    timeradd(&total_stutter_time, &diff, &total_stutter_time);
+	}
     }
 
     assert(avg_time);
     calc_avg_time(total_time, count, avg_time);
+    assert(avg_stutter_time);
+    calc_avg_time(total_stutter_time, count, avg_stutter_time);
 }
 
 #ifndef NOMULTISOCK
 void send_bytes_by_chunk_one_irob(int sock, char *buf, size_t bytes, size_t chunksize,
-				  struct timeval *avg_time)
+				  u_long stutter_ms, 
+				  struct timeval *avg_time, struct timeval *avg_stutter_time)
 {
     struct timeval total_time = {0, 0};
+    struct timeval total_stutter_time = {0, 0};
     int count = 0;
     size_t bytes_sent = 0;
+    struct timespec stutter = {0, stutter_ms * 1000 * 1000};
+
     irob_id_t irob = begin_irob(sock, 0, NULL, 0, NULL, NULL);
     if (irob < 0) {
 	handle_error("begin_irob", sock);
@@ -145,6 +162,16 @@ void send_bytes_by_chunk_one_irob(int sock, char *buf, size_t bytes, size_t chun
 	count++;
 
 	bytes_sent += rc;
+
+	// this doesn't really accomplish anything extra,
+	//  since the lib has its own stutter.
+	if (stutter_ms > 0) {
+	    TIME(begin);
+	    nanosleep(&stutter, NULL);
+	    TIME(end);
+	    TIMEDIFF(begin, end, diff);
+	    timeradd(&total_stutter_time, &diff, &total_stutter_time);
+	}
     }
     int rc = end_irob(irob);
     if (rc < 0) {
@@ -153,12 +180,14 @@ void send_bytes_by_chunk_one_irob(int sock, char *buf, size_t bytes, size_t chun
     }
 
     assert(avg_time);
-    calc_avg_time(total_time, count, avg_time);    
+    calc_avg_time(total_time, count, avg_time);
+    assert(avg_stutter_time);
+    calc_avg_time(total_stutter_time, count, avg_stutter_time);
 }
 #endif
 
-typedef void (*send_chunk_fn_t)(int, char *, size_t, size_t,
-                                struct timeval *);
+typedef void (*send_chunk_fn_t)(int, char *, size_t, size_t, u_long, 
+                                struct timeval *, struct timeval *);
 
 int srv_connect(const char *hostname);
 
@@ -179,7 +208,7 @@ ssize_t read_bytes(int sock, void *buf, size_t count)
 }
 
 void run_all_chunksizes(const char *hostname, int minchunksize, 
-                        char *buf, int bytes,
+                        char *buf, int bytes, u_long stutter_ms, 
                         send_chunk_fn_t send_chunk_fn)
 {
     struct timeval begin, end, diff;
@@ -191,8 +220,10 @@ void run_all_chunksizes(const char *hostname, int minchunksize,
         send_bytes(sock, (char*)&net_bytes, sizeof(net_bytes));
 
         struct timeval avg_send_time = {0,0};
+        struct timeval avg_stutter_time = {0,0};
         TIME(begin);
-        send_chunk_fn(sock, buf, bytes, chunk, &avg_send_time);
+        send_chunk_fn(sock, buf, bytes, chunk, stutter_ms, &avg_send_time,
+		      &avg_stutter_time);
         int done = 0;
         read_bytes(sock, (char*)&done, sizeof(done));
         TIME(end);
@@ -201,10 +232,11 @@ void run_all_chunksizes(const char *hostname, int minchunksize,
         
         TIMEDIFF(begin, end, diff);
         fprintf(stderr, "   In %d%s chunks: %lu.%06lu seconds "
-                "(each send avg %lu.%06lu seconds)\n", 
+                "(each send avg %lu.%06lu seconds stutter avg %lu.%06lu)\n", 
                 chunk<1024?chunk:chunk/1024, chunk<1024?"B":"K",
                 diff.tv_sec, diff.tv_usec,
-                avg_send_time.tv_sec, avg_send_time.tv_usec);
+                avg_send_time.tv_sec, avg_send_time.tv_usec,
+		avg_stutter_time.tv_sec, avg_stutter_time.tv_usec);
     }
 }
 
@@ -247,10 +279,14 @@ int main(int argc, char *argv[])
     char ch;
     int mbytes = 0, kbytes = 0, bytes = 0;
     int minchunksize = 64;
-    while ((ch = getopt(argc, argv, "lb:k:m:")) != -1) {
+    u_long stutter_ms = 0;
+    while ((ch = getopt(argc, argv, "lb:k:m:s:c:")) != -1) {
 	switch (ch) {
 	case 'l':
 	    receiver = true;
+	    break;
+	case 'c':
+	    minchunksize = get_int_from_string(optarg, "minchunksize");
 	    break;
 	case 'b':
 	    if (bytes != 0) {
@@ -287,6 +323,12 @@ int main(int argc, char *argv[])
 		usage();
 	    }
 	    break;
+	case 's':
+	    stutter_ms = get_int_from_string(optarg, "stutter_ms");
+	    if (stutter_ms >= 1000) {
+		fprintf(stderr, "Error: stutter_ms must be <1000ms\n");
+		usage();
+	    }
 	}
     }
     
@@ -381,12 +423,12 @@ int main(int argc, char *argv[])
 	} else assert(0);
 	
         run_all_chunksizes(argv[optind], minchunksize, buf, bytes,
-                           send_bytes_by_chunk);
+                           stutter_ms, send_bytes_by_chunk);
 
 #ifndef NOMULTISOCK
 	fprintf(stderr, "  In a single IROB:\n");
         run_all_chunksizes(argv[optind], minchunksize, buf, bytes,
-                           send_bytes_by_chunk_one_irob);
+                           stutter_ms, send_bytes_by_chunk_one_irob);
 #endif
 
 	delete [] buf;

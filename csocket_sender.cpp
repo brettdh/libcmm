@@ -186,8 +186,17 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
         } else {
             did_something = true;
             while (indexes.new_chunks.remove(id, data)) {
-                if (!irob_chunk(data)) {
+		irob_id_t waiting_ack_irob = -1;
+		IROBSchedulingData ack;
+		if (indexes.waiting_acks.pop(ack)) {
+		    waiting_ack_irob = ack.id;
+		}
+		
+                if (!irob_chunk(data, waiting_ack_irob)) {
                     indexes.new_chunks.insert(data);
+		    if (waiting_ack_irob != -1) {
+			indexes.waiting_acks.insert(ack);
+		    }
                     break;
                 }
             }
@@ -198,14 +207,31 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
     }
     
     if (indexes.new_chunks.pop(data)) {
+	irob_id_t waiting_ack_irob = -1;
+	IROBSchedulingData ack;
+	if (indexes.waiting_acks.pop(ack)) {
+	    waiting_ack_irob = ack.id;
+	}		
+	
         irob_id_t id = data.id;
-        if (!irob_chunk(data)) {
+        if (!irob_chunk(data, waiting_ack_irob)) {
             indexes.new_chunks.insert(data);
+	    if (waiting_ack_irob != -1) {
+		indexes.waiting_acks.insert(ack);
+	    }
         } else {
             did_something = true;
             while (indexes.new_chunks.remove(id, data)) {
-                if (!irob_chunk(data)) {
+		waiting_ack_irob = -1;
+		if (indexes.waiting_acks.pop(ack)) {
+		    waiting_ack_irob = ack.id;
+		}		
+
+                if (!irob_chunk(data, waiting_ack_irob)) {
                     indexes.new_chunks.insert(data);
+		    if (waiting_ack_irob != -1) {
+			indexes.waiting_acks.insert(ack);
+		    }
                     break;
                 }
             }
@@ -645,10 +671,13 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
 
 /* returns true if I actually sent it; false if not */
 bool
-CSocketSender::irob_chunk(const IROBSchedulingData& data)
+CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_irob = -1)
 {
     // default to sending next chunk (maybe tweak to avoid extra roundtrips?)
-    ssize_t chunksize = 0;
+    // Cap the amount of app data we send at a time, so we can piggyback ACKs.
+    //  A simple experiment indicates that this won't affect net throughput
+    //  when there are no ACKs.
+    ssize_t chunksize = 4096;
     if (data.send_labels & CMM_LABEL_BACKGROUND) {
         pthread_mutex_unlock(&sk->scheduling_state_lock);
         bool fg_sock = csock->is_fg();
@@ -703,14 +732,33 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     hdr.op.irob_chunk.datalen = htonl(chunksize);
     hdr.op.irob_chunk.data = NULL;
 
-    struct iovec *vec = new struct iovec[1 + irob_vecs.size()];
-    vec[0].iov_base = &hdr;
-    vec[0].iov_len = sizeof(hdr);
-    for (size_t i = 0; i < irob_vecs.size(); ++i) {
+    int total_bytes = sizeof(hdr) + chunksize;
+    int veccount = 1 + irob_vecs.size();
+    size_t chunk_vec_index = 0;
+
+    struct CMMSocketControlHdr ack_hdr;
+    if (waiting_ack_irob != -1) {
+	veccount++;
+	total_bytes += sizeof(ack_hdr);
+        memset(&ack_hdr, 0, sizeof(ack_hdr));
+        ack_hdr.type = htons(CMM_CONTROL_MSG_ACK);
+        ack_hdr.send_labels = htonl(csock->local_iface.labels);
+        ack_hdr.op.ack.id = htonl(waiting_ack_irob);
+
+    }
+
+    struct iovec *vec = new struct iovec[veccount];
+    if (waiting_ack_irob != -1) {
+        // prepend ACK to this chunk
+        vec[0].iov_base = &ack_hdr;
+        vec[0].iov_len = sizeof(ack_hdr);
+        chunk_vec_index = 1;
+    }
+    vec[chunk_vec_index].iov_base = &hdr;
+    vec[chunk_vec_index].iov_len = sizeof(hdr);
+    for (size_t i = chunk_vec_index; i < irob_vecs.size(); ++i) {
         vec[i+1] = irob_vecs[i];
     }
-    //vec[1].iov_base = chunk.data;
-    //vec[1].iov_len = chunk.datalen;
 
 #ifdef CMM_TIMING
     {
@@ -731,7 +779,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     psirob->chunk_in_flight = true;
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     csock->stats.report_send_event(id, sizeof(hdr) + chunksize);
-    int rc = writev(csock->osfd, vec, irob_vecs.size() + 1);
+    int rc = writev(csock->osfd, vec, veccount);
     delete [] vec;
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
@@ -752,15 +800,23 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data)
     if (psirob) {
         psirob->chunk_in_flight = false;
 
-        if (rc > (ssize_t)sizeof(hdr)) {
+	size_t total_header_size = sizeof(hdr);
+	if (waiting_ack_irob != -1) {
+	    total_header_size += sizeof(ack_hdr);
+	}
+        if (rc > (ssize_t)total_header_size) {
             // this way, I won't have to resend bytes that were
             //  already received
-            psirob->mark_sent(rc - (ssize_t)sizeof(hdr));
+            psirob->mark_sent(rc - (ssize_t)total_header_size);
         }
     }
 
-    if (rc != (ssize_t)(sizeof(hdr) + chunksize)) {
+    if (rc != (ssize_t)total_bytes) {
         sk->irob_indexes.new_chunks.insert(data);
+	if (waiting_ack_irob != -1) {
+	    IROBSchedulingData ack(waiting_ack_irob, false);
+	    sk->irob_indexes.waiting_acks.insert(ack);
+	}
         pthread_cond_broadcast(&sk->scheduling_state_cv);
         if (rc < 0) {
             dbgprintf("CSocketSender: writev error: %s\n",

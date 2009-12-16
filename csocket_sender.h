@@ -35,7 +35,8 @@ class CSocketSender : public CMMThread {
 
     bool begin_irob(const IROBSchedulingData& data);
     void end_irob(const IROBSchedulingData& data);
-    bool irob_chunk(const IROBSchedulingData& data);
+    bool irob_chunk(const IROBSchedulingData& data,
+                    irob_id_t waiting_ack_irob);
     void new_interface(struct net_interface iface);
     void down_interface(struct net_interface iface);
     void send_acks(const IROBSchedulingData& data, IROBSchedulingIndexes& indexes);
