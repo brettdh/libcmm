@@ -1777,11 +1777,7 @@ CMMSocketImpl::end_irob(irob_id_t id)
         assert(psirob);
         if (psirob->announced && !psirob->end_announced) {
             psirob->end_announced = true;
-            if (send_labels == 0) {
-                irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
-            } else {
-                csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
-            }
+            csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
             pthread_cond_broadcast(&scheduling_state_cv);
         }
     }
@@ -1864,12 +1860,7 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
         }
 
         if (psirob->announced) {
-            if (send_labels == 0) {
-                // unlabeled send; let any thread pick it up
-                irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));//chunk.seqno));
-            } else {
-                csock->irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));//chunk.seqno));
-            }
+            csock->irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));//chunk.seqno));
             pthread_cond_broadcast(&scheduling_state_cv);
         }
     }
@@ -1997,10 +1988,7 @@ CMMSocketImpl::send_default_irob(irob_id_t id, CSocket *csock,
         bool success = outgoing_irobs.insert(pirob);
         assert(success);
 
-        struct IROBSchedulingIndexes& indexes = (send_labels == 0) 
-            ? irob_indexes : csock->irob_indexes;
-
-        indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
+        csock->irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
         // the CSocketSender will insert the chunk and end_irob
 
         pthread_cond_broadcast(&scheduling_state_cv);

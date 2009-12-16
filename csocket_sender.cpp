@@ -841,12 +841,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
 
             if (!psirob->end_announced) {
                 psirob->end_announced = true;
-                if (psirob->send_labels == 0) {
-                    sk->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
-		    pthread_cond_broadcast(&sk->scheduling_state_cv);
-                } else {
-                    csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
-                }
+                csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
             }
         } 
 
