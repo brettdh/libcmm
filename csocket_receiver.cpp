@@ -432,7 +432,9 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
         ntohl(hdr.op.ack.srv_time.tv_sec),
         ntohl(hdr.op.ack.srv_time.tv_usec)
     };
-    csock->stats.report_ack(id, srv_time);
+    struct timeval ack_time;
+    TIME(ack_time);
+    csock->stats.report_ack(id, srv_time, &ack_time);
 
     sk->ack_received(id);
 
@@ -464,7 +466,7 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
 
         for (size_t i = 0; i < num_acks; i++) {
             id = ntohl(acked_irobs[i]);
-            csock->stats.report_ack(id, srv_time);
+            csock->stats.report_ack(id, srv_time, &ack_time);
             sk->ack_received(id);
 #ifdef CMM_TIMING
 	    if (timing_file) {

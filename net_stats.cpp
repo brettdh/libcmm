@@ -249,7 +249,8 @@ calculate_bw_latency(struct timeval latency_RTT, struct timeval bw_RTT,
 }
 
 void 
-NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
+NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
+                     struct timeval *real_time)
 {
     if (srv_time.tv_usec == -1) {
 	/* the original ACK was dropped, so it's not wise to use 
@@ -271,7 +272,7 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time)
         IROBMeasurement measurement = irob_measurements[irob_id];
         irob_measurements.erase(irob_id);
 
-        measurement.ack();
+        measurement.ack(real_time);
     
         struct timeval RTT;
 
@@ -546,9 +547,13 @@ IROBMeasurement::RTT()
 }
 
 void
-IROBMeasurement::ack()
+IROBMeasurement::ack(struct timeval *real_time)
 {
-    TIME(ack_time);
+    if (real_time) {
+        ack_time = *real_time;
+    } else {
+        TIME(ack_time);
+    }
 }
 
 

@@ -65,7 +65,7 @@ class IROBMeasurement {
     void add_bytes(size_t bytes, struct timeval queuable_time,
                    u_long bw_est);
     void add_delay(struct timeval delay);
-    void ack();
+    void ack(struct timeval *real_time = NULL);
 
     // don't call until after calling ack()
     struct timeval RTT();
@@ -142,7 +142,12 @@ class NetStats {
     // CSocketReceiver should call this immediately after it receives
     //  the ACK for an IROB.  The srv_time argument should be the
     //  "service time" reported with the ACK.
-    void report_ack(irob_id_t irob_id, struct timeval srv_time);
+    // if real_time is non-NULL, it will be reported as the ACK time
+    //  instead of the current result of gettimeofday.
+    //  This makes sense when a flurry of ACKs arrive at once; 
+    //  we want to say that they all arrived at about the same time.
+    void report_ack(irob_id_t irob_id, struct timeval srv_time,
+                    struct timeval *real_time = NULL);
 
     // remove this IROB without adding a new measurement.
     void remove(irob_id_t irob_id);
