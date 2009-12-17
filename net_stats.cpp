@@ -192,7 +192,7 @@ NetStats::report_send_event(irob_id_t irob_id, size_t bytes)
 }
 
 void 
-NetStats::report_send_event(size_t bytes)
+NetStats::report_send_event(size_t bytes, struct timeval *qdelay)
 {
     PthreadScopedRWLock lock(&my_lock, true);
     u_long bw_est = 0;
@@ -200,6 +200,10 @@ NetStats::report_send_event(size_t bytes)
     (void)outgoing_qdelay.add_message(bytes, bw_est);
 }
 
+#if 0
+// XXX: this is not being used.  Moreover, since my BW_DOWN estimate is bogus 
+//  and unused, I need the ACK-sender to calculate the queuing delay on the ACKs
+//  and report it.  Maybe that will tighten up my estimation?
 void
 NetStats::report_recv_event(size_t bytes)
 {
@@ -208,6 +212,7 @@ NetStats::report_recv_event(size_t bytes)
     (void)net_estimates.estimates[NET_STATS_BW_DOWN].get_estimate(bw_est);
     (void)incoming_qdelay.add_message(bytes, bw_est);
 }
+#endif
 
 static u_long round_nearest(double val)
 {
@@ -250,6 +255,7 @@ calculate_bw_latency(struct timeval latency_RTT, struct timeval bw_RTT,
 
 void 
 NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
+                     struct timeval ack_qdelay, 
                      struct timeval *real_time)
 {
     if (srv_time.tv_usec == -1) {
@@ -272,6 +278,7 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
         IROBMeasurement measurement = irob_measurements[irob_id];
         irob_measurements.erase(irob_id);
 
+        measurement.add_delay(ack_qdelay);
         measurement.ack(real_time);
     
         struct timeval RTT;
@@ -285,8 +292,12 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
 
         size_t req_size = measurement.num_bytes();
 
-        dbgprintf("Reporting new ACK for IROB %ld; RTT %lu.%06lu  size %zu\n",
-                  irob_id, RTT.tv_sec, RTT.tv_usec, req_size);
+        dbgprintf("Reporting new ACK for IROB %ld; RTT %lu.%06lu  "
+                  "srv_time %lu.%06lu qdelay %lu.%06lu size %zu\n",
+                  irob_id, RTT.tv_sec, RTT.tv_usec, 
+                  srv_time.tv_sec, srv_time.tv_usec,
+                  ack_qdelay.tv_sec, ack_qdelay.tv_usec,
+                  req_size);
 
         if (last_RTT.tv_sec != -1) {
             // solving simple system of 2 linear equations, from paper

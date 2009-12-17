@@ -79,7 +79,10 @@ CMMSocketControlHdr::describe() const
         stream << "IROB: " << ntohl(op.ack.id) << " ";
         stream << "srv_time: " << ntohl(op.ack.srv_time.tv_sec) << "." 
                << setfill('0') << setw(6) 
-               << ntohl(op.ack.srv_time.tv_usec);
+               << ntohl(op.ack.srv_time.tv_usec) << " ";
+        stream << "qdelay: " << ntohl(op.ack.qdelay.tv_sec) << "." 
+               << setfill('0') << setw(6) 
+               << ntohl(op.ack.qdelay.tv_usec);
         break;
     case CMM_CONTROL_MSG_GOODBYE:
 	break;

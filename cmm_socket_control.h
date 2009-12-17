@@ -73,6 +73,10 @@ struct ack_data {
 
     // time from receiving all bytes to sending ACK
     struct timeval srv_time; 
+
+    // time this ACK spent queued behind other messages; will be
+    //  subtracted from RTT at receiver
+    struct timeval qdelay;
 };
 
 typedef enum {

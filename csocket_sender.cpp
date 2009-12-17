@@ -974,7 +974,11 @@ CSocketSender::send_acks(const IROBSchedulingData& data,
     dbgprintf("About to send %zu ACKs\n", ack_count + 1);
 
     pthread_mutex_unlock(&sk->scheduling_state_lock);
-    csock->stats.report_send_event(datalen);
+
+    csock->stats.report_send_event(datalen, &hdr.op.ack.qdelay);
+    hdr.op.ack.qdelay.tv_sec = htonl(hdr.op.ack.qdelay.tv_sec);
+    hdr.op.ack.qdelay.tv_usec = htonl(hdr.op.ack.qdelay.tv_usec);
+
     int rc = writev(csock->osfd, vec, numvecs);
     pthread_mutex_lock(&sk->scheduling_state_lock);
 

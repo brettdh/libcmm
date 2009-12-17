@@ -128,16 +128,19 @@ class NetStats {
     //  the total number of bytes passed to the system call.
     void report_send_event(irob_id_t irob_id, size_t bytes);
     
-    // CSocketSender should call this immediately before it sends bytes
-    //  UNrelated to an IROB.  This is needed to compute queuing delays
-    //  for IROB-related messages that are queued behind non-IROB-related
-    //  messages.
-    void report_send_event(size_t bytes);
+    // CSocketSender should call this immediately before it sends
+    //  bytes UNrelated to an IROB.  This is needed to compute queuing
+    //  delays for IROB-related messages that are queued behind
+    //  non-IROB-related messages.  
+    // If qdelay is non-NULL, writes into qdelay the queuing delay of
+    //  an ack to be sent now.  We calculate this at the sender rather
+    //  than the receiver because we only estimate upstream bandwidth.
+    void report_send_event(size_t bytes, struct timeval *qdelay = NULL);
 
     // CSocketReceiver should call this immediately before it receives bytes
     //  UNrelated to an IROB.  This is needed to compute queuing delays
     //  for IROB-related messages that are queued behind ACKs.
-    void report_recv_event(size_t bytes);
+    //void report_recv_event(size_t bytes); // XXX: not being used.
 
     // CSocketReceiver should call this immediately after it receives
     //  the ACK for an IROB.  The srv_time argument should be the
@@ -147,6 +150,7 @@ class NetStats {
     //  This makes sense when a flurry of ACKs arrive at once; 
     //  we want to say that they all arrived at about the same time.
     void report_ack(irob_id_t irob_id, struct timeval srv_time,
+                    struct timeval ack_qdelay, 
                     struct timeval *real_time = NULL);
 
     // remove this IROB without adding a new measurement.
@@ -174,7 +178,7 @@ class NetStats {
     pthread_rwlock_t my_lock;
 
     QueuingDelay outgoing_qdelay;
-    QueuingDelay incoming_qdelay;
+    //QueuingDelay incoming_qdelay;
 
     //Estimate net_estimates[NUM_ESTIMATES];
     struct estimate_set net_estimates;
