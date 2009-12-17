@@ -2,6 +2,7 @@
 #include <pthread.h>
 #include "pthread_util.h"
 #include <netinet/in.h>
+#include <linux/tcp.h>
 #include <sys/types.h>
 #include "timeops.h"
 #include <cmath>
@@ -446,9 +447,9 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
                     dbgprintf_plain("(invalid), ");
                 }
                 if (net_estimates.estimates[NET_STATS_LATENCY].get_estimate(latency_est)) {
-                    dbgprintf_plain("latency %lu ms\n", latency_est);
+                    dbgprintf_plain("latency %lu ms", latency_est);
                 } else {
-                    dbgprintf_plain("latency (invalid)\n");
+                    dbgprintf_plain("latency (invalid)");
                 }
 
                 // TODO: send bw_up estimate to remote peer as its bw_down.  Or maybe do that

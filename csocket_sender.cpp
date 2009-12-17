@@ -790,11 +790,16 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "%lu.%06lu CSocketSender: IROB %ld about to send %u bytes with label %lu on %s est bw %lu rtt %lu\n",
+            struct tcp_info info;
+            socklen_t len = sizeof(info);
+            info.tcpi_rtt = 0;
+            (void)getsockopt(csock->osfd, IPPROTO_TCP, TCP_INFO, &info, &len);
+            fprintf(timing_file, "%lu.%06lu CSocketSender: IROB %ld about to send %u bytes with label %lu on %s est bw %lu rtt %lu tcpi_rtt %f\n",
                     now.tv_sec, now.tv_usec, id,
                     (sizeof(hdr) + chunksize), data.send_labels,
 		    inet_ntoa(csock->local_iface.ip_addr),
-		    csock->bandwidth(), (u_long)csock->RTT());
+		    csock->bandwidth(), (u_long)csock->RTT(),
+                    info.tcpi_rtt / 1000000.0);
         }
     }
 #endif
