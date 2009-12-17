@@ -106,6 +106,11 @@ CSocketSender::Run()
 		    pthread_cond_broadcast(&sk->scheduling_state_cv);
                 }
             }
+            if (!unacked_irobs.empty()) {
+                // loop back around and check whether I should 
+                //  resend some of those End_IROB messages
+                continue;
+            }
             
             struct timespec timeout = {-1, 0};
             struct timespec first_ack_timeout;
