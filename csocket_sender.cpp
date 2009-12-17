@@ -15,6 +15,8 @@
 #include <linux/sockios.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+//#include <netinet/tcp.h>
+#include <linux/tcp.h>
 #include <arpa/inet.h>
 #include <vector>
 using std::vector;
@@ -405,6 +407,29 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
     return false;
 }
 
+int get_unsent_bytes(int sock)
+{
+    int bytes_in_send_buffer = 0;
+    int rc = ioctl(sock, SIOCOUTQ, &bytes_in_send_buffer);
+    if (rc < 0) {
+        return rc;
+    }
+
+    struct tcp_info info;
+    socklen_t len = sizeof(info);
+    rc = getsockopt(sock, IPPROTO_TCP, TCP_INFO, &info, &len);
+    if (rc < 0) {
+        dbgprintf("Error getting TCP_INFO: %s\n", strerror(errno));
+        return bytes_in_send_buffer;
+    }
+
+    // subtract the "in-flight" bytes.
+    int unsent_bytes = bytes_in_send_buffer - info.tcpi_unacked;
+    dbgprintf("%d bytes in sndbuf and %d bytes unacked = %d bytes unsent?\n",
+              bytes_in_send_buffer, info.tcpi_unacked, unsent_bytes);
+    return unsent_bytes;
+}
+
 bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 {
     bool do_trickle = true;
@@ -435,9 +460,8 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 	    do_trickle = true;
 	}
 	
-        int unsent_bytes = 0;
-        int rc = ioctl(csock->osfd, SIOCOUTQ, &unsent_bytes);
-        if (rc < 0) {
+        int unsent_bytes = get_unsent_bytes(csock->osfd);
+        if (unsent_bytes < 0) {
             //dbgprintf("     ...failed to check socket send buffer: %s\n",
             //strerror(errno));
             do_trickle = false;
@@ -779,7 +803,9 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     psirob->chunk_in_flight = true;
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     if (waiting_ack_irob != -1) {
-        csock->stats.report_send_event(sizeof(ack_hdr));
+        csock->stats.report_send_event(sizeof(ack_hdr), &ack_hdr.op.ack.qdelay);
+        ack_hdr.op.ack.qdelay.tv_sec = htonl(ack_hdr.op.ack.qdelay.tv_sec);
+        ack_hdr.op.ack.qdelay.tv_usec = htonl(ack_hdr.op.ack.qdelay.tv_usec);
         dbgprintf("    Piggybacking ACK for IROB %ld on this message\n",
                   waiting_ack_irob);
     }

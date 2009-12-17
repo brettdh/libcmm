@@ -197,7 +197,10 @@ NetStats::report_send_event(size_t bytes, struct timeval *qdelay)
     PthreadScopedRWLock lock(&my_lock, true);
     u_long bw_est = 0;
     (void)net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est);
-    (void)outgoing_qdelay.add_message(bytes, bw_est);
+    struct timeval my_qdelay = outgoing_qdelay.add_message(bytes, bw_est);
+    if (qdelay) {
+        *qdelay = my_qdelay;
+    }
 }
 
 #if 0

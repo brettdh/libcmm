@@ -77,9 +77,14 @@ CMMSocketControlHdr::describe() const
     case CMM_CONTROL_MSG_ACK:
         stream << "num_acks: " << ntohl(op.ack.num_acks) << " ";
         stream << "IROB: " << ntohl(op.ack.id) << " ";
-        stream << "srv_time: " << ntohl(op.ack.srv_time.tv_sec) << "." 
-               << setfill('0') << setw(6) 
-               << ntohl(op.ack.srv_time.tv_usec) << " ";
+        stream << "srv_time: ";
+        if (ntohl(op.ack.srv_time.tv_usec == -1)) {
+            stream << "(invalid) ";
+        } else {
+            stream << ntohl(op.ack.srv_time.tv_sec) << "." 
+                   << setfill('0') << setw(6) 
+                   << ntohl(op.ack.srv_time.tv_usec) << " ";
+        }
         stream << "qdelay: " << ntohl(op.ack.qdelay.tv_sec) << "." 
                << setfill('0') << setw(6) 
                << ntohl(op.ack.qdelay.tv_usec);
