@@ -27,6 +27,7 @@ class CSockMapping {
                        u_long send_label);
 
     CSocketPtr csock_with_labels(u_long send_label);
+    CSocketPtr connected_csock_with_labels(u_long send_label, bool locked=true);
     CSocketPtr new_csock_with_labels(u_long send_label, bool locked=true);
     void remove_csock(CSocketPtr csock); // only removes, doesn't delete
 
@@ -58,6 +59,9 @@ class CSockMapping {
     CSockMapping(CMMSocketImplPtr sk);
     ~CSockMapping();
 
+    template <typename Functor>
+    void for_each_by_ref(Functor& f);
+
     /* Functor must define int operator()(CSocketPtr), 
      * a function that returns -1 on error or >=0 on success */
     template <typename Functor>
@@ -65,7 +69,7 @@ class CSockMapping {
   private:
     //CSockLabelMap csocks_by_send_label;
     boost::weak_ptr<CMMSocketImpl> sk;  /* XXX: janky.  Remove later? */
-    CSockSet connected_csocks;
+    CSockSet available_csocks;
     pthread_rwlock_t sockset_mutex;
 
     struct get_worker_tids;
@@ -82,11 +86,22 @@ class CSockMapping {
 };
 
 template <typename Functor>
+void CSockMapping::for_each_by_ref(Functor& f)
+{
+    PthreadScopedRWLock lock(&sockset_mutex, false);
+    for (CSockSet::iterator it = available_csocks.begin();
+	 it != available_csocks.end(); it++) {
+	CSocketPtr csock = *it;
+	f(csock);
+    }
+}
+
+template <typename Functor>
 int CSockMapping::for_each(Functor f)
 {
     PthreadScopedRWLock lock(&sockset_mutex, false);
-    for (CSockSet::iterator it = connected_csocks.begin();
-	 it != connected_csocks.end(); it++) {
+    for (CSockSet::iterator it = available_csocks.begin();
+	 it != available_csocks.end(); it++) {
 	CSocketPtr csock = *it;
 	int rc = f(csock);
 	if (rc < 0) {
@@ -101,10 +116,10 @@ CSocketPtr
 CSockMapping::find_csock(Predicate pred)
 {
     PthreadScopedRWLock lock(&sockset_mutex, false);
-    CSockSet::const_iterator it = find_if(connected_csocks.begin(), 
-					  connected_csocks.end(), 
+    CSockSet::const_iterator it = find_if(available_csocks.begin(), 
+					  available_csocks.end(), 
 					  pred);
-    if (it == connected_csocks.end()) {
+    if (it == available_csocks.end()) {
         return CSocketPtr();
     } else {
 	return *it;

@@ -70,6 +70,12 @@ CSocketReceiver::Run(void)
     snprintf(name, MAX_NAME_LEN, "CSockReceiver %d", csock->osfd);
     set_thread_name(name);
 
+    if (csock->wait_until_connected() < 0) {
+        dbgprintf("CSocketReceiver: csock connect() "
+                  "must have failed, exiting\n");
+        return;
+    } // otherwise, we are happily connected.  go forth and read bytes!
+
     while (1) {
         struct CMMSocketControlHdr hdr;
 

@@ -57,8 +57,9 @@ class CSocket {
     // right now (used for trickling background data).
     bool only_connection();
 
-    int phys_connect(void);
     void startup_workers();
+    bool is_connected();
+    int wait_until_connected();
 
     // network measurements/estimates for this connection.
     u_long bandwidth();
@@ -78,9 +79,16 @@ class CSocket {
     friend class CSocketReceiver;
     friend void resume_operation_thunk(ResumeOperation *op);
     
+    int phys_connect(void);
+
     /* worker threads */
     CSocketSender *csock_sendr;
     CSocketReceiver *csock_recvr;
+
+    // for coordination between this CSocket's worker threads
+    pthread_mutex_t csock_lock;
+    pthread_cond_t csock_cv;
+    bool connected;
 
     // only valid until the worker threads are created;
     // ensures that all CSocket pointers are shared

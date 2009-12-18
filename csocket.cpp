@@ -32,7 +32,8 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
     : sk(sk_),
       local_iface(local_iface_), remote_iface(remote_iface_),
       stats(local_iface, remote_iface),
-      csock_sendr(NULL), csock_recvr(NULL), irob_indexes(local_iface_.labels)
+      csock_sendr(NULL), csock_recvr(NULL), connected(false),
+      irob_indexes(local_iface_.labels)
 {
     assert(sk);
     if (accepted_sock == -1) {
@@ -45,19 +46,15 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
         sk->set_all_sockopts(osfd);
     } else {
         osfd = accepted_sock;
+        connected = true;
     }
     
     int on = 1;
     int rc;
+
     /* Make sure that this socket is TCP_NODELAY for good performance */
-    struct protoent *pe = getprotobyname("TCP");
-    if (pe) {
-	rc = setsockopt (osfd, pe->p_proto, TCP_NODELAY, 
-			 (char *) &on, sizeof(on));
-    } else {
-	rc = setsockopt (osfd, 6, TCP_NODELAY, 
-			 (char *) &on, sizeof(on));
-    }
+    rc = setsockopt (osfd, IPPROTO_TCP, TCP_NODELAY, 
+                     (char *) &on, sizeof(on));
     if (rc < 0) {
 	dbgprintf("Cannot make socket TCP_NODELAY");
     }
@@ -76,6 +73,14 @@ CSocket::~CSocket()
 int
 CSocket::phys_connect()
 {
+    {
+        PthreadScopedLock lock(&csock_lock);
+        if (connected) {
+            // this was probably created by accept() in the listener thread
+            return 0;
+        }
+    }    
+
     struct sockaddr_in local_addr, remote_addr;
     
     // XXX-TODO: don't assume it's an inet socket
@@ -95,6 +100,8 @@ CSocket::phys_connect()
 	dbgprintf("Failed to bind osfd %d to %s:%d\n",
 		  osfd, inet_ntoa(local_addr.sin_addr), 
 		  ntohs(local_addr.sin_port));
+        close(osfd);
+        osfd = -1;
 	return rc;
     }
     dbgprintf("Successfully bound osfd %d to %s:%d\n",
@@ -108,6 +115,8 @@ CSocket::phys_connect()
 	dbgprintf("Failed to connect osfd %d to %s:%d\n",
 		  osfd, inet_ntoa(remote_addr.sin_addr), 
 		  ntohs(remote_addr.sin_port));
+        close(osfd);
+        osfd = -1;
 	return rc;
     }
 
@@ -124,11 +133,40 @@ CSocket::phys_connect()
         if (rc != sizeof(hdr)) {
             perror("send");
             dbgprintf("Failed to send interface info\n");
+            close(osfd);
+            osfd = -1;
             return rc;
         }
     }
 
-    startup_workers();
+    {
+        PthreadScopedLock lock(&csock_lock);
+        connected = true;
+        pthread_cond_broadcast(&csock_cv);
+    }
+
+    //startup_workers();
+    return 0;
+}
+
+bool
+CSocket::is_connected()
+{
+    PthreadScopedLock lock(&csock_lock);
+    return connected;
+}
+
+int
+CSocket::wait_until_connected()
+{
+    PthreadScopedLock lock(&csock_lock);
+    while (!connected && osfd != -1) {
+        pthread_cond_wait(&csock_cv, &csock_lock);
+    }
+
+    if (osfd == -1) {
+        return -1;
+    }
     return 0;
 }
 

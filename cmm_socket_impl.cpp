@@ -1617,9 +1617,12 @@ CMMSocketImpl::get_csock(u_long send_labels,
 {
     try {
         if (net_available(send_labels)) {
-            csock = get_pointer(csock_map->new_csock_with_labels(send_labels, false));
-        } else if (send_labels & CMM_LABEL_BACKGROUND) {
-            csock = get_pointer(csock_map->new_csock_with_labels(0, false));
+            // avoid using sockets that aren't yet connected; if connect() times out,
+            //   it might take a long time to send anything
+            csock = get_pointer(csock_map->connected_csock_with_labels(send_labels));
+            if (!csock) {
+                csock = get_pointer(csock_map->new_csock_with_labels(send_labels, false));
+            }
         } else {
             csock = NULL;
         }
@@ -1692,7 +1695,11 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
         bool success = outgoing_irobs.insert(pirob);
         assert(success);
 
-        csock->irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
+        if (csock->is_connected()) {
+            csock->irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
+        } else {
+            irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
+        }
         pthread_cond_broadcast(&scheduling_state_cv);
     }
     
@@ -1777,7 +1784,11 @@ CMMSocketImpl::end_irob(irob_id_t id)
         assert(psirob);
         if (psirob->announced && !psirob->end_announced) {
             psirob->end_announced = true;
-            csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
+            if (csock->is_connected()) {
+                csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
+            } else {
+                irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
+            }
             pthread_cond_broadcast(&scheduling_state_cv);
         }
     }
@@ -1860,7 +1871,11 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
         }
 
         if (psirob->announced) {
-            csock->irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));//chunk.seqno));
+            if (csock->is_connected()) {
+                csock->irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));//chunk.seqno));
+            } else {
+                irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));//chunk.seqno));
+            }
             pthread_cond_broadcast(&scheduling_state_cv);
         }
     }
@@ -1988,7 +2003,11 @@ CMMSocketImpl::send_default_irob(irob_id_t id, CSocket *csock,
         bool success = outgoing_irobs.insert(pirob);
         assert(success);
 
-        csock->irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
+        if (csock->is_connected()) {
+            csock->irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
+        } else {
+            irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
+        }
         // the CSocketSender will insert the chunk and end_irob
 
         pthread_cond_broadcast(&scheduling_state_cv);

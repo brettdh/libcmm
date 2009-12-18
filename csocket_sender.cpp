@@ -45,8 +45,18 @@ CSocketSender::Run()
     sigaddset(&sigset, SIGPIPE); // ignore SIGPIPE
     pthread_sigmask(SIG_BLOCK, &sigset, NULL);
 
-    PthreadScopedLock lock(&sk->scheduling_state_lock);
     try {
+        int rc = csock->phys_connect();
+        if (rc < 0) {
+            struct CMMSocketControlHdr hdr;
+            hdr.type = htons(CMM_CONTROL_MSG_GOODBYE);
+            hdr.send_labels = 0;
+            throw CMMControlException("Failed to connect new CSocket", hdr);
+        } else {
+            
+        }
+
+        PthreadScopedLock lock(&sk->scheduling_state_lock);
         while (1) {
             if (sk->is_shutting_down()) {
                 if (csock->irob_indexes.waiting_acks.empty()
@@ -147,15 +157,20 @@ CSocketSender::Run()
             // something happened; we might be able to do some work
         }
     } catch (CMMControlException& e) {
-        pthread_mutex_unlock(&sk->scheduling_state_lock);
+        //pthread_mutex_unlock(&sk->scheduling_state_lock); // no longer held here
         sk->csock_map->remove_csock(csock);
         CSocketPtr replacement = sk->csock_map->new_csock_with_labels(0);
-        pthread_mutex_lock(&sk->scheduling_state_lock);
+
+        PthreadScopedLock lock(&sk->scheduling_state_lock);
         if (replacement) {
-            // pass off any work I didn't get to finish; it will
-            //  be passed to the correct thread or deferred
-            //  as appropriate
-            replacement->irob_indexes.add(csock->irob_indexes);
+            if (replacement->is_connected()) {
+                // pass off any work I didn't get to finish; it will
+                //  be passed to the correct thread or deferred
+                //  as appropriate
+                replacement->irob_indexes.add(csock->irob_indexes);
+            } else {
+                sk->irob_indexes.add(csock->irob_indexes);
+            }
         } else {
             // this connection is hosed, so make sure everything
             // gets cleaned up as if we had done a graceful shutdown
@@ -298,7 +313,7 @@ void resume_operation_thunk(ResumeOperation *op)
         op->sk->csock_map->new_csock_with_labels(send_labels);
     
     PthreadScopedLock lock(&op->sk->scheduling_state_lock);
-    IROBSchedulingIndexes& indexes = (csock 
+    IROBSchedulingIndexes& indexes = (csock && csock->is_connected()
                                       ? csock->irob_indexes 
                                       : op->sk->irob_indexes);
     if (op->data.chunks_ready) {
@@ -398,15 +413,16 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
         return true;
     } else {
         assert(match != csock); // since csock->matches returned false
-
-        // pass this task to the right thread
-        if (!data.chunks_ready) {
-            match->irob_indexes.new_irobs.insert(data);
-        } else {
-            match->irob_indexes.new_chunks.insert(data);
-        }
-        pthread_cond_broadcast(&sk->scheduling_state_cv);
-        return true;
+        if (match->is_connected()) {
+            // pass this task to the right thread
+            if (!data.chunks_ready) {
+                match->irob_indexes.new_irobs.insert(data);
+            } else {
+                match->irob_indexes.new_chunks.insert(data);
+            }
+            pthread_cond_broadcast(&sk->scheduling_state_cv);
+            return true;
+        } // otherwise, I'll do it myself (this thread)
     }
 
     return false;
