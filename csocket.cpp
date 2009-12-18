@@ -35,6 +35,9 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
       csock_sendr(NULL), csock_recvr(NULL), connected(false),
       irob_indexes(local_iface_.labels)
 {
+    pthread_mutex_init(&csock_lock, NULL);
+    pthread_cond_init(&csock_cv, NULL);
+
     assert(sk);
     if (accepted_sock == -1) {
         osfd = socket(sk->sock_family, sk->sock_type, sk->sock_protocol);
