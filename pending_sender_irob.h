@@ -59,6 +59,14 @@ class PendingSenderIROB : public PendingIROB {
      * in the IROB. */
     void mark_sent(ssize_t bytes_sent);
 
+    // Request that the sender ask the receiver how much data has been received
+    //  before sending any new data for this IROB.
+    void request_data_check();
+
+    // Returns true iff the sender should ask the receiver how many
+    //  bytes have been received.
+    bool needs_data_check();
+
     /* "Rewinds" the get_ready_bytes pointer to the beginning of this IROB,
      *   plus offset bytes.
      * This is needed when a Resend_Request is received for the IROB's data.
@@ -94,6 +102,11 @@ class PendingSenderIROB : public PendingIROB {
 
     // only one thread at a time should be sending app data
     bool chunk_in_flight;
+
+    // true iff the sender and receiver might have different views
+    //  about how much data has been received for this IROB, due to
+    //  a network failure.
+    bool data_check;
 };
 
 #endif

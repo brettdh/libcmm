@@ -18,7 +18,8 @@
 #define CMM_CONTROL_MSG_ACK            7
 #define CMM_CONTROL_MSG_GOODBYE        8
 #define CMM_CONTROL_MSG_RESEND_REQUEST 9
-#define CMM_CONTROL_MSG_INVALID        10
+#define CMM_CONTROL_MSG_DATA_CHECK     10
+#define CMM_CONTROL_MSG_INVALID        11
 
 struct hello_data {
     in_port_t listen_port;
@@ -105,6 +106,10 @@ struct resend_request_data {
     size_t offset;
 };
 
+struct data_check_data {
+    irob_id_t id;
+};
+
 struct CMMSocketControlHdr {
     short type;
     u_long send_labels;
@@ -121,6 +126,7 @@ struct CMMSocketControlHdr {
         struct down_interface_data down_interface;
         struct ack_data ack;
         struct resend_request_data resend_request;
+        struct data_check_data data_check;
     } op;
 
     /* for use with exceptions and debug information. */

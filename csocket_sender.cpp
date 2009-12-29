@@ -752,9 +752,28 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     if (psirob->chunk_in_flight) {
         // another thread is sending a chunk; it will
         // signal for the next chunk to be sent when it is done
+        // XXX: this will need to be changed to enable striping.
         return true;
     }
-    //
+
+    if (psirob->needs_data_check()) {
+        struct CMMSocketControlHdr data_check_hdr;
+        memset(&data_check_hdr, 0, sizeof(data_check_hdr));
+        data_check_hdr.type = htons(CMM_CONTROL_MSG_DATA_CHECK);
+        data_check_hdr.send_labels = htonl(pirob->send_labels);
+        data_check_hdr.op.data_check.id = htonl(id);
+        int rc = write(csock->osfd, &data_check_hdr, sizeof(data_check_hdr));
+        if (rc != sizeof(data_check_hdr)) {
+            sk->irob_indexes.new_chunks.insert(data);
+            pthread_cond_broadcast(&sk->scheduling_state_cv);
+            throw CMMControlException("Socket error", data_check_hdr);
+        }
+
+        // when the response arrives, we'll begin sending again on this IROB.
+        // until then, this thread might send data from other IROBs if there's
+        //  data to send.
+        return true;
+    }
 
     struct CMMSocketControlHdr hdr;
     memset(&hdr, 0, sizeof(hdr));
@@ -865,6 +884,12 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
             // this way, I won't have to resend bytes that were
             //  already received
             psirob->mark_sent(rc - (ssize_t)total_header_size);
+        
+            if (rc != (ssize_t)total_bytes) {
+                // TODO: this should trigger a request for the receiver
+                //  to report the number of bytes received
+                psirob->request_data_check();
+            }
         }
     }
 

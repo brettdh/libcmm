@@ -116,3 +116,6 @@ Post-Mobisys TODO items
 
 * Understand the real cost of trickling, so that we can make sense of
    our experimental results.
+
+* Make use of all available networks when appropriate.
+    This means some simple form of striping.

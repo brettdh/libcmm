@@ -17,7 +17,8 @@ PendingSenderIROB::PendingSenderIROB(irob_id_t id_,
       announced(false), end_announced(false), acked(false),
       next_seqno_to_send(next_seqno), next_chunk(0), chunk_offset(0),
       offset(0),
-      chunk_in_flight(false)
+      chunk_in_flight(false),
+      data_check(false)
 {
 }
 
@@ -117,6 +118,18 @@ PendingSenderIROB::mark_sent(ssize_t bytes_sent)
 }
 
 void
+PendingSenderIROB::request_data_check()
+{
+    data_check = true;
+}
+
+bool
+PendingSenderIROB::needs_data_check()
+{
+    return data_check;
+}
+
+void
 PendingSenderIROB::rewind(size_t pos)
 {
     dbgprintf("Resetting send pointer for IROB %ld\n", id);
@@ -124,6 +137,10 @@ PendingSenderIROB::rewind(size_t pos)
     next_chunk = 0;
     chunk_offset = 0;
     offset = 0;
+
+    // a call to rewind() means that the sender and receiver
+    //  agree about the amount of remaining data
+    data_check = false;
 
     mark_sent(pos);
 }

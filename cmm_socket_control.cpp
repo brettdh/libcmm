@@ -22,12 +22,13 @@ CMMSocketControlHdr::type_str() const
 	"Ack",
 	"Goodbye",
         "Resend_Request",
+        "Data_Check",
 	"(unknown)"
     };
 
     short my_type = ntohs(type);
-    if (my_type > CMM_CONTROL_MSG_GOODBYE || my_type < CMM_CONTROL_MSG_HELLO) {
-	my_type = CMM_CONTROL_MSG_GOODBYE + 1;
+    if (my_type >= CMM_CONTROL_MSG_INVALID || my_type < CMM_CONTROL_MSG_HELLO) {
+	my_type = CMM_CONTROL_MSG_INVALID;
     }
     return strs[my_type];
 }
@@ -95,6 +96,9 @@ CMMSocketControlHdr::describe() const
         stream << "IROB: " << ntohl(op.resend_request.id) << " ";
         stream << "request: " << ntohl(op.resend_request.request) << " ";
         stream << "offset: " << ntohl(op.resend_request.offset);
+        break;
+    case CMM_CONTROL_MSG_DATA_CHECK:
+        stream << "IROB: " << ntohl(op.data_check.id);
         break;
     default:
         break;
