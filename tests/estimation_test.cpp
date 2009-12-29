@@ -122,12 +122,12 @@ EstimationTest::testNetStatsSimple()
 
     stats->report_send_event(1, 5000);
     nowake_nanosleep(&sleeptime);
-    stats->report_ack(1, zero);
+    stats->report_ack(1, zero, zero, NULL);
     
     sleeptime.tv_sec = 2;
     stats->report_send_event(2, 10000);
     nowake_nanosleep(&sleeptime);
-    stats->report_ack(2, zero);
+    stats->report_ack(2, zero, zero, NULL);
     
     assertStatsCorrect(5000, 20);
 }
@@ -155,11 +155,11 @@ EstimationTest::testNetStatsWithQueuingDelay()
 
     nowake_nanosleep(&sleeptime2);
 
-    stats->report_ack(3, zero);
+    stats->report_ack(3, zero, zero, NULL);
     
     nowake_nanosleep(&sleeptime3);
 
-    stats->report_ack(4, zero);
+    stats->report_ack(4, zero, zero, NULL);
     
     assertStatsCorrect(5000, 20);
 }
@@ -181,7 +181,7 @@ EstimationTest::testNetStatsWithSenderDelay()
 
     nowake_nanosleep(&sleeptime2);
 
-    stats->report_ack(5, zero);
+    stats->report_ack(5, zero, zero, NULL);
 
     assertStatsCorrect(5000, 20);
 }
@@ -209,9 +209,9 @@ EstimationTest::testNetStatsSingleIROBQueuingDelay()
     stats->report_send_event(6, 5000);
     nowake_nanosleep(&sleeptime3);
 
-    stats->report_ack(5, zero);
+    stats->report_ack(5, zero, zero, NULL);
     nowake_nanosleep(&sleeptime4);
-    stats->report_ack(6, zero);
+    stats->report_ack(6, zero, zero, NULL);
 
     assertStatsCorrect(5000, 20);
 }
@@ -248,11 +248,11 @@ EstimationTest::testQueuingDelayInterleaved()
     nowake_nanosleep(&sleeptime3);
 
     // 0:04.04
-    stats->report_ack(5, zero); // RTT = 4.04 - 0.0 - 1.0 = 3.04
+    stats->report_ack(5, zero, zero, NULL); // RTT = 4.04 - 0.0 - 1.0 = 3.
     nowake_nanosleep(&sleeptime4);
 
     // 0:05.04
-    stats->report_ack(6, zero);
+    stats->report_ack(6, zero, zero, NULL);
 
     assertStatsCorrect(5000, 20);    
 }
