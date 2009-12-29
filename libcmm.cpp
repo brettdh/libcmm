@@ -34,75 +34,9 @@ using std::auto_ptr;
 #include "thunks.h"
 #include "cmm_thread.h"
 
-#include "tbb/concurrent_hash_map.h"
-#include "tbb/concurrent_queue.h"
-#include "tbb/atomic.h"
-using tbb::concurrent_hash_map;
-using tbb::concurrent_queue;
-using tbb::atomic;
-
-#define CONFIG_FILE "/etc/cmm_config"
-
-#ifdef IMPORT_RULES
-/**The following used for providing label rules**/
-#define RULE_FILE "/tmp/cmm_rules_for_labels"
-typedef concurrent_queue<u_long> RuleQueue;
-struct RuleStruct{
-	RuleQueue rule_queue;
-};
-
-typedef concurrent_hash_map<u_long, struct RuleStruct *, IntegerHashCompare<u_long> > RuleHash;
-static RuleHash rule_hash;
-
-typedef concurrent_hash_map<u_long, u_long, IntegerHashCompare<u_long> > SuperiorLookUp; 
-static SuperiorLookUp sup_look_up;
-#endif
-
 static void libcmm_init(void) __attribute__((constructor));
 static void libcmm_init(void)
 {
-#ifdef IMPORT_RULES
-    /** Rules Part1: pupulate the rule_hash from the options file**/
-    printf("Parsing the label rules file...\n");
-    FILE * fp;
-    fp = fopen(RULE_FILE,"r");
-    if (fp == NULL) {
-        printf("Could not open the rules file. Proceeding with default. \n");
-    } else{	
-        char str_buf[250];
-        const char delimiters[] = " :";
-        
-        while(fgets(str_buf, sizeof(str_buf), fp)) {
-            char* token;
-            token = strtok(str_buf, delimiters);
-            u_long temp_label = (u_long)strtol(token, NULL, 0);	
-            
-            printf("Preferences for interface: %lu \n", temp_label);
-            
-            SuperiorLookUp::accessor lookup_ac;
-            if (!sup_look_up.find(lookup_ac, temp_label)) {
-                sup_look_up.insert(lookup_ac, temp_label);
-            }
-            lookup_ac->second = temp_label;
-            
-            RuleHash::accessor hash_ac;
-            if (!rule_hash.find(hash_ac, temp_label)) {
-                rule_hash.insert(hash_ac, temp_label);	
-                struct RuleStruct* new_rs = new struct RuleStruct;
-                hash_ac->second = new_rs;
-            }
-            
-            while((token = strtok(NULL,delimiters)) != NULL) {
-                temp_label = (u_long)strtol(token, NULL, 0);
-                printf("Use interface: %lu", temp_label);
-                hash_ac->second->rule_queue.push(temp_label);
-            }
-            printf("\n\n");
-        }
-        
-        fclose(fp);
-    }
-#endif
     set_debugging(false); // default: no dbgprintfs
 
     ifstream config_input(CONFIG_FILE);
@@ -118,7 +52,6 @@ static void libcmm_init(void)
     }
     
     scout_ipc_init();
-    signals_init();
 
 #ifdef CMM_TIMING
     PthreadScopedLock lock(&timing_mutex);
@@ -212,37 +145,6 @@ void process_interface_update(struct net_interface iface, bool down)
 }
 
 
-#ifdef IMPORT_RULES
-/** checks to see if there is a preffered interface for this label **/
-static u_long set_superior_label(mc_socket_t sock, u_long label)
-{
-    {
-	CMMSockHash::const_accessor read_ac;
-	if (cmm_sock_hash.find(read_ac, sock)) {
-	    struct cmm_sock *sk = read_ac->second;
-	    assert(sk);
-	    if (sk->connecting) {
-		/* ensure that label_up callbacks only use the real
-		 * labels that they were invoked with */
-		return label;
-	    } else {
-		/* ignore; will fail in sock_preapprove */
-	    }
-	}
-    }
-
-    SuperiorLookUp::const_accessor lookup_ac;
-    if (!sup_look_up.find(lookup_ac, label)){
-	//printf("in superior lookup returned: %lu\n",label );
-	return label;
-	
-    }else{
-	//printf("in superior lookup returned: %lu\n",lookup_ac->second );
-	return lookup_ac->second;
-    }
-    
-}
-#endif
 /*** CMM socket function wrappers ***/
 
 ssize_t cmm_send(mc_socket_t sock, const void *buf, size_t len, int flags,

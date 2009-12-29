@@ -1,7 +1,6 @@
 #ifndef csocket_h_incl
 #define csocket_h_incl
 
-#include "tbb/concurrent_queue.h"
 #include "cmm_socket_control.h"
 #include "cmm_socket.private.h"
 #include <map>
