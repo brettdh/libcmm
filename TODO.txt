@@ -86,9 +86,9 @@ Post-Mobisys TODO items
 --DONE--   entirety before moving on to the next IROB of that label.
 * Fix the inefficiency in retransmitting lost IROB data; ask the receiver
    how much data has been received before retransmitting any.
-* Track down and squash the bugs that resulted in very high variance
-   and sporadic failure in the BlueFS intermittent scenario (due to app-level 
-   timeouts that shouldn't be happening).
+--DONE-- * Track down and squash the bugs that resulted in very high variance
+--DONE--    and sporadic failure in the BlueFS intermittent scenario (due to app-level 
+--DONE--    timeouts that shouldn't be happening).
 
 * Debug the existing IMAP caching proxy and get it working for the
   current simple no-caching, pass-through sanity check.
