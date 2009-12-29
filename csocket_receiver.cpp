@@ -1,3 +1,4 @@
+#include <errno.h>
 #include "csocket_receiver.h"
 #include "csocket.h"
 #include "timeops.h"

@@ -1,6 +1,7 @@
 #include "cmm_socket.h"
 #include "cmm_socket.private.h"
 #include "debug.h"
+#include <errno.h>
 
 static void passthrough_debug_alert(const char *fn)
 {

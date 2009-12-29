@@ -2,6 +2,8 @@
 #include "libcmm.h"
 #include "libcmm_test.h"
 #include "common.h"
+#include "tbb/atomic.h"
+using tbb::atomic;
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>

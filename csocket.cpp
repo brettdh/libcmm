@@ -7,6 +7,7 @@
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <errno.h>
 #include "csocket_sender.h"
 #include "csocket_receiver.h"
 #include "csocket_mapping.h"

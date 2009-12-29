@@ -8,6 +8,7 @@
 #include "debug.h"
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <errno.h>
 
 #define INTERNAL_LISTEN_PORT 42424
 

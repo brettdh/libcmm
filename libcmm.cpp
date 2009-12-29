@@ -34,6 +34,8 @@ using std::auto_ptr;
 #include "thunks.h"
 #include "cmm_thread.h"
 
+#define CONFIG_FILE "/etc/cmm_config"
+
 static void libcmm_init(void) __attribute__((constructor));
 static void libcmm_init(void)
 {
