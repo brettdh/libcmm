@@ -36,6 +36,7 @@ class CSocketReceiver : public CMMThread {
     void do_ack(struct CMMSocketControlHdr hdr);
     void do_goodbye(struct CMMSocketControlHdr hdr);
     void do_request_resend(struct CMMSocketControlHdr hdr);
+    void do_data_check(struct CMMSocketControlHdr hdr);
 
     typedef void (CSocketReceiver::*handler_fn_t)(struct CMMSocketControlHdr);
 

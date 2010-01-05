@@ -2067,6 +2067,30 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
     pthread_cond_broadcast(&scheduling_state_cv);
 }
 
+void
+CMMSocketImpl::data_check_requested(irob_id_t id)
+{
+    PthreadScopedLock lock(&scheduling_state_lock);
+    PendingIROB *pirob = incoming_irobs.find(id);
+    if (!pirob && incoming_irobs.past_irob_exists(id)) {
+        // already received, passed to application; just (re)send the ACK
+        
+        // service time is probably large (invalid)
+        //  if the data flow has been interrupted,
+        //  just tell the other end to ignore this IROB for
+        //  measurement purposes
+        struct timeval inval = {0, -1};
+        IROBSchedulingData data(id, inval);
+        irob_indexes.waiting_acks.insert(data);
+        pthread_cond_broadcast(&scheduling_state_cv);
+    } else {
+        // never seen this one before; ask for everything
+        IROBSchedulingData request(id, CMM_RESEND_REQUEST_BOTH);
+        irob_indexes.resend_requests.insert(request);
+        pthread_cond_broadcast(&scheduling_state_cv);
+    }
+}
+
 /* call only with scheduling_state_lock held */
 void CMMSocketImpl::remove_if_unneeded(PendingIROB *pirob)
 {

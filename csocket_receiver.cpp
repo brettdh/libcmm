@@ -23,7 +23,8 @@ CSocketReceiver::handler_fn_t CSocketReceiver::handlers[] = {
     &CSocketReceiver::do_down_interface,
     &CSocketReceiver::do_ack,
     &CSocketReceiver::do_goodbye,
-    &CSocketReceiver::do_request_resend
+    &CSocketReceiver::do_request_resend,
+    &CSocketReceiver::do_data_check
 };
 
 CSocketReceiver::CSocketReceiver(CSocketPtr csock_) 
@@ -39,7 +40,7 @@ void
 CSocketReceiver::dispatch(struct CMMSocketControlHdr hdr)
 {
     short type = ntohs(hdr.msgtype());
-    if (type < 0 || type >= CMM_CONTROL_MSG_INVALID) {
+    if (type < 0 || type >= (short)sizeof(handlers)) {
         unrecognized_control_msg(hdr);
     } else {
         (this->*handlers[type])(hdr);
@@ -534,4 +535,12 @@ CSocketReceiver::do_request_resend(struct CMMSocketControlHdr hdr)
     ssize_t offset = ntohl(hdr.op.resend_request.offset);
 
     sk->resend_request_received(id, request, offset);
+}
+
+void
+CSocketReceiver::do_data_check(struct CMMSocketControlHdr hdr)
+{
+    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_DATA_CHECK);
+    irob_id_t id = ntohl(hdr.op.data_check.id);
+    sk->data_check_requested(id);
 }
