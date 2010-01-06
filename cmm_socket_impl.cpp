@@ -1552,7 +1552,8 @@ bool
 CMMSocketImpl::net_available(u_long send_labels)
 {
     struct net_interface local_dummy, remote_dummy;
-    return csock_map->get_iface_pair(send_labels, local_dummy, remote_dummy);
+    return csock_map->get_iface_pair(send_labels, local_dummy, remote_dummy,
+                                     false);
 }
 
 bool 
@@ -1564,6 +1565,7 @@ CMMSocketImpl::net_available(mc_socket_t sock,
         return false;
     }
     assert(sk);
+    
     PthreadScopedRWLock lock(&sk->my_lock, false);
     return sk->net_available(send_labels);
 }
@@ -1620,7 +1622,7 @@ CMMSocketImpl::get_csock(u_long send_labels,
         if (net_available(send_labels)) {
             // avoid using sockets that aren't yet connected; if connect() times out,
             //   it might take a long time to send anything
-            csock = get_pointer(csock_map->connected_csock_with_labels(send_labels));
+            csock = get_pointer(csock_map->connected_csock_with_labels(send_labels, false));
             if (!csock) {
                 csock = get_pointer(csock_map->new_csock_with_labels(send_labels, false));
             }
@@ -2129,7 +2131,7 @@ void
 CMMSocketImpl::goodbye(bool remote_initiated)
 {
     PthreadScopedLock lock(&scheduling_state_lock);
-    if (shutting_down) {
+    if (is_shutting_down()) {
         //csock_map->join_to_all_workers();
 
 	// make sure recv()s get woken up if they need to fail
@@ -2291,7 +2293,7 @@ CMMSocketImpl::cleanup()
         shutdown(sk->select_pipe[1], SHUT_RDWR);
         
         //PthreadScopedLock lock(&sk->scheduling_state_lock);
-        PthreadScopedLock shdwn_kock(&sk->shutdown_mutex);
+        PthreadScopedLock shdwn_lock(&sk->shutdown_mutex);
         while (!sk->remote_shutdown || !sk->goodbye_sent) {
             pthread_cond_wait(&sk->shutdown_cv, &sk->shutdown_mutex);
         }

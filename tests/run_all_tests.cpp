@@ -21,6 +21,8 @@ int main(int argc, char *argv[])
         case 'h':
             g_hostname = optarg;
             break;
+        case '?':
+            exit(EXIT_FAILURE);
         default:
             break;
         }
