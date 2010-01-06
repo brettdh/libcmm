@@ -83,7 +83,7 @@ CSocket::phys_connect()
             // this was probably created by accept() in the listener thread
             return 0;
         }
-    }    
+    }
 
     struct sockaddr_in local_addr, remote_addr;
     
@@ -96,52 +96,57 @@ CSocket::phys_connect()
     remote_addr.sin_family = AF_INET;
     remote_addr.sin_addr = remote_iface.ip_addr;
     remote_addr.sin_port = sk->remote_listener_port;
+
+    try {
+        int rc = bind(osfd, (struct sockaddr *)&local_addr, 
+                      sizeof(local_addr));
+        if (rc < 0) {
+            perror("bind");
+            dbgprintf("Failed to bind osfd %d to %s:%d\n",
+                      osfd, inet_ntoa(local_addr.sin_addr), 
+                      ntohs(local_addr.sin_port));
+            close(osfd);
+            throw rc;
+        }
+        dbgprintf("Successfully bound osfd %d to %s:%d\n",
+                  osfd, inet_ntoa(local_addr.sin_addr), 
+                  ntohs(local_addr.sin_port));
     
-    int rc = bind(osfd, (struct sockaddr *)&local_addr, 
-              sizeof(local_addr));
-    if (rc < 0) {
-	perror("bind");
-	dbgprintf("Failed to bind osfd %d to %s:%d\n",
-		  osfd, inet_ntoa(local_addr.sin_addr), 
-		  ntohs(local_addr.sin_port));
-        close(osfd);
+        rc = connect(osfd, (struct sockaddr *)&remote_addr, 
+                     sizeof(remote_addr));
+        if (rc < 0) {
+            perror("connect");
+            dbgprintf("Failed to connect osfd %d to %s:%d\n",
+                      osfd, inet_ntoa(remote_addr.sin_addr), 
+                      ntohs(remote_addr.sin_port));
+            close(osfd);
+            throw rc;
+        }
+
+        if (!sk->isLoopbackOnly()) {
+            struct CMMSocketControlHdr hdr;
+            memset(&hdr, 0, sizeof(hdr));
+            hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
+            hdr.send_labels = 0;
+            hdr.op.new_interface.ip_addr = local_iface.ip_addr;
+            hdr.op.new_interface.labels = htonl(local_iface.labels);
+            hdr.op.new_interface.bandwidth = htonl(local_iface.bandwidth);
+            hdr.op.new_interface.RTT = htonl(local_iface.RTT);
+            rc = send(osfd, &hdr, sizeof(hdr), 0);
+            if (rc != sizeof(hdr)) {
+                perror("send");
+                dbgprintf("Failed to send interface info\n");
+                close(osfd);
+                throw rc;
+            }
+        }
+    } catch (int rc) {
+        PthreadScopedLock lock(&csock_lock);
         osfd = -1;
-	return rc;
-    }
-    dbgprintf("Successfully bound osfd %d to %s:%d\n",
-	      osfd, inet_ntoa(local_addr.sin_addr), 
-	      ntohs(local_addr.sin_port));
-    
-    rc = connect(osfd, (struct sockaddr *)&remote_addr, 
-		 sizeof(remote_addr));
-    if (rc < 0) {
-	perror("connect");
-	dbgprintf("Failed to connect osfd %d to %s:%d\n",
-		  osfd, inet_ntoa(remote_addr.sin_addr), 
-		  ntohs(remote_addr.sin_port));
-        close(osfd);
-        osfd = -1;
-	return rc;
+        pthread_cond_broadcast(&csock_cv);
+        return rc;
     }
 
-    if (!sk->isLoopbackOnly()) {
-        struct CMMSocketControlHdr hdr;
-        memset(&hdr, 0, sizeof(hdr));
-        hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
-        hdr.send_labels = 0;
-        hdr.op.new_interface.ip_addr = local_iface.ip_addr;
-        hdr.op.new_interface.labels = htonl(local_iface.labels);
-        hdr.op.new_interface.bandwidth = htonl(local_iface.bandwidth);
-        hdr.op.new_interface.RTT = htonl(local_iface.RTT);
-        rc = send(osfd, &hdr, sizeof(hdr), 0);
-        if (rc != sizeof(hdr)) {
-            perror("send");
-            dbgprintf("Failed to send interface info\n");
-            close(osfd);
-            osfd = -1;
-            return rc;
-        }
-    }
 
     {
         PthreadScopedLock lock(&csock_lock);
@@ -149,7 +154,6 @@ CSocket::phys_connect()
         pthread_cond_broadcast(&csock_cv);
     }
 
-    //startup_workers();
     return 0;
 }
 
