@@ -58,24 +58,19 @@ CSocketSender::Run()
 
         PthreadScopedLock lock(&sk->scheduling_state_lock);
         while (1) {
-            if (sk->is_shutting_down()) {
+            if (sk->shutting_down) {
                 if (csock->irob_indexes.waiting_acks.empty()
                     && sk->irob_indexes.waiting_acks.empty()
                     && sk->outgoing_irobs.empty()) {
-
-                    {
-                        PthreadScopedLock shdwn_lock(&sk->shutdown_mutex);
-                        if (!sk->goodbye_sent && !sk->sending_goodbye) {
-                            shdwn_lock.release();
-                            sk->sending_goodbye = true;
-                            goodbye();
-                        }
+                    
+                    if (!sk->goodbye_sent && !sk->sending_goodbye) {
+                        sk->sending_goodbye = true;
+                        goodbye();
                     }
-                    lock.release();
-                    PthreadScopedLock shdwn_lock(&sk->shutdown_mutex);
+                    
                     while (!sk->remote_shutdown) {
-                        pthread_cond_wait(&sk->shutdown_cv,
-                                          &sk->shutdown_mutex);
+                        pthread_cond_wait(&sk->scheduling_state_cv,
+                                          &sk->scheduling_state_lock);
                     }
                     return;
                 }
@@ -83,7 +78,7 @@ CSocketSender::Run()
             
             if (csock->csock_recvr == NULL) {
                 dbgprintf("Hmm, the receiver died.  Checking why.\n");
-                if (sk->is_shutting_down() && sk->goodbye_sent) {
+                if (sk->shutting_down && sk->goodbye_sent) {
                     throw std::runtime_error("Connection closed");
                 } else {
                     struct CMMSocketControlHdr hdr;
@@ -178,11 +173,9 @@ CSocketSender::Run()
                       sk->sock);
             shutdown(sk->select_pipe[1], SHUT_RDWR);
 
-            PthreadScopedLock lock(&sk->shutdown_mutex);
             sk->shutting_down = true;
             sk->remote_shutdown = true;
             sk->goodbye_sent = true;
-            pthread_cond_broadcast(&sk->shutdown_cv);
         }
         pthread_cond_broadcast(&sk->scheduling_state_cv);
         // csock will get cleaned up in Finish()
@@ -1102,10 +1095,8 @@ CSocketSender::goodbye()
         throw CMMControlException("Socket error", hdr);
     }
     
-    PthreadScopedLock lock(&sk->shutdown_mutex);
     sk->goodbye_sent = true;
-
-    pthread_cond_broadcast(&sk->shutdown_cv);
+    pthread_cond_broadcast(&sk->scheduling_state_cv);
 }
 
 void

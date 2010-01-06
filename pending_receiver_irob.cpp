@@ -293,7 +293,6 @@ PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
             while (ready_irobs.empty()) {
                 assert(sk);
                 {
-                    PthreadScopedLock lock(&sk->shutdown_mutex);
                     if (sk->remote_shutdown && sk->csock_map->empty()) {
                         dbgprintf("get_ready_irob: socket shutting down; "
                                   "returning NULL\n");
@@ -396,7 +395,7 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
             return bytes_passed;
 #else
             assert(sk);
-	    if (sk->is_shutting_down()) {
+	    if (sk->shutting_down) {
                 return bytes_passed;
             } else {
 	        assert(0); /* XXX: nonblocking case may return NULL */
