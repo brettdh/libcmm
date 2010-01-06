@@ -679,7 +679,7 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
     hdr.op.end_irob.expected_bytes = htonl(for_each(pirob->chunks.begin(),
                                                     pirob->chunks.end(),
                                                     SumFunctor()).sum);
-    hdr.send_labels = htonl(csock->local_iface.labels);
+    hdr.send_labels = htonl(pirob->send_labels);
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);

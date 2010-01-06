@@ -320,7 +320,7 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
     CMMSocketImplPtr sk;
     if (cmm_sock_hash.find(sock, sk)) {
         {
-            PthreadScopedRWLock lock(&sk->my_lock, true);
+            PthreadScopedRWLock lock(&sk->my_lock, false);
             sk->goodbye(false);
             shutdown(sk->select_pipe[0], SHUT_RDWR);
             shutdown(sk->select_pipe[1], SHUT_RDWR);
@@ -1058,7 +1058,7 @@ int
 CMMSocketImpl::mc_shutdown(int how)
 {
     int rc = 0;
-    PthreadScopedRWLock(&my_lock, true);
+    PthreadScopedRWLock lock(&my_lock, false);
     goodbye(false);
     if (how == SHUT_RD || how == SHUT_RDWR) {
         shutdown(select_pipe[0], SHUT_RDWR);

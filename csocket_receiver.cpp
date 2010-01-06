@@ -96,6 +96,8 @@ CSocketReceiver::Run(void)
         } catch (CMMFatalError& e) {
             dbgprintf("Fatal error on multisocket %d: %s\n",
                       sk->sock, e.what());
+
+            PthreadScopedRWLock lock(&sk->my_lock, false);
             sk->goodbye(false);
             shutdown(sk->select_pipe[1], SHUT_RDWR);
             throw;
