@@ -733,6 +733,7 @@ static void emulate_slice(struct trace_slice slice, struct timeval end,
     if (wifi_iface.bandwidth == 0) {
         if (net_interfaces.count(wifi_iface.ip_addr.s_addr) == 1) {
             down_ifaces.push_back(wifi_iface);
+            net_interfaces.erase(wifi_iface.ip_addr.s_addr);
         }
     } else {
         net_interfaces[wifi_iface.ip_addr.s_addr] = wifi_iface;
