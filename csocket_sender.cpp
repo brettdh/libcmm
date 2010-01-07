@@ -68,9 +68,15 @@ CSocketSender::Run()
                         goodbye();
                     }
                     
-                    while (!sk->remote_shutdown) {
+                    if (!sk->remote_shutdown) {
                         pthread_cond_wait(&sk->scheduling_state_cv,
                                           &sk->scheduling_state_lock);
+
+                        // loop back around and check if there are acks waiting.
+                        //  If I don't check this, I may hang the remote side
+                        //  waiting for that one last ack, which I'll never send
+                        //  because I'm waiting for the goodbye.
+                        continue;
                     }
                     return;
                 }
