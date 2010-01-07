@@ -259,7 +259,7 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
                 //  measurement purposes
                 struct timeval inval = {0, -1};
                 IROBSchedulingData data(id, inval);
-                sk->irob_indexes.waiting_acks.insert(data);
+                csock->irob_indexes.waiting_acks.insert(data);
                 pthread_cond_broadcast(&sk->scheduling_state_cv);
                 return;
             } else {
