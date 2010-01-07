@@ -1528,6 +1528,10 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
         return;
     }
 
+    // Restart bootstrapper if it's using this interface
+    //  (and if it's still running)
+    bootstrapper->restart(iface);
+
     PthreadScopedRWLock sock_lock(&my_lock, true);
     
     csock_map->teardown(iface, local);

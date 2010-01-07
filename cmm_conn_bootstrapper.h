@@ -14,6 +14,8 @@ class ConnBootstrapper : public CMMThread {
     bool done();
     bool succeeded();
     int status();
+    
+    void restart(struct net_interface down_iface);
   protected:
     virtual void Run();
     virtual void Finish();
@@ -24,6 +26,8 @@ class ConnBootstrapper : public CMMThread {
 
     char *remote_addr;
     socklen_t addrlen;
+
+    bool retry;
 };
 
 #endif
