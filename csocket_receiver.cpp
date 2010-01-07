@@ -200,8 +200,8 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     }
 
 
-    PendingIROB *pirob = new PendingReceiverIROB(id, numdeps, deps, 0, NULL,
-						 ntohl(hdr.send_labels));
+    PendingReceiverIROB *pirob = new PendingReceiverIROB(id, numdeps, deps, 0, NULL,
+                                                         ntohl(hdr.send_labels));
     
     {
         PthreadScopedLock lock(&sk->scheduling_state_lock);
@@ -215,7 +215,17 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     if (numdeps > 0) {
         delete [] deps;
     }
-
+    
+    sk->incoming_irobs.release_if_ready(pirob, ReadyIROB());
+    
+    if (pirob->is_complete()) {
+        struct timeval completion_time;
+        TIME(completion_time);
+        IROBSchedulingData data(id, completion_time);
+        csock->irob_indexes.waiting_acks.insert(data);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
+    }
+    
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Receiver began IROB %ld, took %lu.%06lu seconds\n",
