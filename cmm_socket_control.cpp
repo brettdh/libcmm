@@ -8,6 +8,12 @@
 #include <iomanip>
 using std::setfill; using std::setw;
 
+CMMSocketControlHdr::CMMSocketControlHdr()
+{
+    memset(this, 0, sizeof(this));
+    type = CMM_CONTROL_MSG_INVALID;
+}
+
 const char *
 CMMSocketControlHdr::type_str() const
 {
@@ -37,8 +43,10 @@ std::string
 CMMSocketControlHdr::describe() const
 {
     std::ostringstream stream;
-    stream << "Type: " << type_str() << " ";
-    stream << "Send labels: " << ntohl(send_labels) << " ";
+    if (ntohs(type) != CMM_CONTROL_MSG_INVALID) {
+        stream << " Type: " << type_str() << " ";
+        stream << "Send labels: " << ntohl(send_labels) << " ";
+    }
 
     switch (ntohs(type)) {
     case CMM_CONTROL_MSG_HELLO:
@@ -104,6 +112,12 @@ CMMSocketControlHdr::describe() const
         break;
     };
     return stream.str();
+}
+
+CMMControlException::CMMControlException(const std::string& str)
+    : std::runtime_error(str)
+{
+    /* empty */
 }
 
 CMMControlException::CMMControlException(const std::string& str, 

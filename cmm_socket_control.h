@@ -111,6 +111,8 @@ struct data_check_data {
 };
 
 struct CMMSocketControlHdr {
+    CMMSocketControlHdr();
+
     short type;
     u_long send_labels;
     short msgtype() { return type; }
@@ -137,6 +139,7 @@ struct CMMSocketControlHdr {
 
 class CMMControlException : public std::runtime_error {
   public:
+    CMMControlException(const std::string&);
     CMMControlException(const std::string&, struct CMMSocketControlHdr);
     struct CMMSocketControlHdr hdr;
 };
@@ -148,6 +151,7 @@ class CMMControlException : public std::runtime_error {
  * that doesn't exist at the receiver. */
 class CMMFatalError : public CMMControlException {
   public:
+    CMMFatalError(const std::string& str) : CMMControlException(str) {}
     CMMFatalError(const std::string& str, struct CMMSocketControlHdr hdr)
         : CMMControlException(str, hdr) {}
 };

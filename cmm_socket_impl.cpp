@@ -53,7 +53,7 @@ size_t CMMSocketImpl::fg_count;
 
 void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
 {
-    struct CMMSocketControlHdr hdr = {0};
+    struct CMMSocketControlHdr hdr;
     int rc = recv(bootstrap_sock, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr)) {
 	perror("recv");
@@ -84,7 +84,7 @@ void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
 
 void CMMSocketImpl::recv_remote_listeners(int bootstrap_sock)
 {
-    struct CMMSocketControlHdr hdr = {0};
+    struct CMMSocketControlHdr hdr;
     int rc = recv(bootstrap_sock, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr) || ntohs(hdr.type) != CMM_CONTROL_MSG_HELLO) {
 	perror("recv");
@@ -106,7 +106,7 @@ void CMMSocketImpl::recv_remote_listeners(int bootstrap_sock)
 void CMMSocketImpl::send_local_listener(int bootstrap_sock, 
                                         struct net_interface iface)
 {
-    struct CMMSocketControlHdr hdr = {0};
+  struct CMMSocketControlHdr hdr;
     hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
     hdr.op.new_interface.ip_addr = iface.ip_addr;
     hdr.op.new_interface.labels = htonl(iface.labels);
@@ -124,7 +124,7 @@ void CMMSocketImpl::send_local_listener(int bootstrap_sock,
 
 void CMMSocketImpl::send_local_listeners(int bootstrap_sock)
 {
-    struct CMMSocketControlHdr hdr = {0};
+    struct CMMSocketControlHdr hdr;
     hdr.type = htons(CMM_CONTROL_MSG_HELLO);
 
     {

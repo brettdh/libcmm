@@ -48,12 +48,13 @@ CSocketSender::Run()
     try {
         int rc = csock->phys_connect();
         if (rc < 0) {
-            struct CMMSocketControlHdr hdr;
-            hdr.type = htons(CMM_CONTROL_MSG_GOODBYE);
-            hdr.send_labels = 0;
-            throw CMMControlException("Failed to connect new CSocket", hdr);
-        } else {
-            
+            if (errno == ECONNREFUSED) {
+                // if there's no remote listener, we won't be able to mamke
+                //  any more connections, period.  So kill the multisocket.
+                throw CMMFatalError("Remote listener is gone");
+            }
+
+            throw CMMControlException("Failed to connect new CSocket");
         }
 
         PthreadScopedLock lock(&sk->scheduling_state_lock);
@@ -81,12 +82,9 @@ CSocketSender::Run()
                 if (sk->shutting_down && sk->goodbye_sent) {
                     throw std::runtime_error("Connection closed");
                 } else {
-                    struct CMMSocketControlHdr hdr;
-                    hdr.type = htons(CMM_CONTROL_MSG_GOODBYE);
-                    hdr.send_labels = 0;
                     throw CMMControlException("Receiver died due to "
                                               "socket error; "
-                                              "sender is quitting", hdr);
+                                              "sender is quitting");
                 }
             }
 
@@ -151,6 +149,18 @@ CSocketSender::Run()
             }
             // something happened; we might be able to do some work
         }
+    } catch (CMMFatalError& e) {
+        dbgprintf("Fatal error on multisocket %d: %s\n",
+                  sk->sock, e.what());
+        
+        PthreadScopedLock lock(&sk->scheduling_state_lock);
+        sk->shutting_down = true;
+        sk->remote_shutdown = true;
+        sk->goodbye_sent = true;
+        
+        shutdown(sk->select_pipe[1], SHUT_RDWR);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
+        throw;
     } catch (CMMControlException& e) {
         //pthread_mutex_unlock(&sk->scheduling_state_lock); // no longer held here
         sk->csock_map->remove_csock(csock);
