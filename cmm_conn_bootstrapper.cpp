@@ -60,6 +60,8 @@ void ConnBootstrapper::Run()
     }
 
     do {
+        retry = false;
+
         try {
             if (bootstrap_sock != -1) {
                 /* we are accepting a connection */
@@ -101,13 +103,6 @@ void ConnBootstrapper::Run()
                         status_ = errno;
                         dbgprintf("Error connecting bootstrap socket: %s\n",
                                   strerror(errno));
-                        if (retry) {
-                            close(bootstrap_sock);
-                            bootstrap_sock = -1;
-
-                            // we were interrupted by the scout bringing down this interface.
-                            continue;
-                        }
                         throw rc;
                     }
                 }
@@ -121,7 +116,13 @@ void ConnBootstrapper::Run()
             // no errors; must have succeeded
             status_ = 0;
         } catch (int error_rc) {
-            if (status_ != EINPROGRESS) {
+            PthreadScopedRWLock sock_lock(&sk->my_lock, true);
+            if (retry) {
+                // we were interrupted by the scout bringing down this interface.
+                close(bootstrap_sock);
+                bootstrap_sock = -1;
+                status_ = EINPROGRESS;
+            } else if (status_ != EINPROGRESS) {
                 status_ = ECONNREFUSED;
             }
             // fall through so write-select returns
