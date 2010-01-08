@@ -82,16 +82,18 @@
 Post-Mobisys TODO items
 ------------------------
 * Consider adding irob_cancel and irob_change_label to the API.
+
 --DONE-- * Fix the round-robin-scheduling bug; an IROB should be sent in its
---DONE--   entirety before moving on to the next IROB of that label.
-* Fix the inefficiency in retransmitting lost IROB data; ask the receiver
-   how much data has been received before retransmitting any.
+--DONE--    entirety before moving on to the next IROB of that label.
+--DONE-- * Fix the inefficiency in retransmitting lost IROB data; ask the receiver
+--DONE--    how much data has been received before retransmitting any.
 --DONE-- * Track down and squash the bugs that resulted in very high variance
 --DONE--    and sporadic failure in the BlueFS intermittent scenario (due to app-level 
 --DONE--    timeouts that shouldn't be happening).
 
-* Debug the existing IMAP caching proxy and get it working for the
-  current simple no-caching, pass-through sanity check.
+--DONE-- * Debug the existing IMAP caching proxy and get it working for the
+--DONE--   current simple no-caching, pass-through sanity check.
+
 * Construct an interesting benchmark for the Thunderbird->IMAPCachingProxy app.
   * Iterate:
     * Build the necessary features in that app.
