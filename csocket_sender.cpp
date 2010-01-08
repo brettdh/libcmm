@@ -48,34 +48,36 @@ CSocketSender::Run()
     try {
         int rc = csock->phys_connect();
         if (rc < 0) {
-            struct CMMSocketControlHdr hdr;
-            hdr.type = htons(CMM_CONTROL_MSG_GOODBYE);
-            hdr.send_labels = 0;
-            throw CMMControlException("Failed to connect new CSocket", hdr);
-        } else {
-            
+            if (errno == ECONNREFUSED) {
+                // if there's no remote listener, we won't be able to mamke
+                //  any more connections, period.  So kill the multisocket.
+                throw CMMFatalError("Remote listener is gone");
+            }
+
+            throw CMMControlException("Failed to connect new CSocket");
         }
 
         PthreadScopedLock lock(&sk->scheduling_state_lock);
         while (1) {
-            if (sk->is_shutting_down()) {
+            if (sk->shutting_down) {
                 if (csock->irob_indexes.waiting_acks.empty()
                     && sk->irob_indexes.waiting_acks.empty()
                     && sk->outgoing_irobs.empty()) {
-
-                    {
-                        PthreadScopedLock shdwn_lock(&sk->shutdown_mutex);
-                        if (!sk->goodbye_sent && !sk->sending_goodbye) {
-                            shdwn_lock.release();
-                            sk->sending_goodbye = true;
-                            goodbye();
-                        }
+                    
+                    if (!sk->goodbye_sent && !sk->sending_goodbye) {
+                        sk->sending_goodbye = true;
+                        goodbye();
                     }
-                    lock.release();
-                    PthreadScopedLock shdwn_lock(&sk->shutdown_mutex);
-                    while (!sk->remote_shutdown) {
-                        pthread_cond_wait(&sk->shutdown_cv,
-                                          &sk->shutdown_mutex);
+                    
+                    if (!sk->remote_shutdown) {
+                        pthread_cond_wait(&sk->scheduling_state_cv,
+                                          &sk->scheduling_state_lock);
+
+                        // loop back around and check if there are acks waiting.
+                        //  If I don't check this, I may hang the remote side
+                        //  waiting for that one last ack, which I'll never send
+                        //  because I'm waiting for the goodbye.
+                        continue;
                     }
                     return;
                 }
@@ -83,15 +85,12 @@ CSocketSender::Run()
             
             if (csock->csock_recvr == NULL) {
                 dbgprintf("Hmm, the receiver died.  Checking why.\n");
-                if (sk->is_shutting_down() && sk->goodbye_sent) {
+                if (sk->shutting_down && sk->goodbye_sent) {
                     throw std::runtime_error("Connection closed");
                 } else {
-                    struct CMMSocketControlHdr hdr;
-                    hdr.type = htons(CMM_CONTROL_MSG_GOODBYE);
-                    hdr.send_labels = 0;
                     throw CMMControlException("Receiver died due to "
                                               "socket error; "
-                                              "sender is quitting", hdr);
+                                              "sender is quitting");
                 }
             }
 
@@ -156,6 +155,18 @@ CSocketSender::Run()
             }
             // something happened; we might be able to do some work
         }
+    } catch (CMMFatalError& e) {
+        dbgprintf("Fatal error on multisocket %d: %s\n",
+                  sk->sock, e.what());
+        
+        PthreadScopedLock lock(&sk->scheduling_state_lock);
+        sk->shutting_down = true;
+        sk->remote_shutdown = true;
+        sk->goodbye_sent = true;
+        
+        shutdown(sk->select_pipe[1], SHUT_RDWR);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
+        throw;
     } catch (CMMControlException& e) {
         //pthread_mutex_unlock(&sk->scheduling_state_lock); // no longer held here
         sk->csock_map->remove_csock(csock);
@@ -178,11 +189,9 @@ CSocketSender::Run()
                       sk->sock);
             shutdown(sk->select_pipe[1], SHUT_RDWR);
 
-            PthreadScopedLock lock(&sk->shutdown_mutex);
             sk->shutting_down = true;
             sk->remote_shutdown = true;
             sk->goodbye_sent = true;
-            pthread_cond_broadcast(&sk->shutdown_cv);
         }
         pthread_cond_broadcast(&sk->scheduling_state_cv);
         // csock will get cleaned up in Finish()
@@ -686,7 +695,7 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
     hdr.op.end_irob.expected_bytes = htonl(for_each(pirob->chunks.begin(),
                                                     pirob->chunks.end(),
                                                     SumFunctor()).sum);
-    hdr.send_labels = htonl(csock->local_iface.labels);
+    hdr.send_labels = htonl(pirob->send_labels);
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
@@ -1102,10 +1111,8 @@ CSocketSender::goodbye()
         throw CMMControlException("Socket error", hdr);
     }
     
-    PthreadScopedLock lock(&sk->shutdown_mutex);
     sk->goodbye_sent = true;
-
-    pthread_cond_broadcast(&sk->shutdown_cv);
+    pthread_cond_broadcast(&sk->scheduling_state_cv);
 }
 
 void

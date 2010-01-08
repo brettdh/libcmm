@@ -327,7 +327,7 @@ EndToEndTestsBase::testPartialRecv()
             CPPUNIT_ASSERT_EQUAL_MESSAGE("cmm_send succeeds",
                                          send_chunksize, rc);
             bytes_sent += rc;
-            sleep(1);
+            sleep(3);
         }
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Sent all bytes",
                                      msglen, bytes_sent);

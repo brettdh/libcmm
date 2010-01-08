@@ -295,8 +295,6 @@ class CMMSocketImpl : public CMMSocket {
      * via shutdown() or close(). */
     bool shutting_down;
     bool remote_shutdown; /* true if remote has ack'd the shutdown */
-    pthread_mutex_t shutdown_mutex;
-    pthread_cond_t shutdown_cv;
     bool goodbye_sent;
     
     // for protecting data structures that comprise the "state"

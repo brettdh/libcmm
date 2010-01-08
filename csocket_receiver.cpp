@@ -96,6 +96,8 @@ CSocketReceiver::Run(void)
         } catch (CMMFatalError& e) {
             dbgprintf("Fatal error on multisocket %d: %s\n",
                       sk->sock, e.what());
+
+            PthreadScopedRWLock lock(&sk->my_lock, false);
             sk->goodbye(false);
             shutdown(sk->select_pipe[1], SHUT_RDWR);
             throw;
@@ -198,8 +200,8 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     }
 
 
-    PendingIROB *pirob = new PendingReceiverIROB(id, numdeps, deps, 0, NULL,
-						 ntohl(hdr.send_labels));
+    PendingReceiverIROB *pirob = new PendingReceiverIROB(id, numdeps, deps, 0, NULL,
+                                                         ntohl(hdr.send_labels));
     
     {
         PthreadScopedLock lock(&sk->scheduling_state_lock);
@@ -213,7 +215,17 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     if (numdeps > 0) {
         delete [] deps;
     }
-
+    
+    sk->incoming_irobs.release_if_ready(pirob, ReadyIROB());
+    
+    if (pirob->is_complete()) {
+        struct timeval completion_time;
+        TIME(completion_time);
+        IROBSchedulingData data(id, completion_time);
+        csock->irob_indexes.waiting_acks.insert(data);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
+    }
+    
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Receiver began IROB %ld, took %lu.%06lu seconds\n",
@@ -247,7 +259,7 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
                 //  measurement purposes
                 struct timeval inval = {0, -1};
                 IROBSchedulingData data(id, inval);
-                sk->irob_indexes.waiting_acks.insert(data);
+                csock->irob_indexes.waiting_acks.insert(data);
                 pthread_cond_broadcast(&sk->scheduling_state_cv);
                 return;
             } else {
@@ -452,12 +464,14 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
 
     size_t num_acks = ntohl(hdr.op.ack.num_acks);
 #ifdef CMM_TIMING
-    if (timing_file) {
-	PthreadScopedLock lock(&timing_mutex);
-	struct timeval now;
-	TIME(now);
-	fprintf(timing_file, "%lu.%06lu : ACKs received for %d IROBs: %ld ", 
-		now.tv_sec, now.tv_usec, num_acks + 1, id);
+    {
+        PthreadScopedLock lock(&timing_mutex);
+        if (timing_file) {
+            struct timeval now;
+            TIME(now);
+            fprintf(timing_file, "%lu.%06lu : ACKs received for %d IROBs: %ld ", 
+                    now.tv_sec, now.tv_usec, num_acks + 1, id);
+        }
     }
 #endif
 
@@ -481,18 +495,22 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
             csock->stats.report_ack(id, srv_time, ack_qdelay, &ack_time);
             sk->ack_received(id);
 #ifdef CMM_TIMING
-	    if (timing_file) {
-		PthreadScopedLock lock(&timing_mutex);
-		fprintf(timing_file, "%ld ", id);
-	    }
+            {
+                PthreadScopedLock lock(&timing_mutex);
+                if (timing_file) {
+                    fprintf(timing_file, "%ld ", id);
+                }
+            }
 #endif
         }
         delete [] acked_irobs;
     }
 #ifdef CMM_TIMING
-    if (timing_file) {
-	PthreadScopedLock lock(&timing_mutex);
-	fprintf(timing_file, "\n");
+    {
+        PthreadScopedLock lock(&timing_mutex);
+        if (timing_file) {
+            fprintf(timing_file, "\n");
+        }
     }
 #endif
 
