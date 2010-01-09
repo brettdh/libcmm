@@ -19,7 +19,8 @@
 #include <linux/tcp.h>
 #include <arpa/inet.h>
 #include <vector>
-using std::vector;
+#include <algorithm>
+using std::vector; using std::max;
 
 #include <errno.h>
 
@@ -489,6 +490,11 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 	    chunksize = csock->bandwidth();
 	    do_trickle = true;
 	}
+        
+        // Avoid sending tiny chunks and thereby killing throughput with
+        //  header overhead
+        const int MIN_CHUNKSIZE = 1500; // one Ethernet MTU
+        chunksize = max(chunksize, MIN_CHUNKSIZE);
 	
         int unsent_bytes = get_unsent_bytes(csock->osfd);
         if (unsent_bytes < 0) {
@@ -520,7 +526,7 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 	    }
 #endif
 	    
-	    chunksize = chunksize - unsent_bytes;
+	    //chunksize = chunksize - unsent_bytes;
         }
     }
     
