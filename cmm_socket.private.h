@@ -182,11 +182,11 @@ class CMMSocketImpl : public CMMSocket {
 
     CSockMapping *csock_map;
 
-    static struct timeval last_fg; // the time of the last foreground activity.
-    static struct timeval total_inter_fg_time; // time between fg actions
-    static size_t fg_count;
-    static bool okay_to_send_bg(struct timeval& time_since_last_fg);
-    static struct timeval bg_wait_time();
+    //static struct timeval last_fg; // the time of the last foreground activity.
+    //static struct timeval total_inter_fg_time; // time between fg actions
+    //static size_t fg_count;
+    //static bool okay_to_send_bg(struct timeval& time_since_last_fg);
+    //static struct timeval bg_wait_time();
     static void update_last_fg();
 
     NetInterfaceSet local_ifaces;

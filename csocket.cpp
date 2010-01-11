@@ -39,6 +39,9 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
     pthread_mutex_init(&csock_lock, NULL);
     pthread_cond_init(&csock_cv, NULL);
 
+    //TIME(last_fg);
+    last_fg.tv_sec = last_fg.tv_usec = 0;
+
     assert(sk);
     if (accepted_sock == -1) {
         osfd = socket(sk->sock_family, sk->sock_type, sk->sock_protocol);
@@ -209,7 +212,6 @@ bool CSocket::is_fg()
             matches(CMM_LABEL_ONDEMAND|CMM_LABEL_LARGE));
 }
 
-
 u_long
 CSocket::bandwidth()
 {
@@ -314,4 +316,16 @@ CSocket::trickle_chunksize()/*struct timeval time_since_last_fg,
     //ssize_t chunksize = max(chunksize, min_chunksize);
     ssize_t chunksize = max_chunksize;
     return chunksize;
+}
+
+void
+CSocket::update_last_fg()
+{
+    //struct timeval now;
+    //struct timeval diff;
+    //TIME(now);
+
+    //TIMEDIFF(last_fg, now, diff);
+    //last_fg = now;
+    TIME(last_fg);
 }

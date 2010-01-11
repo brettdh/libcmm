@@ -84,6 +84,9 @@ class CSocket {
     CSocketSender *csock_sendr;
     CSocketReceiver *csock_recvr;
 
+    struct timeval last_fg;
+    void update_last_fg();
+
     // for coordination between this CSocket's worker threads
     pthread_mutex_t csock_lock;
     pthread_cond_t csock_cv;

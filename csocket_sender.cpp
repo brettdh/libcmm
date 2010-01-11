@@ -485,7 +485,8 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 	// hack to increase trickling rate when FG traffic ceases
 	struct timeval time_since_last_fg, now;
 	TIME(now);
-	TIMEDIFF(CMMSocketImpl::last_fg, now, time_since_last_fg);
+	//TIMEDIFF(CMMSocketImpl::last_fg, now, time_since_last_fg);
+        TIMEDIFF(csock->last_fg, now, time_since_last_fg);
 	if (time_since_last_fg.tv_sec > 5) {
 	    chunksize = csock->bandwidth();
 	    do_trickle = true;
@@ -657,7 +658,8 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     }
 
     if (data.send_labels & CMM_LABEL_ONDEMAND) {
-        CMMSocketImpl::update_last_fg();
+        //CMMSocketImpl::update_last_fg();
+        csock->update_last_fg();
     }
 
     pirob = sk->outgoing_irobs.find(id);
@@ -926,7 +928,8 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     }
 
     if (data.send_labels & CMM_LABEL_ONDEMAND) {
-        CMMSocketImpl::update_last_fg();
+        //CMMSocketImpl::update_last_fg();
+        csock->update_last_fg();
     }
 
     // It might've been ACK'd and removed, so check first

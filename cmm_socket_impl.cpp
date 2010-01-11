@@ -46,9 +46,9 @@ IROBSockHash CMMSocketImpl::irob_sock_hash;
 irob_id_t CMMSocketImpl::g_next_irob;
 pthread_mutex_t CMMSocketImpl::hashmaps_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-struct timeval CMMSocketImpl::last_fg;
-struct timeval CMMSocketImpl::total_inter_fg_time;
-size_t CMMSocketImpl::fg_count;
+// struct timeval CMMSocketImpl::last_fg;
+// struct timeval CMMSocketImpl::total_inter_fg_time;
+// size_t CMMSocketImpl::fg_count;
 
 
 void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
@@ -356,9 +356,9 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
       irob_indexes(0),
       sending_goodbye(false)
 {
-    TIME(last_fg);
-    total_inter_fg_time.tv_sec = total_inter_fg_time.tv_usec = 0;
-    fg_count = 0;
+//     TIME(last_fg);
+//     total_inter_fg_time.tv_sec = total_inter_fg_time.tv_usec = 0;
+//     fg_count = 0;
 
     /* reserve a dummy OS file descriptor for this mc_socket. */
     sock = socket(family, type, protocol);
@@ -1867,9 +1867,11 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 
 	psirob->add_chunk(chunk); /* writes correct seqno into struct */
 
+        /*
         if (send_labels & CMM_LABEL_ONDEMAND) {
             update_last_fg();
         }
+        */
 
         if (psirob->announced) {
             if (csock->is_connected()) {
@@ -2311,43 +2313,43 @@ CMMSocketImpl::mc_set_failure_timeout(u_long label, const struct timespec *ts)
     }
 }
 
-bool
-CMMSocketImpl::okay_to_send_bg(struct timeval& time_since_last_fg)
-{
-    struct timeval now;
-    TIME(now);
+// bool
+// CMMSocketImpl::okay_to_send_bg(struct timeval& time_since_last_fg)
+// {
+//     struct timeval now;
+//     TIME(now);
     
-    TIMEDIFF(last_fg, now, time_since_last_fg);
-    struct timeval wait_time = bg_wait_time();
-    return timercmp(&time_since_last_fg, &wait_time, >=);
-}
+//     TIMEDIFF(last_fg, now, time_since_last_fg);
+//     struct timeval wait_time = bg_wait_time();
+//     return timercmp(&time_since_last_fg, &wait_time, >=);
+// }
 
-struct timeval
-CMMSocketImpl::bg_wait_time()
-{
-    struct timeval avg = {0, 500000};
+// struct timeval
+// CMMSocketImpl::bg_wait_time()
+// {
+//     struct timeval avg = {0, 500000};
 
-    // wait 2x the avg time between FG requests.
+//     // wait 2x the avg time between FG requests.
 
-    // XXX: may want to tweak this to bound probability of 
-    //  interfering with foreground traffic.  That would
-    //  assume the foreground traffic pattern distribution
-    //  is consistent.
-    double count = (double)fg_count / 2;
-    if (fg_count > 0) {
-        timerdiv(&total_inter_fg_time, count, &avg);
-    }
-    return avg;
-}
+//     // XXX: may want to tweak this to bound probability of 
+//     //  interfering with foreground traffic.  That would
+//     //  assume the foreground traffic pattern distribution
+//     //  is consistent.
+//     double count = (double)fg_count / 2;
+//     if (fg_count > 0) {
+//         timerdiv(&total_inter_fg_time, count, &avg);
+//     }
+//     return avg;
+// }
 
-void
-CMMSocketImpl::update_last_fg()
-{
-    struct timeval now, diff;
-    TIME(now);
+// void
+// CMMSocketImpl::update_last_fg()
+// {
+//     struct timeval now, diff;
+//     TIME(now);
 
-    TIMEDIFF(last_fg, now, diff);
-    timeradd(&total_inter_fg_time, &diff, &total_inter_fg_time);
-    fg_count++;
-    last_fg = now;
-}
+//     TIMEDIFF(last_fg, now, diff);
+//     timeradd(&total_inter_fg_time, &diff, &total_inter_fg_time);
+//     fg_count++;
+//     last_fg = now;
+// }
