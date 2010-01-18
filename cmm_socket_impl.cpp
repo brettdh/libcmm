@@ -198,7 +198,8 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
             if (!bootstrapper->succeeded()) {
                 dbgprintf("Bootstrap failed: %s\n",
                           strerror(bootstrapper->status()));
-                delete bootstrapper;
+                //delete bootstrapper;
+                //bootstrapper = NULL;
                 throw -1;
             }
         } else {
@@ -415,9 +416,12 @@ CMMSocketImpl::~CMMSocketImpl()
     cancel_all_thunks(sock);
 
     delete csock_map;
+
+    bootstrapper->join();
     delete bootstrapper;
 
     {
+        // XXX: ugly.  maybe it can be made more like the bootstrapper.
         PthreadScopedLock lock(&scheduling_state_lock);
         if (listener_thread) {
             listener_thread->stop();

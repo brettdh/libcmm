@@ -85,8 +85,14 @@ void send_bytes(int sock, char *buf, size_t bytes)
 {
     ssize_t bytes_sent = 0;
     while (bytes_sent < (ssize_t)bytes) {
+#ifdef NOMULTISOCK
 	int rc = SEND(sock, buf + bytes_sent, 
 		      bytes - bytes_sent, 0);
+#else
+	int rc = cmm_send(sock, buf + bytes_sent, 
+                          bytes - bytes_sent, 0,
+                          CMM_LABEL_BACKGROUND, NULL, NULL);
+#endif
 	if (rc < 0) {
 	    handle_error("send", sock);
 	}
@@ -143,7 +149,7 @@ void send_bytes_by_chunk_one_irob(int sock, char *buf, size_t bytes, size_t chun
     size_t bytes_sent = 0;
     struct timespec stutter = {0, stutter_ms * 1000 * 1000};
 
-    irob_id_t irob = begin_irob(sock, 0, NULL, 0, NULL, NULL);
+    irob_id_t irob = begin_irob(sock, 0, NULL, CMM_LABEL_BACKGROUND, NULL, NULL);
     if (irob < 0) {
 	handle_error("begin_irob", sock);
     }

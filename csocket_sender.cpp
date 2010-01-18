@@ -50,7 +50,7 @@ CSocketSender::Run()
         int rc = csock->phys_connect();
         if (rc < 0) {
             if (errno == ECONNREFUSED) {
-                // if there's no remote listener, we won't be able to mamke
+                // if there's no remote listener, we won't be able to make
                 //  any more connections, period.  So kill the multisocket.
                 throw CMMFatalError("Remote listener is gone");
             }
@@ -108,7 +108,10 @@ CSocketSender::Run()
             //   Resend_Requests for each of them.
             vector<irob_id_t> unacked_irobs = sk->ack_timeouts.remove_expired();
             for (size_t i = 0; i < unacked_irobs.size(); ++i) {
-                if (sk->outgoing_irobs.find(unacked_irobs[i]) != NULL) {
+                PendingIROB *pirob = sk->outgoing_irobs.find(unacked_irobs[i]);
+                if (pirob != NULL) {
+                    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+                    assert(psirob);
                     dbgprintf("ACK timeout expired for IROB %ld, resending End_IROB\n",
                               unacked_irobs[i]);
                     IROBSchedulingData refinished_irob(unacked_irobs[i], false);
@@ -138,7 +141,7 @@ CSocketSender::Run()
 
             if (timeout.tv_sec > 0) {
 		if (!timercmp(&timeout, &trickle_timeout, ==)) {
-		    dbgprintf("Waiting until %lu.%09lu to check again for ACKs",
+		    dbgprintf("Waiting until %lu.%09lu to check again for ACKs\n",
 			      timeout.tv_sec, timeout.tv_nsec);
 		}
                 int rc = pthread_cond_timedwait(&sk->scheduling_state_cv,
@@ -981,7 +984,7 @@ CSocketSender::new_interface(struct net_interface iface)
             dbgprintf("CSocketSender: write sent only %d of %zu bytes\n",
                       rc, sizeof(hdr));
         }
-        throw CMMControlException("Socket error", hdr);        
+        throw CMMControlException("Socket error", hdr);
     }
 }
 
