@@ -62,6 +62,9 @@ class IROBPrioritySet {
     friend class IROBSchedulingIndexes;
     TaskSet tasks;
     struct IROBSchedulingIndexes *owner;
+
+    void transfer(irob_id_t id, u_long new_labels,
+                  IROBPrioritySet& other);
 };
 
 struct IROBSchedulingIndexes {
@@ -78,6 +81,11 @@ struct IROBSchedulingIndexes {
     IROBPrioritySet resend_requests;
 
     u_long send_labels;
+
+  private:
+    void transfer(irob_id_t id, u_long new_labels,
+                  IROBSchedulingIndexes& other);
+
 };
 
 #endif

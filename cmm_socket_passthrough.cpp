@@ -132,6 +132,14 @@ CMMSocketPassThrough::mc_irob_writev(irob_id_t id,
     return -1;
 }
 
+int
+CMMSocketPassThrough::irob_relabel(irob_id_t id, u_long new_labels)
+{
+    passthrough_debug_alert("irob_relabel");
+    errno = EBADF;
+    return -1;
+}
+
 int 
 CMMSocketPassThrough::mc_get_failure_timeout(u_long label, struct timespec *ts)
 {

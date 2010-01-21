@@ -92,6 +92,7 @@ class CMMSocketImpl : public CMMSocket {
                                  const void *buf, size_t len, int flags);
     virtual int mc_irob_writev(irob_id_t id, 
                                const struct iovec *vector, int count);
+    virtual int irob_relabel(irob_id_t id, u_long new_labels);
 
     static int mc_select(mc_socket_t nfds, 
 			 fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
@@ -381,6 +382,7 @@ class CMMSocketPassThrough : public CMMSocket {
                                  const void *buf, size_t len, int flags);
     virtual int mc_irob_writev(irob_id_t id, 
                                const struct iovec *vector, int count);
+    virtual int irob_relabel(irob_id_t id, u_long new_labels);
 
     virtual int mc_get_failure_timeout(u_long label, struct timespec *ts);
     virtual int mc_set_failure_timeout(u_long label, const struct timespec *ts);

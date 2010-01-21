@@ -98,6 +98,17 @@ IROBPrioritySet::remove(irob_id_t id, IROBSchedulingData& data)
     return false;
 }
 
+void
+IROBPrioritySet::transfer(irob_id_t id, u_long new_labels,
+                          IROBPrioritySet& other)
+{
+    IROBSchedulingData data;
+    if (remove(id, data)) {
+        data.send_labels = new_labels;
+        other.insert(data);
+    }
+}
+
 IROBSchedulingIndexes::IROBSchedulingIndexes(u_long send_labels_) 
     : send_labels(send_labels_) 
 {
@@ -118,4 +129,14 @@ IROBSchedulingIndexes::add(const IROBSchedulingIndexes& other)
     waiting_acks.insert_range(other.waiting_acks.begin(), other.waiting_acks.end());
     resend_requests.insert_range(other.resend_requests.begin(), 
                                  other.resend_requests.end());
+}
+
+/* transfer the IROB from this to other, giving it the new labels.
+ * this and other may be the same object. */
+void
+IROBSchedulingIndexes::transfer(irob_id_t id, u_long new_labels, 
+                                IROBSchedulingIndexes& other)
+{
+    new_irobs.transfer(id, new_labels, other.new_irobs);
+    new_chunks.transfer(id, new_labels, other.new_chunks);
 }

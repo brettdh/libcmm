@@ -2023,6 +2023,17 @@ CMMSocketImpl::send_default_irob(irob_id_t id, CSocket *csock,
     return len;
 }
 
+int
+CMMSocketImpl::irob_relabel(irob_id_t id, u_long new_labels)
+{
+    /* TODO: 
+     * for each index_set in (mine and my csocks'):
+     *     index_set->transfer(id, new_labels, this->irob_indexes);
+     * pthread_cond_broadcast(&sk->scheduling_state_cv);
+     */
+    return 0;
+}
+
 void
 CMMSocketImpl::ack_received(irob_id_t id)
 {

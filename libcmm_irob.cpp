@@ -107,3 +107,9 @@ cmm_writev_with_deps(mc_socket_t sock, const struct iovec *vector, int count,
     *irob_id = id;
     return bytes_sent;
 }
+
+int 
+irob_relabel(irob_id_t irob_id, u_long new_labels)
+{
+    return CMMSocket::lookup_by_irob(irob_id)->irob_relabel(irob_id, new_labels);
+}

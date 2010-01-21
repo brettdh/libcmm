@@ -96,6 +96,9 @@ cmm_writev_with_deps(mc_socket_t sock, const struct iovec *vector, int count,
 		     u_long send_labels, resume_handler_t fn, void *arg,
 		     irob_id_t *irob_id);
 
+/* IROB modification functions */
+int irob_change_labels(irob_id_t irob_id, u_long new_labels);
+
 /* ---------------------------------------------------------------- * 
  * NOTE: everything below this point is comments and unimplemented  *
  * functions, as per the NOTE at the top of this header.            *
