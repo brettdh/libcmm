@@ -840,8 +840,10 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     }
     vec[chunk_vec_index].iov_base = &hdr;
     vec[chunk_vec_index].iov_len = sizeof(hdr);
-    for (size_t i = chunk_vec_index; i < irob_vecs.size(); ++i) {
-        vec[i+1] = irob_vecs[i];
+    for (size_t i = 0; i < irob_vecs.size(); ++i) {
+        // skip over the ACK (if there) and the chunk hdr
+        //  and start copying the iovecs for the chunk data
+        vec[i+1+chunk_vec_index] = irob_vecs[i];
     }
 
 #ifdef CMM_TIMING
