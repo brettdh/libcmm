@@ -2064,6 +2064,17 @@ void
 CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t request,
                                        ssize_t offset)
 {
+    {
+        // try to make sure there's a socket to do the resending
+        PthreadScopedRWLock sock_lock(&my_lock, false);
+        CSocket *csock = NULL;
+        int ret = get_csock(0, NULL, NULL, csock, false);
+        if (ret < 0) {
+            goodbye(false);
+            return;
+        }
+    }
+
     PthreadScopedLock lock(&scheduling_state_lock);
     PendingIROB *pirob = outgoing_irobs.find(id);
     if (!pirob) {
@@ -2073,7 +2084,7 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
     u_long send_labels = psirob->send_labels;
-    
+
     if (request & CMM_RESEND_REQUEST_DEPS) {
         irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
     }
@@ -2087,6 +2098,17 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
 void
 CMMSocketImpl::data_check_requested(irob_id_t id)
 {
+    {
+        // try to make sure there's a socket to do the resending
+        PthreadScopedRWLock sock_lock(&my_lock, false);
+        CSocket *csock = NULL;
+        int ret = get_csock(0, NULL, NULL, csock, false);
+        if (ret < 0) {
+            goodbye(false);
+            return;
+        }
+    }
+
     PthreadScopedLock lock(&scheduling_state_lock);
     PendingIROB *pirob = incoming_irobs.find(id);
     if (!pirob) {
