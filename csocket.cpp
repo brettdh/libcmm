@@ -65,6 +65,19 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
     if (rc < 0) {
 	dbgprintf("Cannot make socket TCP_NODELAY");
     }
+
+    // we want our CSockets to die immediately on shutdown/close, and
+    //  since we have our own ACKs, it doesn't matter if TCP discards
+    //  the data.  We'll double-check that it arrived.
+    // Further, this will avoid any nasty retransmissions on dead networks.
+    struct linger ls;
+    ls.l_onoff = 1;
+    ls.l_linger = 0;
+    rc = setsockopt(osfd, SOL_SOCKET, SO_LINGER,
+                    (char*)&ls, sizeof(ls));
+    if (rc < 0) {
+        dbgprintf("Failed to set SO_LINGER\n");
+    }
 }
 
 CSocket::~CSocket()
