@@ -78,6 +78,15 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
     if (rc < 0) {
         dbgprintf("Failed to set SO_LINGER\n");
     }
+
+//     window = 131072;
+//     /* window = 2 * 1024 * 1024; */
+//     rc = setsockopt(listenSocket, SOL_SOCKET, SO_SNDBUF, (char *) &window, 
+//                     sizeof(window));
+//     if(rc < 0) EPRINT("failed to set SNDBUF\n");
+//     rc = setsockopt(listenSocket, SOL_SOCKET, SO_RCVBUF, (char *) &window, 
+//                     sizeof(window));
+//     if(rc < 0) EPRINT("failed to set RCVBUF\n");
 }
 
 CSocket::~CSocket()
