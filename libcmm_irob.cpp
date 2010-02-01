@@ -73,7 +73,9 @@ cmm_send_with_deps(mc_socket_t sock, const void *buf, size_t len, int flags,
 	return rc;
     }
 
-    *irob_id = id;
+    if (irob_id) {
+        *irob_id = id;
+    }
     return bytes_sent;
 }
 
@@ -104,7 +106,9 @@ cmm_writev_with_deps(mc_socket_t sock, const struct iovec *vector, int count,
 	return rc;
     }
 
-    *irob_id = id;
+    if (irob_id) {
+        *irob_id = id;
+    }
     return bytes_sent;
 }
 
