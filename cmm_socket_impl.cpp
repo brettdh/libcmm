@@ -1549,6 +1549,11 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
     } else {
         remote_ifaces.erase(iface);
     }
+
+    // even in the remote case, any reading threads need to
+    //  notice the csock is gone and wake up, if it's the last one
+    PthreadScopedLock lock(&scheduling_state_lock);
+    pthread_cond_broadcast(&scheduling_state_cv);
 }
 
 /* only called with read accessor held on this */

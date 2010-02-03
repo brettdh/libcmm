@@ -1177,7 +1177,7 @@ CSocketSender::Finish(void)
         shutdown(csock->osfd, SHUT_WR);
         sk->csock_map->remove_csock(csock);
         csock->csock_sendr = NULL;
-        //pthread_cond_broadcast(&sk->scheduling_state_cv);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
     }
     dbgprintf("Exiting.\n");
 
