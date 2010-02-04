@@ -28,11 +28,12 @@ ThreadCleanup(void * arg)
     pthread_cond_signal(&thread->starter_cv);
     pthread_mutex_unlock(&thread->starter_mutex);
 
+    pthread_t tid = thread->tid;
     thread->Finish();
 
     {
         PthreadScopedLock lock(&CMMThread::joinable_lock);
-        CMMThread::joinable_threads.erase(thread->tid);
+        CMMThread::joinable_threads.erase(tid);
     }
 }
 

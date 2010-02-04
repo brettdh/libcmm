@@ -106,7 +106,8 @@ void CMMSocketImpl::recv_remote_listeners(int bootstrap_sock)
 void CMMSocketImpl::send_local_listener(int bootstrap_sock, 
                                         struct net_interface iface)
 {
-  struct CMMSocketControlHdr hdr;
+    struct CMMSocketControlHdr hdr;
+    memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
     hdr.op.new_interface.ip_addr = iface.ip_addr;
     hdr.op.new_interface.labels = htonl(iface.labels);
@@ -125,6 +126,7 @@ void CMMSocketImpl::send_local_listener(int bootstrap_sock,
 void CMMSocketImpl::send_local_listeners(int bootstrap_sock)
 {
     struct CMMSocketControlHdr hdr;
+    memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_HELLO);
 
     {
@@ -168,6 +170,7 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
             listener_thread = new ListenerThread(this);
             rc = listener_thread->start();
             if (rc != 0) {
+                delete listener_thread;
                 throw rc;
             }
         }
@@ -859,6 +862,7 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
     }
     dbgprintf_plain("]\n");
     if (rc <= 0) {
+        delete [] realfds;
 	return rc;
     }
 
@@ -906,7 +910,7 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
             }
         }
     }
-    delete realfds;
+    delete [] realfds;
 
     dbgprintf("Returning %d from mc_poll(): %lu fds [ ",
               rc, nfds);
