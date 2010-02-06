@@ -61,14 +61,11 @@ CSocketSender::Run()
         PthreadScopedLock lock(&sk->scheduling_state_lock);
         while (1) {
             if (sk->shutting_down) {
-//                 if (csock->irob_indexes.waiting_acks.empty()
-//                     && sk->irob_indexes.waiting_acks.empty()
-//                     && csock->irob_indexes.resend_requests.empty()
-//                     && sk->irob_indexes.resend_requests.empty()
-//                     && sk->outgoing_irobs.empty()) {
-                if (!schedule_work(csock->irob_indexes) &&
-                    !schedule_work(sk->irob_indexes)) {
-                    
+                 if (csock->irob_indexes.waiting_acks.empty()
+                     && sk->irob_indexes.waiting_acks.empty()
+                     && csock->irob_indexes.resend_requests.empty()
+                     && sk->irob_indexes.resend_requests.empty()
+                     && sk->outgoing_irobs.empty()) {
                     if (!sk->goodbye_sent && !sk->sending_goodbye) {
                         sk->sending_goodbye = true;
                         goodbye();
