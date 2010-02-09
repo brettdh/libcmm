@@ -857,10 +857,12 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
             socklen_t len = sizeof(info);
             info.tcpi_rtt = 0;
             (void)getsockopt(csock->osfd, IPPROTO_TCP, TCP_INFO, &info, &len);
-            fprintf(timing_file, "%lu.%06lu CSocketSender: IROB %ld about to send %u bytes with label %lu on %s est bw %lu rtt %lu tcpi_rtt %f\n",
+            fprintf(timing_file, "%lu.%06lu CSocketSender: IROB %ld about to send %u bytes with label %lu %s ",
                     now.tv_sec, now.tv_usec, id,
                     (sizeof(hdr) + chunksize), data.send_labels,
-		    inet_ntoa(csock->local_iface.ip_addr),
+		    inet_ntoa(csock->local_iface.ip_addr));
+            fprintf(timing_file, "=> %s est bw %lu rtt %lu tcpi_rtt %f\n",
+                    inet_ntoa(csock->remote_iface.ip_addr),
 		    csock->bandwidth(), (u_long)csock->RTT(),
                     info.tcpi_rtt / 1000000.0);
         }
