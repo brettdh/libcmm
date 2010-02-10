@@ -72,14 +72,24 @@ CSocketSender::Run()
                     }
                     
                     if (!sk->remote_shutdown) {
-                        pthread_cond_wait(&sk->scheduling_state_cv,
-                                          &sk->scheduling_state_lock);
+                        struct timespec rel_timeout_ts = {
+                            120, 0 // 2-minute shutdown timeout
+                        };
+                        struct timespec shutdown_timeout = abs_time(rel_timeout_ts);
+                        
+                        int rc = pthread_cond_timedwait(&sk->scheduling_state_cv,
+                                                        &sk->scheduling_state_lock,
+                                                        &shutdown_timeout);
 
-                        // loop back around and check if there are acks waiting.
-                        //  If I don't check this, I may hang the remote side
-                        //  waiting for that one last ack, which I'll never send
-                        //  because I'm waiting for the goodbye.
-                        continue;
+                        if (rc == 0) {
+                            // loop back around and check if there are acks waiting.
+                            //  If I don't check this, I may hang the remote side
+                            //  waiting for that one last ack, which I'll never send
+                            //  because I'm waiting for the goodbye.
+                            continue;
+                        } else {
+                            dbgprintf("Timed out waiting for goodbye; shutting down\n");
+                        }
                     }
                     return;
                 }
