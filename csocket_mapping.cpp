@@ -209,9 +209,26 @@ struct LabelMatcher {
             }
         } else if (send_label & CMM_LABEL_BACKGROUND ||
                    send_label == 0) {
+            if (send_label & CMM_LABEL_SMALL &&
+                min_RTT < ULONG_MAX) {
+                local_iface = min_RTT_iface_pair.first;
+                remote_iface = min_RTT_iface_pair.second;
+                return true;
+            } else if (send_label & CMM_LABEL_LARGE) {
+                local_iface = max_bw_iface_pair.first;
+                remote_iface = max_bw_iface_pair.second;
+                return true;
+            } else {
+                // TODO: try to check based on the actual size
+                local_iface = max_bw_iface_pair.first;
+                remote_iface = max_bw_iface_pair.second;
+                return true;            
+            }
+            /*
             local_iface = max_bw_iface_pair.first;
             remote_iface = max_bw_iface_pair.second;
             return true;
+            */
         }
         return false;
     }
