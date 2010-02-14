@@ -1872,8 +1872,8 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
         PthreadScopedLock lock(&scheduling_state_lock);
 
 	chunk.id = id;
-	chunk.seqno = INVALID_IROB_SEQNO; /* will be overwritten 
-					   * with valid seqno */
+	chunk.seqno = 0; /* will be overwritten 
+                          * with new seqno */
 	chunk.datalen = len;
 	chunk.data = new char[len];
 	memcpy(chunk.data, buf, len);

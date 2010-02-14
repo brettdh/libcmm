@@ -442,7 +442,13 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
             if (!data.chunks_ready) {
                 match->irob_indexes.new_irobs.insert(data);
             } else {
-                match->irob_indexes.new_chunks.insert(data);
+                if (psirob->chunk_in_flight) {
+                    // other thread is already sending it; I'll try to
+                    //  send this chunk in parallel
+                    return false;
+                } else {
+                    match->irob_indexes.new_chunks.insert(data);
+                }
             }
             pthread_cond_broadcast(&sk->scheduling_state_cv);
             return true;
@@ -784,7 +790,8 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
         // another thread is sending a chunk; it will
         // signal for the next chunk to be sent when it is done
         // XXX: this will need to be changed to enable striping.
-        return true;
+        //return true;
+        dbgprintf("Sending a chunk in parallel\n");
     }
 
     if (psirob->needs_data_check()) {
@@ -793,7 +800,9 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
         data_check_hdr.type = htons(CMM_CONTROL_MSG_DATA_CHECK);
         data_check_hdr.send_labels = htonl(pirob->send_labels);
         data_check_hdr.op.data_check.id = htonl(id);
+        pthread_mutex_unlock(&sk->scheduling_state_lock);
         int rc = write(csock->osfd, &data_check_hdr, sizeof(data_check_hdr));
+        pthread_mutex_lock(&sk->scheduling_state_lock);
         if (rc != sizeof(data_check_hdr)) {
             sk->irob_indexes.new_chunks.insert(data);
             pthread_cond_broadcast(&sk->scheduling_state_cv);
@@ -880,6 +889,11 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
 #endif
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
+    if (!psirob->chunk_in_flight) {
+        // let other threads try to send this chunk too
+        sk->irob_indexes.new_chunks.insert(data);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
+    }
     psirob->chunk_in_flight = true;
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     if (waiting_ack_irob != -1) {
