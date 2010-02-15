@@ -104,6 +104,32 @@ CSockMapping::setup(struct net_interface iface, bool local)
         matches[i]->stats.update(matches[i]->local_iface,
                                  matches[i]->remote_iface);
     }
+
+    // Let's try making a CSocket whenever a network pair becomes available.
+    //  That way, it will be available for striping, even if I haven't 
+    //  asked for labels that create CSockets on all networks.
+    NetInterfaceSet::iterator it, end;
+    CMMSocketImplPtr skp(sk);
+    if (local) { 
+        it = skp->remote_ifaces.begin();
+        end = skp->remote_ifaces.end();
+    } else {
+        it = skp->local_ifaces.begin();
+        end = skp->local_ifaces.end();
+    }
+    for (; it != end; ++it) {
+        struct net_interface local_iface, remote_iface;
+        if (local) {
+            local_iface = iface;
+            remote_iface = *it;
+        } else {
+            local_iface = *it;
+            remote_iface = iface;
+        }
+        if (!csock_by_ifaces(local_iface, remote_iface)) {
+            (void)make_new_csocket(local_iface, remote_iface);
+        }
+    }
 }
 
 void
@@ -140,6 +166,26 @@ CSockMapping::csock_with_labels(u_long send_label)
 {
     // return a CSocketPtr that matches send_label
     return find_csock(GlobalLabelMatch(this, send_label));
+}
+
+
+struct IfaceMatcher {
+    struct net_interface local_iface;
+    struct net_interface remote_iface;
+    IfaceMatcher(struct net_interface li, 
+                 struct net_interface ri) 
+        : local_iface(li), remote_iface(ri) {}
+    bool operator()(CSocketPtr csock) {
+        return (csock->local_iface == local_iface &&
+                csock->remote_iface == remote_iface);
+    }
+};
+
+CSocketPtr
+CSockMapping::csock_by_ifaces(struct net_interface local_iface,
+                              struct net_interface remote_iface)
+{
+    return find_csock(IfaceMatcher(local_iface, remote_iface));
 }
 
 // Call consider() with several different label pairs, then
@@ -342,6 +388,24 @@ CSockMapping::get_iface_pair(u_long send_label,
     return matcher.pick_label_match(send_label, local_iface, remote_iface);
 }
 
+CSocketPtr
+CSockMapping::make_new_csocket(struct net_interface local_iface, 
+                               struct net_interface remote_iface,
+                               int accepted_sock)
+{
+    CSocketPtr csock(CSocket::create(sk, local_iface, remote_iface,
+                                     accepted_sock));
+    /* cleanup if constructor throws */
+
+    {
+	PthreadScopedRWLock lock(&sockset_mutex, true);
+	available_csocks.insert(csock);
+    }
+    csock->startup_workers(); // sender thread calls phys_connect()
+    
+    return csock;    
+}
+
 CSocketPtr 
 CSockMapping::new_csock_with_labels(u_long send_label, bool locked)
 {
@@ -358,16 +422,7 @@ CSockMapping::new_csock_with_labels(u_long send_label, bool locked)
         return CSocketPtr();
     }
 
-    CSocketPtr csock(CSocket::create(sk, local_iface, remote_iface));
-    /* cleanup if constructor throws */
-
-    {
-	PthreadScopedRWLock lock(&sockset_mutex, true);
-	available_csocks.insert(csock);
-    }
-    csock->startup_workers(); // sender thread calls phys_connect()
-    
-    return csock;
+    return make_new_csocket(local_iface, remote_iface);
 }
 
 void 
@@ -459,15 +514,8 @@ CSockMapping::add_connection(int sock,
         skp->setup(remote_iface, false);
     }
     
-    
-    CSocketPtr new_csock(CSocket::create(sk, local_iface, remote_iface, 
-                                         sock));
-    
-    {
-	PthreadScopedRWLock lock(&sockset_mutex, true);
-	available_csocks.insert(new_csock);
-    }
-    new_csock->startup_workers();
+
+    (void)make_new_csocket(local_iface, remote_iface, sock);
 }
 
 struct CSockMapping::get_worker_tids {

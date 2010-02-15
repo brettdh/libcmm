@@ -24,6 +24,9 @@ struct net_interface {
     bool operator<(const struct net_interface& other) const {
         return ip_addr.s_addr < other.ip_addr.s_addr;
     }
+    bool operator==(const struct net_interface& other) const {
+        return ip_addr.s_addr == other.ip_addr.s_addr;
+    }
 };
 
 u_long iface_bandwidth(const struct net_interface& local_iface,

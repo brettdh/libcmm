@@ -74,6 +74,11 @@ class CSockMapping {
 
     struct get_worker_tids;
 
+    CSocketPtr csock_by_ifaces(struct net_interface local_iface,
+                               struct net_interface remote_iface);
+    CSocketPtr make_new_csocket(struct net_interface local_iface, 
+                                struct net_interface remote_iface,
+                                int accepted_sock = -1);
     bool get_iface(const NetInterfaceSet& ifaces, u_long label,
                    struct net_interface& iface, bool locked);
     bool get_remote_iface_by_addr(struct in_addr addr,
