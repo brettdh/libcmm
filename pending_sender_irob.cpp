@@ -12,7 +12,7 @@ PendingSenderIROB::PendingSenderIROB(irob_id_t id_,
                                      resume_handler_t resume_handler_, 
                                      void *rh_arg_)
     : PendingIROB(id_, numdeps, deps_array, datalen, data, send_labels),
-      next_seqno(0),
+      next_seqno(INVALID_IROB_SEQNO + 1),
       resume_handler(resume_handler_), rh_arg(rh_arg_),
       announced(false), end_announced(false), acked(false),
       next_seqno_to_send(next_seqno), next_chunk(0), chunk_offset(0),
@@ -133,7 +133,7 @@ void
 PendingSenderIROB::rewind(size_t pos)
 {
     dbgprintf("Resetting send pointer for IROB %ld\n", id);
-    next_seqno_to_send = 0;
+    next_seqno_to_send = INVALID_IROB_SEQNO + 1;
     next_chunk = 0;
     chunk_offset = 0;
     offset = 0;
