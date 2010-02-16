@@ -4,7 +4,10 @@
 #include "pending_sender_irob_test.h"
 #include <vector>
 #include <functional>
+#include <deque>
+#include <sstream>
 using std::vector; using std::min;
+using std::deque; using std::ostringstream;
 
 CPPUNIT_TEST_SUITE_REGISTRATION(PendingSenderIROBTest);
 
@@ -20,10 +23,10 @@ PendingSenderIROBTest::setUp()
 
     psirob = new PendingSenderIROB(0, 0, NULL, 0, NULL, 0, NULL, NULL);
     for (size_t i = 0; i < BUFSIZE/10; ++i) {
-        char *chunk_data = new char[10];\
+        char *chunk_data = new char[10];
         size_t offset = 10*i;
         memcpy(chunk_data, buffer + offset, 10);
-        struct irob_chunk_data chunk = {0, -1, offset, 10, chunk_data};
+        struct irob_chunk_data chunk = {0, 0, offset, 10, chunk_data};
         psirob->add_chunk(chunk);
     }
 }
@@ -68,15 +71,29 @@ PendingSenderIROBTest::testMemcpyIovecs()
 }
 
 void
+PendingSenderIROBTest::testFindChunkByOffset()
+{
+    deque<struct irob_chunk_data>::iterator it;
+    for (size_t i = 0; i < BUFSIZE; ++i) {
+        u_long expected_seqno = i / 10;
+        it = psirob->find_app_chunk(i);
+        ostringstream oss;
+        oss << "Got correct chunk for offset " << i;
+        CPPUNIT_ASSERT_EQUAL_MESSAGE(oss.str(),
+                                     expected_seqno, it->seqno);
+    }
+}
+
+void
 PendingSenderIROBTest::testReadByChunkSize(ssize_t chunksize)
 {
     size_t bytes_copied = 0;
     vector<struct iovec> vecs;
     u_long seqno = 0;
+    u_long expected_seqno = 0;
 
     while (bytes_copied < BUFSIZE) {
         ssize_t bytes = chunksize;
-        u_long next_seqno = seqno + 1;
         size_t offset = 0;
 
         vector<struct iovec> new_vecs = psirob->get_ready_bytes(bytes, seqno, 
@@ -84,11 +101,12 @@ PendingSenderIROBTest::testReadByChunkSize(ssize_t chunksize)
         CPPUNIT_ASSERT_MESSAGE("Copied a chunk", 
                                (bytes == ((chunksize == 0) ? 10 : chunksize) ||
                                 bytes == (ssize_t)(BUFSIZE - bytes_copied)));
-        CPPUNIT_ASSERT_EQUAL_MESSAGE("Incremented seqno", next_seqno, seqno);
+        CPPUNIT_ASSERT_EQUAL_MESSAGE("Incremented seqno", expected_seqno, seqno);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Correct offset", offset, bytes_copied);
-        psirob->mark_sent(bytes);
+        //psirob->mark_sent(bytes);
         vecs.insert(vecs.end(), new_vecs.begin(), new_vecs.end());
         bytes_copied += bytes;
+        expected_seqno++;
     }
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Copied all the bytes", BUFSIZE, bytes_copied);
 

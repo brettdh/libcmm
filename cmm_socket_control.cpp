@@ -59,7 +59,8 @@ CMMSocketControlHdr::describe() const
         break;
     case CMM_CONTROL_MSG_END_IROB:
       stream << "IROB: " << ntohl(op.end_irob.id) << " ";
-        stream << "expected_bytes: " << ntohl(op.end_irob.expected_bytes);
+      stream << "expected_bytes: " << ntohl(op.end_irob.expected_bytes) << " ";
+        stream << "expected_chunks: " << ntohl(op.end_irob.expected_chunks);
         break;
     case CMM_CONTROL_MSG_IROB_CHUNK:
         stream << "IROB: " << ntohl(op.irob_chunk.id) << " ";
@@ -103,7 +104,9 @@ CMMSocketControlHdr::describe() const
     case CMM_CONTROL_MSG_RESEND_REQUEST:
         stream << "IROB: " << ntohl(op.resend_request.id) << " ";
         stream << "request: " << ntohl(op.resend_request.request) << " ";
-        stream << "offset: " << ntohl(op.resend_request.offset);
+        stream << "seqno: " << ntohl(op.resend_request.seqno);
+        //stream << "offset: " << ntohl(op.resend_request.offset) << " ";
+        //stream << "len: " << ntohl(op.resend_request.len);
         break;
     case CMM_CONTROL_MSG_DATA_CHECK:
         stream << "IROB: " << ntohl(op.data_check.id);

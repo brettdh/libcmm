@@ -276,10 +276,11 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
         }
         
         ssize_t expected_bytes = ntohl(hdr.op.end_irob.expected_bytes);
+        int expected_chunks = ntohl(hdr.op.end_irob.expected_chunks);
 
         assert(pirob);
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
-        if (!prirob->finish(expected_bytes)) {
+        if (!prirob->finish(expected_bytes, expected_chunks)) {
             //throw CMMFatalError("Tried to end already-done IROB", hdr);
             dbgprintf("do_end_irob: already-finished IROB %ld, ", id);
             if (prirob->is_complete()) {
@@ -387,7 +388,9 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
                 //throw CMMFatalError("Tried to add to completed IROB", hdr);
                 dbgprintf("do_irob_chunk: duplicate chunk %lu for IROB %ld, ignoring\n", 
                           chunk.seqno, id);
-            } else {
+            }
+            /*
+            else {
                 dbgprintf("do_irob_chunk: hole detected in IROB %ld, "
                           "requesting resend from offset %d\n",
                           id, prirob->recvdbytes());
@@ -396,6 +399,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
                 csock->irob_indexes.resend_requests.insert(data);
 		pthread_cond_broadcast(&sk->scheduling_state_cv);
             }
+            */
             delete [] buf;
         } else {
             dbgprintf("Successfully added chunk %lu to IROB %ld\n",
@@ -550,9 +554,11 @@ CSocketReceiver::do_request_resend(struct CMMSocketControlHdr hdr)
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_RESEND_REQUEST);
     irob_id_t id = ntohl(hdr.op.resend_request.id);
     resend_request_type_t request = (resend_request_type_t)ntohl(hdr.op.resend_request.request);
-    ssize_t offset = ntohl(hdr.op.resend_request.offset);
+    u_long seqno = ntohl(hdr.op.resend_request.seqno);
+    //size_t offset = ntohl(hdr.op.resend_request.offset);
+    //size_t len = ntohl(hdr.op.resend_request.len);
 
-    sk->resend_request_received(id, request, offset);
+    sk->resend_request_received(id, request, seqno);//, offset, len);
 }
 
 void

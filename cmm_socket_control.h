@@ -35,6 +35,7 @@ struct begin_irob_data {
 struct end_irob_data {
     irob_id_t id;
     ssize_t expected_bytes;
+    int expected_chunks;
 };
 
 struct irob_chunk_data {
@@ -45,6 +46,14 @@ struct irob_chunk_data {
     char *data; /* NULL in network messages
                  * Allocated and used at receiver */
     /* followed by datalen bytes of application data */
+};
+
+struct SumChunkFunctor {
+    size_t sum;
+    SumChunkFunctor() : sum(0) {}
+    void operator()(const struct irob_chunk_data& chunk) {
+        sum += chunk.datalen;
+    }
 };
 
 #if 0
@@ -100,8 +109,10 @@ struct resend_request_data {
     irob_id_t id;
     resend_request_type_t request;
 
-    // If request includes DATA, this is how much data the receiver has
-    size_t offset;
+    // If request includes DATA, this describes the data that the receiver needs
+    u_long seqno; // the seqno identifies the offset and len uniquely.
+    //size_t offset;
+    //size_t len;
 };
 
 struct data_check_data {

@@ -31,13 +31,13 @@ class PendingSenderIROB : public PendingIROB {
 
     /* Gathers up to bytes_requested bytes from this IROB,
      * taking into account the bytes that have already been sent. 
-     * Successive calls to this function will return the same data,
-     * unless calls to mark_sent() are interleaved. 
+     * Successive calls to this function will return different data,
+     * unless calls to bytes_not_received() are interleaved. 
      * The sender should operate like this:
      *    data_to_send = psirob->get_ready_bytes(chunksize);
      *    rc = send(data_to_send)
-     *    if (rc == success) {
-     *        psirob->mark_sent(chunksize);
+     *    if (rc != success) {
+     *        psirob->bytes_not_received(chunksize);
      *    }
      *    ...
      *
@@ -50,28 +50,37 @@ class PendingSenderIROB : public PendingIROB {
      */
     std::vector<struct iovec> get_ready_bytes(ssize_t& bytes_requested, 
                                               u_long& seqno,
-                                              size_t& offset) const;
+                                              size_t& offset);
 
     /* Marks the next bytes_sent bytes as sent.  This in essence advances the
      * pointer that get_ready_bytes provides into this IROB's data. 
      * If the modified bytes_requested parameter from get_ready_bytes is passed
      * to mark_sent, it should never exceed the number of remaining bytes
      * in the IROB. */
-    void mark_sent(ssize_t bytes_sent);
+    // purpose of this is now rolled into get_ready_bytes.
+    //void mark_sent(ssize_t bytes_sent);
 
-    // Request that the sender ask the receiver how much data has been received
-    //  before sending any new data for this IROB.
+    // Request that the sender ask the receiver if any data is missing.
     void request_data_check();
 
-    // Returns true iff the sender should ask the receiver how many
-    //  bytes have been received.
+    // Returns true iff the sender should ask the receiver if any
+    //  data is missing.
     bool needs_data_check();
 
     /* "Rewinds" the get_ready_bytes pointer to the beginning of this IROB,
      *   plus offset bytes.
      * This is needed when a Resend_Request is received for the IROB's data.
      */
-    void rewind(size_t offset_);
+    //void rewind(size_t offset_);
+
+    size_t expected_bytes();  // number of bytes given by the application.
+    bool all_chunks_sent(); // true if all bytes have been put into send-chunks.
+
+    // Mark these bytes as not received; they will be resent.
+    //  The chunk data in missing_chunk may identify fewer bytes
+    //  than are in the original chunk (e.g. because a partial chunk
+    //  was received)
+    void mark_not_received(u_long seqno);//, size_t offset, size_t len);
 
     void ack();
 
@@ -82,9 +91,10 @@ class PendingSenderIROB : public PendingIROB {
   private:
     friend class CMMSocketImpl;
     friend class CSocketSender;
+    friend class PendingSenderIROBTest;
 
     /* all integers here are in host byte order */
-    u_long next_seqno;
+    //u_long next_seqno;
 
     resume_handler_t resume_handler;
     void *rh_arg;
@@ -95,16 +105,22 @@ class PendingSenderIROB : public PendingIROB {
 
     // for sending partial chunks
     u_long next_seqno_to_send;
-    size_t next_chunk;
-    size_t chunk_offset;
+    //size_t next_chunk;
+    //size_t chunk_offset;
 
-    size_t offset;
+    std::deque<struct irob_chunk_data> sent_chunks;
+    std::deque<struct irob_chunk_data> resend_chunks;
 
+    size_t num_bytes; // number of bytes added by the application
+    size_t irob_offset;  // number of bytes given to senders
+
+    std::vector<struct iovec> get_bytes_internal(size_t offset, ssize_t& len);
+    std::deque<struct irob_chunk_data>::iterator find_app_chunk(size_t offset);
+    
     // only one thread at a time should be sending app data
-    bool chunk_in_flight;
+    //bool chunk_in_flight;
 
-    // true iff the sender and receiver might have different views
-    //  about how much data has been received for this IROB, due to
+    // true iff the receiver might be missing some data due to
     //  a network failure.
     bool data_check;
 };

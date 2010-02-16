@@ -3,6 +3,8 @@
 #include "timeops.h"
 #include <functional>
 #include <vector>
+#include <deque>
+using std::deque;
 using std::vector; using std::max;
 using std::mem_fun_ref;
 using std::bind1st;
