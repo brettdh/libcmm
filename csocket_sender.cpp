@@ -984,7 +984,17 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
         } 
 
         // more chunks to send, potentially, so make sure someone sends them.
-        csock->irob_indexes.new_chunks.insert(data);
+        if (psirob->send_labels & CMM_LABEL_BACKGROUND) {
+            // already inserted it into sk->irob_indexes.new_chunks,
+            //  letting another thread try to jump in.
+            // So, I'll take a short break from sending it myself.
+            // Either another thread has grabbed it, sent a chunk,
+            //  and then notified the other threads like me,
+            //  or else there is no other thread, in which case
+            //  I'll grab my own sharing notification from before.
+        } else {
+            csock->irob_indexes.new_chunks.insert(data);
+        }
     }
 
     return true;
