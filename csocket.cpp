@@ -30,7 +30,7 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
                  struct net_interface local_iface_, 
                  struct net_interface remote_iface_,
                  int accepted_sock)
-    : sk(sk_),
+    : oserr(0), sk(sk_),
       local_iface(local_iface_), remote_iface(remote_iface_),
       stats(local_iface, remote_iface),
       csock_sendr(NULL), csock_recvr(NULL), connected(false),
@@ -126,6 +126,7 @@ CSocket::phys_connect()
         int rc = bind(osfd, (struct sockaddr *)&local_addr, 
                       sizeof(local_addr));
         if (rc < 0) {
+            oserr = errno;
             perror("bind");
             dbgprintf("Failed to bind osfd %d to %s:%d\n",
                       osfd, inet_ntoa(local_addr.sin_addr), 
@@ -140,6 +141,7 @@ CSocket::phys_connect()
         rc = connect(osfd, (struct sockaddr *)&remote_addr, 
                      sizeof(remote_addr));
         if (rc < 0) {
+            oserr = errno;
             perror("connect");
             dbgprintf("Failed to connect osfd %d to %s:%d\n",
                       osfd, inet_ntoa(remote_addr.sin_addr), 
@@ -159,6 +161,7 @@ CSocket::phys_connect()
             hdr.op.new_interface.RTT = htonl(local_iface.RTT);
             rc = send(osfd, &hdr, sizeof(hdr), 0);
             if (rc != sizeof(hdr)) {
+                oserr = errno;
                 perror("send");
                 dbgprintf("Failed to send interface info\n");
                 close(osfd);

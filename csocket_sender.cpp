@@ -49,7 +49,7 @@ CSocketSender::Run()
     try {
         int rc = csock->phys_connect();
         if (rc < 0) {
-            if (errno == ECONNREFUSED) {
+            if (csock->oserr == ECONNREFUSED) {
                 // if there's no remote listener, we won't be able to make
                 //  any more connections, period.  So kill the multisocket.
                 throw CMMFatalError("Remote listener is gone");

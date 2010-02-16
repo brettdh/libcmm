@@ -29,6 +29,7 @@ typedef boost::shared_ptr<CSocket> CSocketPtr;
 class CSocket {
   public:
     int osfd;
+    int oserr; // if non-zero, there was an error.
     CMMSocketImplPtr sk;
     //CMMSocketSender *sendr;
     //CMMSocketReceiver *recvr;
