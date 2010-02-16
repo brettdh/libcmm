@@ -68,8 +68,10 @@ PendingReceiverIROB::assert_valid()
 {
     assert(recvd_bytes >= 0);
     for (size_t i = 1; i < chunks.size(); ++i) {
-        assert((chunks[i-1].offset + chunks[i-1].datalen)
-               == chunks[i].offset);
+        assert(chunks[i-1].data == NULL ||
+               chunks[i].data == NULL ||
+               ((chunks[i-1].offset + chunks[i-1].datalen)
+                == chunks[i].offset));
     }
 }
 
