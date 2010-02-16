@@ -160,6 +160,9 @@ class CMMSocketImpl : public CMMSocket {
     void send_local_listener(int bootstrap_sock, struct net_interface iface);
     void send_local_listeners(int bootstrap_sock);
 
+    // create csockets for all the interface pairs.
+    void startup_csocks();
+
     int connection_bootstrap(const struct sockaddr *remote_addr, 
                              socklen_t addrlen,
                              int bootstrap_sock = -1);

@@ -149,6 +149,20 @@ void CMMSocketImpl::send_local_listeners(int bootstrap_sock)
     }
 }
 
+void
+CMMSocketImpl::startup_csocks()
+{
+    PthreadScopedRWLock sock_lock(&my_lock, true);
+    for (NetInterfaceSet::iterator it = remote_ifaces.begin();
+         it != remote_ifaces.end(); it++) {
+        csock_map->setup(*it, false);
+    }
+    for (NetInterfaceSet::iterator it = local_ifaces.begin();
+         it != local_ifaces.end(); it++) {
+        csock_map->setup(*it, true);
+    }
+}
+
 void 
 CMMSocketImpl::add_connection(int sock, 
                               struct in_addr local_addr,

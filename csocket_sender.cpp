@@ -168,6 +168,7 @@ CSocketSender::Run()
                 pthread_cond_wait(&sk->scheduling_state_cv,
                                   &sk->scheduling_state_lock);
             }
+            dbgprintf("Woke up; maybe I can do some work?\n");
             // something happened; we might be able to do some work
         }
     } catch (CMMFatalError& e) {

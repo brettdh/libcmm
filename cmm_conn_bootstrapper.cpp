@@ -111,6 +111,8 @@ void ConnBootstrapper::Run()
                           "to bootstrap\n", bootstrap_sock);
                 sk->send_local_listeners(bootstrap_sock);
                 sk->recv_remote_listeners(bootstrap_sock);
+
+                sk->startup_csocks();
             }
             
             // no errors; must have succeeded
