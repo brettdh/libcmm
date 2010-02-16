@@ -20,7 +20,7 @@
 #include <arpa/inet.h>
 #include <vector>
 #include <algorithm>
-using std::vector; using std::max;
+using std::vector; using std::max; using std::min;
 
 #include <errno.h>
 
@@ -755,7 +755,8 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     // Cap the amount of app data we send at a time, so we can piggyback ACKs.
     //  A simple experiment indicates that this won't affect net throughput
     //  when there are no ACKs.
-    ssize_t chunksize = 4096;
+    const ssize_t base_chunksize = 4096;
+    ssize_t chunksize = base_chunksize;
     if (data.send_labels & CMM_LABEL_BACKGROUND) {
         pthread_mutex_unlock(&sk->scheduling_state_lock);
         bool fg_sock = csock->is_fg();
@@ -766,6 +767,9 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
             }
         }
     }
+    // actually enforce the maximum chunksize.
+    // this should help with both striping and preemptibility.
+    chunksize = min(chunksize, base_chunksize);
 
     irob_id_t id = data.id;
     PendingIROB *pirob = NULL;
