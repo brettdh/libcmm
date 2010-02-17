@@ -318,6 +318,11 @@ EndToEndTestsBase::testPartialRecv()
                 bytes_recvd);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Received all bytes",
                                      msglen, bytes_recvd);        
+        char c = 0;
+        int rc = cmm_write(read_sock, &c, 1, 0, NULL, NULL);
+        CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending one byte succeeds",
+                                     1, rc);
+
     } else {
         int bytes_sent = 0;
         while (bytes_sent < msglen) {
@@ -331,6 +336,11 @@ EndToEndTestsBase::testPartialRecv()
         }
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Sent all bytes",
                                      msglen, bytes_sent);
+
+        char c = 0;
+        int rc = cmm_read(send_sock, &c, 1, NULL);
+        CPPUNIT_ASSERT_EQUAL_MESSAGE("Reading one byte succeeds",
+                                     1, rc);
     }
 }
 
