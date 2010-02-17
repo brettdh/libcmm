@@ -1216,7 +1216,8 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
         hdrs[i].op.resend_request.id = htonl(data.id);
         if (hdrs[i].op.resend_request.request == 0) {
             // skip the first one; it's already set
-            hdrs[i].op.resend_request.request = CMM_RESEND_REQUEST_DATA;
+            hdrs[i].op.resend_request.request = 
+                (resend_request_type_t)htonl(CMM_RESEND_REQUEST_DATA);
         }
         hdrs[i].op.resend_request.seqno = htonl(missing_chunks[i].seqno);
         //hdrs[i].op.resend_request.offset = htonl(missing_chunks[i].offset);

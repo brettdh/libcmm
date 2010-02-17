@@ -156,7 +156,8 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno,
         // 2) Find its data + copy it to an iovec
         //   (Don't return data that pertains to more than one seqno.)
         //   (i.e. one resend request <= one seqno of data)
-        ssize_t len = min(bytes_requested, (ssize_t)chunk.datalen);
+        //ssize_t len = min(bytes_requested, (ssize_t)chunk.datalen);
+        ssize_t len = (ssize_t)chunk.datalen;
         ssize_t lencopy = len;
         data = get_bytes_internal(chunk.offset, len);
         
