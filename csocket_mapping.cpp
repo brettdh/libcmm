@@ -110,24 +110,25 @@ CSockMapping::setup(struct net_interface iface, bool local)
     //  asked for labels that create CSockets on all networks.
     NetInterfaceSet::iterator it, end;
     CMMSocketImplPtr skp(sk);
-    if (local) { 
+    if (local) { // try this out to avoid some of the contention.
         it = skp->remote_ifaces.begin();
         end = skp->remote_ifaces.end();
-    } else {
-        it = skp->local_ifaces.begin();
-        end = skp->local_ifaces.end();
-    }
-    for (; it != end; ++it) {
-        struct net_interface local_iface, remote_iface;
-        if (local) {
+        //     } else {
+        //         it = skp->local_ifaces.begin();
+        //         end = skp->local_ifaces.end();
+        //     }
+        for (; it != end; ++it) {
+            struct net_interface local_iface, remote_iface;
+            //        if (local) {
             local_iface = iface;
             remote_iface = *it;
-        } else {
-            local_iface = *it;
-            remote_iface = iface;
-        }
-        if (!csock_by_ifaces(local_iface, remote_iface)) {
-            (void)make_new_csocket(local_iface, remote_iface);
+            //         } else {
+            //             local_iface = *it;
+            //             remote_iface = iface;
+            //         }
+            if (!csock_by_ifaces(local_iface, remote_iface)) {
+                (void)make_new_csocket(local_iface, remote_iface);
+            }
         }
     }
 }
