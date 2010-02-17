@@ -2110,6 +2110,7 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
     u_long send_labels = psirob->send_labels;
 
     if (request & CMM_RESEND_REQUEST_DEPS) {
+        // TODO: pick up here (-ish).  Resend request received for BOTH, but Begin_IROB not resent.  why?
         irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
     }
     if (request & CMM_RESEND_REQUEST_DATA) {

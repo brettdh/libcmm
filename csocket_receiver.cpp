@@ -218,7 +218,7 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     
     sk->incoming_irobs.release_if_ready(pirob, ReadyIROB());
     
-    if (pirob->is_complete()) {
+    if (pirob->is_complete() && pirob->is_ready()) {
         struct timeval completion_time;
         TIME(completion_time);
         IROBSchedulingData data(id, completion_time);
@@ -308,7 +308,7 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
 
         sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
 
-        if (prirob->is_complete()) {
+        if (prirob->is_complete() && prirob->is_ready()) {
             struct timeval completion_time;
             TIME(completion_time);
             IROBSchedulingData data(id, completion_time);
@@ -408,7 +408,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
 
         sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
 
-        if (prirob->is_complete()) {
+        if (prirob->is_complete() && prirob->is_ready()) {
             struct timeval completion_time;
             TIME(completion_time);
             IROBSchedulingData data(id, completion_time);
