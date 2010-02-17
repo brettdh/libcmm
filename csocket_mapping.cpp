@@ -183,9 +183,10 @@ struct IfaceMatcher {
 
 CSocketPtr
 CSockMapping::csock_by_ifaces(struct net_interface local_iface,
-                              struct net_interface remote_iface)
+                              struct net_interface remote_iface,
+                              bool grab_lock)
 {
-    return find_csock(IfaceMatcher(local_iface, remote_iface));
+    return find_csock(IfaceMatcher(local_iface, remote_iface), grab_lock);
 }
 
 // Call consider() with several different label pairs, then
@@ -393,14 +394,36 @@ CSockMapping::make_new_csocket(struct net_interface local_iface,
                                struct net_interface remote_iface,
                                int accepted_sock)
 {
-    CSocketPtr csock(CSocket::create(sk, local_iface, remote_iface,
-                                     accepted_sock));
-    /* cleanup if constructor throws */
-
+    CSocketPtr csock;
     {
 	PthreadScopedRWLock lock(&sockset_mutex, true);
+        
+        csock = csock_by_ifaces(local_iface, remote_iface, false);
+        if (csock) {
+            char *local_ip = strdup(inet_ntoa(local_iface.ip_addr));
+            dbgprintf("Error while adding newly %s CSocket: "
+                      "connection already present for %s<=>%s\n",
+                      (accepted_sock == -1) ? "connected" : "accepted",
+                      local_ip, inet_ntoa(remote_iface.ip_addr));
+            free(local_ip);
+            if (accepted_sock != -1) {
+                // XXX: this won't work, since phys_connect will have
+                //  already returned success at the remote end.
+                //  I need a "connection success/failure" message here.
+                // For now, though, this is enough to tell me whether this problem
+                //  is manifesting itself now.
+                close(accepted_sock);
+            }
+            return csock;
+        }
+        
+        csock = CSocket::create(sk, local_iface, remote_iface,
+                                accepted_sock);
+        /* cleanup if constructor throws */
+        
 	available_csocks.insert(csock);
     }
+
     csock->startup_workers(); // sender thread calls phys_connect()
     
     return csock;    

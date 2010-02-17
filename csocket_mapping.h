@@ -11,6 +11,9 @@
 
 #include "csocket.h"
 
+#include <memory>
+using std::auto_ptr;
+
 typedef std::set<CSocketPtr> CSockSet;
 
 class LabelMatch;
@@ -75,7 +78,8 @@ class CSockMapping {
     struct get_worker_tids;
 
     CSocketPtr csock_by_ifaces(struct net_interface local_iface,
-                               struct net_interface remote_iface);
+                               struct net_interface remote_iface,
+                               bool grab_lock = true);
     CSocketPtr make_new_csocket(struct net_interface local_iface, 
                                 struct net_interface remote_iface,
                                 int accepted_sock = -1);
@@ -87,7 +91,7 @@ class CSockMapping {
                            struct net_interface& iface);
 
     template <typename Predicate>
-    CSocketPtr find_csock(Predicate pred);
+    CSocketPtr find_csock(Predicate pred, bool grab_lock=true);
 };
 
 template <typename Functor>
@@ -118,9 +122,14 @@ int CSockMapping::for_each(Functor f)
 
 template <typename Predicate>
 CSocketPtr 
-CSockMapping::find_csock(Predicate pred)
+CSockMapping::find_csock(Predicate pred, bool grab_lock)
 {
-    PthreadScopedRWLock lock(&sockset_mutex, false);
+    auto_ptr<PthreadScopedRWLock> lock_ptr;
+    if (grab_lock) {
+        lock_ptr.reset(new PthreadScopedRWLock(&sockset_mutex, false));
+    }
+
+    //PthreadScopedRWLock lock(&sockset_mutex, false);
     CSockSet::const_iterator it = find_if(available_csocks.begin(), 
 					  available_csocks.end(), 
 					  pred);
