@@ -189,6 +189,13 @@ PendingReceiverIROB::get_missing_chunks()
             missing_chunks.push_back(chunks[i]);
         }
     }
+    if (expected_chunks != -1 && (size_t)expected_chunks > chunks.size()) {
+        for (u_long i = (u_long)chunks.size(); i < (u_long)expected_chunks; ++i) {
+            struct irob_chunk_data missing_chunk;
+            missing_chunk.seqno = i;
+            missing_chunks.push_back(missing_chunk);
+        }
+    }
     return missing_chunks;
 }
 

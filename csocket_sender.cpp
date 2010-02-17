@@ -1176,8 +1176,9 @@ CSocketSender::goodbye()
 void
 CSocketSender::resend_request(const IROBSchedulingData& data)
 {
+    resend_request_type_t req_type = data.resend_request;
     vector<struct irob_chunk_data> missing_chunks;
-    if (data.resend_request & CMM_RESEND_REQUEST_DATA) {
+    if (req_type & CMM_RESEND_REQUEST_DATA) {
         PendingIROB *pirob = sk->incoming_irobs.find(data.id);
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
         if (prirob) {
@@ -1186,13 +1187,25 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
         }
     }
 
+    if (missing_chunks.empty()) {
+        // no missing data; therefore, I won't request that any be resent.
+        req_type = 
+            resend_request_type_t(req_type 
+                                  & ~CMM_RESEND_REQUEST_DATA);
+    }
+    if (!(req_type & CMM_RESEND_REQUEST_BOTH)) {
+        dbgprintf("WARNING: unnecessary data-resend requested for IROB %ld\n", 
+                  data.id);
+        return;
+    }
+        
     size_t hdrcount = missing_chunks.empty() ? 1 : missing_chunks.size();
     struct CMMSocketControlHdr *hdrs = new struct CMMSocketControlHdr[hdrcount];
     memset(hdrs, 0, sizeof(struct CMMSocketControlHdr) * hdrcount);
     hdrs[0].type = htons(CMM_CONTROL_MSG_RESEND_REQUEST);
     hdrs[0].op.resend_request.id = htonl(data.id);
     hdrs[0].op.resend_request.request =
-        (resend_request_type_t)htonl(data.resend_request);
+        (resend_request_type_t)htonl(req_type);
     hdrs[0].op.resend_request.seqno = 0;
     //hdrs[0].op.resend_request.offset = 0;
     //hdrs[0].op.resend_request.len = 0;
