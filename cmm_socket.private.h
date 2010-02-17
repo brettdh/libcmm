@@ -162,6 +162,7 @@ class CMMSocketImpl : public CMMSocket {
 
     // create csockets for all the interface pairs.
     void startup_csocks();
+    void wait_for_connections();
 
     int connection_bootstrap(const struct sockaddr *remote_addr, 
                              socklen_t addrlen,

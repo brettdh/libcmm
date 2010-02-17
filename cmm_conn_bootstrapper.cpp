@@ -69,6 +69,8 @@ void ConnBootstrapper::Run()
                           "to bootstrap\n", bootstrap_sock);
                 sk->recv_remote_listeners(bootstrap_sock);
                 sk->send_local_listeners(bootstrap_sock);
+
+                sk->wait_for_connections();
             } else {
                 /* we are connecting */
                 assert(remote_addr);
@@ -113,6 +115,7 @@ void ConnBootstrapper::Run()
                 sk->recv_remote_listeners(bootstrap_sock);
 
                 sk->startup_csocks();
+                sk->wait_for_connections();
             }
             
             // no errors; must have succeeded

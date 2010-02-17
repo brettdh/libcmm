@@ -19,7 +19,7 @@ PendingSenderIROB::PendingSenderIROB(irob_id_t id_,
       resume_handler(resume_handler_), rh_arg(rh_arg_),
       announced(false), end_announced(false), acked(false),
       next_seqno_to_send(0), //next_chunk(0), chunk_offset(0),
-      num_bytes(0), irob_offset(0),
+      num_bytes(datalen), irob_offset(0),
       //chunk_in_flight(false),
       data_check(false)
 {

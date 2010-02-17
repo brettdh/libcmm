@@ -163,6 +163,12 @@ CMMSocketImpl::startup_csocks()
     }
 }
 
+void
+CMMSocketImpl::wait_for_connections()
+{
+    csock_map->wait_for_connections();
+}
+
 void 
 CMMSocketImpl::add_connection(int sock, 
                               struct in_addr local_addr,
