@@ -186,7 +186,9 @@ PendingReceiverIROB::get_missing_chunks()
     for (size_t i = 0; i < chunks.size(); ++i) {
         if (chunks[i].data == NULL) {
             // for now, just whole chunks can be missing.
-            missing_chunks.push_back(chunks[i]);
+            struct irob_chunk_data missing_chunk;
+            missing_chunk.seqno = i;
+            missing_chunks.push_back(missing_chunk);
         }
     }
     if (expected_chunks != -1 && (size_t)expected_chunks > chunks.size()) {
