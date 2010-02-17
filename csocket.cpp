@@ -70,6 +70,7 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
     //  since we have our own ACKs, it doesn't matter if TCP discards
     //  the data.  We'll double-check that it arrived.
     // Further, this will avoid any nasty retransmissions on dead networks.
+    /*
     struct linger ls;
     ls.l_onoff = 1;
     ls.l_linger = 0;
@@ -78,6 +79,8 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
     if (rc < 0) {
         dbgprintf("Failed to set SO_LINGER\n");
     }
+    // XXX: We actually do want to wait for control messages to finish.
+    */
 
 //     window = 131072;
 //     /* window = 2 * 1024 * 1024; */
