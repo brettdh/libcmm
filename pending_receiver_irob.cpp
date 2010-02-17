@@ -68,10 +68,18 @@ PendingReceiverIROB::assert_valid()
 {
     assert(recvd_bytes >= 0);
     for (size_t i = 1; i < chunks.size(); ++i) {
-        assert(chunks[i-1].data == NULL ||
-               chunks[i].data == NULL ||
-               ((chunks[i-1].offset + chunks[i-1].datalen)
-                == chunks[i].offset));
+        if (chunks[i-1].data != NULL &&
+            chunks[i].data != NULL) {
+            if ((chunks[i-1].offset + chunks[i-1].datalen)
+                != chunks[i].offset) {
+                dbgprintf("IROB validity check failed!\n");
+                dbgprintf("IROB %ld chunk %zu offset %zu datalen %zu\n",
+                          id, i-1, chunks[i-1].offset, chunks[i-1].datalen);
+                dbgprintf("IROB %ld chunk %zu offset %zu datalen %zu\n",
+                          id, i, chunks[i].offset, chunks[i].datalen);
+                assert(0);
+            }
+        }
     }
 }
 
