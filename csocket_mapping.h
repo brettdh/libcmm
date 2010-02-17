@@ -51,7 +51,6 @@ class CSockMapping {
 
     void setup(struct net_interface iface, bool local);
     void teardown(struct net_interface iface, bool local);
-    void wait_for_connections();
 
     // only call when shutting down.
     // waits (pthread_join) for all workers to exit.
@@ -71,8 +70,7 @@ class CSockMapping {
     //CSockLabelMap csocks_by_send_label;
     boost::weak_ptr<CMMSocketImpl> sk;  /* XXX: janky.  Remove later? */
     CSockSet available_csocks;
-    pthread_mutex_t sockset_mutex;
-    pthread_cond_t sockset_cv;
+    pthread_rwlock_t sockset_mutex;
 
     struct get_worker_tids;
 
@@ -95,7 +93,7 @@ class CSockMapping {
 template <typename Functor>
 void CSockMapping::for_each_by_ref(Functor& f)
 {
-    PthreadScopedLock lock(&sockset_mutex);
+    PthreadScopedRWLock lock(&sockset_mutex, false);
     for (CSockSet::iterator it = available_csocks.begin();
 	 it != available_csocks.end(); it++) {
 	CSocketPtr csock = *it;
@@ -106,7 +104,7 @@ void CSockMapping::for_each_by_ref(Functor& f)
 template <typename Functor>
 int CSockMapping::for_each(Functor f)
 {
-    PthreadScopedLock lock(&sockset_mutex);
+    PthreadScopedRWLock lock(&sockset_mutex, false);
     for (CSockSet::iterator it = available_csocks.begin();
 	 it != available_csocks.end(); it++) {
 	CSocketPtr csock = *it;
@@ -122,7 +120,7 @@ template <typename Predicate>
 CSocketPtr 
 CSockMapping::find_csock(Predicate pred)
 {
-    PthreadScopedLock lock(&sockset_mutex);
+    PthreadScopedRWLock lock(&sockset_mutex, false);
     CSockSet::const_iterator it = find_if(available_csocks.begin(), 
 					  available_csocks.end(), 
 					  pred);

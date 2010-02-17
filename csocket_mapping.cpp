@@ -26,21 +26,19 @@ using std::map;
 CSockMapping::CSockMapping(CMMSocketImplPtr sk_)
     : sk(sk_)
 {
-    //pthread_rwlock_init(&sockset_mutex, NULL);
-    pthread_mutex_init(&sockset_mutex, NULL);
-    pthread_cond_init(&sockset_cv, NULL);
+    pthread_rwlock_init(&sockset_mutex, NULL);
 }
 
 CSockMapping::~CSockMapping()
 {
-    PthreadScopedLock lock(&sockset_mutex);
+    PthreadScopedRWLock lock(&sockset_mutex, true);
     available_csocks.clear();
 }
 
 bool
 CSockMapping::empty()
 {
-    PthreadScopedLock lock(&sockset_mutex);
+    PthreadScopedRWLock lock(&sockset_mutex, true);
     return available_csocks.empty();
 }
 
@@ -140,49 +138,12 @@ CSockMapping::teardown(struct net_interface iface, bool local)
     vector<CSocketPtr> victims;
     (void)for_each(get_matching_csocks(iface, victims, local));
 
-    PthreadScopedLock lock(&sockset_mutex);
+    PthreadScopedRWLock lock(&sockset_mutex, true);
     while (!victims.empty()) {
         CSocketPtr victim = victims.back();
         victims.pop_back();
         available_csocks.erase(victim);
         shutdown(victim->osfd, SHUT_RDWR); /* tells the sender/receiver threads to exit */
-    }
-    pthread_cond_signal(&sockset_cv); // only the bootstrapper is waiting
-}
-
-
-void
-CSockMapping::wait_for_connections()
-{
-    CMMSocketImplPtr skp(sk);
-    PthreadScopedLock lock(&sockset_mutex);
-    size_t num_socks;
-    {
-        PthreadScopedRWLock sock_lock(&skp->my_lock, true);
-        num_socks = skp->local_ifaces.size() * skp->remote_ifaces.size();
-    }
-    
-    bool done = false;
-    while (!done) {
-        while (available_csocks.size() < num_socks) {
-            pthread_cond_wait(&sockset_cv, &sockset_mutex);
-            
-            PthreadScopedRWLock sock_lock(&skp->my_lock, true);
-            num_socks = skp->local_ifaces.size() * skp->remote_ifaces.size();
-        }
-
-        CSockSet csocks = available_csocks;
-        pthread_mutex_unlock(&sockset_mutex);
-        done = true;
-        for (CSockSet::iterator it = csocks.begin(); 
-             it != csocks.end(); ++it) {
-            int rc = (*it)->wait_until_connected();
-            if (rc < 0) {
-                done = false;
-                break;
-            }
-        }
-        pthread_mutex_lock(&sockset_mutex);
     }
 }
 
@@ -328,7 +289,7 @@ CSockMapping::connected_csock_with_labels(u_long send_label, bool locked)
     CMMSocketImplPtr skp(sk);
     if (skp->isLoopbackOnly(locked)) { // grab the lock if not already holding it
         // only one socket ever, so just return it
-        PthreadScopedLock lock(&sockset_mutex);
+        PthreadScopedRWLock lock(&sockset_mutex, false);
         if (available_csocks.empty()) {
             return CSocketPtr();
         } else {
@@ -338,7 +299,7 @@ CSockMapping::connected_csock_with_labels(u_long send_label, bool locked)
 
     map<pair<struct net_interface, struct net_interface>, CSocketPtr> lookup;
 
-    PthreadScopedLock lock(&sockset_mutex);
+    PthreadScopedRWLock lock(&sockset_mutex, false);
     if (available_csocks.empty()) {
         return CSocketPtr();
     }
@@ -437,9 +398,8 @@ CSockMapping::make_new_csocket(struct net_interface local_iface,
     /* cleanup if constructor throws */
 
     {
-	PthreadScopedLock lock(&sockset_mutex);
+	PthreadScopedRWLock lock(&sockset_mutex, true);
 	available_csocks.insert(csock);
-        pthread_cond_signal(&sockset_cv); // only the bootstrapper is waiting
     }
     csock->startup_workers(); // sender thread calls phys_connect()
     
@@ -469,10 +429,8 @@ void
 CSockMapping::remove_csock(CSocketPtr victim)
 {
     assert(victim);
-    PthreadScopedLock lock(&sockset_mutex);
+    PthreadScopedRWLock lock(&sockset_mutex, true);
     available_csocks.erase(victim);
-    pthread_cond_signal(&sockset_cv); // only the bootstrapper is waiting
-
     // CSockets are reference-counted by the 
     // CSocketSender and CSocketReceiver objects,
     // so we don't delete CSockets anywhere else
