@@ -205,7 +205,7 @@ EndToEndTestsBase::sendChecksum(unsigned char *buf, size_t bytes)
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending digest", SHA_DIGEST_LENGTH, rc);
     char c = 0;
     rc = cmm_read(send_sock, &c, 1, NULL);
-    CPPUNIT_ASSERT_EQUAL_MESSAGE("Received 1 byte", 1, rc);
+    CPPUNIT_ASSERT_MESSAGE("Received 1 byte", rc == 1 || rc == 0);
 }
 
 void
