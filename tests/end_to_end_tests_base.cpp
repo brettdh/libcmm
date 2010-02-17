@@ -185,6 +185,10 @@ EndToEndTestsBase::receiveAndChecksum()
                                  0, rc);
     
     fprintf(stderr, "Received %d bytes, digest matches.\n", bytes);
+    char c = 0;
+    rc = cmm_write(send_sock, &c, 1, 0, NULL, NULL);
+    CPPUNIT_ASSERT_EQUAL_MESSAGE("Sent 1 byte", 1, rc);
+
     fprintf(stderr, "Receiver finished.\n");
 }
 
@@ -199,6 +203,9 @@ EndToEndTestsBase::sendChecksum(unsigned char *buf, size_t bytes)
     int rc = cmm_send(send_sock, my_digest, SHA_DIGEST_LENGTH, 0, 
                       0, NULL, NULL);
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending digest", SHA_DIGEST_LENGTH, rc);
+    char c = 0;
+    rc = cmm_read(send_sock, &c, 1, NULL);
+    CPPUNIT_ASSERT_EQUAL_MESSAGE("Received 1 byte", 1, rc);
 }
 
 void
