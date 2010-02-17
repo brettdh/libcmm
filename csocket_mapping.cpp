@@ -146,8 +146,8 @@ CSockMapping::teardown(struct net_interface iface, bool local)
         victims.pop_back();
         available_csocks.erase(victim);
         shutdown(victim->osfd, SHUT_RDWR); /* tells the sender/receiver threads to exit */
-        pthread_cond_signal(&sockset_cv); // only the bootstrapper is waiting
     }
+    pthread_cond_signal(&sockset_cv); // only the bootstrapper is waiting
 }
 
 
