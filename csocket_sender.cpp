@@ -22,6 +22,7 @@
 #include <algorithm>
 using std::vector; using std::max; using std::min;
 
+#include <signal.h>
 #include <errno.h>
 
 #include "cmm_timing.h"

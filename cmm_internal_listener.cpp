@@ -9,6 +9,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <signal.h>
 
 #define INTERNAL_LISTEN_PORT 42424
 
@@ -99,6 +100,11 @@ ListenerThread::Run()
     // we never join to this thread; we synchronize with its death
     // with a condition variable.
     detach();
+
+    sigset_t sigset;
+    sigemptyset(&sigset);
+    sigaddset(&sigset, SIGPIPE); // ignore SIGPIPE
+    pthread_sigmask(SIG_BLOCK, &sigset, NULL);
 
     while (1) {
         fd_set readfds;
