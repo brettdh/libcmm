@@ -144,60 +144,69 @@ ListenerThread::Run()
                   inet_ntoa(local_addr.sin_addr));
         struct net_interface dummy;
         struct net_interface remote_iface;
-        if (sk->isLoopbackOnly()) {
-            remote_iface.ip_addr.s_addr = htonl(INADDR_LOOPBACK);
-            remote_iface.ip_addr.s_addr = htonl(INADDR_LOOPBACK);
-            remote_iface.labels = 0;
-            remote_iface.bandwidth = 100000000;
-            remote_iface.RTT = 0;
-        } else {
-            if (!sk->csock_map->get_local_iface_by_addr(local_addr.sin_addr, 
-                                                        dummy)) {
-                dbgprintf("%s: network should be down.  ",
-                          inet_ntoa(local_addr.sin_addr));
-                dbgprintf_plain("%s, go away.\n",
-                                inet_ntoa(remote_addr.sin_addr));
-                close(sock);
-                continue;
-            }
-
-            struct CMMSocketControlHdr hdr;
-            rc = recv(sock, &hdr, sizeof(hdr), MSG_WAITALL);
-            if (rc != sizeof(hdr)) {
-                perror("recv");
-                close(sock);
-                dbgprintf("error receiving new_interface data\n");
-                continue;
-            }
-            
-            if (ntohs(hdr.type) != CMM_CONTROL_MSG_NEW_INTERFACE) {
-                dbgprintf("Expected new-interface message on "
-                          "connection start;\n   Got %s\n",
-                          hdr.describe().c_str());
-                close(sock);
-                continue;
-            }
-            
-            remote_iface.ip_addr =hdr.op.new_interface.ip_addr;
-            remote_iface.labels = ntohl(hdr.op.new_interface.labels);
-            remote_iface.bandwidth = ntohl(hdr.op.new_interface.bandwidth);
-            remote_iface.RTT = ntohl(hdr.op.new_interface.RTT);
-            
-            struct sockaddr_in true_remote_addr;
-            memcpy(&true_remote_addr.sin_addr, &hdr.op.new_interface.ip_addr, 
-                   sizeof(struct in_addr));
-            dbgprintf("Adding connection %d from %s bw %lu RTT %lu ",
-                      sock, inet_ntoa(true_remote_addr.sin_addr),
-                      remote_iface.bandwidth, remote_iface.RTT);
-            dbgprintf_plain("(peername %s)\n",
+//         if (sk->isLoopbackOnly()) {
+//             remote_iface.ip_addr.s_addr = htonl(INADDR_LOOPBACK);
+//             remote_iface.ip_addr.s_addr = htonl(INADDR_LOOPBACK);
+//             remote_iface.labels = 0;
+//             remote_iface.bandwidth = 100000000;
+//             remote_iface.RTT = 0;
+//         } else {
+        if (!sk->csock_map->get_local_iface_by_addr(local_addr.sin_addr, 
+                                                    dummy)) {
+            dbgprintf("%s: network should be down.  ",
+                      inet_ntoa(local_addr.sin_addr));
+            dbgprintf_plain("%s, go away.\n",
                             inet_ntoa(remote_addr.sin_addr));
+            close(sock);
+            continue;
         }
+
+        struct CMMSocketControlHdr hdr;
+        rc = recv(sock, &hdr, sizeof(hdr), MSG_WAITALL);
+        if (rc != sizeof(hdr)) {
+            perror("recv");
+            close(sock);
+            dbgprintf("error receiving new_interface data\n");
+            continue;
+        }
+            
+        if (ntohs(hdr.type) != CMM_CONTROL_MSG_NEW_INTERFACE) {
+            dbgprintf("Expected new-interface message on "
+                      "connection start;\n   Got %s\n",
+                      hdr.describe().c_str());
+            close(sock);
+            continue;
+        }
+            
+        remote_iface.ip_addr =hdr.op.new_interface.ip_addr;
+        remote_iface.labels = ntohl(hdr.op.new_interface.labels);
+        remote_iface.bandwidth = ntohl(hdr.op.new_interface.bandwidth);
+        remote_iface.RTT = ntohl(hdr.op.new_interface.RTT);
+            
+        struct sockaddr_in true_remote_addr;
+        memcpy(&true_remote_addr.sin_addr, &hdr.op.new_interface.ip_addr, 
+               sizeof(struct in_addr));
+        dbgprintf("Adding connection %d from %s bw %lu RTT %lu ",
+                  sock, inet_ntoa(true_remote_addr.sin_addr),
+                  remote_iface.bandwidth, remote_iface.RTT);
+        dbgprintf_plain("(peername %s)\n",
+                        inet_ntoa(remote_addr.sin_addr));
+//        }
         try {
             sk->add_connection(sock, 
                                local_addr.sin_addr, 
                                remote_iface);
         } catch (std::runtime_error& e) {
             dbgprintf("Failed to add connection: %s\n", e.what());
+        }
+
+        memset(&hdr, 0, sizeof(hdr));
+        hdr.type = htons(CMM_CONTROL_MSG_HELLO);
+        rc = send(sock, &hdr, sizeof(hdr), 0);
+        if (rc != sizeof(hdr)) {
+            perror("send");
+            close(sock);
+            dbgprintf("Error sending confirmation (HELLO)\n");
         }
     }
 }

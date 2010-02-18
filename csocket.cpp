@@ -153,24 +153,33 @@ CSocket::phys_connect()
             throw rc;
         }
 
-        if (!sk->isLoopbackOnly()) {
-            struct CMMSocketControlHdr hdr;
-            memset(&hdr, 0, sizeof(hdr));
-            hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
-            hdr.send_labels = 0;
-            hdr.op.new_interface.ip_addr = local_iface.ip_addr;
-            hdr.op.new_interface.labels = htonl(local_iface.labels);
-            hdr.op.new_interface.bandwidth = htonl(local_iface.bandwidth);
-            hdr.op.new_interface.RTT = htonl(local_iface.RTT);
-            rc = send(osfd, &hdr, sizeof(hdr), 0);
-            if (rc != sizeof(hdr)) {
-                oserr = errno;
-                perror("send");
-                dbgprintf("Failed to send interface info\n");
-                close(osfd);
-                throw rc;
-            }
+        //if (!sk->isLoopbackOnly()) {
+        struct CMMSocketControlHdr hdr;
+        memset(&hdr, 0, sizeof(hdr));
+        hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
+        hdr.send_labels = 0;
+        hdr.op.new_interface.ip_addr = local_iface.ip_addr;
+        hdr.op.new_interface.labels = htonl(local_iface.labels);
+        hdr.op.new_interface.bandwidth = htonl(local_iface.bandwidth);
+        hdr.op.new_interface.RTT = htonl(local_iface.RTT);
+        rc = send(osfd, &hdr, sizeof(hdr), 0);
+        if (rc != sizeof(hdr)) {
+            oserr = errno;
+            perror("send");
+            dbgprintf("Failed to send interface info\n");
+            close(osfd);
+            throw rc;
         }
+
+        rc = recv(osfd, &hdr, sizeof(hdr), 0);
+        if (rc != sizeof(hdr)) {
+            oserr = errno;
+            perror("recv");
+            dbgprintf("Failed to recv confirmation (HELLO)\n");
+            close(osfd);
+            throw rc;
+        }
+        //}
     } catch (int rc) {
         PthreadScopedLock lock(&csock_lock);
         osfd = -1;
