@@ -43,10 +43,9 @@ std::string
 CMMSocketControlHdr::describe() const
 {
     std::ostringstream stream;
-    if (ntohs(type) != CMM_CONTROL_MSG_INVALID) {
-        stream << " Type: " << type_str() << " ";
-        stream << "Send labels: " << ntohl(send_labels) << " ";
-    }
+    stream << " Type: " << type_str() << "("  << ntohs(type) << ") ";
+    
+    stream << "Send labels: " << ntohl(send_labels) << " ";
 
     switch (ntohs(type)) {
     case CMM_CONTROL_MSG_HELLO:

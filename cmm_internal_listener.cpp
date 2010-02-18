@@ -205,15 +205,6 @@ ListenerThread::Run()
         } catch (std::runtime_error& e) {
             dbgprintf("Failed to add connection: %s\n", e.what());
         }
-
-        memset(&hdr, 0, sizeof(hdr));
-        hdr.type = htons(CMM_CONTROL_MSG_HELLO);
-        rc = send(sock, &hdr, sizeof(hdr), 0);
-        if (rc != sizeof(hdr)) {
-            perror("send");
-            close(sock);
-            dbgprintf("Error sending confirmation (HELLO)\n");
-        }
     }
 }
 

@@ -34,6 +34,7 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
       local_iface(local_iface_), remote_iface(remote_iface_),
       stats(local_iface, remote_iface),
       csock_sendr(NULL), csock_recvr(NULL), connected(false),
+      accepting(false),
       irob_indexes(local_iface_.labels)
 {
     pthread_mutex_init(&csock_lock, NULL);
@@ -53,7 +54,10 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
         sk->set_all_sockopts(osfd);
     } else {
         osfd = accepted_sock;
-        connected = true;
+        //connected = true;
+        accepting = true;
+        // XXX: need to wait until the end-to-end library-level connect 
+        //  handshake completes
     }
     
     int on = 1;
@@ -105,12 +109,9 @@ CSocket::~CSocket()
 int
 CSocket::phys_connect()
 {
-    {
-        PthreadScopedLock lock(&csock_lock);
-        if (connected) {
-            // this was probably created by accept() in the listener thread
-            return 0;
-        }
+    if (accepting) {
+        // this was created by accept() in the listener thread
+        return wait_until_connected();
     }
 
     struct sockaddr_in local_addr, remote_addr;
@@ -179,6 +180,13 @@ CSocket::phys_connect()
             close(osfd);
             throw rc;
         }
+        if (ntohs(hdr.type) != CMM_CONTROL_MSG_HELLO) {
+            dbgprintf("Received unexpected message in place of CSocket connect confirmation: %s\n",
+                      hdr.describe().c_str());
+            oserr = 0;
+            close(osfd);
+            throw -1;
+        }
         //}
     } catch (int rc) {
         PthreadScopedLock lock(&csock_lock);
@@ -195,6 +203,29 @@ CSocket::phys_connect()
     }
 
     return 0;
+}
+
+void
+CSocket::send_confirmation()
+{
+    struct CMMSocketControlHdr hdr;
+    memset(&hdr, 0, sizeof(hdr));
+    hdr.type = htons(CMM_CONTROL_MSG_HELLO);
+    int rc = send(osfd, &hdr, sizeof(hdr), 0);
+    if (rc != sizeof(hdr)) {
+        perror("send");
+        dbgprintf("Error sending confirmation (HELLO)\n");
+
+        PthreadScopedLock lock(&csock_lock);
+        close(osfd);
+        osfd = -1;
+        pthread_cond_broadcast(&csock_cv);
+        return;
+    }
+
+    PthreadScopedLock lock(&csock_lock);
+    connected = true;
+    pthread_cond_broadcast(&csock_cv);
 }
 
 bool

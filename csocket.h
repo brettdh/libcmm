@@ -61,6 +61,10 @@ class CSocket {
     bool is_connected();
     int wait_until_connected();
 
+    // called when a new incoming connection is added
+    // by the listener.
+    void send_confirmation();
+
     // network measurements/estimates for this connection.
     u_long bandwidth();
     double RTT();
@@ -92,6 +96,9 @@ class CSocket {
     pthread_mutex_t csock_lock;
     pthread_cond_t csock_cv;
     bool connected;
+
+    // to distinguish between connecting and accepting sockets
+    bool accepting;
 
     // only valid until the worker threads are created;
     // ensures that all CSocket pointers are shared

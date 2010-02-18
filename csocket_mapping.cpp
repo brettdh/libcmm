@@ -558,7 +558,8 @@ CSockMapping::add_connection(int sock,
     }
     
 
-    (void)make_new_csocket(local_iface, remote_iface, sock);
+    CSocketPtr csock = make_new_csocket(local_iface, remote_iface, sock);
+    csock->send_confirmation();
 }
 
 struct CSockMapping::get_worker_tids {
