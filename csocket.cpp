@@ -266,7 +266,7 @@ CSocket::retransmission_timeout()
 {
     // XXX: with a higher rto, the mobicom-intermittent benchmark is
     // timing out, so try this for now.
-    struct timespec dumb_rto = {5, 0};
+    struct timespec dumb_rto = {3, 0};
     return dumb_rto;
 
     // have a fairly high floor on this so that we don't
