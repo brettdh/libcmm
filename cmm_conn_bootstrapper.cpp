@@ -67,7 +67,17 @@ void ConnBootstrapper::Run()
                 /* we are accepting a connection */
                 dbgprintf("Accepting connection; using socket %d "
                           "to bootstrap\n", bootstrap_sock);
-                sk->recv_remote_listeners(bootstrap_sock);
+                int num_ifaces = sk->recv_hello(bootstrap_sock);
+                sk->send_hello(bootstrap_sock);
+
+                // connecter will connect on all of its local ifaces
+                //  before sending bw/latency info.
+                sk->recv_remote_listeners(bootstrap_sock, num_ifaces);
+
+                // wait for the connecter to finish, then fill in any
+                //  missing connections before sending my ifaces.
+                sk->startup_csocks();
+                sk->wait_for_connections();
                 sk->send_local_listeners(bootstrap_sock);
             } else {
                 /* we are connecting */
@@ -109,10 +119,25 @@ void ConnBootstrapper::Run()
             
                 dbgprintf("Initiating connection; using socket %d "
                           "to bootstrap\n", bootstrap_sock);
-                sk->send_local_listeners(bootstrap_sock);
-                sk->recv_remote_listeners(bootstrap_sock);
 
+                sk->send_hello(bootstrap_sock);
+                int num_ifaces = sk->recv_hello(bootstrap_sock);
+
+                // Before sending iface info, just make connections from all
+                //  my local ifaces.  This way, the accept()-side will have
+                //  all the connections before it needs to use any of them,
+                //  and it won't try to create them.  This should avoid
+                //  the race between both sides creating the same connection.
                 sk->startup_csocks();
+                sk->wait_for_connections();
+                // After the connections are done, we still need to
+                //  tell the remote side about the bw/latency of our
+                //  ifaces.
+                sk->send_local_listeners(bootstrap_sock);
+                // during this time, the remote side will connect from
+                //  all of its interfaces, if it has any besides the
+                //  bootstrapping iface.
+                sk->recv_remote_listeners(bootstrap_sock, num_ifaces);
             }
             
             // no errors; must have succeeded

@@ -155,13 +155,19 @@ class CMMSocketImpl : public CMMSocket {
     
     int set_all_sockopts(int osfd);
 
+    void send_hello(int bootstrap_sock);
+    int recv_hello(int bootstrap_sock); // returns the number of remote ifaces.
     void recv_remote_listener(int bootstrap_sock);
-    void recv_remote_listeners(int bootstrap_sock);
+    void recv_remote_listeners(int bootstrap_sock, int num_ifaces);
     void send_local_listener(int bootstrap_sock, struct net_interface iface);
     void send_local_listeners(int bootstrap_sock);
 
     // create csockets for all the interface pairs.
     void startup_csocks();
+
+    // wait for the csockets to connect.
+    // only called on bootstrapping, like startup_csocks().
+    void wait_for_connections();
 
     int connection_bootstrap(const struct sockaddr *remote_addr, 
                              socklen_t addrlen,

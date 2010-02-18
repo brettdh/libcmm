@@ -55,6 +55,9 @@ class CSockMapping {
     void setup(struct net_interface iface, bool local);
     void teardown(struct net_interface iface, bool local);
 
+    // only called when bootstrapping.
+    void wait_for_connections();
+
     // only call when shutting down.
     // waits (pthread_join) for all workers to exit.
     void join_to_all_workers();

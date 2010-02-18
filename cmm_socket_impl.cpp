@@ -74,6 +74,7 @@ void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
     
     {
         PthreadScopedRWLock sock_lock(&my_lock, true);
+        remote_ifaces.erase(new_listener); // make sure the values update
         remote_ifaces.insert(new_listener);
     }
     dbgprintf("Got new remote interface %s with labels %lu, "
@@ -82,13 +83,14 @@ void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
               new_listener.bandwidth, new_listener.RTT);
 }
 
-void CMMSocketImpl::recv_remote_listeners(int bootstrap_sock)
+// returns the number of remote ifaces.
+int CMMSocketImpl::recv_hello(int bootstrap_sock)
 {
     struct CMMSocketControlHdr hdr;
     int rc = recv(bootstrap_sock, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr) || ntohs(hdr.type) != CMM_CONTROL_MSG_HELLO) {
 	perror("recv");
-	dbgprintf("Error receiving remote listeners\n");
+	dbgprintf("Error receiving hello\n");
         throw -1;
     }
 
@@ -96,10 +98,33 @@ void CMMSocketImpl::recv_remote_listeners(int bootstrap_sock)
         PthreadScopedRWLock sock_lock(&my_lock, true);
         remote_listener_port = hdr.op.hello.listen_port;
     }
+    return ntohl(hdr.op.hello.num_ifaces);
+}
 
-    int num_ifaces = ntohl(hdr.op.hello.num_ifaces);
+void CMMSocketImpl::recv_remote_listeners(int bootstrap_sock, int num_ifaces)
+{
     for (int i = 0; i < num_ifaces; i++) {
         recv_remote_listener(bootstrap_sock);
+    }
+}
+
+void
+CMMSocketImpl::send_hello(int bootstrap_sock)
+{
+    struct CMMSocketControlHdr hdr;
+    memset(&hdr, 0, sizeof(hdr));
+    hdr.type = htons(CMM_CONTROL_MSG_HELLO);
+
+    PthreadScopedRWLock sock_lock(&my_lock, false);
+    assert(listener_thread);
+    hdr.op.hello.listen_port = listener_thread->port();
+    hdr.op.hello.num_ifaces = htonl(local_ifaces.size());
+    
+    int rc = send(bootstrap_sock, &hdr, sizeof(hdr), 0);
+    if (rc != sizeof(hdr)) {
+        perror("send");
+        dbgprintf("Error sending hello\n");
+        throw -1;
     }
 }
 
@@ -125,27 +150,12 @@ void CMMSocketImpl::send_local_listener(int bootstrap_sock,
 
 void CMMSocketImpl::send_local_listeners(int bootstrap_sock)
 {
-    struct CMMSocketControlHdr hdr;
-    memset(&hdr, 0, sizeof(hdr));
-    hdr.type = htons(CMM_CONTROL_MSG_HELLO);
-
-    {
-        PthreadScopedRWLock sock_lock(&my_lock, false);
-        assert(listener_thread);
-        hdr.op.hello.listen_port = listener_thread->port();
-        hdr.op.hello.num_ifaces = htonl(local_ifaces.size());
-        
-        int rc = send(bootstrap_sock, &hdr, sizeof(hdr), 0);
-        if (rc != sizeof(hdr)) {
-            perror("send");
-            dbgprintf("Error sending local listeners\n");
-            throw -1;
-        }
-        
-        for (NetInterfaceSet::iterator it = local_ifaces.begin();
-             it != local_ifaces.end(); it++) {
-            send_local_listener(bootstrap_sock, *it);
-        }
+    PthreadScopedRWLock sock_lock(&my_lock, false);
+    assert(listener_thread);
+    
+    for (NetInterfaceSet::iterator it = local_ifaces.begin();
+         it != local_ifaces.end(); it++) {
+        send_local_listener(bootstrap_sock, *it);
     }
 }
 
@@ -202,8 +212,20 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
                 localhost.RTT = 0;
 
                 local_ifaces.insert(localhost);
+                remote_ifaces.insert(localhost);
             } else {
                 local_ifaces = ifaces;
+                if (bootstrap_sock == -1) {
+                    // connect()-side only
+                    struct net_interface bootstrap_iface;
+                    memcpy(&bootstrap_iface.ip_addr, &ip_sockaddr->sin_addr,
+                           sizeof(bootstrap_iface.ip_addr));
+                    // arbitrary; will be overwritten
+                    bootstrap_iface.labels = 0;
+                    bootstrap_iface.bandwidth = 1250000;
+                    bootstrap_iface.labels = 0;
+                    remote_ifaces.insert(bootstrap_iface);
+                }
             }
         }
         
@@ -232,6 +254,13 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
     }
 
     return 0;
+}
+
+// only called on bootstrapping.
+void
+CMMSocketImpl::wait_for_connections()
+{
+    csock_map->wait_for_connections();
 }
 
 int

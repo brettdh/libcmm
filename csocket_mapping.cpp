@@ -133,6 +133,25 @@ CSockMapping::setup(struct net_interface iface, bool local)
     }
 }
 
+struct WaitForConnection {
+    int operator()(CSocketPtr csock) {
+        int rc = csock->wait_until_connected();
+        if (rc < 0) {
+            // print, but don't fail the for_each
+            dbgprintf("CSocket %d failed to connect on bootstrapping\n",
+                      csock->osfd);
+        }
+        return 0;
+    }
+};
+
+void
+CSockMapping::wait_for_connections()
+{
+    // only called on bootstrapping.
+    (void)for_each(WaitForConnection());
+}
+
 void
 CSockMapping::teardown(struct net_interface iface, bool local)
 {
