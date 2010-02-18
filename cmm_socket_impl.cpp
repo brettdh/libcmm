@@ -1901,6 +1901,8 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
         }
         */
 
+        // XXX: begin and chunk can be out of order now; is this check still needed?
+        // XXX: then again, it probably never fails.
         if (psirob->announced) {
             if (csock->is_connected()) {
                 csock->irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));//chunk.seqno));

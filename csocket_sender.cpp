@@ -576,46 +576,48 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 bool
 CSocketSender::begin_irob(const IROBSchedulingData& data)
 {
-    if (data.send_labels & CMM_LABEL_BACKGROUND) {
-        pthread_mutex_unlock(&sk->scheduling_state_lock);
-        bool fg_sock = csock->is_fg();
-        pthread_mutex_lock(&sk->scheduling_state_lock);
-        if (fg_sock) {
-            ssize_t chunksize = 0;
-            if (!okay_to_send_bg(chunksize)) {
-                return false;
-            }
-        }
-        // after this point, we've committed to sending the
-        // BG BEGIN_IROB message on the FG socket.
+    PendingIROB *pirob = sk->outgoing_irobs.find(data.id);
+    if (!pirob) {
+        // This is probably a retransmission; must have already been ACK'd
+        // Just ignore it
+        return true;
     }
-    
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    assert(psirob);
 
     irob_id_t id = data.id;
 
-    PendingIROB *pirob = NULL;
-    if (delegate_if_necessary(id, pirob, data)) {
-        // we passed it off, so make sure that we don't
-        // try to re-insert data into the IROBSchedulingIndexes.
-        return true;
-    }
-    // at this point, we know that this task is ours
+    if (!psirob->announced) {
+        // only try to delegate if this is the first Begin_IROB 
+        //  sent for this IROB.  Otherwise, it's a retransmission
+        //  and we want to do it right away.
+        if (data.send_labels & CMM_LABEL_BACKGROUND) {
+            pthread_mutex_unlock(&sk->scheduling_state_lock);
+            bool fg_sock = csock->is_fg();
+            pthread_mutex_lock(&sk->scheduling_state_lock);
+            if (fg_sock) {
+                ssize_t chunksize = 0;
+                if (!okay_to_send_bg(chunksize)) {
+                    return false;
+                }
+            }
+            // after this point, we've committed to sending the
+            // BG BEGIN_IROB message on the FG socket.
+        }
+    
+        //PendingIROB *pirob = NULL;
+        if (delegate_if_necessary(id, pirob, data)) {
+            // we passed it off, so make sure that we don't
+            // try to re-insert data into the IROBSchedulingIndexes.
+            return true;
+        }
+        // at this point, we know that this task is ours
 
-    if (!pirob) {
-        // must have been ACK'd already
-        return true;
+        if (!pirob) {
+            // must have been ACK'd already
+            return true;
+        }
     }
-
-//     pthread_mutex_unlock(&sk->scheduling_state_lock);
-//     if (data.send_labels & CMM_LABEL_BACKGROUND &&
-//         csock->is_fg()) {
-//         ssize_t chunksize = 0;
-//         if (!okay_to_send_bg(chunksize)) {
-//             return false;
-//         }
-//         // after this point, we've committed to sending the
-//         // BG BEGIN_IROB message on the FG socket.
-//     }
 
     struct CMMSocketControlHdr hdr;
     memset(&hdr, 0, sizeof(hdr));
@@ -687,7 +689,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     }
 
     pirob = sk->outgoing_irobs.find(id);
-    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     if (psirob) {
         psirob->announced = true;
         IROBSchedulingData new_chunk(id, true, data.send_labels);
