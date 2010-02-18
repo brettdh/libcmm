@@ -27,6 +27,9 @@ using std::vector; using std::max; using std::min;
 
 #include "cmm_timing.h"
 
+// easy handle to enable/disable striping.
+static bool striping = false;
+
 CSocketSender::CSocketSender(CSocketPtr csock_) 
   : csock(csock_), sk(get_pointer(csock_->sk)) 
 {
@@ -455,7 +458,7 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
             if (!data.chunks_ready) {
                 match->irob_indexes.new_irobs.insert(data);
             } else {
-                if (psirob->send_labels & CMM_LABEL_BACKGROUND) {
+                if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND) {
                     //  Try to send this chunk in parallel
                     return false;
                 } else {
@@ -906,7 +909,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     //if (!psirob->chunk_in_flight) {
-    if (psirob->send_labels & CMM_LABEL_BACKGROUND) {
+    if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND) {
         // let other threads try to send this chunk too
         sk->irob_indexes.new_chunks.insert(data);
         pthread_cond_broadcast(&sk->scheduling_state_cv);
@@ -997,7 +1000,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
         } 
 
         // more chunks to send, potentially, so make sure someone sends them.
-        if (psirob->send_labels & CMM_LABEL_BACKGROUND) {
+        if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND) {
             // already inserted it into sk->irob_indexes.new_chunks,
             //  letting another thread try to jump in.
             // So, I'll take a short break from sending it myself.
