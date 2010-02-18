@@ -952,9 +952,11 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
             //psirob->mark_sent(rc - (ssize_t)total_header_size);
         
             if (rc != (ssize_t)total_bytes) {
-                // TODO: this should trigger a request for the receiver
-                //  to report the number of bytes received
-                psirob->request_data_check();
+                // XXX: data checks are wasting a lot of bandwidth
+                // (due to multiple spurious resend requests),
+                // and they don't really make sense anymore,
+                // with the new seqno-based sending scheme.
+                //psirob->request_data_check();
             }
         }
     }

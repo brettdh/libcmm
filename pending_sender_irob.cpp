@@ -282,7 +282,9 @@ PendingSenderIROB::request_data_check()
 bool
 PendingSenderIROB::needs_data_check()
 {
-    return data_check;
+    //return data_check;
+    // see csocket_sender.cpp; DATA_CHECK is obsolete.
+    return false;
 }
 
 /*
