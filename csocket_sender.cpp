@@ -1060,7 +1060,7 @@ CSocketSender::down_interface(struct net_interface iface)
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
     if (rc != sizeof(hdr)) {
-        sk->changed_local_ifaces.insert(iface);
+        sk->down_local_ifaces.insert(iface);
         pthread_cond_broadcast(&sk->scheduling_state_cv);
         if (rc < 0) {
             dbgprintf("CSocketSender: write error: %s\n",
