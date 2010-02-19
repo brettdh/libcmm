@@ -8,6 +8,13 @@ using std::vector;
 
 CPPUNIT_TEST_SUITE_REGISTRATION(AckTimeoutsTest);
 
+void
+AckTimeoutsTest::disabledReminder()
+{
+    fprintf(stderr, "Ack timeouts are currently disabled, "
+            "so I've disabled their tests too.\n");
+}
+
 void 
 AckTimeoutsTest::testOrdering()
 {
