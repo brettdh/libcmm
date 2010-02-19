@@ -90,7 +90,8 @@ struct get_matching_csocks {
 
 /* already holding sk->my_lock, writer=true */
 void 
-CSockMapping::setup(struct net_interface iface, bool local)
+CSockMapping::setup(struct net_interface iface, bool local,
+                    bool make_connection)
 {
     vector<CSocketPtr> matches;
     (void)for_each(get_matching_csocks(iface, matches, local));
@@ -106,17 +107,17 @@ CSockMapping::setup(struct net_interface iface, bool local)
                                  matches[i]->remote_iface);
     }
 
-    // Let's try making a CSocket whenever a network pair becomes available.
-    //  That way, it will be available for striping, even if I haven't 
-    //  asked for labels that create CSockets on all networks.
-    NetInterfaceSet::iterator it, end;
-    CMMSocketImplPtr skp(sk);
-    if (skp->bootstrapper->status() != 0) { // already holding sk->my_lock, (W)
+    if (!make_connection) {
         // bootstrapping in progress or failed; don't try to 
         // start up a new connection
         return;
     }
 
+    // Let's try making a CSocket whenever a network pair becomes available.
+    //  That way, it will be available for striping, even if I haven't 
+    //  asked for labels that create CSockets on all networks.
+    NetInterfaceSet::iterator it, end;
+    CMMSocketImplPtr skp(sk);
     if (local) { // try this out to avoid some of the contention.
         it = skp->remote_ifaces.begin();
         end = skp->remote_ifaces.end();

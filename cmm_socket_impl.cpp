@@ -165,11 +165,11 @@ CMMSocketImpl::startup_csocks()
     PthreadScopedRWLock sock_lock(&my_lock, true);
     for (NetInterfaceSet::iterator it = remote_ifaces.begin();
          it != remote_ifaces.end(); it++) {
-        csock_map->setup(*it, false);
+        csock_map->setup(*it, false, false);
     }
     for (NetInterfaceSet::iterator it = local_ifaces.begin();
          it != local_ifaces.end(); it++) {
-        csock_map->setup(*it, true);
+        csock_map->setup(*it, true, true);
     }
 }
 
@@ -1230,7 +1230,7 @@ CMMSocketImpl::interface_up(struct net_interface up_iface)
 	CMMSocketImplPtr sk = sk_iter->second;
 	assert(sk);
 
-	sk->setup(up_iface, true);
+        sk->setup(up_iface, true);
     }
     pthread_mutex_unlock(&hashmaps_mutex);
 }
@@ -1549,7 +1549,10 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
 
     PthreadScopedRWLock lock(&my_lock, true);
 
-    csock_map->setup(iface, local);
+    // If bootstrapping is in progress, the bootstrapper is
+    //  in the middle of creating connections, so don't do it here.
+    bool make_connection = (bootstrapper->status() == 0);
+    csock_map->setup(iface, local, make_connection);
     
     if (local) {
         PthreadScopedLock lock(&scheduling_state_lock);
