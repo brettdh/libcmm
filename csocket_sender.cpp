@@ -1280,6 +1280,9 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
     data_check_hdr.type = htons(CMM_CONTROL_MSG_DATA_CHECK);
     data_check_hdr.send_labels = 0;
     data_check_hdr.op.data_check.id = htonl(data.id);
+
+    dbgprintf("About to send message: %s\n", 
+              data_check_hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     int rc = write(csock->osfd, &data_check_hdr, sizeof(data_check_hdr));
     pthread_mutex_lock(&sk->scheduling_state_lock);
