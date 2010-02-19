@@ -1551,7 +1551,7 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
 
     // If bootstrapping is in progress, the bootstrapper is
     //  in the middle of creating connections, so don't do it here.
-    bool make_connection = (bootstrapper->status() == 0);
+    bool make_connection = (bootstrapper && bootstrapper->status() == 0);
     csock_map->setup(iface, local, make_connection);
     
     if (local) {
