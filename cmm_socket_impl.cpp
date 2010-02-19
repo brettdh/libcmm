@@ -2192,14 +2192,26 @@ CMMSocketImpl::data_check_requested(irob_id_t id)
             pthread_cond_broadcast(&scheduling_state_cv);
         }
     } else {
-        resend_request_type_t reqtype = CMM_RESEND_REQUEST_DATA;
+        resend_request_type_t reqtype = CMM_RESEND_REQUEST_NONE;
         if (pirob->placeholder) {
             reqtype = resend_request_type_t(reqtype |
                                             CMM_RESEND_REQUEST_DEPS);
         }
+        PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
+        assert(prirob);
+        if (!prirob->get_missing_chunks().empty()) {
+            reqtype = resend_request_type_t(reqtype |
+                                            CMM_RESEND_REQUEST_DATA);            
+        }
 
-        IROBSchedulingData request(id, reqtype);
-        irob_indexes.resend_requests.insert(request);
+        if (reqtype == CMM_RESEND_REQUEST_NONE) {
+            struct timeval inval = {0, -1};
+            IROBSchedulingData data(id, inval);
+            irob_indexes.waiting_acks.insert(data);
+        } else {
+            IROBSchedulingData request(id, reqtype);
+            irob_indexes.resend_requests.insert(request);
+        }
         pthread_cond_broadcast(&scheduling_state_cv);
     }
 }
