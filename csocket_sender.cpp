@@ -1231,7 +1231,7 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
     //hdrs[0].op.resend_request.offset = 0;
     //hdrs[0].op.resend_request.len = 0;
     hdrs[0].send_labels = htonl(csock->local_iface.labels);
-    if (req_type & CMM_RESEND_REQUEST_END && prirob) {
+    if ((req_type & CMM_RESEND_REQUEST_END) && prirob) {
         hdrs[0].op.resend_request.next_chunk = htonl(prirob->next_chunk_seqno());
     }
 
