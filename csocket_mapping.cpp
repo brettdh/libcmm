@@ -2,6 +2,7 @@
 #include "csocket.h"
 #include "csocket_sender.h"
 #include "csocket_receiver.h"
+#include "cmm_conn_bootstrapper.h"
 #include "signals.h"
 #include "debug.h"
 #include <memory>
@@ -110,7 +111,7 @@ CSockMapping::setup(struct net_interface iface, bool local)
     //  asked for labels that create CSockets on all networks.
     NetInterfaceSet::iterator it, end;
     CMMSocketImplPtr skp(sk);
-    if (skp->connect_status() != 0) {
+    if (skp->bootstrapper->status() != 0) { // already holding sk->my_lock, (W)
         // bootstrapping in progress or failed; don't try to 
         // start up a new connection
         return;
