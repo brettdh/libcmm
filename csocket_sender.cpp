@@ -1282,7 +1282,9 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
     int rc = write(csock->osfd, &data_check_hdr, sizeof(data_check_hdr));
     pthread_mutex_lock(&sk->scheduling_state_lock);
     if (rc != sizeof(data_check_hdr)) {
-        sk->irob_indexes.new_chunks.insert(data);
+        dbgprintf("CSocketSender: write error: %s\n",
+                  strerror(errno));
+        sk->irob_indexes.waiting_data_checks.insert(data);
         pthread_cond_broadcast(&sk->scheduling_state_cv);
         throw CMMControlException("Socket error", data_check_hdr);
     }
