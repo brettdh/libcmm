@@ -313,17 +313,10 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
 
     struct net_interface iface;
 
-    // Don't send New_Interface messages anymore.
-    //  instead, just connect a new CSocket, and the
-    //  remote side will add the iface.  Thus, the
-    //  remote side will not try to create a new
-    //  CSocket, since it already has one.
-    /*
     if (pop_item(sk->changed_local_ifaces, iface)) {
         new_interface(iface);
         did_something = true;
     }
-    */
 
     if (pop_item(sk->down_local_ifaces, iface)) {
         down_interface(iface);
