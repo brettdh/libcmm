@@ -89,9 +89,10 @@ struct ack_data {
 
 typedef enum {
     CMM_RESEND_REQUEST_NONE = 0x0, // not used; only to complete type
-    CMM_RESEND_REQUEST_DEPS = 0x1,
-    CMM_RESEND_REQUEST_DATA = 0x2,
-    CMM_RESEND_REQUEST_BOTH = CMM_RESEND_REQUEST_DEPS|CMM_RESEND_REQUEST_DATA
+    CMM_RESEND_REQUEST_DEPS = 0x1, // resend Begin_IROB msg
+    CMM_RESEND_REQUEST_DATA = 0x2, // resend some chunks
+    CMM_RESEND_REQUEST_END = 0x3,  // resend End_IROB msg
+    CMM_RESEND_REQUEST_ALL = 0x7
 } resend_request_type_t;
 
 /* sender requesting the receiver to resend data associated

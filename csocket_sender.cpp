@@ -1215,7 +1215,7 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
             resend_request_type_t(req_type 
                                   & ~CMM_RESEND_REQUEST_DATA);
     }
-    if (!(req_type & CMM_RESEND_REQUEST_BOTH)) {
+    if (!(req_type & CMM_RESEND_REQUEST_ALL)) {
         dbgprintf("WARNING: unnecessary data-resend requested for IROB %ld\n", 
                   data.id);
         return;

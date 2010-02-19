@@ -2147,12 +2147,14 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
     u_long send_labels = psirob->send_labels;
 
     if (request & CMM_RESEND_REQUEST_DEPS) {
-        // TODO: pick up here (-ish).  Resend request received for BOTH, but Begin_IROB not resent.  why?
         irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
     }
     if (request & CMM_RESEND_REQUEST_DATA) {
         psirob->mark_not_received(seqno);//, offset, len);
         irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));
+    }
+    if (request & CMM_RESEND_REQUEST_END) {
+        irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false, send_labels));
     }
     pthread_cond_broadcast(&scheduling_state_cv);
 }
@@ -2187,7 +2189,7 @@ CMMSocketImpl::data_check_requested(irob_id_t id)
             pthread_cond_broadcast(&scheduling_state_cv);
         } else {
             // never seen this one before; ask for everything
-            IROBSchedulingData request(id, CMM_RESEND_REQUEST_BOTH);
+            IROBSchedulingData request(id, CMM_RESEND_REQUEST_ALL);
             irob_indexes.resend_requests.insert(request);
             pthread_cond_broadcast(&scheduling_state_cv);
         }
@@ -2199,9 +2201,10 @@ CMMSocketImpl::data_check_requested(irob_id_t id)
         }
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
         assert(prirob);
-        if (!prirob->get_missing_chunks().empty()) {
-            reqtype = resend_request_type_t(reqtype |
-                                            CMM_RESEND_REQUEST_DATA);            
+        if (!prirob->is_complete()) {
+            reqtype = resend_request_type_t(reqtype
+                                            | CMM_RESEND_REQUEST_DATA
+                                            | CMM_RESEND_REQUEST_END);
         }
 
         if (reqtype == CMM_RESEND_REQUEST_NONE) {

@@ -271,7 +271,7 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
                 assert(ret); // since it was absent before now
                 
                 resend_request = true;
-                req_type = CMM_RESEND_REQUEST_BOTH;
+                req_type = CMM_RESEND_REQUEST_ALL;
             }
         }
         
