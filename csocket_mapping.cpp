@@ -110,6 +110,12 @@ CSockMapping::setup(struct net_interface iface, bool local)
     //  asked for labels that create CSockets on all networks.
     NetInterfaceSet::iterator it, end;
     CMMSocketImplPtr skp(sk);
+    if (skp->connect_status() != 0) {
+        // bootstrapping in progress or failed; don't try to 
+        // start up a new connection
+        return;
+    }
+
     if (local) { // try this out to avoid some of the contention.
         it = skp->remote_ifaces.begin();
         end = skp->remote_ifaces.end();
@@ -134,14 +140,18 @@ CSockMapping::setup(struct net_interface iface, bool local)
 }
 
 struct WaitForConnection {
-    int operator()(CSocketPtr csock) {
+    int num_connections;
+    WaitForConnection() : num_connections(0) {}
+    void operator()(CSocketPtr csock) {
         int rc = csock->wait_until_connected();
         if (rc < 0) {
             // print, but don't fail the for_each
             dbgprintf("CSocket %d failed to connect on bootstrapping\n",
                       csock->osfd);
+            
+        } else {
+            num_connections++;
         }
-        return 0;
     }
 };
 
@@ -149,7 +159,12 @@ void
 CSockMapping::wait_for_connections()
 {
     // only called on bootstrapping.
-    (void)for_each(WaitForConnection());
+    WaitForConnection obj;
+    for_each_by_ref(obj);
+    if (obj.num_connections == 0) {
+        dbgprintf("All connection attempts on bootstrap failed!\n");
+        throw -1;
+    }
 }
 
 void
