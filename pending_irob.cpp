@@ -415,3 +415,16 @@ PendingIROBLattice::size()
     PthreadScopedLock lock(&membership_lock);
     return count; 
 }
+
+// must be holding scheduling_state_lock
+vector<irob_id_t>
+PendingIROBLattice::get_all_ids()
+{
+    vector<irob_id_t> ids;
+    for (size_t i = 0; i < pending_irobs.size(); ++i) {
+        if (pending_irobs[i]) {
+            ids.push_back(i + offset);
+        }
+    }
+    return ids;
+}

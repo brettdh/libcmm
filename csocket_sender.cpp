@@ -28,7 +28,7 @@ using std::vector; using std::max; using std::min;
 #include "cmm_timing.h"
 
 // easy handle to enable/disable striping.
-static bool striping = false;
+static bool striping = true;
 
 CSocketSender::CSocketSender(CSocketPtr csock_) 
   : csock(csock_), sk(get_pointer(csock_->sk)) 
@@ -231,6 +231,11 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
 
     if (indexes.waiting_acks.pop(data)) {
         send_acks(data, indexes);
+        did_something = true;
+    }
+
+    while (indexes.waiting_data_checks.pop(data)) {
+        send_data_check(data);
         did_something = true;
     }
 
@@ -1262,6 +1267,24 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
                       rc, bytes);
         }
         throw CMMControlException("Socket error", hdr);
+    }
+}
+
+void
+CSocketSender::send_data_check(const IROBSchedulingData& data)
+{
+    struct CMMSocketControlHdr data_check_hdr;
+    memset(&data_check_hdr, 0, sizeof(data_check_hdr));
+    data_check_hdr.type = htons(CMM_CONTROL_MSG_DATA_CHECK);
+    data_check_hdr.send_labels = 0;
+    data_check_hdr.op.data_check.id = htonl(data.id);
+    pthread_mutex_unlock(&sk->scheduling_state_lock);
+    int rc = write(csock->osfd, &data_check_hdr, sizeof(data_check_hdr));
+    pthread_mutex_lock(&sk->scheduling_state_lock);
+    if (rc != sizeof(data_check_hdr)) {
+        sk->irob_indexes.new_chunks.insert(data);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
+        throw CMMControlException("Socket error", data_check_hdr);
     }
 }
 

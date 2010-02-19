@@ -1597,9 +1597,15 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
         remote_ifaces.erase(iface);
     }
 
+    PthreadScopedLock lock(&scheduling_state_lock);
+    vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
+    for (size_t i = 0; i < ids.size(); ++i) {
+        IROBSchedulingData data_check(ids[i], false);
+        irob_indexes.waiting_data_checks.insert(data_check);
+    }
+
     // even in the remote case, any reading threads need to
     //  notice the csock is gone and wake up, if it's the last one
-    PthreadScopedLock lock(&scheduling_state_lock);
     pthread_cond_broadcast(&scheduling_state_cv);
 }
 

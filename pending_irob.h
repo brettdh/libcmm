@@ -1,6 +1,7 @@
 #ifndef pending_irob_h_incl
 #define pending_irob_h_incl
 
+#include <vector>
 #include <deque>
 #include "libcmm.h"
 #include "cmm_socket_control.h"
@@ -165,6 +166,8 @@ class PendingIROBLattice {
     // returns a placeholder IROB of the correct subtype for this lattice
     virtual PendingIROB *make_placeholder(irob_id_t id);
 
+    std::vector<irob_id_t> get_all_ids();
+        
   private:
     // must hold membership_lock
     bool insert_locked(PendingIROB *pirob, bool infer_deps = true);
