@@ -463,12 +463,11 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
             if (!data.chunks_ready) {
                 match->irob_indexes.new_irobs.insert(data);
             } else {
+                match->irob_indexes.new_chunks.insert(data);
                 if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND) {
                     //  Try to send this chunk in parallel
                     //sk->irob_indexes.new_chunks.insert(data);
-                    return false;
-                } else {
-                    match->irob_indexes.new_chunks.insert(data);
+                    ret = false;
                 }
             }
             pthread_cond_broadcast(&sk->scheduling_state_cv);
