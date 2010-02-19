@@ -1567,14 +1567,12 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
         // if bandwidth was previously reported to be zero,
         //  some data probably got dropped.  
         // If the bandwidth is now nonzero, let's check.
-        if (local) {
-            need_data_check = (it->bandwidth_up == 0 && 
-                               iface.bandwidth_up != 0);
-        } else {
-            need_data_check = (it->bandwidth_down == 0 && 
-                               iface.bandwidth_down != 0);
-        }
+        need_data_check = ((it->bandwidth_up == 0 && 
+                            iface.bandwidth_up != 0) ||
+                           (it->bandwidth_down == 0 && 
+                            iface.bandwidth_down != 0));
     }
+
     if (local) {
         if (local_ifaces.count(iface) > 0) {
             // make sure labels update if needed
