@@ -817,27 +817,25 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     */
 
     if (psirob->needs_data_check()) {
-        struct CMMSocketControlHdr data_check_hdr;
-        memset(&data_check_hdr, 0, sizeof(data_check_hdr));
-        data_check_hdr.type = htons(CMM_CONTROL_MSG_DATA_CHECK);
-        data_check_hdr.send_labels = htonl(pirob->send_labels);
-        data_check_hdr.op.data_check.id = htonl(id);
-        pthread_mutex_unlock(&sk->scheduling_state_lock);
-        int rc = write(csock->osfd, &data_check_hdr, sizeof(data_check_hdr));
-        pthread_mutex_lock(&sk->scheduling_state_lock);
-        if (rc != sizeof(data_check_hdr)) {
-            sk->irob_indexes.new_chunks.insert(data);
-            pthread_cond_broadcast(&sk->scheduling_state_cv);
-            throw CMMControlException("Socket error", data_check_hdr);
-        }
+//         struct CMMSocketControlHdr data_check_hdr;
+//         memset(&data_check_hdr, 0, sizeof(data_check_hdr));
+//         data_check_hdr.type = htons(CMM_CONTROL_MSG_DATA_CHECK);
+//         data_check_hdr.send_labels = htonl(pirob->send_labels);
+//         data_check_hdr.op.data_check.id = htonl(id);
+//         pthread_mutex_unlock(&sk->scheduling_state_lock);
+//         int rc = write(csock->osfd, &data_check_hdr, sizeof(data_check_hdr));
+//         pthread_mutex_lock(&sk->scheduling_state_lock);
+//         if (rc != sizeof(data_check_hdr)) {
+//             sk->irob_indexes.new_chunks.insert(data);
+//             pthread_cond_broadcast(&sk->scheduling_state_cv);
+//             throw CMMControlException("Socket error", data_check_hdr);
+//         }
+        
 
         // when the response arrives, we'll begin sending again on this IROB.
         // until then, this thread might send data from other IROBs if there's
         //  data to send.
-        //return true;
-
-        // no need to bail out here; there might be other data I can send,
-        //  or else get_ready_bytes will return no bytes
+        return true;
     }
 
     struct CMMSocketControlHdr hdr;
@@ -961,10 +959,8 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
             //psirob->mark_sent(rc - (ssize_t)total_header_size);
         
             if (rc != (ssize_t)total_bytes) {
-                // XXX: data checks are wasting a lot of bandwidth
-                // (due to multiple spurious resend requests),
-                // and they don't really make sense anymore,
-                // with the new seqno-based sending scheme.
+                // XXX: data checks are now done by the sender-side
+                // when a network goes down.
                 //psirob->request_data_check();
             }
         }

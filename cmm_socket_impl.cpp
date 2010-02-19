@@ -1599,6 +1599,7 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
 
     PthreadScopedLock lock(&scheduling_state_lock);
     vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
+    outgoing_irobs.data_check_all();
     for (size_t i = 0; i < ids.size(); ++i) {
         IROBSchedulingData data_check(ids[i], false);
         irob_indexes.waiting_data_checks.insert(data_check);
@@ -2160,6 +2161,7 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
         psirob->mark_drop_point(next_chunk);
         irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));
     }
+    psirob->data_check = false;
     pthread_cond_broadcast(&scheduling_state_cv);
 }
 

@@ -1,4 +1,5 @@
 #include "pending_irob.h"
+#include "pending_sender_irob.h"
 #include "debug.h"
 #include "timeops.h"
 #include <functional>
@@ -427,4 +428,17 @@ PendingIROBLattice::get_all_ids()
         }
     }
     return ids;
+}
+
+// only call on a lattice that only contains
+//  PendingSenderIROBs.
+void
+PendingIROBLattice::data_check_all()
+{
+    for (size_t i = 0; i < pending_irobs.size(); ++i) {
+        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pending_irobs[i]);
+        if (psirob) {
+            psirob->request_data_check();
+        }
+    }
 }

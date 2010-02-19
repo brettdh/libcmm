@@ -167,6 +167,7 @@ class PendingIROBLattice {
     virtual PendingIROB *make_placeholder(irob_id_t id);
 
     std::vector<irob_id_t> get_all_ids();
+    void data_check_all();
         
   private:
     // must hold membership_lock
