@@ -459,19 +459,21 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
     } else {
         assert(match != csock); // since csock->matches returned false
         if (match->is_connected()) {
+            bool ret = true;
             // pass this task to the right thread
             if (!data.chunks_ready) {
                 match->irob_indexes.new_irobs.insert(data);
             } else {
                 if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND) {
                     //  Try to send this chunk in parallel
-                    return false;
+                    sk->irob_indexes.new_chunks.insert(data);
+                    ret = false;
                 } else {
                     match->irob_indexes.new_chunks.insert(data);
                 }
             }
             pthread_cond_broadcast(&sk->scheduling_state_cv);
-            return true;
+            return ret;
         } // otherwise, I'll do it myself (this thread)
     }
 
