@@ -2148,16 +2148,21 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
     u_long send_labels = psirob->send_labels;
 
     if (request & CMM_RESEND_REQUEST_DEPS) {
+        dbgprintf("Enqueuing resend of deps for IROB %ld\n", id);
         irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
     }
     if (request & CMM_RESEND_REQUEST_DATA) {
+        dbgprintf("Enqueuing resend of chunk %lu for IROB %ld\n", seqno, id);
         psirob->mark_not_received(seqno);//, offset, len);
         irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));
     }
     if (request & CMM_RESEND_REQUEST_END) {
         if (psirob->all_chunks_sent()) {
+            dbgprintf("Enqueuing resend of End_IROB for IROB %ld\n", id);
             irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false, send_labels));
         }
+        dbgprintf("Enqueuing resend of chunks %d-%zu for IROB %ld\n", 
+                  next_chunk, psirob->sent_chunks.size(), id);
         psirob->mark_drop_point(next_chunk);
         irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));
     }

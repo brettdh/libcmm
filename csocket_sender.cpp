@@ -830,7 +830,8 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
 //             pthread_cond_broadcast(&sk->scheduling_state_cv);
 //             throw CMMControlException("Socket error", data_check_hdr);
 //         }
-        
+        dbgprintf("Data check in progress for IROB %ld; waiting for response\n",
+                  id);
 
         // when the response arrives, we'll begin sending again on this IROB.
         // until then, this thread might send data from other IROBs if there's
