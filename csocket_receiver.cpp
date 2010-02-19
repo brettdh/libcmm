@@ -558,8 +558,10 @@ CSocketReceiver::do_request_resend(struct CMMSocketControlHdr hdr)
     u_long seqno = ntohl(hdr.op.resend_request.seqno);
     //size_t offset = ntohl(hdr.op.resend_request.offset);
     //size_t len = ntohl(hdr.op.resend_request.len);
+    int next_chunk = ntohl(hdr.op.resend_request.next_chunk);
 
-    sk->resend_request_received(id, request, seqno);//, offset, len);
+    sk->resend_request_received(id, request, seqno,
+                                next_chunk);//, offset, len);
 }
 
 void

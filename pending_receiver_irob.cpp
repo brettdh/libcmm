@@ -209,6 +209,11 @@ PendingReceiverIROB::get_missing_chunks()
     return missing_chunks;
 }
 
+int
+PendingReceiverIROB::next_chunk_seqno()
+{
+    return chunks.size();
+}
 
 bool 
 PendingReceiverIROB::is_complete(void)

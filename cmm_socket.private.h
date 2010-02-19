@@ -249,7 +249,7 @@ class CMMSocketImpl : public CMMSocket {
     void ack_received(irob_id_t id);
     void goodbye_acked(void);
     void resend_request_received(irob_id_t id, resend_request_type_t request,
-                                 u_long seqno);//, size_t offset, size_t len);
+                                 u_long seqno, int next_chunk);//, size_t offset, size_t len);
     void data_check_requested(irob_id_t id);
     
     bool is_shutting_down(void);

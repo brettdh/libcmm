@@ -2123,7 +2123,7 @@ CMMSocketImpl::ack_received(irob_id_t id)
 
 void
 CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t request,
-                                       u_long seqno)//, size_t offset, size_t len)
+                                       u_long seqno, int next_chunk)//, size_t offset, size_t len)
 {
     {
         // try to make sure there's a socket to do the resending
@@ -2157,6 +2157,8 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
         if (psirob->all_chunks_sent()) {
             irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false, send_labels));
         }
+        psirob->mark_drop_point(next_chunk);
+        irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));
     }
     pthread_cond_broadcast(&scheduling_state_cv);
 }

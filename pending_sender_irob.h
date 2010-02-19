@@ -80,7 +80,11 @@ class PendingSenderIROB : public PendingIROB {
     //  The chunk data in missing_chunk may identify fewer bytes
     //  than are in the original chunk (e.g. because a partial chunk
     //  was received)
+    // JKLOL: no partial chunks for now.
     void mark_not_received(u_long seqno);//, size_t offset, size_t len);
+
+    // Mark chunks not received from next_chunk to the end.
+    void mark_drop_point(int next_chunk);
 
     void ack();
 

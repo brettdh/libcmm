@@ -25,6 +25,10 @@ class PendingReceiverIROB : public PendingIROB {
     //  in response to a resend request.
     std::vector<struct irob_chunk_data> get_missing_chunks();
 
+    // return the seqno of the "next chunk" that would be received;
+    //  that is, the largest seqno I've received, plus 1.
+    int next_chunk_seqno();
+
     /* have all the deps been satisfied? 
      * (only meaningful on the receiver side) */
     bool is_ready(void);

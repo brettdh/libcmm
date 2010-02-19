@@ -114,6 +114,11 @@ struct resend_request_data {
     u_long seqno; // the seqno identifies the offset and len uniquely.
     //size_t offset;
     //size_t len;
+
+    // If request includes END, this is the seqno of the last chunk I've received, +1.
+    //  Since I didn't receive the End_IROB message, I don't know how many 
+    //  chunks to expect, so tell the sender where to start.
+    int next_chunk;
 };
 
 struct data_check_data {

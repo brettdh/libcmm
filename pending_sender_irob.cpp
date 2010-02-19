@@ -274,6 +274,14 @@ PendingSenderIROB::mark_not_received(u_long seqno)//, size_t offset, size_t len)
 }
 
 void
+PendingSenderIROB::mark_drop_point(int next_chunk)
+{
+    for (int i = next_chunk; i < (int)sent_chunks.size(); ++i) {
+        mark_not_received((u_long)i);
+    }
+}
+
+void
 PendingSenderIROB::request_data_check()
 {
     data_check = true;

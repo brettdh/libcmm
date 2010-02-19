@@ -1199,9 +1199,9 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
 {
     resend_request_type_t req_type = data.resend_request;
     vector<struct irob_chunk_data> missing_chunks;
+    PendingIROB *pirob = sk->incoming_irobs.find(data.id);
+    PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
     if (req_type & CMM_RESEND_REQUEST_DATA) {
-        PendingIROB *pirob = sk->incoming_irobs.find(data.id);
-        PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
         if (prirob) {
             // tell the remote sender which bytes we need
             missing_chunks = prirob->get_missing_chunks();
@@ -1231,6 +1231,9 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
     //hdrs[0].op.resend_request.offset = 0;
     //hdrs[0].op.resend_request.len = 0;
     hdrs[0].send_labels = htonl(csock->local_iface.labels);
+    if (req_type & CMM_RESEND_REQUEST_END && prirob) {
+        hdrs[0].op.resend_request.next_chunk = htonl(prirob->next_chunk_seqno());
+    }
 
     for (size_t i = 0; i < missing_chunks.size(); ++i) {
         hdrs[i].type = htons(CMM_CONTROL_MSG_RESEND_REQUEST);
