@@ -1029,7 +1029,8 @@ CSocketSender::new_interface(struct net_interface iface)
     hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
     hdr.op.new_interface.ip_addr = iface.ip_addr;
     hdr.op.new_interface.labels = htonl(iface.labels);
-    hdr.op.new_interface.bandwidth = htonl(iface.bandwidth);
+    hdr.op.new_interface.bandwidth_down = htonl(iface.bandwidth_down);
+    hdr.op.new_interface.bandwidth_up = htonl(iface.bandwidth_up);
     hdr.op.new_interface.RTT = htonl(iface.RTT);
 
     hdr.send_labels = htonl(0);

@@ -18,7 +18,9 @@ struct net_interface {
     // both of these figures represent measurements conducted
     // on a connection between this endpoint and a remote reference 
     // server.
-    u_long bandwidth; // bytes/sec
+    //u_long bandwidth; // bytes/sec
+    u_long bandwidth_down; // bytes/sec
+    u_long bandwidth_up; // bytes/sec
     u_long RTT; // milliseconds
 
     bool operator<(const struct net_interface& other) const {

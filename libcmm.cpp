@@ -126,9 +126,9 @@ void process_interface_update(struct net_interface iface, bool down)
     //fprintf(stderr, "Signalled by scout\n");
     
     /* bitmask of all available bit labels ORed together */
-    dbgprintf("Got update from scout: %s is %s, bandwidth %lu bytes/sec RTT %lu ms\n",
+    dbgprintf("Got update from scout: %s is %s, bandwidth_down %lu bandwidth_up %lu bytes/sec RTT %lu ms\n",
 	      inet_ntoa(iface.ip_addr), down?"down":"up",
-              iface.bandwidth, iface.RTT);
+              iface.bandwidth_down, iface.bandwidth_up, iface.RTT);
 
     //fprintf(stderr, "Before:\n---\n");
     //print_thunks();

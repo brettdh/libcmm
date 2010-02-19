@@ -5,7 +5,8 @@ using std::min;
 u_long iface_bandwidth(const struct net_interface& local_iface,
                        const struct net_interface& remote_iface)
 {
-    u_long bw = min(local_iface.bandwidth, remote_iface.bandwidth);
+    // from the local sender's perspective.
+    u_long bw = min(local_iface.bandwidth_up, remote_iface.bandwidth_down);
     return bw;
 }
 

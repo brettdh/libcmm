@@ -443,7 +443,8 @@ CSocketReceiver::do_new_interface(struct CMMSocketControlHdr hdr)
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_NEW_INTERFACE);
     struct net_interface iface = hdr.op.new_interface;
     iface.labels = ntohl(hdr.op.new_interface.labels);
-    iface.bandwidth = ntohl(hdr.op.new_interface.bandwidth);
+    iface.bandwidth_down = ntohl(hdr.op.new_interface.bandwidth_down);
+    iface.bandwidth_up = ntohl(hdr.op.new_interface.bandwidth_up);
     iface.RTT = ntohl(hdr.op.new_interface.RTT);
 
     sk->setup(iface, false);

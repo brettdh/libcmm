@@ -69,7 +69,8 @@ void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
     memset(&new_listener.ip_addr, 0, sizeof(new_listener.ip_addr));
     new_listener.ip_addr = hdr.op.new_interface.ip_addr;
     new_listener.labels = ntohl(hdr.op.new_interface.labels);
-    new_listener.bandwidth = ntohl(hdr.op.new_interface.bandwidth);
+    new_listener.bandwidth_down = ntohl(hdr.op.new_interface.bandwidth_down);
+    new_listener.bandwidth_up = ntohl(hdr.op.new_interface.bandwidth_up);
     new_listener.RTT = ntohl(hdr.op.new_interface.RTT);
     
     {
@@ -78,9 +79,9 @@ void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
         remote_ifaces.insert(new_listener);
     }
     dbgprintf("Got new remote interface %s with labels %lu, "
-              "bandwidth %lu bytes/sec RTT %lu ms\n",
+              "bandwidth_down %lu bytes/sec bandwidth_up %lu bytes/sec RTT %lu ms\n",
 	      inet_ntoa(new_listener.ip_addr), new_listener.labels,
-              new_listener.bandwidth, new_listener.RTT);
+              new_listener.bandwidth_down, new_listener.bandwidth_up, new_listener.RTT);
 }
 
 // returns the number of remote ifaces.
@@ -136,7 +137,8 @@ void CMMSocketImpl::send_local_listener(int bootstrap_sock,
     hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
     hdr.op.new_interface.ip_addr = iface.ip_addr;
     hdr.op.new_interface.labels = htonl(iface.labels);
-    hdr.op.new_interface.bandwidth = htonl(iface.bandwidth);
+    hdr.op.new_interface.bandwidth_down = htonl(iface.bandwidth_down);
+    hdr.op.new_interface.bandwidth_up = htonl(iface.bandwidth_up);
     hdr.op.new_interface.RTT = htonl(iface.RTT);
     dbgprintf("Sending local interface info: %s with labels %lu\n",
 	      inet_ntoa(iface.ip_addr), iface.labels);
@@ -208,7 +210,8 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
                 struct net_interface localhost;
                 localhost.ip_addr.s_addr = htonl(INADDR_LOOPBACK);
                 localhost.labels = 0;
-                localhost.bandwidth = 100000000;
+                localhost.bandwidth_down = 100000000;
+                localhost.bandwidth_up = 100000000;
                 localhost.RTT = 0;
 
                 local_ifaces.insert(localhost);
@@ -221,8 +224,8 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
                     memcpy(&bootstrap_iface.ip_addr, &ip_sockaddr->sin_addr,
                            sizeof(bootstrap_iface.ip_addr));
                     // arbitrary; will be overwritten
-                    bootstrap_iface.labels = 0;
-                    bootstrap_iface.bandwidth = 1250000;
+                    bootstrap_iface.bandwidth_down = 1250000;
+                    bootstrap_iface.bandwidth_up = 1250000;
                     bootstrap_iface.labels = 0;
                     remote_ifaces.insert(bootstrap_iface);
                 }
@@ -1211,9 +1214,9 @@ CMMSocketImpl::interface_up(struct net_interface up_iface)
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "%lu.%06lu  Bringing up %s, bw %lu rtt %lu\n",
+            fprintf(timing_file, "%lu.%06lu  Bringing up %s, bw_down %lu bw_up %lu rtt %lu\n",
 		    now.tv_sec, now.tv_usec, inet_ntoa(up_iface.ip_addr),
-		    up_iface.bandwidth, up_iface.RTT);
+		    up_iface.bandwidth_down, up_iface.bandwidth_up, up_iface.RTT);
         }
     }
 #endif
@@ -1560,17 +1563,39 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
             // make sure labels update if needed
             local_ifaces.erase(iface);
             changed_local_ifaces.erase(iface);
+
+            // in fact, only send a New_Interface message if this
+            //  interface is not new.
+            changed_local_ifaces.insert(iface);
+            pthread_cond_broadcast(&scheduling_state_cv);
         }
 
         local_ifaces.insert(iface);
-        changed_local_ifaces.insert(iface);
-        pthread_cond_broadcast(&scheduling_state_cv);
     } else {
+        PthreadScopedLock lock(&scheduling_state_lock);
+        bool need_data_check = false;
         if (remote_ifaces.count(iface) > 0) {
+            NetInterfaceSet::const_iterator it = remote_ifaces.find(iface);
+            assert(it != remote_ifaces.end());
+            need_data_check = (it->bandwidth_down == 0 && 
+                               iface.bandwidth_down != 0);
+            // if bandwidth was previously reported to be zero,
+            //  some data probably got dropped.  
+            // If the bandwidth is now nonzero, let's check.
+
             // make sure labels update if needed
             remote_ifaces.erase(iface);
         }
         remote_ifaces.insert(iface);
+
+        if (need_data_check) {
+            vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
+            outgoing_irobs.data_check_all();
+            for (size_t i = 0; i < ids.size(); ++i) {
+                IROBSchedulingData data_check(ids[i], false);
+                irob_indexes.waiting_data_checks.insert(data_check);
+            }
+        }
     }
 }
 
