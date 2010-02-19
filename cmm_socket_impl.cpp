@@ -1550,15 +1550,32 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
         return;
     }
 
-    PthreadScopedRWLock lock(&my_lock, true);
+    PthreadScopedRWLock sock_lock(&my_lock, true);
 
     // If bootstrapping is in progress, the bootstrapper is
     //  in the middle of creating connections, so don't do it here.
     bool make_connection = (bootstrapper && bootstrapper->status() == 0);
     csock_map->setup(iface, local, make_connection);
     
+    PthreadScopedLock lock(&scheduling_state_lock);
+    bool need_data_check = false;
+
+    NetInterfaceSet& iface_set = local ? local_ifaces : remote_ifaces;
+    NetInterfaceSet::const_iterator it = iface_set.find(iface);
+
+    if (it != iface_set.end()) {
+        // if bandwidth was previously reported to be zero,
+        //  some data probably got dropped.  
+        // If the bandwidth is now nonzero, let's check.
+        if (local) {
+            need_data_check = (it->bandwidth_up == 0 && 
+                               iface.bandwidth_up != 0);
+        } else {
+            need_data_check = (it->bandwidth_down == 0 && 
+                               iface.bandwidth_down != 0);
+        }
+    }
     if (local) {
-        PthreadScopedLock lock(&scheduling_state_lock);
         if (local_ifaces.count(iface) > 0) {
             // make sure labels update if needed
             local_ifaces.erase(iface);
@@ -1572,29 +1589,19 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
 
         local_ifaces.insert(iface);
     } else {
-        PthreadScopedLock lock(&scheduling_state_lock);
-        bool need_data_check = false;
         if (remote_ifaces.count(iface) > 0) {
-            NetInterfaceSet::const_iterator it = remote_ifaces.find(iface);
-            assert(it != remote_ifaces.end());
-            need_data_check = (it->bandwidth_down == 0 && 
-                               iface.bandwidth_down != 0);
-            // if bandwidth was previously reported to be zero,
-            //  some data probably got dropped.  
-            // If the bandwidth is now nonzero, let's check.
-
             // make sure labels update if needed
             remote_ifaces.erase(iface);
         }
         remote_ifaces.insert(iface);
+    }
 
-        if (need_data_check) {
-            vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
-            outgoing_irobs.data_check_all();
-            for (size_t i = 0; i < ids.size(); ++i) {
-                IROBSchedulingData data_check(ids[i], false);
-                irob_indexes.waiting_data_checks.insert(data_check);
-            }
+    if (need_data_check) {
+        vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
+        outgoing_irobs.data_check_all();
+        for (size_t i = 0; i < ids.size(); ++i) {
+            IROBSchedulingData data_check(ids[i], false);
+            irob_indexes.waiting_data_checks.insert(data_check);
         }
     }
 }
