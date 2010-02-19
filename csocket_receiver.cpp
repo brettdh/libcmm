@@ -191,11 +191,14 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     try {
 	deps = read_deps_array(id, numdeps, hdr);
     } catch (CMMControlException& e) {
+        /* Sender sends Data_Check when a network goes down;
+         * so this is redundant
 	PthreadScopedLock lock(&sk->scheduling_state_lock);
 
 	IROBSchedulingData data(id, CMM_RESEND_REQUEST_DEPS);
 	csock->irob_indexes.resend_requests.insert(data);
 	pthread_cond_broadcast(&sk->scheduling_state_cv);
+        */
 	throw;
     }
 
@@ -302,6 +305,10 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
             }
         }
 
+        /* Sender sends Data_Check when a network goes down;
+         * so this is redundant */
+        resend_request = false; // easiest way to disable the resend request
+
         if (resend_request) {
             IROBSchedulingData data(id, req_type);
             csock->irob_indexes.resend_requests.insert(data);
@@ -340,11 +347,14 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     try {
 	buf = read_data_buffer(id, datalen, hdr);
     } catch (CMMControlException& e) {
+        /* Sender sends Data_Check when a network goes down;
+         * so this is redundant
 	PthreadScopedLock lock(&sk->scheduling_state_lock);
 
         IROBSchedulingData data(id, CMM_RESEND_REQUEST_DATA);
         csock->irob_indexes.resend_requests.insert(data);
 	pthread_cond_broadcast(&sk->scheduling_state_cv);
+        */
 	throw;
     }
 
@@ -369,9 +379,12 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
                 bool ret = sk->incoming_irobs.insert(pirob, false);
                 assert(ret); // since it was absent before now
 
+                /* Sender sends Data_Check when a network goes down;
+                 * so this is redundant
                 IROBSchedulingData data(id, CMM_RESEND_REQUEST_DEPS);
                 csock->irob_indexes.resend_requests.insert(data);
 		pthread_cond_broadcast(&sk->scheduling_state_cv);
+                */
             }
         }
         struct irob_chunk_data chunk;
