@@ -779,8 +779,11 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     if (data.send_labels & CMM_LABEL_BACKGROUND) {
         pthread_mutex_unlock(&sk->scheduling_state_lock);
         bool fg_sock = csock->is_fg();
+        bool best_match = csock->matches(data.send_labels);
         pthread_mutex_lock(&sk->scheduling_state_lock);
-        if (fg_sock) {
+        if (fg_sock || 
+            (striping && (data.send_labels & CMM_LABEL_BACKGROUND) && 
+             !best_match)) {
             if (!okay_to_send_bg(chunksize)) {
                 return false;
             }
