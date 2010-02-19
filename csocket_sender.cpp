@@ -457,8 +457,7 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
         }
         return true;
     } else {
-        assert(match != csock); // since csock->matches returned false
-        if (match->is_connected()) {
+        if (match != csock && match->is_connected()) {
             bool ret = true;
             // pass this task to the right thread
             if (!data.chunks_ready) {
