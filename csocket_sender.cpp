@@ -458,6 +458,11 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
         return true;
     } else {
         if (match != csock && match->is_connected()) {
+            if (psirob->needs_data_check()) {
+                // don't re-enqueue this; we're waiting for the data check.
+                return false;
+            }
+
             bool ret = true;
             // pass this task to the right thread
             if (!data.chunks_ready) {
