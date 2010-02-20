@@ -674,6 +674,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     dbgprintf_plain("\n");
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     csock->stats.report_send_event(id, bytes);
+    dbgprintf("TCP RTO for csock %d is %lu\n", csock->osfd, csock->tcp_rto());
     int rc = writev(csock->osfd, vec, count);
     pthread_mutex_lock(&sk->scheduling_state_lock);
 

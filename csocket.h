@@ -70,6 +70,8 @@ class CSocket {
     double RTT();
     struct timespec retransmission_timeout();
     ssize_t trickle_chunksize();
+
+    long int tcp_rto();
   private:
     // only allow shared_ptr creation
     CSocket(boost::weak_ptr<CMMSocketImpl> sk_, 

@@ -365,6 +365,30 @@ CSocket::retransmission_timeout()
     */
 }
 
+long int
+CSocket::tcp_rto()
+{
+    struct tcp_info info;
+    memset(&info, 0, sizeof(info));
+    socklen_t len = sizeof(info);
+    struct protoent *pe = getprotobyname("TCP");
+    int rc = -1;
+    if (pe) {
+	rc = getsockopt (osfd, pe->p_proto, TCP_INFO, &info, &len);
+        if (rc == 0) {
+            return info.tcpi_rto;
+        } else {
+            dbgprintf("getsockopt failed for TCP_INFO: %s\n",
+                      strerror(errno));
+        }
+    } else {
+        dbgprintf("getprotoent failed for TCP: %s\n",
+                  strerror(errno));
+    }
+
+    dbgprintf("Cannot read tcpi_rto; returning -1\n");
+    return -1;
+}
 
 //#define useconds(tv) ((tv).tv_sec*1000000 + (tv).tv_usec)
 
