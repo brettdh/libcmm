@@ -226,6 +226,7 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
                     // arbitrary; will be overwritten
                     bootstrap_iface.bandwidth_down = 1250000;
                     bootstrap_iface.bandwidth_up = 1250000;
+                    bootstrap_iface.RTT = 0;
                     bootstrap_iface.labels = 0;
                     remote_ifaces.insert(bootstrap_iface);
                 }
