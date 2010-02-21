@@ -1882,7 +1882,7 @@ CMMSocketImpl::end_irob(irob_id_t id)
         PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
         assert(psirob);
         if (psirob->announced && !psirob->end_announced &&
-            psirob->all_chunks_sent()) {
+            psirob->is_complete() && psirob->all_chunks_sent()) {
             psirob->end_announced = true;
             if (csock->is_connected()) {
                 csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
@@ -2192,7 +2192,7 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
         irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));
     }
     if (request & CMM_RESEND_REQUEST_END) {
-        if (psirob->all_chunks_sent()) {
+        if (psirob->is_complete() && psirob->all_chunks_sent()) {
             dbgprintf("Enqueuing resend of End_IROB for IROB %ld\n", id);
             irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false, send_labels));
         }
