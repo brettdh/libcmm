@@ -206,19 +206,22 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     PendingReceiverIROB *pirob = new PendingReceiverIROB(id, numdeps, deps, 0, NULL,
                                                          ntohl(hdr.send_labels));
     
-    {
-        PthreadScopedLock lock(&sk->scheduling_state_lock);
-        if (!sk->incoming_irobs.insert(pirob, false)) {
-            delete pirob;
-            //throw CMMFatalError("Tried to begin committed IROB", hdr);
-            dbgprintf("do_begin_irob: duplicate IROB %ld, ignoring\n", id);
-        }
+    PthreadScopedLock lock(&sk->scheduling_state_lock);
+    if (!sk->incoming_irobs.insert(pirob, false)) {
+        delete pirob;
+        pirob = NULL;
+        //throw CMMFatalError("Tried to begin committed IROB", hdr);
+        dbgprintf("do_begin_irob: duplicate IROB %ld, ignoring\n", id);
     }
 
     if (numdeps > 0) {
         delete [] deps;
     }
     
+    if (!pirob) {
+        return;
+    }
+
     sk->incoming_irobs.release_if_ready(pirob, ReadyIROB());
     
     if (pirob->is_complete() && !pirob->placeholder) {
