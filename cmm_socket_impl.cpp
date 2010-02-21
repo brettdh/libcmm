@@ -1596,6 +1596,7 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
     }
 
     if (need_data_check) {
+        dbgprintf("Recovering from 0-bandwidth period; issuing data-check\n");
         vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
         outgoing_irobs.data_check_all();
         for (size_t i = 0; i < ids.size(); ++i) {
