@@ -53,7 +53,7 @@ class CSockMapping {
     void get_real_fds(mcSocketOsfdPairList &osfd_list);
 
     void setup(struct net_interface iface, bool local,
-               bool make_connection);
+               bool make_connection, bool need_data_check);
     void teardown(struct net_interface iface, bool local);
 
     // only called when bootstrapping.

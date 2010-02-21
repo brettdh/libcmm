@@ -91,7 +91,7 @@ struct get_matching_csocks {
 /* already holding sk->my_lock, writer=true */
 void 
 CSockMapping::setup(struct net_interface iface, bool local,
-                    bool make_connection)
+                    bool make_connection, bool need_data_check)
 {
     vector<CSocketPtr> matches;
     (void)for_each(get_matching_csocks(iface, matches, local));
@@ -134,7 +134,7 @@ CSockMapping::setup(struct net_interface iface, bool local,
             //             local_iface = *it;
             //             remote_iface = iface;
             //         }
-            if (!csock_by_ifaces(local_iface, remote_iface)) {
+            if (need_data_check || !csock_by_ifaces(local_iface, remote_iface)) {
                 (void)make_new_csocket(local_iface, remote_iface);
             }
         }
@@ -438,20 +438,20 @@ CSockMapping::make_new_csocket(struct net_interface local_iface,
         csock = csock_by_ifaces(local_iface, remote_iface, false);
         if (csock) {
             char *local_ip = strdup(inet_ntoa(local_iface.ip_addr));
-            dbgprintf("Error while adding newly %s CSocket: "
-                      "connection already present for %s<=>%s\n",
+            dbgprintf("Adding newly %s CSocket: "
+                      "connection already present for %s<=>%s - "
+                      "I'll replace it with the new one\n",
                       (accepted_sock == -1) ? "connected" : "accepted",
                       local_ip, inet_ntoa(remote_iface.ip_addr));
             free(local_ip);
-            if (accepted_sock != -1) {
-                // XXX: this won't work, since phys_connect will have
-                //  already returned success at the remote end.
-                //  I need a "connection success/failure" message here.
-                // For now, though, this is enough to tell me whether this problem
-                //  is manifesting itself now.
-                close(accepted_sock);
-            }
-            return csock;
+            //            if (accepted_sock != -1) {
+            //close(accepted_sock);
+            
+            // tell the existing sender/receiver threads to exit
+            available_csocks.erase(csock);
+            shutdown(csock->osfd, SHUT_RDWR);
+            //}
+            //return csock;
         }
         
         csock = CSocket::create(sk, local_iface, remote_iface,

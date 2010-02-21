@@ -167,11 +167,11 @@ CMMSocketImpl::startup_csocks()
     PthreadScopedRWLock sock_lock(&my_lock, true);
     for (NetInterfaceSet::iterator it = remote_ifaces.begin();
          it != remote_ifaces.end(); it++) {
-        csock_map->setup(*it, false, false);
+        csock_map->setup(*it, false, false, false);
     }
     for (NetInterfaceSet::iterator it = local_ifaces.begin();
          it != local_ifaces.end(); it++) {
-        csock_map->setup(*it, true, true);
+        csock_map->setup(*it, true, true, false);
     }
 }
 
@@ -1552,11 +1552,6 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
     }
 
     PthreadScopedRWLock sock_lock(&my_lock, true);
-
-    // If bootstrapping is in progress, the bootstrapper is
-    //  in the middle of creating connections, so don't do it here.
-    bool make_connection = (bootstrapper && bootstrapper->status() == 0);
-    csock_map->setup(iface, local, make_connection);
     
     PthreadScopedLock lock(&scheduling_state_lock);
     bool need_data_check = false;
@@ -1573,6 +1568,11 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
                            (it->bandwidth_down == 0 && 
                             iface.bandwidth_down != 0));
     }
+
+    // If bootstrapping is in progress, the bootstrapper is
+    //  in the middle of creating connections, so don't do it here.
+    bool make_connection = (bootstrapper && bootstrapper->status() == 0);
+    csock_map->setup(iface, local, make_connection, need_data_check);
 
     if (local) {
         if (local_ifaces.count(iface) > 0) {
