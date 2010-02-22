@@ -1570,7 +1570,7 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
     }
 
     if (local && need_data_check) {
-        bootstrapper->restart(iface);
+        bootstrapper->restart(iface, true);
     }
 
     // If bootstrapping is in progress, the bootstrapper is

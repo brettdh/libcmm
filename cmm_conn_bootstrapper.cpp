@@ -168,12 +168,16 @@ void ConnBootstrapper::Run()
 }
 
 void
-ConnBootstrapper::restart(struct net_interface down_iface)
+ConnBootstrapper::restart(struct net_interface down_iface,
+                          bool already_locked)
 {
     /* if I'm trying to bootstrap on this interface and
      * it just went away, try another interface. */
 
-    PthreadScopedRWLock lock(&sk->my_lock, true);
+    auto_ptr<PthreadScopedRWLock> lock;
+    if (!already_locked) {
+        lock.reset(new PthreadScopedRWLock(&sk->my_lock, true));
+    }
 
     struct sockaddr_in addr;
     socklen_t addrlen = sizeof(addr);
