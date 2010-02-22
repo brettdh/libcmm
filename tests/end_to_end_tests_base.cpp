@@ -186,7 +186,7 @@ EndToEndTestsBase::receiveAndChecksum()
     
     fprintf(stderr, "Received %d bytes, digest matches.\n", bytes);
     char c = 0;
-    rc = cmm_write(send_sock, &c, 1, 0, NULL, NULL);
+    rc = cmm_write(read_sock, &c, 1, 0, NULL, NULL);
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Sent 1 byte", 1, rc);
 
     fprintf(stderr, "Receiver finished.\n");
