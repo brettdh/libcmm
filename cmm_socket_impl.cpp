@@ -189,6 +189,8 @@ int
 CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr, 
                                     socklen_t addrlen, int bootstrap_sock)
 {
+    accepting_side = (bootstrap_sock != -1);
+
     try {
         int rc;
         {

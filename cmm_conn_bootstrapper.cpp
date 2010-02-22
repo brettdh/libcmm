@@ -68,7 +68,6 @@ void ConnBootstrapper::Run()
     do {
         retry = false;
         int accept_retries = 3;
-        bool accepting = (bootstrap_sock != -1);
 
         try {
             if (bootstrap_sock != -1) {
@@ -151,7 +150,7 @@ void ConnBootstrapper::Run()
             // no errors; must have succeeded
             status_ = 0;
         } catch (int error_rc) {
-            if (accepting) {
+            if (sk->accepting_side) {
                 retry = ((--accept_retries) > 0);
             }
 

@@ -93,6 +93,7 @@ CSocketSender::Run()
                             continue;
                         } else {
                             dbgprintf("Timed out waiting for goodbye; shutting down\n");
+                            shutdown(csock->osfd, SHUT_RD); // tell reader to exit
                         }
                     }
                     return;

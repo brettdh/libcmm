@@ -437,13 +437,76 @@ CSockMapping::make_new_csocket(struct net_interface local_iface,
         
         csock = csock_by_ifaces(local_iface, remote_iface, false);
         if (csock) {
+            // I've fixed some bugs, so I should probably try this out
+            //  to see if the timeout still happens.
+            return csock; // don't ever renew CSockets.
+
+#if 0
+            // This csocket already exists, so we must be trying to
+            //  "renew" it - that is, replace it with one that doesn't have
+            //  a bunch of data in the TCP buffer waiting who knows how long
+            //  to be retransmitted.  Doing this to try to cope with the 
+            //  periodic zero-bandwidth intervals in the traces,
+            //  now that the ACK timeouts are gone.
+            PthreadScopedLock csock_lock(&csock->csock_lock);
             char *local_ip = strdup(inet_ntoa(local_iface.ip_addr));
             dbgprintf("Adding newly %s CSocket: "
-                      "connection already present for %s<=>%s - "
-                      "I'll replace it with the new one\n",
+                      "connection already present for %s<=>%s\n",
                       (accepted_sock == -1) ? "connected" : "accepted",
                       local_ip, inet_ntoa(remote_iface.ip_addr));
             free(local_ip);
+
+            // msock-connecter takes priority when renewing a CSocket by
+            //  marking csock->renew_in_progress before making
+            //  the connection.
+            // If the msock-accepter tries to renew a CSocket that the
+            //  msock-connecter is in the middle of renewing, it will notice
+            //  that csock->renew_in_progress is set below and mark the
+            //  CSocket to send a failure message and shutdown.
+            if (accepted_sock == -1) {
+                if (sk->accepting_side) {
+                    //msock-accepter, csock-connecter
+                    
+                } else {
+                    // msock-connecter, csock-connecter
+                    if (csock->renew_in_progress) {
+                        return csock;
+                    } else {
+                        dbgprintf("Adding newly connected CSocket: "
+                                  "replacing my existing connection\n");
+
+                        available_csocks.erase(csock);
+                        shutdown(csock->osfd, SHUT_RDWR);
+
+                        CSocketPtr renewed_csock(CSocket::create(sk, local_iface,
+                                                                 remote_iface));
+                        renewed_csock->renew_in_progress = true;
+                        available_csocks.insert(renewed_csock);
+                        renewed_csock->startup_workers();
+                    }
+                }
+            } else {
+                if (sk->accepting_side) {
+                    // msock-accepter, csock-accepter
+                    
+                } else {
+                    // msock-connecter, csock-accepter
+                    if (csock->renew_in_progress) {
+                        CSocketPtr renewed_csock(CSocket::create(sk, local_iface,
+                                                                 remote_iface,
+                                                                 accepted_sock));
+                        renewed_csock->fail_renewal = true;
+                        renewed_csock->startup_workers();
+                        // sender will send an "already renewed in a different
+                        //  TCP socket" message back, then wait for the remote
+                        //  side to close the socket.
+                    } else {
+                        
+                    }
+                }
+
+                
+            }
             //            if (accepted_sock != -1) {
             //close(accepted_sock);
             
@@ -452,8 +515,9 @@ CSockMapping::make_new_csocket(struct net_interface local_iface,
             shutdown(csock->osfd, SHUT_RDWR);
             //}
             //return csock;
+#endif
         }
-        
+
         csock = CSocket::create(sk, local_iface, remote_iface,
                                 accepted_sock);
         /* cleanup if constructor throws */

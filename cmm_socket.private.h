@@ -175,6 +175,7 @@ class CMMSocketImpl : public CMMSocket {
 
     int connect_status();
 
+    bool accepting_side; // true iff created by cmm_accept
     ConnBootstrapper *bootstrapper;
 
     CMMSocketImpl(int family, int type, int protocol);
