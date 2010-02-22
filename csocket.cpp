@@ -136,7 +136,7 @@ CSocket::phys_connect()
                       osfd, inet_ntoa(local_addr.sin_addr), 
                       ntohs(local_addr.sin_port));
             close(osfd);
-            throw rc;
+            throw -1;
         }
         dbgprintf("Successfully bound osfd %d to %s:%d\n",
                   osfd, inet_ntoa(local_addr.sin_addr), 
@@ -151,7 +151,7 @@ CSocket::phys_connect()
                       osfd, inet_ntoa(remote_addr.sin_addr), 
                       ntohs(remote_addr.sin_port));
             close(osfd);
-            throw rc;
+            throw -1;
         }
 
         //if (!sk->isLoopbackOnly()) {
@@ -170,21 +170,26 @@ CSocket::phys_connect()
             perror("send");
             dbgprintf("Failed to send interface info\n");
             close(osfd);
-            throw rc;
+            throw -1;
         }
 
         rc = recv(osfd, &hdr, sizeof(hdr), 0);
         if (rc != sizeof(hdr)) {
-            oserr = errno;
-            perror("recv");
+            if (rc < 0) {
+                perror("recv");
+                oserr = errno;
+            } else {
+                dbgprintf("Connection shutdown.\n");
+                oserr = ECONNRESET;
+            }
             dbgprintf("Failed to recv confirmation (HELLO)\n");
             close(osfd);
-            throw rc;
+            throw -1;
         }
         if (ntohs(hdr.type) != CMM_CONTROL_MSG_HELLO) {
             dbgprintf("Received unexpected message in place of CSocket connect confirmation: %s\n",
                       hdr.describe().c_str());
-            oserr = 0;
+            oserr = ECONNRESET;
             close(osfd);
             throw -1;
         }
