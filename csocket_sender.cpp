@@ -195,11 +195,13 @@ CSocketSender::Run()
             if (replacement->oserr == ECONNREFUSED) {
                 dbgprintf("Failed to connect replacement csocket; "
                           "connection refused, giving up\n");
+                sk->csock_map->remove_csock(replacement);
                 replacement.reset();
             } else {
                 dbgprintf("Failed to connect replacement csocket; "
                           " %s; trying again\n",
                           strerror(replacement->oserr));
+                sk->csock_map->remove_csock(replacement);
                 replacement = sk->csock_map->new_csock_with_labels(0);
             }
         }
