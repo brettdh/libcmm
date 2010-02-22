@@ -9,6 +9,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <signal.h>
 
 ConnBootstrapper::ConnBootstrapper(CMMSocketImpl *sk_,
                                    int bootstrap_sock_,
@@ -50,6 +51,11 @@ void ConnBootstrapper::Run()
     memset(name, 0, MAX_NAME_LEN+1);
     snprintf(name, MAX_NAME_LEN, "Bootstrapper %d", sk->sock);
     set_thread_name(name);
+
+    sigset_t sigset;
+    sigemptyset(&sigset);
+    sigaddset(&sigset, SIGPIPE); // ignore SIGPIPE
+    pthread_sigmask(SIG_BLOCK, &sigset, NULL);
 
     {
         PthreadScopedRWLock sock_lock(&sk->my_lock, false);
