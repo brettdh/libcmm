@@ -65,9 +65,9 @@ void ConnBootstrapper::Run()
         }
     }
 
+    int accept_retries = 3;
     do {
         retry = false;
-        int accept_retries = 3;
 
         try {
             if (bootstrap_sock != -1) {
