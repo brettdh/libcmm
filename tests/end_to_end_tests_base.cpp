@@ -311,7 +311,7 @@ EndToEndTestsBase::testPartialRecv()
         int bytes_recvd = 0;
         while (bytes_recvd < msglen) {
             int rc = cmm_read(read_sock, buf, blocksize, NULL);
-            handle_error(rc <= 0, "cmm_read");
+            //handle_error(rc <= 0, "cmm_read");
             int expected_chunksize = min(send_chunksize, msglen - bytes_recvd);
             CPPUNIT_ASSERT_EQUAL_MESSAGE("Recv returns data as it arrives",
                                          expected_chunksize, rc);
@@ -320,6 +320,10 @@ EndToEndTestsBase::testPartialRecv()
             CPPUNIT_ASSERT_EQUAL_MESSAGE("Block content matches msg", 0, cmp);
             
             bytes_recvd += rc;
+            int resp = htonl(rc);
+            rc = cmm_write(read_sock, &resp, sizeof(resp), 0, NULL, NULL);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending response integer",
+                                         (int)sizeof(resp), rc);
         }
         fprintf(stderr, "Received %d bytes successfully.\n",
                 bytes_recvd);
@@ -339,7 +343,14 @@ EndToEndTestsBase::testPartialRecv()
             CPPUNIT_ASSERT_EQUAL_MESSAGE("cmm_send succeeds",
                                          send_chunksize, rc);
             bytes_sent += rc;
-            sleep(3);
+
+            int resp = 0;
+            rc = cmm_read(send_sock, (char*)&resp, sizeof(resp), NULL);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Reading response",
+                                         (int)sizeof(resp), rc);
+            resp = ntohl(resp);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Response is number of bytes recvd",
+                                         send_chunksize, resp);
         }
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Sent all bytes",
                                      msglen, bytes_sent);
