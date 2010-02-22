@@ -67,6 +67,8 @@ void ConnBootstrapper::Run()
 
     do {
         retry = false;
+        int accept_retries = 3;
+        bool accepting = (bootstrap_sock != -1);
 
         try {
             if (bootstrap_sock != -1) {
@@ -149,9 +151,14 @@ void ConnBootstrapper::Run()
             // no errors; must have succeeded
             status_ = 0;
         } catch (int error_rc) {
+            if (accepting) {
+                retry = ((--accept_retries) > 0);
+            }
+
             PthreadScopedRWLock sock_lock(&sk->my_lock, true);
             if (retry) {
                 // we were interrupted by the scout bringing down this interface.
+                dbgprintf("Bootstrap failed; retrying\n");
                 close(bootstrap_sock);
                 bootstrap_sock = -1;
                 status_ = EINPROGRESS;
