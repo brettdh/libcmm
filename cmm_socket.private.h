@@ -157,7 +157,9 @@ class CMMSocketImpl : public CMMSocket {
 
     void send_hello(int bootstrap_sock);
     int recv_hello(int bootstrap_sock); // returns the number of remote ifaces.
-    void recv_remote_listener(int bootstrap_sock);
+
+    // returns true if it received the "sentinel" iface.
+    bool recv_remote_listener(int bootstrap_sock);
     void recv_remote_listeners(int bootstrap_sock, int num_ifaces);
     void send_local_listener(int bootstrap_sock, struct net_interface iface);
     void send_local_listeners(int bootstrap_sock);

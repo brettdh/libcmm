@@ -50,8 +50,9 @@ pthread_mutex_t CMMSocketImpl::hashmaps_mutex = PTHREAD_MUTEX_INITIALIZER;
 // struct timeval CMMSocketImpl::total_inter_fg_time;
 // size_t CMMSocketImpl::fg_count;
 
-
-void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
+// return true if the listener received is the zero-sentinel
+//  marking the end of the list
+bool CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
 {
     struct CMMSocketControlHdr hdr;
     int rc = recv(bootstrap_sock, &hdr, sizeof(hdr), 0);
@@ -73,7 +74,11 @@ void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
     new_listener.bandwidth_up = ntohl(hdr.op.new_interface.bandwidth_up);
     new_listener.RTT = ntohl(hdr.op.new_interface.RTT);
     
-    {
+    if (new_listener.ip_addr.s_addr == 0) {
+        // no more remote interfaces
+        dbgprintf("Done receiving remote interfaces\n");
+        return true;
+    } else {
         PthreadScopedRWLock sock_lock(&my_lock, true);
         remote_ifaces.erase(new_listener); // make sure the values update
         remote_ifaces.insert(new_listener);
@@ -82,6 +87,7 @@ void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
               "bandwidth_down %lu bytes/sec bandwidth_up %lu bytes/sec RTT %lu ms\n",
 	      inet_ntoa(new_listener.ip_addr), new_listener.labels,
               new_listener.bandwidth_down, new_listener.bandwidth_up, new_listener.RTT);
+    return false;
 }
 
 // returns the number of remote ifaces.
@@ -104,8 +110,10 @@ int CMMSocketImpl::recv_hello(int bootstrap_sock)
 
 void CMMSocketImpl::recv_remote_listeners(int bootstrap_sock, int num_ifaces)
 {
-    for (int i = 0; i < num_ifaces; i++) {
-        recv_remote_listener(bootstrap_sock);
+    //for (int i = 0; i < num_ifaces; i++) {
+    bool done = false;
+    while (!done) {
+        done = recv_remote_listener(bootstrap_sock);
     }
 }
 
@@ -159,6 +167,10 @@ void CMMSocketImpl::send_local_listeners(int bootstrap_sock)
          it != local_ifaces.end(); it++) {
         send_local_listener(bootstrap_sock, *it);
     }
+
+    struct net_interface sentinel;
+    memset(&sentinel, 0, sizeof(sentinel));
+    send_local_listener(bootstrap_sock, sentinel);
 }
 
 void
