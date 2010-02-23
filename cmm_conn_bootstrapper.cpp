@@ -65,7 +65,7 @@ void ConnBootstrapper::Run()
         }
     }
 
-    int accept_retries = 3;
+    //int accept_retries = 3;
     do {
         retry = false;
 
@@ -150,9 +150,9 @@ void ConnBootstrapper::Run()
             // no errors; must have succeeded
             status_ = 0;
         } catch (int error_rc) {
-            if (sk->accepting_side) {
-                retry = ((--accept_retries) > 0);
-            }
+//             if (sk->accepting_side) {
+//                 retry = ((--accept_retries) > 0);
+//             }
 
             PthreadScopedRWLock sock_lock(&sk->my_lock, true);
             if (retry) {
@@ -187,12 +187,14 @@ ConnBootstrapper::restart(struct net_interface down_iface,
 
     struct sockaddr_in addr;
     socklen_t addrlen = sizeof(addr);
-    if (bootstrap_sock == -1) {
+    if (sk->accepting_side || bootstrap_sock == -1) {
         return;
     }
     int rc = getsockname(bootstrap_sock, 
                          (struct sockaddr*)&addr, &addrlen);
     if (rc == 0 && addr.sin_addr.s_addr == down_iface.ip_addr.s_addr) {
+        dbgprintf("Restarting bootstrapper (previously on %s)\n",
+                  inet_ntoa(addr.sin_addr));
         retry = true;
         shutdown(bootstrap_sock, SHUT_RDWR);
     }
