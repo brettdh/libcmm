@@ -1614,6 +1614,16 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
     }
 
     if (need_data_check) {
+        dbgprintf("Zero-bandwidth period over\n");
+        return;
+        // try leaving this particular bit of retransmission to TCP.
+        
+        //  Potential performance improvement: When a new network becomes 
+        //  available, do Data_Checks for all unACKed IROBS, hopefully 
+        //  proactively retransmitting some data on the new socket,
+        //  which has no queued data that TCP is waiting to retransmit.
+
+        /*
         dbgprintf("Recovering from 0-bandwidth period; issuing data-check\n");
         vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
         outgoing_irobs.data_check_all();
@@ -1621,6 +1631,7 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
             IROBSchedulingData data_check(ids[i], false);
             irob_indexes.waiting_data_checks.insert(data_check);
         }
+        */
     }
 }
 
