@@ -126,6 +126,8 @@ void ConnBootstrapper::Run()
                     rc = connect(bootstrap_sock, addr, addrlen);
                     pthread_rwlock_rdlock(&sk->my_lock);
                     if (rc < 0) {
+                        pthread_rwlock_unlock(&sk->my_lock);
+                        pthread_rwlock_wrlock(&sk->my_lock);
                         status_ = errno;
                         dbgprintf("Error connecting bootstrap socket: %s\n",
                                   strerror(errno));
@@ -157,6 +159,7 @@ void ConnBootstrapper::Run()
             }
             
             // no errors; must have succeeded
+            PthreadScopedRWLock lock(&sk->my_lock, true);
             status_ = 0;
         } catch (int error_rc) {
 //             if (sk->accepting_side) {

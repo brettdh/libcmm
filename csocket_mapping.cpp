@@ -98,6 +98,7 @@ CSockMapping::setup(struct net_interface iface, bool local,
 
     for (size_t i = 0; i < matches.size(); ++i) {
         // replace connection stats with updated numbers
+        PthreadScopedLock lock(&matches[i]->csock_lock);
         if (local) {
             matches[i]->local_iface = iface;
         } else {
