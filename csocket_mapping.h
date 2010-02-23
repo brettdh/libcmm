@@ -102,10 +102,14 @@ template <typename Functor>
 void CSockMapping::for_each_by_ref(Functor& f)
 {
     PthreadScopedRWLock lock(&sockset_mutex, false);
-    for (CSockSet::iterator it = available_csocks.begin();
-	 it != available_csocks.end(); it++) {
-	CSocketPtr csock = *it;
+    CSockSet::iterator it = available_csocks.begin();
+    while (it != available_csocks.end()) {
+	CSocketPtr csock = *it++;
+        pthread_rwlock_unlock(&sockset_mutex);
+        // add/erase doesn't invalidate iterators, 
+        //   so it's okay to drop the lock here.
 	f(csock);
+        pthread_rwlock_rdlock(&sockset_mutex);
     }
 }
 
@@ -113,10 +117,14 @@ template <typename Functor>
 int CSockMapping::for_each(Functor f)
 {
     PthreadScopedRWLock lock(&sockset_mutex, false);
-    for (CSockSet::iterator it = available_csocks.begin();
-	 it != available_csocks.end(); it++) {
-	CSocketPtr csock = *it;
+    CSockSet::iterator it = available_csocks.begin();
+    while (it != available_csocks.end()) {
+	CSocketPtr csock = *it++;
+        pthread_rwlock_unlock(&sockset_mutex);
+        // add/erase doesn't invalidate iterators, 
+        //   so it's okay to drop the lock here.
 	int rc = f(csock);
+        pthread_rwlock_rdlock(&sockset_mutex);
 	if (rc < 0) {
 	    return rc;
 	}
