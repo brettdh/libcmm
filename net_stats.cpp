@@ -7,13 +7,18 @@
 #include "timeops.h"
 #include <cmath>
 #include <map>
-using std::make_pair;
+using std::pair; using std::make_pair;
 
 class InvalidEstimateException {};
 
 NetStats::StatsCache NetStats::stats_cache;
 pthread_rwlock_t NetStats::stats_cache_lock;
 NetStats::static_initializer NetStats::init;
+
+NetStats::IROBIfaceMap NetStats::irob_iface_map;
+IntSet NetStats::striped_irobs;
+pthread_mutex_t NetStats::irob_iface_map_lock = PTHREAD_MUTEX_INITIALIZER;
+
 
 NetStats::static_initializer::static_initializer()
 {
@@ -45,9 +50,13 @@ NetStats::NetStats(struct net_interface local_iface,
     u_long init_bandwidth = iface_bandwidth(local_iface, remote_iface);
     u_long init_latency = iface_RTT(local_iface, remote_iface) / 2;
     if (init_bandwidth > 0) {
+        dbgprintf("Adding initial bandwidth observation: %lu bytes/sec\n",
+                  init_bandwidth);
         net_estimates.estimates[NET_STATS_BW_UP].add_observation(init_bandwidth);
     }
     if (init_latency > 0) {
+        dbgprintf("Adding initial latency observation: %lu ms\n",
+                  init_latency);
         net_estimates.estimates[NET_STATS_LATENCY].add_observation(init_latency);
     }
     cache_save();
@@ -63,9 +72,13 @@ NetStats::update(struct net_interface local_iface,
         u_long spot_bandwidth = iface_bandwidth(local_iface, remote_iface);
         u_long spot_latency = iface_RTT(local_iface, remote_iface) / 2;
         if (spot_bandwidth > 0) {
+            dbgprintf("Adding bandwidth observation from scout: %lu bytes/sec\n",
+                      spot_bandwidth);
             net_estimates.estimates[NET_STATS_BW_UP].add_observation(spot_bandwidth);
         }
         if (spot_latency > 0) {
+            dbgprintf("Adding latency observation from scout: %lu ms\n",
+                      spot_latency);
             net_estimates.estimates[NET_STATS_LATENCY].add_observation(spot_latency);
         }
     }
@@ -145,6 +158,34 @@ NetStats::get_estimate(unsigned short type, u_long& value)
 void 
 NetStats::report_send_event(irob_id_t irob_id, size_t bytes)
 {
+    // check whether any other NetStats objects have seen this
+    //   IROB; that would mean that it's been striped and we should
+    //   probably disregard estimates based on it
+    bool irob_was_striped = false;
+    {
+        PthreadScopedLock lock(&irob_iface_map_lock);
+        
+        if (striped_irobs.contains(irob_id)) {
+            irob_was_striped = true;
+        } else {
+            if (irob_iface_map.count(irob_id) == 0) {
+                irob_iface_map[irob_id] = make_pair(local_addr, remote_addr);
+            }
+
+            pair<struct in_addr, struct in_addr> iface_pair;
+            iface_pair = irob_iface_map[irob_id];
+            
+            if (iface_pair.first.s_addr != local_addr.s_addr ||
+                iface_pair.second.s_addr != remote_addr.s_addr) {
+                irob_was_striped = true;
+                striped_irobs.insert(irob_id);
+
+                // no longer needed; save some space
+                irob_iface_map.erase(irob_id);
+            }
+        }
+    }
+    
     PthreadScopedRWLock lock(&my_lock, true);
 
     if (past_irobs.contains(irob_id)) {
@@ -152,7 +193,13 @@ NetStats::report_send_event(irob_id_t irob_id, size_t bytes)
                   irob_id);
         return;
     }
-    
+
+    if (irob_was_striped) {
+        dbgprintf("IROB %ld has been striped; ignoring estimation\n", irob_id);
+        irob_measurements.erase(irob_id);
+        return;
+    }
+
     u_long bw_est = 0;
     (void)net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est);
     
@@ -269,6 +316,15 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
 	dbgprintf("Got ACK for IROB %ld, but srv_time is invalid. Ignoring.\n",
 		  irob_id);
 	return;
+    }
+
+    {
+        PthreadScopedLock lock(&irob_iface_map_lock);
+        if (striped_irobs.contains(irob_id)) {
+            dbgprintf("Got ACK for IROB %ld, but it was striped.  Ignoring.\n",
+                      irob_id);
+            return;
+        }
     }
 
     {
@@ -451,6 +507,7 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
                 } else {
                     dbgprintf_plain("latency (invalid)");
                 }
+		dbgprintf_plain("\n");
 
                 // TODO: send bw_up estimate to remote peer as its bw_down.  Or maybe do that
                 //       in CSocketReceiver, after calling this.

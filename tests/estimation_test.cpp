@@ -5,6 +5,7 @@
 #include "timeops.h"
 #include "test_common.h"
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <sys/types.h>
 #include "net_interface.h"
 
@@ -19,6 +20,11 @@ EstimationTest::setUp()
     struct net_interface dummy;
     memset(&dummy, 0, sizeof(dummy));
     stats = new NetStats(dummy, dummy);
+
+    struct net_interface other;
+    memset(&other, 0, sizeof(other));
+    CPPUNIT_ASSERT(inet_aton("42.42.42.42", &other.ip_addr) != 0);
+    other_stats = new NetStats(other, other);
 }
 
 void
@@ -27,6 +33,7 @@ EstimationTest::tearDown()
     delete estimate;
     delete delays;
     delete stats;
+    delete other_stats;
 }
 
 #define STABLE_GAIN 0.9
@@ -270,4 +277,32 @@ EstimationTest::assertStatsCorrect(u_long expected_bw,
                                  expected_bw, bw);
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Latency estimate matches expected",
                                  expected_latency, latency);
+}
+
+void
+EstimationTest::testDisregardStripedIROBs()
+{
+    // true bw: 5000 Bps  true latency: 20ms
+    // simulate queuing delay of 3sec
+
+    // make sure we have a bandwidth estimate ready
+    testNetStatsSimple();
+
+    struct timeval zero = {0,0};
+    struct timespec sleeptime1 = {0, 10 * 1000 * 1000};
+    struct timespec sleeptime2 = {0, 40 * 1000 * 1000};
+    nowake_nanosleep(&sleeptime1);
+
+    stats->report_send_event(3, 5000);
+
+    nowake_nanosleep(&sleeptime1);
+
+    other_stats->report_send_event(3, 10000);
+
+    nowake_nanosleep(&sleeptime2);
+
+    stats->report_ack(3, zero, zero, NULL);
+
+    // this IROB should be ignored, so the stats should be the same as before.
+    assertStatsCorrect(5000, 20);
 }
