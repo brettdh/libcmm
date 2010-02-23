@@ -192,6 +192,7 @@ CSocketSender::Run()
         //pthread_mutex_unlock(&sk->scheduling_state_lock); // no longer held here
         sk->csock_map->remove_csock(csock);
         CSocketPtr replacement = sk->csock_map->new_csock_with_labels(0);
+        /*
         while (replacement && replacement->wait_until_connected() < 0) {
             if (replacement->oserr == ECONNREFUSED) {
                 dbgprintf("Failed to connect replacement csocket; "
@@ -206,6 +207,7 @@ CSocketSender::Run()
                 replacement = sk->csock_map->new_csock_with_labels(0);
             }
         }
+        */
 
         PthreadScopedLock lock(&sk->scheduling_state_lock);
         if (replacement) {
