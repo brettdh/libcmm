@@ -421,24 +421,25 @@ PendingIROBLattice::size()
 vector<irob_id_t>
 PendingIROBLattice::get_all_ids()
 {
-    vector<irob_id_t> ids;
-    for (size_t i = 0; i < pending_irobs.size(); ++i) {
-        if (pending_irobs[i]) {
-            ids.push_back(i + offset);
+    GetIDs obj;
+    for_each_by_ref(obj);
+    return obj.ids;
+}
+
+struct DataCheckIROB {
+    void operator()(PendingIROB *pirob) {
+        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+        if (psirob) {
+            psirob->request_data_check();
         }
     }
-    return ids;
-}
+};
 
 // only call on a lattice that only contains
 //  PendingSenderIROBs.
 void
 PendingIROBLattice::data_check_all()
 {
-    for (size_t i = 0; i < pending_irobs.size(); ++i) {
-        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pending_irobs[i]);
-        if (psirob) {
-            psirob->request_data_check();
-        }
-    }
+    DataCheckIROB obj;
+    for_each_by_ref(obj);
 }

@@ -9,6 +9,8 @@
 #include "cmm_socket_control.h"
 #include <boost/shared_ptr.hpp>
 #include "csocket.h"
+#include <vector>
+#include "pending_sender_irob.h"
 
 class CMMSocketImpl;
 
@@ -43,5 +45,18 @@ class CSocketSender : public CMMThread {
     void goodbye();
     void resend_request(const IROBSchedulingData& data);
     void send_data_check(const IROBSchedulingData& data);
+
+    struct NotCompletelySent {
+        std::vector<irob_id_t> matches;
+        void operator()(PendingIROB* pirob) {
+            PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+            assert(psirob);
+            if (psirob->is_complete() && 
+                psirob->all_chunks_sent()) {
+                psirob->request_data_check();
+                matches.push_back(psirob->id);
+            }
+        };
+    };
 };
 #endif

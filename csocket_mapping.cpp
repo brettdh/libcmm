@@ -252,6 +252,12 @@ struct LabelMatcher {
         if (!NetStats::get_estimate(local_iface, remote_iface, NET_STATS_BW_UP, bw)) {
             bw = iface_bandwidth(local_iface, remote_iface);
         }
+        if (iface_bandwidth(local_iface, remote_iface) == 0) {
+            // special-case this, since the estimate won't 
+            // ever reflect when this happens
+            bw = 0;
+        }
+
         if (!NetStats::get_estimate(local_iface, remote_iface, NET_STATS_LATENCY, RTT)) {
             RTT = iface_RTT(local_iface, remote_iface);
         } else {
@@ -274,45 +280,58 @@ struct LabelMatcher {
 
         const u_long LABELMASK_FGBG = CMM_LABEL_ONDEMAND | CMM_LABEL_BACKGROUND;
         
-        if (send_label & CMM_LABEL_ONDEMAND ||
-            !(send_label & LABELMASK_FGBG)) {
-            if (send_label & CMM_LABEL_SMALL &&
-                min_RTT < ULONG_MAX) {
-                local_iface = min_RTT_iface_pair.first;
-                remote_iface = min_RTT_iface_pair.second;
-                return true;
-            } else if (send_label & CMM_LABEL_LARGE) {
-                local_iface = max_bw_iface_pair.first;
-                remote_iface = max_bw_iface_pair.second;
-                return true;
-            } else {
+        if (send_label & CMM_LABEL_SMALL &&
+            min_RTT < ULONG_MAX) {
+            local_iface = min_RTT_iface_pair.first;
+            remote_iface = min_RTT_iface_pair.second;
+            return true;
+        } else if (send_label & CMM_LABEL_LARGE) {
+            local_iface = max_bw_iface_pair.first;
+            remote_iface = max_bw_iface_pair.second;
+            return true;
+        } else if (send_label & CMM_LABEL_ONDEMAND ||
+                   !(send_label & LABELMASK_FGBG)) {
+//             if (send_label & CMM_LABEL_SMALL &&
+//                 min_RTT < ULONG_MAX) {
+//                 local_iface = min_RTT_iface_pair.first;
+//                 remote_iface = min_RTT_iface_pair.second;
+//                 return true;
+//             } else if (send_label & CMM_LABEL_LARGE) {
+//                 local_iface = max_bw_iface_pair.first;
+//                 remote_iface = max_bw_iface_pair.second;
+//                 return true;
+//             } else {
                 // TODO: try to check based on the actual size
-                local_iface = min_RTT_iface_pair.first;
-                remote_iface = min_RTT_iface_pair.second;
-                return true;            
-            }
+            local_iface = min_RTT_iface_pair.first;
+            remote_iface = min_RTT_iface_pair.second;
+            return true;            
+//            }
         } else if (send_label & CMM_LABEL_BACKGROUND ||
                    send_label == 0) {
-            if (send_label & CMM_LABEL_SMALL &&
-                min_RTT < ULONG_MAX) {
-                local_iface = min_RTT_iface_pair.first;
-                remote_iface = min_RTT_iface_pair.second;
-                return true;
-            } else if (send_label & CMM_LABEL_LARGE) {
-                local_iface = max_bw_iface_pair.first;
-                remote_iface = max_bw_iface_pair.second;
-                return true;
-            } else {
+//             if (send_label & CMM_LABEL_SMALL &&
+//                 min_RTT < ULONG_MAX) {
+//                 local_iface = min_RTT_iface_pair.first;
+//                 remote_iface = min_RTT_iface_pair.second;
+//                 return true;
+//             } else if (send_label & CMM_LABEL_LARGE) {
+//                 local_iface = max_bw_iface_pair.first;
+//                 remote_iface = max_bw_iface_pair.second;
+//                 return true;
+//             } else {
                 // TODO: try to check based on the actual size
-                local_iface = max_bw_iface_pair.first;
-                remote_iface = max_bw_iface_pair.second;
-                return true;            
-            }
+            local_iface = max_bw_iface_pair.first;
+            remote_iface = max_bw_iface_pair.second;
+            return true;            
+//            }
             /*
             local_iface = max_bw_iface_pair.first;
             remote_iface = max_bw_iface_pair.second;
             return true;
             */
+        } else {
+            local_iface = max_bw_iface_pair.first;
+            remote_iface = max_bw_iface_pair.second;
+            return true;
         }
         return false;
     }
