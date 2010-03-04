@@ -35,7 +35,7 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
       stats(local_iface, remote_iface),
       csock_sendr(NULL), csock_recvr(NULL), connected(false),
       accepting(false),
-      irob_indexes(local_iface_.labels)
+      irob_indexes(local_iface_.labels), busy(false)
 {
     pthread_mutex_init(&csock_lock, NULL);
     pthread_cond_init(&csock_cv, NULL);
@@ -284,6 +284,15 @@ bool CSocket::is_fg()
 {
     return (matches(CMM_LABEL_ONDEMAND|CMM_LABEL_SMALL) ||
             matches(CMM_LABEL_ONDEMAND|CMM_LABEL_LARGE));
+}
+
+// must be holding scheduling_state_lock
+// return true iff the csocket is busy sending app data
+bool CSocket::is_busy()
+{
+    return (busy ||
+            !irob_indexes.new_irobs.empty() || 
+            !irob_indexes.new_chunks.empty());
 }
 
 u_long

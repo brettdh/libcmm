@@ -206,6 +206,18 @@ CSockMapping::csock_with_labels(u_long send_label)
     return find_csock(GlobalLabelMatch(this, send_label));
 }
 
+struct IsNotBusy {
+    bool operator()(CSocketPtr csock) {
+        return !csock->is_busy();
+    }
+};
+
+CSocketPtr
+CSockMapping::get_idle_csock(bool grab_lock_first)
+{
+    return find_csock(IsNotBusy());
+}
+
 
 struct IfaceMatcher {
     struct net_interface local_iface;

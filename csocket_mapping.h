@@ -34,6 +34,8 @@ class CSockMapping {
     CSocketPtr new_csock_with_labels(u_long send_label, bool locked=true);
     void remove_csock(CSocketPtr csock); // only removes, doesn't delete
 
+    CSocketPtr get_idle_csock(bool grab_lock=true);
+
     bool get_local_iface_by_addr(struct in_addr addr, 
                                  struct net_interface& iface);
     bool get_iface_pair(u_long send_label,

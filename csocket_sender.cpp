@@ -264,6 +264,7 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
 
     if (indexes.new_irobs.pop(data)) {
         irob_id_t id = data.id;
+        csock->busy = true;
         if (!begin_irob(data)) {
             indexes.new_irobs.insert(data);
         } else {
@@ -287,6 +288,7 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
                 end_irob(data);
             }
         }
+        csock->busy = false;
     }
     
     if (indexes.new_chunks.pop(data)) {
@@ -297,6 +299,7 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
 	}		
 	
         irob_id_t id = data.id;
+        csock->busy = true;
         if (!irob_chunk(data, waiting_ack_irob)) {
             indexes.new_chunks.insert(data);
 	    if (waiting_ack_irob != -1) {
@@ -322,13 +325,20 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
                 end_irob(data);
             }
         }
+        csock->busy = false;
     }
     
     if (indexes.finished_irobs.pop(data)) {
+        csock->busy = true;
         end_irob(data);
+        csock->busy = false;
         did_something = true;
     }
     
+    if (!csock->is_busy()) {
+        fire_thunks();
+    }
+
     if (indexes.resend_requests.pop(data)) {
         resend_request(data);
         did_something = true;

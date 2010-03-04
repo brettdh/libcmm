@@ -43,6 +43,9 @@ static void thunk_fn(void *arg)
     struct thunk_args *th_arg = (struct thunk_args*)arg;
     assert(th_arg);
 
+    fprintf(stderr, "Thunk fn called; resuming in 1 second\n");
+    sleep(1);
+
     PthreadScopedLock lock(&th_arg->mutex);
     th_arg->running = true;
     pthread_cond_signal(&th_arg->cv);
@@ -65,7 +68,7 @@ ThunkTests::testThunks()
         struct thunk_args *th_arg = new struct thunk_args(send_sock, nums, 
                                                           NUMINTS, 0);
         PthreadScopedLock lock(&th_arg->mutex);
-        th_arg->running = true;
+        th_arg->running = false;
         while (th_arg->next < th_arg->n) {
             fprintf(stderr, "Sending int... ");
             int rc = cmm_send(th_arg->sock, 
@@ -77,13 +80,13 @@ ThunkTests::testThunks()
                                              (int)sizeof(int), rc);
                 th_arg->next++;
                 rc = 0;
-                sleep(1);
+                th_arg->running = true;
+                //sleep(1);
             } else {
                 fprintf(stderr, "not sent, rc=%d\n", rc);
                 CPPUNIT_ASSERT_EQUAL_MESSAGE("Deferred, not failed",
                                              CMM_DEFERRED, rc);
 
-                th_arg->running = false;
                 while (!th_arg->running) {
                     pthread_cond_wait(&th_arg->cv, &th_arg->mutex);
                 }

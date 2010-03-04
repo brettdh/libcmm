@@ -1776,6 +1776,22 @@ CMMSocketImpl::get_csock(u_long send_labels,
                 }
             }
         } else {
+            // for background sends, if there's a thunk provided,
+            //  check whether the csocket is busy sending any app data.
+            // If it is busy, pick a different csocket, or 
+            //  register the thunk if there's no free csocket.
+            if (send_labels & CMM_LABEL_BACKGROUND &&
+                resume_handler) {
+                if (csock->is_busy()) {
+                    csock = get_pointer(csock_map->get_idle_csock(false));
+                    if (!csock) {
+                        enqueue_handler(sock, send_labels, 
+                                        resume_handler, rh_arg);
+                        return CMM_DEFERRED;
+                    }
+                }
+            }
+
             return 0;
         }
     } catch (std::runtime_error& e) {
