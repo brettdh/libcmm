@@ -82,8 +82,8 @@ ThunkTests::testThunks()
         struct thunk_args *th_arg = new struct thunk_args(send_sock, nums, 
                                                           NUMINTS, 0);
         PthreadScopedLock lock(&th_arg->mutex);
-        th_arg->running = false;
         while (th_arg->next < th_arg->n) {
+            th_arg->running = false;
             fprintf(stderr, "Sending int... ");
             rc = cmm_send(th_arg->sock, 
                           &th_arg->nums[th_arg->next], sizeof(int), 0, 
