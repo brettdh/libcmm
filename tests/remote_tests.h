@@ -14,6 +14,7 @@ class RemoteTests : public EndToEndTestsRemote {
     CPPUNIT_TEST(testNoInterleaving);
     CPPUNIT_TEST(testPartialRecv);
     CPPUNIT_TEST(testCMMPoll);
+    //CPPUNIT_TEST(testHalfShutdown);
     CPPUNIT_TEST_SUITE_END();
 
   protected:

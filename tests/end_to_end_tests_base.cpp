@@ -441,3 +441,53 @@ EndToEndTestsBase::receiverAssertIntsSorted(int nums[], size_t n)
 
     fprintf(stderr, "Received integers in correct order.\n");
 }
+
+void
+EndToEndTestsBase::testHalfShutdown()
+{
+    fprintf(stderr, "Testing half-shutdown socket\n");
+    if (isReceiver()) {
+        for (int i = 0; i < 2; ++i) {
+            int num = -1;
+            int rc = cmm_read(read_sock, &num, sizeof(num), NULL);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiving integer",
+                                         (int)sizeof(int), rc);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Integer is correct",
+                                         i, (int)ntohl(num));
+            fprintf(stderr, "Receiver: received %d\n", (int)ntohl(num));
+
+            sleep(1);
+
+            fprintf(stderr, "Receiver: sending %d\n", i);
+            rc = cmm_write(read_sock, &num, sizeof(num), 
+                               0, NULL, NULL);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending integer",
+                                         (int)sizeof(int), rc);
+        }
+        fprintf(stderr, "Receiver done.\n");
+    } else {
+        for (int i = 0; i < 2; ++i) {
+            fprintf(stderr, "Sender: sending %d\n", i);
+            int num = htonl(i);
+            int rc = cmm_write(send_sock, &num, sizeof(num), 
+                               0, NULL, NULL);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending integer",
+                                         (int)sizeof(int), rc);            
+            
+            if (i == 1) {
+                fprintf(stderr, "Sender: shutting down with SHUT_WR\n");
+                rc = cmm_shutdown(send_sock, SHUT_WR);
+                CPPUNIT_ASSERT_EQUAL_MESSAGE("Shutdown succedds",
+                                             0, rc);
+            }
+
+            rc = cmm_read(send_sock, &num, sizeof(num), NULL);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiving integer",
+                                         (int)sizeof(int), rc);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Integer is correct",
+                                         i, (int)ntohl(num));
+            fprintf(stderr, "Sender: received %d\n", (int)ntohl(num));
+        }
+        fprintf(stderr, "Sender done.\n");
+    }
+}
