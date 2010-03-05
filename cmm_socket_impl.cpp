@@ -1992,8 +1992,10 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
         rh_arg = psirob->rh_arg;
     }
 
+    // only the begin_irob should try to register a thunk.
     int ret = get_csock(send_labels,
-                       resume_handler, rh_arg, csock, true);
+                        NULL, NULL, csock, true);
+                       //resume_handler, rh_arg, csock, true);
     if (ret < 0) {
         return ret;
     }
@@ -2128,6 +2130,8 @@ CMMSocketImpl::validate_default_irob(u_long send_labels,
 	return CMM_FAILED;
     }
 
+    // checking for thunking here makes sense too; it's separate
+    //  from the begin->chunk->ehd function flow.
     int ret = get_csock(send_labels, resume_handler, rh_arg, csock, true);
     if (ret < 0) {
         return ret;
