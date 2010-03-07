@@ -838,11 +838,11 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
             }
         }
     }
-    if (sk->csock_map->count() != 1) {
-        // actually enforce the maximum chunksize.
-        // this should help with both striping and preemptibility.
-        chunksize = min(chunksize, base_chunksize);
-    }
+    //if (sk->csock_map->count() != 1) {
+    // actually enforce the maximum chunksize.
+    // this should help with both striping and preemptibility.
+    chunksize = min(chunksize, base_chunksize);
+    //}
 
     irob_id_t id = data.id;
     PendingIROB *pirob = NULL;
