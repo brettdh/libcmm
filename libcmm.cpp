@@ -139,7 +139,7 @@ void process_interface_update(struct net_interface iface, bool down)
     } else {    
         /* fire thunks thunk'd on now-available network. */
         CMMSocket::interface_up(iface);
-        fire_thunks();
+        //fire_thunks();
     }
 
     //fprintf(stderr, "After:\n---\n");

@@ -58,6 +58,9 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
         accepting = true;
         // XXX: need to wait until the end-to-end library-level connect 
         //  handshake completes
+        
+        // XXX: should I do it here too?
+        //sk->set_all_sockopts(osfd);
     }
     
     int on = 1;
@@ -286,13 +289,23 @@ bool CSocket::is_fg()
             matches(CMM_LABEL_ONDEMAND|CMM_LABEL_LARGE));
 }
 
+extern int get_unsent_bytes(int sock);
+
 // must be holding scheduling_state_lock
 // return true iff the csocket is busy sending app data
 bool CSocket::is_busy()
 {
-    return (busy ||
-            !irob_indexes.new_irobs.empty() || 
-            !irob_indexes.new_chunks.empty());
+    if (busy ||
+        !irob_indexes.new_irobs.empty() || 
+        !irob_indexes.new_chunks.empty()) {
+        return true;
+    }
+
+    int rc = get_unsent_bytes(osfd);
+    if (rc > 0) {
+        return true;
+    }
+    return false;
 }
 
 u_long

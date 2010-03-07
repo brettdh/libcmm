@@ -37,6 +37,8 @@ CSocketSender::CSocketSender(CSocketPtr csock_)
     trickle_timeout.tv_nsec = 0;
 }
 
+int get_unsent_bytes(int sock);
+
 void
 CSocketSender::Run()
 {
@@ -128,6 +130,12 @@ CSocketSender::Run()
                 continue;
             }
 
+            if (!csock->is_busy()) {
+                pthread_mutex_unlock(&sk->scheduling_state_lock);
+                fire_thunks();
+                pthread_mutex_lock(&sk->scheduling_state_lock);
+            }
+
             // resend End_IROB messages for all unACK'd IROBs whose
             //   ack timeouts have expired.
             // this will cause the receiver to send ACKs or
@@ -165,8 +173,23 @@ CSocketSender::Run()
                 }
             }
 
+
+            // HACK HACK HACK
+            //  If there are bytes still in the socket buffer,
+            //  I want to know when they are drained, so
+            //  I'll poll every 10ms to check, just the same
+            //  as when I'm trickling.
+            // 11ms so I can tell between the two.
+            struct timespec rel_thunk_timeout = { 0, 11 * 1000 * 1000 };
+            struct timespec thunk_timeout = abs_time(rel_thunk_timeout);
+            if (get_unsent_bytes(csock->osfd) > 0) {
+                timeout = thunk_timeout;
+            }
+
+
             if (timeout.tv_sec > 0) {
-		if (!timercmp(&timeout, &trickle_timeout, ==)) {
+		if (!timercmp(&timeout, &trickle_timeout, ==) &&
+                    !timercmp(&timeout, &thunk_timeout, ==)) {
 		    dbgprintf("Waiting until %lu.%09lu to check again for ACKs\n",
 			      timeout.tv_sec, timeout.tv_nsec);
 		}
@@ -176,14 +199,16 @@ CSocketSender::Run()
                 if (timercmp(&timeout, &trickle_timeout, ==)) {
                     trickle_timeout.tv_sec = -1;
                 }
-                if (rc != 0) {
+                if (rc != 0 && !timercmp(&timeout, &thunk_timeout, ==)) {
                     dbgprintf("pthread_cond_timedwait failed, rc=%d\n", rc);
                 }
             } else {
                 pthread_cond_wait(&sk->scheduling_state_cv,
                                   &sk->scheduling_state_lock);
             }
-            dbgprintf("Woke up; maybe I can do some work?\n");
+            if (!timercmp(&timeout, &thunk_timeout, ==)) {
+                dbgprintf("Woke up; maybe I can do some work?\n");
+            }
             // something happened; we might be able to do some work
         }
     } catch (CMMFatalError& e) {
@@ -335,10 +360,6 @@ bool CSocketSender::schedule_work(IROBSchedulingIndexes& indexes)
         did_something = true;
     }
     
-    if (!csock->is_busy()) {
-        fire_thunks();
-    }
-
     if (indexes.resend_requests.pop(data)) {
         resend_request(data);
         did_something = true;
@@ -817,9 +838,11 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
             }
         }
     }
-    // actually enforce the maximum chunksize.
-    // this should help with both striping and preemptibility.
-    chunksize = min(chunksize, base_chunksize);
+    if (sk->csock_map->count() != 1) {
+        // actually enforce the maximum chunksize.
+        // this should help with both striping and preemptibility.
+        chunksize = min(chunksize, base_chunksize);
+    }
 
     irob_id_t id = data.id;
     PendingIROB *pirob = NULL;

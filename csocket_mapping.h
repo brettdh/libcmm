@@ -44,6 +44,7 @@ class CSockMapping {
                         bool locked=true);
 
 
+    size_t count();
     bool empty();
     
     void add_connection(int sock, 

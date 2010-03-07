@@ -36,6 +36,13 @@ CSockMapping::~CSockMapping()
     available_csocks.clear();
 }
 
+size_t
+CSockMapping::count()
+{
+    PthreadScopedRWLock lock(&sockset_mutex, true);
+    return available_csocks.size();
+}
+
 bool
 CSockMapping::empty()
 {
