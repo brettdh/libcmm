@@ -838,11 +838,11 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
             }
         }
     }
-    //if (sk->csock_map->count() != 1) {
-    // actually enforce the maximum chunksize.
-    // this should help with both striping and preemptibility.
-    chunksize = min(chunksize, base_chunksize);
-    //}
+    if (sk->csock_map->count() > 1) {
+        // actually enforce the maximum chunksize.
+        // this should help with both striping and preemptibility.
+        chunksize = min(chunksize, base_chunksize);
+    }
 
     irob_id_t id = data.id;
     PendingIROB *pirob = NULL;
@@ -967,7 +967,8 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     //if (!psirob->chunk_in_flight) {
-    if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND) {
+    if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND &&
+        sk->csock_map->count() > 1) {
         // let other threads try to send this chunk too
         sk->irob_indexes.new_chunks.insert(data);
         pthread_cond_broadcast(&sk->scheduling_state_cv);
@@ -1057,7 +1058,8 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
         } 
 
         // more chunks to send, potentially, so make sure someone sends them.
-        if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND) {
+        if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND &&
+            sk->csock_map->count() > 1) {
             // already inserted it into sk->irob_indexes.new_chunks,
             //  letting another thread try to jump in.
             // So, I'll take a short break from sending it myself.
