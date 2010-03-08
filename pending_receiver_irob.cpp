@@ -371,7 +371,8 @@ PendingReceiverIROB PendingReceiverIROBLattice::empty_sentinel_irob(-1);
 PendingReceiverIROB *
 PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
 {
-    irob_id_t ready_irob_id = -1;
+    //irob_id_t ready_irob_id = -1;
+    IROBSchedulingData ready_irob_data;
     PendingIROB *pi = NULL;
     PendingReceiverIROB *pirob = NULL;
     if (partially_read_irob) {
@@ -409,13 +410,13 @@ PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
             }
 #endif
 
-            if (!pop_item(ready_irobs, ready_irob_id)) {
+            if (!ready_irobs.pop(ready_irob_data)) {
                 assert(0);
             }
-            pi = find(ready_irob_id);
+            pi = find(ready_irob_data.id);
             if (!pi) {
                 dbgprintf("Looks like IROB %ld was already received; "
-                          "ignoring\n", ready_irob_id);
+                          "ignoring\n", ready_irob_data.id);
             }
 	}
 	TIME(end);
@@ -435,7 +436,7 @@ PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
 
 // must call with scheduling_state_lock held
 void
-PendingReceiverIROBLattice::release(irob_id_t id)
+PendingReceiverIROBLattice::release(irob_id_t id, u_long send_labels)
 {
     if (ready_irobs.empty()) {
 #ifndef CMM_UNIT_TESTING
@@ -445,7 +446,7 @@ PendingReceiverIROBLattice::release(irob_id_t id)
         (void)send(sk->select_pipe[1], &c, 1, MSG_NOSIGNAL);
 #endif
     }
-    ready_irobs.insert(id);
+    ready_irobs.insert(IROBSchedulingData(id, false, send_labels));
 #ifndef CMM_UNIT_TESTING
     pthread_cond_broadcast(&sk->scheduling_state_cv);
 #endif

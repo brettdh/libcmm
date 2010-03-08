@@ -8,6 +8,7 @@
 //#include "cmm_socket.private.h"
 #include "intset.h"
 #include "pending_irob.h"
+#include "irob_scheduling.h"
 #include <cassert>
 #include "debug.h"
 
@@ -130,10 +131,11 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
   private:
     CMMSocketImpl *sk; // for scheduling state locks
     /* for now, pass IROBs to the app in the order in which they are released */
-    std::set<irob_id_t> ready_irobs;
+    //std::set<irob_id_t> ready_irobs;
+    IROBPrioritySet ready_irobs;
 
     // must call with sk->scheduling_state_lock held
-    void release(irob_id_t id);
+    void release(irob_id_t id, u_long send_labels);
 
     // must call with sk->scheduling_state_lock held
     template <typename Predicate>
@@ -155,7 +157,7 @@ PendingReceiverIROBLattice::release_if_ready(PendingReceiverIROB *pirob,
     if (is_ready(pirob)) {
         /* TODO: smarter strategy for ordering ready IROBs. */
         dbgprintf("Releasing IROB %ld\n", pirob->id);
-        release(pirob->id);
+        release(pirob->id, pirob->send_labels);
     }
 }
 

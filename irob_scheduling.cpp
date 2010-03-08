@@ -57,7 +57,7 @@ IROBSchedulingData::operator<(const IROBSchedulingData& other) const
         return false;
     }
 
-    return ((owner && (owner->send_labels & send_labels)) ||
+    return (//(owner && (owner->send_labels & send_labels)) ||
             (timercmp(&completion_time, &other.completion_time, <)) ||
             (id < other.id));
 }
