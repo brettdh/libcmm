@@ -45,7 +45,11 @@ NetStats::NetStats(struct net_interface local_iface,
     last_req_size = 0;
     last_irob = -1;
 
-    cache_restore();
+    // don't do this until cache-by-BSSID is implemented.
+    //  the last WiFi estimates don't predict the next ones.
+    // anyway, the 3G stats stay as long as that CSocket does,
+    //  which should be the entire trace.
+    //cache_restore();
 
     u_long init_bandwidth = iface_bandwidth(local_iface, remote_iface);
     u_long init_latency = iface_RTT(local_iface, remote_iface) / 2;
@@ -74,14 +78,14 @@ NetStats::update(struct net_interface local_iface,
         if (spot_bandwidth > 0) {
             dbgprintf("Adding bandwidth observation from scout: %lu bytes/sec\n",
                       spot_bandwidth);
-            //net_estimates.estimates[NET_STATS_BW_UP].add_observation(spot_bandwidth);
-            net_estimates.estimates[NET_STATS_BW_UP].reset(spot_bandwidth);
+            net_estimates.estimates[NET_STATS_BW_UP].add_observation(spot_bandwidth);
+            //net_estimates.estimates[NET_STATS_BW_UP].reset(spot_bandwidth);
         }
         if (spot_latency > 0) {
             dbgprintf("Adding latency observation from scout: %lu ms\n",
                       spot_latency);
-            //net_estimates.estimates[NET_STATS_LATENCY].add_observation(spot_latency);
-            net_estimates.estimates[NET_STATS_LATENCY].reset(spot_latency);
+            net_estimates.estimates[NET_STATS_LATENCY].add_observation(spot_latency);
+            //net_estimates.estimates[NET_STATS_LATENCY].reset(spot_latency);
         }
     }
     cache_save();
