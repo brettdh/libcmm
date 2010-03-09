@@ -2353,6 +2353,15 @@ CMMSocketImpl::goodbye(bool remote_initiated)
 
     shutting_down = true; // picked up by sender-scheduler
     if (remote_initiated) {
+        // remote side thinks it's sent all ACKs;
+        //  if I haven't received them all, ask for them again.
+        vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
+        outgoing_irobs.data_check_all();
+        for (size_t i = 0; i < ids.size(); ++i) {
+            IROBSchedulingData data_check(ids[i], false);
+            irob_indexes.waiting_data_checks.insert(data_check);
+        }
+
         remote_shutdown = true;
     }
 
