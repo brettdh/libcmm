@@ -16,6 +16,8 @@ class Estimate {
     bool get_estimate(u_long& est);
     
     void add_observation(u_long new_spot_value);
+
+    void reset(u_long new_spot_value);
     
     Estimate();
   private:

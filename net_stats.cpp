@@ -74,12 +74,14 @@ NetStats::update(struct net_interface local_iface,
         if (spot_bandwidth > 0) {
             dbgprintf("Adding bandwidth observation from scout: %lu bytes/sec\n",
                       spot_bandwidth);
-            net_estimates.estimates[NET_STATS_BW_UP].add_observation(spot_bandwidth);
+            //net_estimates.estimates[NET_STATS_BW_UP].add_observation(spot_bandwidth);
+            net_estimates.estimates[NET_STATS_BW_UP].reset(spot_bandwidth);
         }
         if (spot_latency > 0) {
             dbgprintf("Adding latency observation from scout: %lu ms\n",
                       spot_latency);
-            net_estimates.estimates[NET_STATS_LATENCY].add_observation(spot_latency);
+            //net_estimates.estimates[NET_STATS_LATENCY].add_observation(spot_latency);
+            net_estimates.estimates[NET_STATS_LATENCY].reset(spot_latency);
         }
     }
     cache_save();
@@ -727,6 +729,15 @@ Estimate::Estimate()
     : stable_estimate(0.0), agile_estimate(0.0), spot_value(0.0),
       moving_range(0.0), center_line(0.0), valid(false)
 {
+}
+
+void
+Estimate::reset(u_long new_spot_value_int)
+{
+    stable_estimate = agile_estimate = spot_value = 0.0;
+    moving_range = center_line = 0.0;
+    valid = false;
+    add_observation(new_spot_value_int);
 }
 
 bool

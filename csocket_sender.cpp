@@ -64,6 +64,10 @@ CSocketSender::Run()
             throw CMMControlException("Failed to connect new CSocket");
         }
 
+        if (csock->matches(CMM_LABEL_ONDEMAND)) {
+            csock->last_fg = sk->last_fg;
+        }
+
         PthreadScopedLock lock(&sk->scheduling_state_lock);
 
         // on startup, find all IROBs that might benefit from me sending
@@ -748,7 +752,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     }
 
     if (data.send_labels & CMM_LABEL_ONDEMAND) {
-        //CMMSocketImpl::update_last_fg();
+        sk->update_last_fg();
         csock->update_last_fg();
     }
 
@@ -1040,7 +1044,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     }
 
     if (data.send_labels & CMM_LABEL_ONDEMAND) {
-        //CMMSocketImpl::update_last_fg();
+        sk->update_last_fg();
         csock->update_last_fg();
     }
 

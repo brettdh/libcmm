@@ -421,7 +421,9 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
       irob_indexes(0),
       sending_goodbye(false)
 {
-//     TIME(last_fg);
+    // gets updated on first FG activity
+    last_fg.tv_sec = last_fg.tv_usec = 0;
+
 //     total_inter_fg_time.tv_sec = total_inter_fg_time.tv_usec = 0;
 //     fg_count = 0;
 
@@ -2554,14 +2556,8 @@ CMMSocketImpl::mc_set_failure_timeout(u_long label, const struct timespec *ts)
 //     return avg;
 // }
 
-// void
-// CMMSocketImpl::update_last_fg()
-// {
-//     struct timeval now, diff;
-//     TIME(now);
-
-//     TIMEDIFF(last_fg, now, diff);
-//     timeradd(&total_inter_fg_time, &diff, &total_inter_fg_time);
-//     fg_count++;
-//     last_fg = now;
-// }
+void
+CMMSocketImpl::update_last_fg()
+{
+    TIME(last_fg);
+}
