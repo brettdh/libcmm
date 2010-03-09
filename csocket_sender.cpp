@@ -85,7 +85,10 @@ CSocketSender::Run()
                      && sk->irob_indexes.waiting_acks.empty()
                      && csock->irob_indexes.resend_requests.empty()
                      && sk->irob_indexes.resend_requests.empty()
-                     && sk->outgoing_irobs.empty()) {
+                     && sk->outgoing_irobs.empty()
+                     && sk->down_local_ifaces.empty()
+                     && csock->irob_indexes.waiting_data_checks.empty()
+                     && sk->irob_indexes.waiting_data_checks.empty()) {
                     if (!sk->goodbye_sent && !sk->sending_goodbye) {
                         sk->sending_goodbye = true;
                         goodbye();
