@@ -81,8 +81,6 @@
 
 Post-Mobisys TODO items
 ------------------------
-* Consider adding irob_cancel and irob_change_label to the API.
-
 --DONE-- * Fix the round-robin-scheduling bug; an IROB should be sent in its
 --DONE--    entirety before moving on to the next IROB of that label.
 --DONE-- * Fix the inefficiency in retransmitting lost IROB data; ask the receiver
@@ -99,12 +97,24 @@ Post-Mobisys TODO items
     * Build the necessary features in that app.
     * Try it out.
     * Refine the benchmark and the application modifications.
+  (DONE.)
 
 * Pick a third mobile application with an interesting use case for IntNW.
   * Iterate:
     * Modify the app as needed.
     * Construct and run a benchmark.
     * Refine the benchmark and the app/use case.
+   (DONE, for now.)
+
+* Walking trace, and/or trace with more WiFi? (more WiFi, DONE)
+
+* Understand the real cost of trickling, so that we can make sense of
+   our experimental results. (DONE?)
+
+* Make use of all available networks when appropriate.
+    (DONE) This means some simple form of striping.
+
+
 
 * Figure out a way to make our traffic reordering/prioritizing/trickling
    work for applications with multiple multisockets?  Higher priority if 
@@ -114,10 +124,13 @@ Post-Mobisys TODO items
   (Once this works, we can run the active measurements also while doing
    the trace-based evaluation.)
 
-* Walking trace, and/or trace with more WiFi?
+* Consider adding irob_cancel and irob_change_label to the API.
 
-* Understand the real cost of trickling, so that we can make sense of
-   our experimental results.
+* Merge the striping branch.
 
-* Make use of all available networks when appropriate.
-    This means some simple form of striping.
+It-would-be-nice TODOs:
+
+* Swap POSIX message queues for SysV IPC (msgsnd).  Message queues are annoying,
+  are not supported everywhere, require another library (librt),
+  and leave persistent structures in a filesystem, which can fill up
+  unexpectedly.
