@@ -871,7 +871,8 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
         // another thread is sending a chunk; it will
         // signal for the next chunk to be sent when it is done
         // XXX: this will need to be changed to enable striping.
-        return true;
+        //return true;
+        dbgprintf("Sending a chunk in parallel\n");
     }
     */
 

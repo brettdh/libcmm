@@ -40,7 +40,7 @@ struct end_irob_data {
 
 struct irob_chunk_data {
     irob_id_t id;
-    u_long seqno; /* these start at 1.  0 is invalid; see ack_data, below. */
+    u_long seqno; /* starting at 0. */
     size_t offset; // offset in this IROB at which this chunk's data begins
     size_t datalen;
     char *data; /* NULL in network messages
@@ -64,8 +64,6 @@ struct default_irob_data {
     /* followed by datalen bytes of application data */
 };
 #endif
-
-#define INVALID_IROB_SEQNO 0
 
 struct new_interface_data {
     struct in_addr ip_addr;

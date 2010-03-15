@@ -298,7 +298,7 @@ void
 PendingSenderIROB::rewind(size_t pos)
 {
     dbgprintf("Resetting send pointer for IROB %ld\n", id);
-    next_seqno_to_send = INVALID_IROB_SEQNO + 1;
+    next_seqno_to_send = 0;
     next_chunk = 0;
     chunk_offset = 0;
     offset = 0;

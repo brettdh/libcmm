@@ -47,7 +47,7 @@ PendingIROB::PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array
         assert(data);
         struct irob_chunk_data chunk;
         chunk.id = id;
-        chunk.seqno = INVALID_IROB_SEQNO;
+        chunk.seqno = 0;
         chunk.datalen = datalen;
         chunk.offset = 0;
         chunk.data = data;
