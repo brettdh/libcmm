@@ -8,6 +8,7 @@
 //#include "cmm_socket.private.h"
 #include "intset.h"
 #include "pending_irob.h"
+#include "irob_scheduling.h"
 #include <cassert>
 #include "debug.h"
 
@@ -19,6 +20,15 @@ class PendingReceiverIROB : public PendingIROB {
 			u_long send_labels);
     virtual ~PendingReceiverIROB();
     bool add_chunk(struct irob_chunk_data&); /* host byte order */
+
+    // construct and return a vector representing all (if any)
+    //  chunks that this IROB is missing.  This will be called
+    //  in response to a resend request.
+    std::vector<struct irob_chunk_data> get_missing_chunks();
+
+    // return the seqno of the "next chunk" that would be received;
+    //  that is, the largest seqno I've received, plus 1.
+    int next_chunk_seqno();
 
     /* have all the deps been satisfied? 
      * (only meaningful on the receiver side) */
@@ -32,8 +42,9 @@ class PendingReceiverIROB : public PendingIROB {
      * have arrived. */
     bool is_complete(void);
 
-    
-    bool finish(ssize_t num_chunks);
+    //  From this, get_missing_chunks()
+    //  will know which seqnos haven't been received.
+    bool finish(ssize_t expected_bytes, int num_chunks);
 
     /* Read the next len bytes into buf. 
      * After this call, the first len bytes cannot be re-read. */
@@ -70,6 +81,10 @@ class PendingReceiverIROB : public PendingIROB {
      * this is -1 until the END_IROB message arrives. */
     ssize_t expected_bytes;
 
+    // Bytes should arrive in this many chunks with this many seqnos.
+    //  Also -1 until the End_IROB message arrives.
+    int expected_chunks;
+
     /* number of bytes received (duh).  Once
      * recvd_chunks == num_chunks and the END_IROB is
      * received, this IROB is_complete(). 
@@ -77,6 +92,10 @@ class PendingReceiverIROB : public PendingIROB {
      * num_bytes above decreases as bytes are copied out
      * by read_data(). */
     ssize_t recvd_bytes;
+
+    int recvd_chunks;
+
+    bool all_chunks_complete();
 };
 
 class CMMSocketImpl;
@@ -112,10 +131,11 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
   private:
     CMMSocketImpl *sk; // for scheduling state locks
     /* for now, pass IROBs to the app in the order in which they are released */
-    std::set<irob_id_t> ready_irobs;
+    //std::set<irob_id_t> ready_irobs;
+    IROBPrioritySet ready_irobs;
 
     // must call with sk->scheduling_state_lock held
-    void release(irob_id_t id);
+    void release(irob_id_t id, u_long send_labels);
 
     // must call with sk->scheduling_state_lock held
     template <typename Predicate>
@@ -137,7 +157,7 @@ PendingReceiverIROBLattice::release_if_ready(PendingReceiverIROB *pirob,
     if (is_ready(pirob)) {
         /* TODO: smarter strategy for ordering ready IROBs. */
         dbgprintf("Releasing IROB %ld\n", pirob->id);
-        release(pirob->id);
+        release(pirob->id, pirob->send_labels);
     }
 }
 

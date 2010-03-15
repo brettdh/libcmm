@@ -537,8 +537,8 @@ int main(int argc, char *argv[])
     
     /* Add the interfaces, wizard-of-oz-style */
     struct net_interface ifs[2] = {
-        {{0}, CMM_LABEL_ONDEMAND, fg_bandwidth, fg_RTT},
-        {{0}, CMM_LABEL_BACKGROUND, bg_bandwidth, bg_RTT}
+        {{0}, CMM_LABEL_ONDEMAND, fg_bandwidth, fg_bandwidth,  fg_RTT},
+        {{0}, CMM_LABEL_BACKGROUND, bg_bandwidth, bg_bandwidth, bg_RTT}
     };
     const char *ifnames[2] = {fg_iface_name, bg_iface_name};
 
@@ -556,7 +556,7 @@ int main(int argc, char *argv[])
 	}
         net_interfaces[ifs[i].ip_addr.s_addr] = ifs[i];
 	printf("Got interface: %s, %s, %lu bytes/sec %lu ms\n", ifnames[i], 
-	       inet_ntoa(ifs[i].ip_addr), ifs[i].bandwidth, ifs[i].RTT);
+	       inet_ntoa(ifs[i].ip_addr), ifs[i].bandwidth_up, ifs[i].RTT);
     }
     
     struct net_interface bg_iface;
@@ -684,7 +684,7 @@ static void print_slice(FILE *fp, struct trace_slice slice, struct timeval end,
 
     fprintf(fp, "  WiFi:     %15s ",
             inet_ntoa(wifi_iface.ip_addr));
-    if (wifi_iface.bandwidth == 0) {
+    if (wifi_iface.bandwidth_up == 0) {
         fprintf(fp, "(unavailable)\n");
     } else {
         fprintf(fp, "%9lu down  %9lu up  %5lu ms RTT\n",
@@ -722,15 +722,17 @@ static void emulate_slice(struct trace_slice slice, struct timeval end,
     }
 
     IfaceList changed_ifaces, down_ifaces;
-    cellular_iface.bandwidth = slice.cellular_bw_up;
+    cellular_iface.bandwidth_down = slice.cellular_bw_down;
+    cellular_iface.bandwidth_up = slice.cellular_bw_up;
     cellular_iface.RTT = slice.cellular_RTT;
-    wifi_iface.bandwidth = slice.wifi_bw_up;
+    wifi_iface.bandwidth_down = slice.wifi_bw_down;
+    wifi_iface.bandwidth_up = slice.wifi_bw_up;
     wifi_iface.RTT = slice.wifi_RTT;
 
     print_slice(stderr, slice, end, cellular_iface, wifi_iface);
 
     pthread_mutex_lock(&ifaces_lock);
-    if (wifi_iface.bandwidth == 0) {
+    if (wifi_iface.bandwidth_up == 0) {
         if (net_interfaces.count(wifi_iface.ip_addr.s_addr) == 1) {
             down_ifaces.push_back(wifi_iface);
             net_interfaces.erase(wifi_iface.ip_addr.s_addr);
@@ -740,13 +742,13 @@ static void emulate_slice(struct trace_slice slice, struct timeval end,
         changed_ifaces.push_back(wifi_iface);
     }
     /*
-    if (cellular_iface.bandwidth == 0) {
+    if (cellular_iface.bandwidth_up == 0) {
         if (net_interfaces.count(cellular_iface.ip_addr.s_addr) == 1) {
             down_ifaces.push_back(cellular_iface);
         }
     } else {
     */
-    // if cellular_iface.bandwidth == 0, it could be
+    // if cellular_iface.bandwidth_up == 0, it could be
     //  a temporary situation, so instead of telling apps
     //  that the iface is gone, just tell them that it's
     //  really slow.  That way, connections can continue uninterrupted.

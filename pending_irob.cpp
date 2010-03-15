@@ -1,8 +1,11 @@
 #include "pending_irob.h"
+#include "pending_sender_irob.h"
 #include "debug.h"
 #include "timeops.h"
 #include <functional>
 #include <vector>
+#include <deque>
+using std::deque;
 using std::vector; using std::max;
 using std::mem_fun_ref;
 using std::bind1st;
@@ -412,4 +415,31 @@ PendingIROBLattice::size()
 {
     PthreadScopedLock lock(&membership_lock);
     return count; 
+}
+
+// must be holding scheduling_state_lock
+vector<irob_id_t>
+PendingIROBLattice::get_all_ids()
+{
+    GetIDs obj;
+    for_each_by_ref(obj);
+    return obj.ids;
+}
+
+struct DataCheckIROB {
+    void operator()(PendingIROB *pirob) {
+        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+        if (psirob) {
+            psirob->request_data_check();
+        }
+    }
+};
+
+// only call on a lattice that only contains
+//  PendingSenderIROBs.
+void
+PendingIROBLattice::data_check_all()
+{
+    DataCheckIROB obj;
+    for_each_by_ref(obj);
 }

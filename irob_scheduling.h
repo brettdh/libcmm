@@ -79,6 +79,7 @@ struct IROBSchedulingIndexes {
     IROBPrioritySet waiting_acks;
 
     IROBPrioritySet resend_requests;
+    IROBPrioritySet waiting_data_checks;
 
     u_long send_labels;
 

@@ -2,6 +2,7 @@
 #include "csocket.h"
 #include "csocket_sender.h"
 #include "csocket_receiver.h"
+#include "cmm_conn_bootstrapper.h"
 #include "signals.h"
 #include "debug.h"
 #include <memory>
@@ -33,6 +34,13 @@ CSockMapping::~CSockMapping()
 {
     PthreadScopedRWLock lock(&sockset_mutex, true);
     available_csocks.clear();
+}
+
+size_t
+CSockMapping::count()
+{
+    PthreadScopedRWLock lock(&sockset_mutex, true);
+    return available_csocks.size();
 }
 
 bool
@@ -89,13 +97,15 @@ struct get_matching_csocks {
 
 /* already holding sk->my_lock, writer=true */
 void 
-CSockMapping::setup(struct net_interface iface, bool local)
+CSockMapping::setup(struct net_interface iface, bool local,
+                    bool make_connection, bool need_data_check)
 {
     vector<CSocketPtr> matches;
     (void)for_each(get_matching_csocks(iface, matches, local));
 
     for (size_t i = 0; i < matches.size(); ++i) {
         // replace connection stats with updated numbers
+        PthreadScopedLock lock(&matches[i]->csock_lock);
         if (local) {
             matches[i]->local_iface = iface;
         } else {
@@ -103,6 +113,67 @@ CSockMapping::setup(struct net_interface iface, bool local)
         }
         matches[i]->stats.update(matches[i]->local_iface,
                                  matches[i]->remote_iface);
+    }
+
+    if (!make_connection) {
+        // bootstrapping in progress or failed; don't try to 
+        // start up a new connection
+        return;
+    }
+
+    // Let's try making a CSocket whenever a network pair becomes available.
+    //  That way, it will be available for striping, even if I haven't 
+    //  asked for labels that create CSockets on all networks.
+    NetInterfaceSet::iterator it, end;
+    CMMSocketImplPtr skp(sk);
+    if (local) { // try this out to avoid some of the contention.
+        it = skp->remote_ifaces.begin();
+        end = skp->remote_ifaces.end();
+        //     } else {
+        //         it = skp->local_ifaces.begin();
+        //         end = skp->local_ifaces.end();
+        //     }
+        for (; it != end; ++it) {
+            struct net_interface local_iface, remote_iface;
+            //        if (local) {
+            local_iface = iface;
+            remote_iface = *it;
+            //         } else {
+            //             local_iface = *it;
+            //             remote_iface = iface;
+            //         }
+            if (need_data_check || !csock_by_ifaces(local_iface, remote_iface)) {
+                (void)make_new_csocket(local_iface, remote_iface);
+            }
+        }
+    }
+}
+
+struct WaitForConnection {
+    int num_connections;
+    WaitForConnection() : num_connections(0) {}
+    void operator()(CSocketPtr csock) {
+        int rc = csock->wait_until_connected();
+        if (rc < 0) {
+            // print, but don't fail the for_each
+            dbgprintf("CSocket %d failed to connect on bootstrapping\n",
+                      csock->osfd);
+            
+        } else {
+            num_connections++;
+        }
+    }
+};
+
+void
+CSockMapping::wait_for_connections()
+{
+    // only called on bootstrapping.
+    WaitForConnection obj;
+    for_each_by_ref(obj);
+    if (obj.num_connections == 0) {
+        dbgprintf("All connection attempts on bootstrap failed!\n");
+        throw -1;
     }
 }
 
@@ -142,6 +213,39 @@ CSockMapping::csock_with_labels(u_long send_label)
     return find_csock(GlobalLabelMatch(this, send_label));
 }
 
+struct IsNotBusy {
+    bool operator()(CSocketPtr csock) {
+        return !csock->is_busy();
+    }
+};
+
+CSocketPtr
+CSockMapping::get_idle_csock(bool grab_lock_first)
+{
+    return find_csock(IsNotBusy());
+}
+
+
+struct IfaceMatcher {
+    struct net_interface local_iface;
+    struct net_interface remote_iface;
+    IfaceMatcher(struct net_interface li, 
+                 struct net_interface ri) 
+        : local_iface(li), remote_iface(ri) {}
+    bool operator()(CSocketPtr csock) {
+        return (csock->local_iface == local_iface &&
+                csock->remote_iface == remote_iface);
+    }
+};
+
+CSocketPtr
+CSockMapping::csock_by_ifaces(struct net_interface local_iface,
+                              struct net_interface remote_iface,
+                              bool grab_lock)
+{
+    return find_csock(IfaceMatcher(local_iface, remote_iface), grab_lock);
+}
+
 // Call consider() with several different label pairs, then
 //  call pick_label_match to get the local and remote
 //  interfaces among the pairs considered that best match
@@ -168,6 +272,12 @@ struct LabelMatcher {
         if (!NetStats::get_estimate(local_iface, remote_iface, NET_STATS_BW_UP, bw)) {
             bw = iface_bandwidth(local_iface, remote_iface);
         }
+        if (iface_bandwidth(local_iface, remote_iface) == 0) {
+            // special-case this, since the estimate won't 
+            // ever reflect when this happens
+            bw = 0;
+        }
+
         if (!NetStats::get_estimate(local_iface, remote_iface, NET_STATS_LATENCY, RTT)) {
             RTT = iface_RTT(local_iface, remote_iface);
         } else {
@@ -190,45 +300,58 @@ struct LabelMatcher {
 
         const u_long LABELMASK_FGBG = CMM_LABEL_ONDEMAND | CMM_LABEL_BACKGROUND;
         
-        if (send_label & CMM_LABEL_ONDEMAND ||
-            !(send_label & LABELMASK_FGBG)) {
-            if (send_label & CMM_LABEL_SMALL &&
-                min_RTT < ULONG_MAX) {
-                local_iface = min_RTT_iface_pair.first;
-                remote_iface = min_RTT_iface_pair.second;
-                return true;
-            } else if (send_label & CMM_LABEL_LARGE) {
-                local_iface = max_bw_iface_pair.first;
-                remote_iface = max_bw_iface_pair.second;
-                return true;
-            } else {
+        if (send_label & CMM_LABEL_SMALL &&
+            min_RTT < ULONG_MAX) {
+            local_iface = min_RTT_iface_pair.first;
+            remote_iface = min_RTT_iface_pair.second;
+            return true;
+        } else if (send_label & CMM_LABEL_LARGE) {
+            local_iface = max_bw_iface_pair.first;
+            remote_iface = max_bw_iface_pair.second;
+            return true;
+        } else if (send_label & CMM_LABEL_ONDEMAND ||
+                   !(send_label & LABELMASK_FGBG)) {
+//             if (send_label & CMM_LABEL_SMALL &&
+//                 min_RTT < ULONG_MAX) {
+//                 local_iface = min_RTT_iface_pair.first;
+//                 remote_iface = min_RTT_iface_pair.second;
+//                 return true;
+//             } else if (send_label & CMM_LABEL_LARGE) {
+//                 local_iface = max_bw_iface_pair.first;
+//                 remote_iface = max_bw_iface_pair.second;
+//                 return true;
+//             } else {
                 // TODO: try to check based on the actual size
-                local_iface = min_RTT_iface_pair.first;
-                remote_iface = min_RTT_iface_pair.second;
-                return true;            
-            }
+            local_iface = min_RTT_iface_pair.first;
+            remote_iface = min_RTT_iface_pair.second;
+            return true;            
+//            }
         } else if (send_label & CMM_LABEL_BACKGROUND ||
                    send_label == 0) {
-            if (send_label & CMM_LABEL_SMALL &&
-                min_RTT < ULONG_MAX) {
-                local_iface = min_RTT_iface_pair.first;
-                remote_iface = min_RTT_iface_pair.second;
-                return true;
-            } else if (send_label & CMM_LABEL_LARGE) {
-                local_iface = max_bw_iface_pair.first;
-                remote_iface = max_bw_iface_pair.second;
-                return true;
-            } else {
+//             if (send_label & CMM_LABEL_SMALL &&
+//                 min_RTT < ULONG_MAX) {
+//                 local_iface = min_RTT_iface_pair.first;
+//                 remote_iface = min_RTT_iface_pair.second;
+//                 return true;
+//             } else if (send_label & CMM_LABEL_LARGE) {
+//                 local_iface = max_bw_iface_pair.first;
+//                 remote_iface = max_bw_iface_pair.second;
+//                 return true;
+//             } else {
                 // TODO: try to check based on the actual size
-                local_iface = max_bw_iface_pair.first;
-                remote_iface = max_bw_iface_pair.second;
-                return true;            
-            }
+            local_iface = max_bw_iface_pair.first;
+            remote_iface = max_bw_iface_pair.second;
+            return true;            
+//            }
             /*
             local_iface = max_bw_iface_pair.first;
             remote_iface = max_bw_iface_pair.second;
             return true;
             */
+        } else {
+            local_iface = max_bw_iface_pair.first;
+            remote_iface = max_bw_iface_pair.second;
+            return true;
         }
         return false;
     }
@@ -342,6 +465,110 @@ CSockMapping::get_iface_pair(u_long send_label,
     return matcher.pick_label_match(send_label, local_iface, remote_iface);
 }
 
+CSocketPtr
+CSockMapping::make_new_csocket(struct net_interface local_iface, 
+                               struct net_interface remote_iface,
+                               int accepted_sock)
+{
+    CSocketPtr csock;
+    {
+	PthreadScopedRWLock lock(&sockset_mutex, true);
+        
+        csock = csock_by_ifaces(local_iface, remote_iface, false);
+        if (csock) {
+            // I've fixed some bugs, so I should probably try this out
+            //  to see if the timeout still happens.
+            return csock; // don't ever renew CSockets.
+
+#if 0
+            // This csocket already exists, so we must be trying to
+            //  "renew" it - that is, replace it with one that doesn't have
+            //  a bunch of data in the TCP buffer waiting who knows how long
+            //  to be retransmitted.  Doing this to try to cope with the 
+            //  periodic zero-bandwidth intervals in the traces,
+            //  now that the ACK timeouts are gone.
+            PthreadScopedLock csock_lock(&csock->csock_lock);
+            char *local_ip = strdup(inet_ntoa(local_iface.ip_addr));
+            dbgprintf("Adding newly %s CSocket: "
+                      "connection already present for %s<=>%s\n",
+                      (accepted_sock == -1) ? "connected" : "accepted",
+                      local_ip, inet_ntoa(remote_iface.ip_addr));
+            free(local_ip);
+
+            // msock-connecter takes priority when renewing a CSocket by
+            //  marking csock->renew_in_progress before making
+            //  the connection.
+            // If the msock-accepter tries to renew a CSocket that the
+            //  msock-connecter is in the middle of renewing, it will notice
+            //  that csock->renew_in_progress is set below and mark the
+            //  CSocket to send a failure message and shutdown.
+            if (accepted_sock == -1) {
+                if (sk->accepting_side) {
+                    //msock-accepter, csock-connecter
+                    
+                } else {
+                    // msock-connecter, csock-connecter
+                    if (csock->renew_in_progress) {
+                        return csock;
+                    } else {
+                        dbgprintf("Adding newly connected CSocket: "
+                                  "replacing my existing connection\n");
+
+                        available_csocks.erase(csock);
+                        shutdown(csock->osfd, SHUT_RDWR);
+
+                        CSocketPtr renewed_csock(CSocket::create(sk, local_iface,
+                                                                 remote_iface));
+                        renewed_csock->renew_in_progress = true;
+                        available_csocks.insert(renewed_csock);
+                        renewed_csock->startup_workers();
+                    }
+                }
+            } else {
+                if (sk->accepting_side) {
+                    // msock-accepter, csock-accepter
+                    
+                } else {
+                    // msock-connecter, csock-accepter
+                    if (csock->renew_in_progress) {
+                        CSocketPtr renewed_csock(CSocket::create(sk, local_iface,
+                                                                 remote_iface,
+                                                                 accepted_sock));
+                        renewed_csock->fail_renewal = true;
+                        renewed_csock->startup_workers();
+                        // sender will send an "already renewed in a different
+                        //  TCP socket" message back, then wait for the remote
+                        //  side to close the socket.
+                    } else {
+                        
+                    }
+                }
+
+                
+            }
+            //            if (accepted_sock != -1) {
+            //close(accepted_sock);
+            
+            // tell the existing sender/receiver threads to exit
+            available_csocks.erase(csock);
+            shutdown(csock->osfd, SHUT_RDWR);
+            //}
+            //return csock;
+#endif
+        }
+
+        csock = CSocket::create(sk, local_iface, remote_iface,
+                                accepted_sock);
+        /* cleanup if constructor throws */
+        
+	available_csocks.insert(csock);
+    }
+
+    csock->startup_workers(); // sender thread calls phys_connect()
+    
+    return csock;    
+}
+
 CSocketPtr 
 CSockMapping::new_csock_with_labels(u_long send_label, bool locked)
 {
@@ -358,16 +585,7 @@ CSockMapping::new_csock_with_labels(u_long send_label, bool locked)
         return CSocketPtr();
     }
 
-    CSocketPtr csock(CSocket::create(sk, local_iface, remote_iface));
-    /* cleanup if constructor throws */
-
-    {
-	PthreadScopedRWLock lock(&sockset_mutex, true);
-	available_csocks.insert(csock);
-    }
-    csock->startup_workers(); // sender thread calls phys_connect()
-    
-    return csock;
+    return make_new_csocket(local_iface, remote_iface);
 }
 
 void 
@@ -459,15 +677,9 @@ CSockMapping::add_connection(int sock,
         skp->setup(remote_iface, false);
     }
     
-    
-    CSocketPtr new_csock(CSocket::create(sk, local_iface, remote_iface, 
-                                         sock));
-    
-    {
-	PthreadScopedRWLock lock(&sockset_mutex, true);
-	available_csocks.insert(new_csock);
-    }
-    new_csock->startup_workers();
+
+    CSocketPtr csock = make_new_csocket(local_iface, remote_iface, sock);
+    csock->send_confirmation();
 }
 
 struct CSockMapping::get_worker_tids {

@@ -23,7 +23,7 @@ PendingReceiverIROBTest::setUp()
         char *chunk_data = new char[10];\
         size_t offset = 10*i;
         memcpy(chunk_data, buffer + offset, 10);
-        struct irob_chunk_data chunk = {0, -1, offset, 10, chunk_data};
+        struct irob_chunk_data chunk = {0, i, offset, 10, chunk_data};
         prirob->add_chunk(chunk);
     }
 }
@@ -34,6 +34,9 @@ PendingReceiverIROBTest::tearDown()
     delete prirob;
 }
 
+// XXX: disabled this test for now since it conflicts with the new approach
+//  to received chunks (that is, there are no partial chunks;
+//  the seqnos that are received are the chunks.)
 void
 PendingReceiverIROBTest::testOverwrite()
 {
@@ -46,7 +49,7 @@ PendingReceiverIROBTest::testOverwrite()
         size_t chunksize = chunksizes[i];
 
         for (size_t j = 0; j < BUFSIZE; j += chunksize) {
-            struct irob_chunk_data chunk = {0, -1, 0, chunksize, new char[chunksize]};
+            struct irob_chunk_data chunk = {0, j/chunksize, 0, chunksize, new char[chunksize]};
             bool ret = prirob->add_chunk(chunk);
             
             CPPUNIT_ASSERT_MESSAGE("add_chunk succeeds", ret);
@@ -66,3 +69,4 @@ PendingReceiverIROBTest::testOverwrite()
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Number of bytes changed correctly",
                                  BUFSIZE + 10, (size_t)prirob->numbytes());
 }
+

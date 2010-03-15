@@ -39,7 +39,7 @@ TESTOBJS := pending_irob_test.o lattice_test.o intset_test.o \
 	    estimation_test.o
 SUPPORTOBJS := pending_irob.o intset.o debug.o pending_receiver_irob.o \
 	       pending_sender_irob.o timeops.o ack_timeouts.o net_stats.o \
-	       test_common.o debug.o net_interface.o
+	       test_common.o debug.o net_interface.o irob_scheduling.o
 
 run_unit_tests: run_all_tests.o $(TESTOBJS) $(SUPPORTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)

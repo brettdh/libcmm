@@ -10,7 +10,7 @@ class ThunkTests : public EndToEndTestsRemote {
   
     CPPUNIT_TEST_SUITE(ThunkTests);
     CPPUNIT_TEST(testThunks);
-    CPPUNIT_TEST(testBlockingSend);
+    //CPPUNIT_TEST(testBlockingSend);
     CPPUNIT_TEST_SUITE_END();
 
   protected:

@@ -1,6 +1,7 @@
 #ifndef pending_irob_h_incl
 #define pending_irob_h_incl
 
+#include <vector>
 #include <deque>
 #include "libcmm.h"
 #include "cmm_socket_control.h"
@@ -9,6 +10,8 @@
 #include <functional>
 #include <string.h>
 //#include <boost/pool/pool_alloc.hpp>
+
+#include "pthread_util.h"
 
 /* Terminology:
  *  An IROB is _pending_ if the application has not yet received all of its
@@ -165,6 +168,13 @@ class PendingIROBLattice {
     // returns a placeholder IROB of the correct subtype for this lattice
     virtual PendingIROB *make_placeholder(irob_id_t id);
 
+    // must be holding sk->scheuling_state_lock
+    template <typename Functor>
+    void for_each_by_ref(Functor& f);
+
+    std::vector<irob_id_t> get_all_ids();
+    void data_check_all();
+        
   private:
     // must hold membership_lock
     bool insert_locked(PendingIROB *pirob, bool infer_deps = true);
@@ -198,6 +208,24 @@ class PendingIROBLattice {
      * 2) Otherwise, add deps on all pending anonymous IROBs.
      * 3) Remove already-satisfied deps. */
     void correct_deps(PendingIROB *pirob, bool infer_deps);
+
+    struct GetIDs {
+        std::vector<irob_id_t> ids;
+        void operator()(PendingIROB *pirob) {
+            ids.push_back(pirob->id);
+        }
+    };
 };
+
+template <typename Functor>
+void PendingIROBLattice::for_each_by_ref(Functor& f)
+{
+    PthreadScopedLock lock(&membership_lock);
+    for (size_t i = 0; i < pending_irobs.size(); ++i) {
+        if (pending_irobs[i]) {
+            f(pending_irobs[i]);
+        }
+    }
+}
 
 #endif

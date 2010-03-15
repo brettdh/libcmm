@@ -15,7 +15,8 @@ class ConnBootstrapper : public CMMThread {
     bool succeeded();
     int status();
     
-    void restart(struct net_interface down_iface);
+    void restart(struct net_interface down_iface,
+                 bool already_locked=false);
   protected:
     virtual void Run();
     virtual void Finish();

@@ -20,6 +20,9 @@ AckTimeouts::node::operator<(const struct node& other) const
 void 
 AckTimeouts::update(irob_id_t id, const struct timespec& rel_timeout)
 {
+    // Try disabling in favor of data_checks on network failure.
+    return;
+  
     if (timeouts_by_irob.find(id) != timeouts_by_irob.end()) {
         remove(id);
     }

@@ -11,7 +11,7 @@ class PendingReceiverIROBTest : public CppUnit::TestFixture {
     PendingReceiverIROB *prirob;
 
     CPPUNIT_TEST_SUITE(PendingReceiverIROBTest);
-    CPPUNIT_TEST(testOverwrite);
+    //CPPUNIT_TEST(testOverwrite);
     CPPUNIT_TEST_SUITE_END();
 
     static char buffer[BUFSIZE+1];

@@ -155,10 +155,21 @@ class CMMSocketImpl : public CMMSocket {
     
     int set_all_sockopts(int osfd);
 
-    void recv_remote_listener(int bootstrap_sock);
-    void recv_remote_listeners(int bootstrap_sock);
+    void send_hello(int bootstrap_sock);
+    int recv_hello(int bootstrap_sock); // returns the number of remote ifaces.
+
+    // returns true if it received the "sentinel" iface.
+    bool recv_remote_listener(int bootstrap_sock);
+    void recv_remote_listeners(int bootstrap_sock, int num_ifaces);
     void send_local_listener(int bootstrap_sock, struct net_interface iface);
     void send_local_listeners(int bootstrap_sock);
+
+    // create csockets for all the interface pairs.
+    void startup_csocks();
+
+    // wait for the csockets to connect.
+    // only called on bootstrapping, like startup_csocks().
+    void wait_for_connections();
 
     int connection_bootstrap(const struct sockaddr *remote_addr, 
                              socklen_t addrlen,
@@ -166,6 +177,7 @@ class CMMSocketImpl : public CMMSocket {
 
     int connect_status();
 
+    bool accepting_side; // true iff created by cmm_accept
     ConnBootstrapper *bootstrapper;
 
     CMMSocketImpl(int family, int type, int protocol);
@@ -183,12 +195,12 @@ class CMMSocketImpl : public CMMSocket {
 
     CSockMapping *csock_map;
 
-    //static struct timeval last_fg; // the time of the last foreground activity.
     //static struct timeval total_inter_fg_time; // time between fg actions
     //static size_t fg_count;
     //static bool okay_to_send_bg(struct timeval& time_since_last_fg);
     //static struct timeval bg_wait_time();
-    static void update_last_fg();
+    struct timeval last_fg; // the time of the last foreground activity.
+    void update_last_fg();
 
     NetInterfaceSet local_ifaces;
     ListenerThread *listener_thread;
@@ -240,7 +252,7 @@ class CMMSocketImpl : public CMMSocket {
     void ack_received(irob_id_t id);
     void goodbye_acked(void);
     void resend_request_received(irob_id_t id, resend_request_type_t request,
-                                 ssize_t offset);
+                                 u_long seqno, int next_chunk);//, size_t offset, size_t len);
     void data_check_requested(irob_id_t id);
     
     bool is_shutting_down(void);

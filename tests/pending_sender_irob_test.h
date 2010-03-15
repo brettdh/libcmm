@@ -12,6 +12,7 @@ class PendingSenderIROBTest : public CppUnit::TestFixture {
 
     CPPUNIT_TEST_SUITE(PendingSenderIROBTest);
     CPPUNIT_TEST(testMemcpyIovecs);
+    CPPUNIT_TEST(testFindChunkByOffset);
     CPPUNIT_TEST(testReadChunks);
     CPPUNIT_TEST(testBreakItUp);
     CPPUNIT_TEST(testOneByteAtATime);
@@ -25,6 +26,8 @@ class PendingSenderIROBTest : public CppUnit::TestFixture {
     void tearDown();
 
     void testMemcpyIovecs();
+    void testFindChunkByOffset();
+
     void testReadChunks();
     void testBreakItUp();
     void testOneByteAtATime();

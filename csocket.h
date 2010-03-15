@@ -29,6 +29,7 @@ typedef boost::shared_ptr<CSocket> CSocketPtr;
 class CSocket {
   public:
     int osfd;
+    int oserr; // if non-zero, there was an error.
     CMMSocketImplPtr sk;
     //CMMSocketSender *sendr;
     //CMMSocketReceiver *recvr;
@@ -52,6 +53,9 @@ class CSocket {
      * must not be holding sk->scheduling_state_lock. */
     bool is_fg();
 
+    // return true iff the csocket is busy sending app data
+    bool is_busy();
+
     // return true iff this is the only connection possible 
     // right now (used for trickling background data).
     bool only_connection();
@@ -60,11 +64,17 @@ class CSocket {
     bool is_connected();
     int wait_until_connected();
 
+    // called when a new incoming connection is added
+    // by the listener.
+    void send_confirmation();
+
     // network measurements/estimates for this connection.
     u_long bandwidth();
     double RTT();
     struct timespec retransmission_timeout();
     ssize_t trickle_chunksize();
+
+    long int tcp_rto();
   private:
     // only allow shared_ptr creation
     CSocket(boost::weak_ptr<CMMSocketImpl> sk_, 
@@ -92,12 +102,18 @@ class CSocket {
     pthread_cond_t csock_cv;
     bool connected;
 
+    // to distinguish between connecting and accepting sockets
+    bool accepting;
+
     // only valid until the worker threads are created;
     // ensures that all CSocket pointers are shared
     boost::weak_ptr<CSocket> self_ptr;
 
     // indexes for the sender threads
     IROBSchedulingIndexes irob_indexes;
+
+    // true when I'm sending app data, or begin/end irob msg
+    bool busy;
 };
 
 #endif

@@ -11,6 +11,9 @@
 
 #include "csocket.h"
 
+#include <memory>
+using std::auto_ptr;
+
 typedef std::set<CSocketPtr> CSockSet;
 
 class LabelMatch;
@@ -31,6 +34,8 @@ class CSockMapping {
     CSocketPtr new_csock_with_labels(u_long send_label, bool locked=true);
     void remove_csock(CSocketPtr csock); // only removes, doesn't delete
 
+    CSocketPtr get_idle_csock(bool grab_lock=true);
+
     bool get_local_iface_by_addr(struct in_addr addr, 
                                  struct net_interface& iface);
     bool get_iface_pair(u_long send_label,
@@ -39,6 +44,7 @@ class CSockMapping {
                         bool locked=true);
 
 
+    size_t count();
     bool empty();
     
     void add_connection(int sock, 
@@ -49,8 +55,12 @@ class CSockMapping {
      * such mapping in this mc_socket. */
     void get_real_fds(mcSocketOsfdPairList &osfd_list);
 
-    void setup(struct net_interface iface, bool local);
+    void setup(struct net_interface iface, bool local,
+               bool make_connection, bool need_data_check);
     void teardown(struct net_interface iface, bool local);
+
+    // only called when bootstrapping.
+    void wait_for_connections();
 
     // only call when shutting down.
     // waits (pthread_join) for all workers to exit.
@@ -74,6 +84,12 @@ class CSockMapping {
 
     struct get_worker_tids;
 
+    CSocketPtr csock_by_ifaces(struct net_interface local_iface,
+                               struct net_interface remote_iface,
+                               bool grab_lock = true);
+    CSocketPtr make_new_csocket(struct net_interface local_iface, 
+                                struct net_interface remote_iface,
+                                int accepted_sock = -1);
     bool get_iface(const NetInterfaceSet& ifaces, u_long label,
                    struct net_interface& iface, bool locked);
     bool get_remote_iface_by_addr(struct in_addr addr,
@@ -82,17 +98,21 @@ class CSockMapping {
                            struct net_interface& iface);
 
     template <typename Predicate>
-    CSocketPtr find_csock(Predicate pred);
+    CSocketPtr find_csock(Predicate pred, bool grab_lock=true);
 };
 
 template <typename Functor>
 void CSockMapping::for_each_by_ref(Functor& f)
 {
     PthreadScopedRWLock lock(&sockset_mutex, false);
-    for (CSockSet::iterator it = available_csocks.begin();
-	 it != available_csocks.end(); it++) {
-	CSocketPtr csock = *it;
+    CSockSet::iterator it = available_csocks.begin();
+    while (it != available_csocks.end()) {
+	CSocketPtr csock = *it++;
+        pthread_rwlock_unlock(&sockset_mutex);
+        // add/erase doesn't invalidate iterators, 
+        //   so it's okay to drop the lock here.
 	f(csock);
+        pthread_rwlock_rdlock(&sockset_mutex);
     }
 }
 
@@ -100,10 +120,14 @@ template <typename Functor>
 int CSockMapping::for_each(Functor f)
 {
     PthreadScopedRWLock lock(&sockset_mutex, false);
-    for (CSockSet::iterator it = available_csocks.begin();
-	 it != available_csocks.end(); it++) {
-	CSocketPtr csock = *it;
+    CSockSet::iterator it = available_csocks.begin();
+    while (it != available_csocks.end()) {
+	CSocketPtr csock = *it++;
+        pthread_rwlock_unlock(&sockset_mutex);
+        // add/erase doesn't invalidate iterators, 
+        //   so it's okay to drop the lock here.
 	int rc = f(csock);
+        pthread_rwlock_rdlock(&sockset_mutex);
 	if (rc < 0) {
 	    return rc;
 	}
@@ -113,9 +137,14 @@ int CSockMapping::for_each(Functor f)
 
 template <typename Predicate>
 CSocketPtr 
-CSockMapping::find_csock(Predicate pred)
+CSockMapping::find_csock(Predicate pred, bool grab_lock)
 {
-    PthreadScopedRWLock lock(&sockset_mutex, false);
+    auto_ptr<PthreadScopedRWLock> lock_ptr;
+    if (grab_lock) {
+        lock_ptr.reset(new PthreadScopedRWLock(&sockset_mutex, false));
+    }
+
+    //PthreadScopedRWLock lock(&sockset_mutex, false);
     CSockSet::const_iterator it = find_if(available_csocks.begin(), 
 					  available_csocks.end(), 
 					  pred);

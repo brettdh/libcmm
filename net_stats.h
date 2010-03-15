@@ -16,6 +16,8 @@ class Estimate {
     bool get_estimate(u_long& est);
     
     void add_observation(u_long new_spot_value);
+
+    void reset(u_long new_spot_value);
     
     Estimate();
   private:
@@ -201,6 +203,12 @@ class NetStats {
     static pthread_rwlock_t stats_cache_lock;
     void cache_save();
     void cache_restore();
+
+    typedef std::map<irob_id_t, 
+                     std::pair<struct in_addr, struct in_addr> > IROBIfaceMap;
+    static IROBIfaceMap irob_iface_map;
+    static IntSet striped_irobs;
+    static pthread_mutex_t irob_iface_map_lock;
 
     struct static_initializer {
         static_initializer();

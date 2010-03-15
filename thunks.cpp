@@ -150,9 +150,18 @@ static void *ThunkThreadFn(void *arg)
 {
     struct labeled_thunk_queue *tq = (struct labeled_thunk_queue*)arg;
     assert(tq);
+
+    ThunkQueue q_copy;
     while (!tq->thunk_queue.empty()) {
         struct thunk *th = NULL;
         tq->thunk_queue.pop(th);
+        assert(th);
+        q_copy.push(th);
+    }
+
+    while (!q_copy.empty()) {
+        struct thunk *th = NULL;
+        q_copy.pop(th);
         assert(th);
         /* No worries if the app cancels the thunk after 
          * it is fired; this can happen even if we 

@@ -185,6 +185,10 @@ EndToEndTestsBase::receiveAndChecksum()
                                  0, rc);
     
     fprintf(stderr, "Received %d bytes, digest matches.\n", bytes);
+    char c = 0;
+    rc = cmm_write(read_sock, &c, 1, 0, NULL, NULL);
+    CPPUNIT_ASSERT_EQUAL_MESSAGE("Sent 1 byte", 1, rc);
+
     fprintf(stderr, "Receiver finished.\n");
 }
 
@@ -199,6 +203,9 @@ EndToEndTestsBase::sendChecksum(unsigned char *buf, size_t bytes)
     int rc = cmm_send(send_sock, my_digest, SHA_DIGEST_LENGTH, 0, 
                       0, NULL, NULL);
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending digest", SHA_DIGEST_LENGTH, rc);
+    char c = 0;
+    rc = cmm_read(send_sock, &c, 1, NULL);
+    CPPUNIT_ASSERT_MESSAGE("Received 1 byte", rc == 1 || rc == 0);
 }
 
 void
@@ -304,7 +311,7 @@ EndToEndTestsBase::testPartialRecv()
         int bytes_recvd = 0;
         while (bytes_recvd < msglen) {
             int rc = cmm_read(read_sock, buf, blocksize, NULL);
-            handle_error(rc <= 0, "cmm_read");
+            //handle_error(rc <= 0, "cmm_read");
             int expected_chunksize = min(send_chunksize, msglen - bytes_recvd);
             CPPUNIT_ASSERT_EQUAL_MESSAGE("Recv returns data as it arrives",
                                          expected_chunksize, rc);
@@ -313,11 +320,20 @@ EndToEndTestsBase::testPartialRecv()
             CPPUNIT_ASSERT_EQUAL_MESSAGE("Block content matches msg", 0, cmp);
             
             bytes_recvd += rc;
+            int resp = htonl(rc);
+            rc = cmm_write(read_sock, &resp, sizeof(resp), 0, NULL, NULL);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending response integer",
+                                         (int)sizeof(resp), rc);
         }
         fprintf(stderr, "Received %d bytes successfully.\n",
                 bytes_recvd);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Received all bytes",
                                      msglen, bytes_recvd);        
+        char c = 0;
+        int rc = cmm_write(read_sock, &c, 1, 0, NULL, NULL);
+        CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending one byte succeeds",
+                                     1, rc);
+
     } else {
         int bytes_sent = 0;
         while (bytes_sent < msglen) {
@@ -327,10 +343,22 @@ EndToEndTestsBase::testPartialRecv()
             CPPUNIT_ASSERT_EQUAL_MESSAGE("cmm_send succeeds",
                                          send_chunksize, rc);
             bytes_sent += rc;
-            sleep(3);
+
+            int resp = 0;
+            rc = cmm_read(send_sock, (char*)&resp, sizeof(resp), NULL);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Reading response",
+                                         (int)sizeof(resp), rc);
+            resp = ntohl(resp);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Response is number of bytes recvd",
+                                         send_chunksize, resp);
         }
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Sent all bytes",
                                      msglen, bytes_sent);
+
+        char c = 0;
+        int rc = cmm_read(send_sock, &c, 1, NULL);
+        CPPUNIT_ASSERT_EQUAL_MESSAGE("Reading one byte succeeds",
+                                     1, rc);
     }
 }
 
@@ -412,4 +440,54 @@ EndToEndTestsBase::receiverAssertIntsSorted(int nums[], size_t n)
                            is_sorted(nums, n));
 
     fprintf(stderr, "Received integers in correct order.\n");
+}
+
+void
+EndToEndTestsBase::testHalfShutdown()
+{
+    fprintf(stderr, "Testing half-shutdown socket\n");
+    if (isReceiver()) {
+        for (int i = 0; i < 2; ++i) {
+            int num = -1;
+            int rc = cmm_read(read_sock, &num, sizeof(num), NULL);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiving integer",
+                                         (int)sizeof(int), rc);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Integer is correct",
+                                         i, (int)ntohl(num));
+            fprintf(stderr, "Receiver: received %d\n", (int)ntohl(num));
+
+            sleep(1);
+
+            fprintf(stderr, "Receiver: sending %d\n", i);
+            rc = cmm_write(read_sock, &num, sizeof(num), 
+                               0, NULL, NULL);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending integer",
+                                         (int)sizeof(int), rc);
+        }
+        fprintf(stderr, "Receiver done.\n");
+    } else {
+        for (int i = 0; i < 2; ++i) {
+            fprintf(stderr, "Sender: sending %d\n", i);
+            int num = htonl(i);
+            int rc = cmm_write(send_sock, &num, sizeof(num), 
+                               0, NULL, NULL);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending integer",
+                                         (int)sizeof(int), rc);            
+            
+            if (i == 1) {
+                fprintf(stderr, "Sender: shutting down with SHUT_WR\n");
+                rc = cmm_shutdown(send_sock, SHUT_WR);
+                CPPUNIT_ASSERT_EQUAL_MESSAGE("Shutdown succedds",
+                                             0, rc);
+            }
+
+            rc = cmm_read(send_sock, &num, sizeof(num), NULL);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiving integer",
+                                         (int)sizeof(int), rc);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Integer is correct",
+                                         i, (int)ntohl(num));
+            fprintf(stderr, "Sender: received %d\n", (int)ntohl(num));
+        }
+        fprintf(stderr, "Sender done.\n");
+    }
 }

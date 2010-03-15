@@ -5,7 +5,17 @@
 #include <boost/shared_ptr.hpp>
 #include <map>
 #include <vector>
+#include <assert.h>
 #include "debug.h"
+
+#define PTHREAD_ASSERT_SUCCESS(rc)                      \
+    do {                                                \
+        if (rc != 0) {                                  \
+            fprintf(stderr, "PTHREAD ERROR: %s\n",      \
+                    strerror(rc));                      \
+            assert(0);                                  \
+        }                                               \
+    } while (0)
 
 class PthreadScopedLock {
   public:
@@ -20,16 +30,20 @@ class PthreadScopedLock {
         assert(mutex == NULL);
         assert(mutex_);
         mutex = mutex_;
-        pthread_mutex_lock(mutex);
+        int rc = pthread_mutex_lock(mutex);
+        PTHREAD_ASSERT_SUCCESS(rc);
     }
     
     ~PthreadScopedLock() {
         if (mutex) {
-            pthread_mutex_unlock(mutex);
+            int rc = pthread_mutex_unlock(mutex);
+            PTHREAD_ASSERT_SUCCESS(rc);
         }
     }
     void release() {
-        pthread_mutex_unlock(mutex);
+        int rc = pthread_mutex_unlock(mutex);
+        PTHREAD_ASSERT_SUCCESS(rc);
+
         mutex = NULL;
     }
   private:
@@ -49,20 +63,25 @@ class PthreadScopedRWLock {
         assert(mutex == NULL);
         assert(mutex_);
         mutex = mutex_;
+        int rc = 0;
         if (writer) {
-            pthread_rwlock_wrlock(mutex);
+            rc = pthread_rwlock_wrlock(mutex);
         } else {
-            pthread_rwlock_rdlock(mutex);
+            rc = pthread_rwlock_rdlock(mutex);
         }
+        PTHREAD_ASSERT_SUCCESS(rc);
     }
 
     ~PthreadScopedRWLock() {
         if (mutex) {
-            pthread_rwlock_unlock(mutex);
+            int rc = pthread_rwlock_unlock(mutex);
+            PTHREAD_ASSERT_SUCCESS(rc);
         }
     }
     void release() {
-        pthread_rwlock_unlock(mutex);
+        int rc = pthread_rwlock_unlock(mutex);
+        PTHREAD_ASSERT_SUCCESS(rc);
+        
         mutex = NULL;
     }
   private:
@@ -176,7 +195,9 @@ class LockingMap {
         void release() {
             if (my_node) {
                 //dbgprintf("Releasing lock %p\n", &my_node->lock);
-                pthread_rwlock_unlock(&my_node->lock);
+                int rc = pthread_rwlock_unlock(&my_node->lock);
+                PTHREAD_ASSERT_SUCCESS(rc);
+
                 my_node.reset();
             }
         }
@@ -324,7 +345,8 @@ bool LockingMap<KeyType,ValueType,ordering>::insert(accessor& ac, const KeyType&
     }
 
     //dbgprintf("Grabbing writelock %p\n", &target->lock);
-    pthread_rwlock_wrlock(&target->lock);
+    int rc = pthread_rwlock_wrlock(&target->lock);
+    PTHREAD_ASSERT_SUCCESS(rc);
     ac.my_node = target;
 
     return true;
@@ -343,7 +365,9 @@ bool LockingMap<KeyType,ValueType,ordering>::find(const_accessor& ac, const KeyT
         target = the_map[key];
     }
     //dbgprintf("Grabbing readlock %p\n", &target->lock);
-    pthread_rwlock_rdlock(&target->lock);
+    int rc = pthread_rwlock_rdlock(&target->lock);
+    PTHREAD_ASSERT_SUCCESS(rc);
+
     ac.my_node = target;
 
     return true;
@@ -362,7 +386,8 @@ bool LockingMap<KeyType,ValueType,ordering>::find(accessor& ac, const KeyType& k
         target = the_map[key];
     }
     //dbgprintf("Grabbing writelock %p\n", &target->lock);
-    pthread_rwlock_wrlock(&target->lock);
+    int rc = pthread_rwlock_wrlock(&target->lock);
+    PTHREAD_ASSERT_SUCCESS(rc);
     ac.my_node = target;
 
     return true;

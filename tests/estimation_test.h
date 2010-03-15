@@ -9,6 +9,7 @@ class EstimationTest : public CppUnit::TestFixture {
     Estimate *estimate;
     QueuingDelay *delays;
     NetStats *stats;
+    NetStats *other_stats;
 
     CPPUNIT_TEST_SUITE(EstimationTest);
     CPPUNIT_TEST(testFlipFlop);
@@ -18,6 +19,7 @@ class EstimationTest : public CppUnit::TestFixture {
     //CPPUNIT_TEST(testNetStatsWithSenderDelay);
     CPPUNIT_TEST(testNetStatsSingleIROBQueuingDelay);
     CPPUNIT_TEST(testQueuingDelayInterleaved);
+    CPPUNIT_TEST(testDisregardStripedIROBs);
     CPPUNIT_TEST_SUITE_END();
 
   public:
@@ -31,6 +33,7 @@ class EstimationTest : public CppUnit::TestFixture {
     void testNetStatsWithSenderDelay();
     void testNetStatsSingleIROBQueuingDelay();
     void testQueuingDelayInterleaved();
+    void testDisregardStripedIROBs();
   private:
     void assertStatsCorrect(u_long expected_bw, 
                             u_long expected_latency);

@@ -30,11 +30,12 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
                  struct net_interface local_iface_, 
                  struct net_interface remote_iface_,
                  int accepted_sock)
-    : sk(sk_),
+    : oserr(0), sk(sk_),
       local_iface(local_iface_), remote_iface(remote_iface_),
       stats(local_iface, remote_iface),
       csock_sendr(NULL), csock_recvr(NULL), connected(false),
-      irob_indexes(local_iface_.labels)
+      accepting(false),
+      irob_indexes(local_iface_.labels), busy(false)
 {
     pthread_mutex_init(&csock_lock, NULL);
     pthread_cond_init(&csock_cv, NULL);
@@ -53,7 +54,13 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
         sk->set_all_sockopts(osfd);
     } else {
         osfd = accepted_sock;
-        connected = true;
+        //connected = true;
+        accepting = true;
+        // XXX: need to wait until the end-to-end library-level connect 
+        //  handshake completes
+        
+        // XXX: should I do it here too?
+        //sk->set_all_sockopts(osfd);
     }
     
     int on = 1;
@@ -70,6 +77,7 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
     //  since we have our own ACKs, it doesn't matter if TCP discards
     //  the data.  We'll double-check that it arrived.
     // Further, this will avoid any nasty retransmissions on dead networks.
+    /*
     struct linger ls;
     ls.l_onoff = 1;
     ls.l_linger = 0;
@@ -78,6 +86,8 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
     if (rc < 0) {
         dbgprintf("Failed to set SO_LINGER\n");
     }
+    // XXX: We actually do want to wait for control messages to finish.
+    */
 
 //     window = 131072;
 //     /* window = 2 * 1024 * 1024; */
@@ -102,12 +112,9 @@ CSocket::~CSocket()
 int
 CSocket::phys_connect()
 {
-    {
-        PthreadScopedLock lock(&csock_lock);
-        if (connected) {
-            // this was probably created by accept() in the listener thread
-            return 0;
-        }
+    if (accepting) {
+        // this was created by accept() in the listener thread
+        return wait_until_connected();
     }
 
     struct sockaddr_in local_addr, remote_addr;
@@ -126,12 +133,13 @@ CSocket::phys_connect()
         int rc = bind(osfd, (struct sockaddr *)&local_addr, 
                       sizeof(local_addr));
         if (rc < 0) {
+            oserr = errno;
             perror("bind");
             dbgprintf("Failed to bind osfd %d to %s:%d\n",
                       osfd, inet_ntoa(local_addr.sin_addr), 
                       ntohs(local_addr.sin_port));
             close(osfd);
-            throw rc;
+            throw -1;
         }
         dbgprintf("Successfully bound osfd %d to %s:%d\n",
                   osfd, inet_ntoa(local_addr.sin_addr), 
@@ -140,31 +148,55 @@ CSocket::phys_connect()
         rc = connect(osfd, (struct sockaddr *)&remote_addr, 
                      sizeof(remote_addr));
         if (rc < 0) {
+            oserr = errno;
             perror("connect");
             dbgprintf("Failed to connect osfd %d to %s:%d\n",
                       osfd, inet_ntoa(remote_addr.sin_addr), 
                       ntohs(remote_addr.sin_port));
             close(osfd);
-            throw rc;
+            throw -1;
         }
 
-        if (!sk->isLoopbackOnly()) {
-            struct CMMSocketControlHdr hdr;
-            memset(&hdr, 0, sizeof(hdr));
-            hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
-            hdr.send_labels = 0;
-            hdr.op.new_interface.ip_addr = local_iface.ip_addr;
-            hdr.op.new_interface.labels = htonl(local_iface.labels);
-            hdr.op.new_interface.bandwidth = htonl(local_iface.bandwidth);
-            hdr.op.new_interface.RTT = htonl(local_iface.RTT);
-            rc = send(osfd, &hdr, sizeof(hdr), 0);
-            if (rc != sizeof(hdr)) {
-                perror("send");
-                dbgprintf("Failed to send interface info\n");
-                close(osfd);
-                throw rc;
-            }
+        //if (!sk->isLoopbackOnly()) {
+        struct CMMSocketControlHdr hdr;
+        memset(&hdr, 0, sizeof(hdr));
+        hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
+        hdr.send_labels = 0;
+        hdr.op.new_interface.ip_addr = local_iface.ip_addr;
+        hdr.op.new_interface.labels = htonl(local_iface.labels);
+        hdr.op.new_interface.bandwidth_down = htonl(local_iface.bandwidth_down);
+        hdr.op.new_interface.bandwidth_up = htonl(local_iface.bandwidth_up);
+        hdr.op.new_interface.RTT = htonl(local_iface.RTT);
+        rc = send(osfd, &hdr, sizeof(hdr), 0);
+        if (rc != sizeof(hdr)) {
+            oserr = errno;
+            perror("send");
+            dbgprintf("Failed to send interface info\n");
+            close(osfd);
+            throw -1;
         }
+
+        rc = recv(osfd, &hdr, sizeof(hdr), 0);
+        if (rc != sizeof(hdr)) {
+            if (rc < 0) {
+                perror("recv");
+                oserr = errno;
+            } else {
+                dbgprintf("Connection shutdown.\n");
+                oserr = ECONNRESET;
+            }
+            dbgprintf("Failed to recv confirmation (HELLO)\n");
+            close(osfd);
+            throw -1;
+        }
+        if (ntohs(hdr.type) != CMM_CONTROL_MSG_HELLO) {
+            dbgprintf("Received unexpected message in place of CSocket connect confirmation: %s\n",
+                      hdr.describe().c_str());
+            oserr = ECONNRESET;
+            close(osfd);
+            throw -1;
+        }
+        //}
     } catch (int rc) {
         PthreadScopedLock lock(&csock_lock);
         osfd = -1;
@@ -180,6 +212,29 @@ CSocket::phys_connect()
     }
 
     return 0;
+}
+
+void
+CSocket::send_confirmation()
+{
+    struct CMMSocketControlHdr hdr;
+    memset(&hdr, 0, sizeof(hdr));
+    hdr.type = htons(CMM_CONTROL_MSG_HELLO);
+    int rc = send(osfd, &hdr, sizeof(hdr), 0);
+    if (rc != sizeof(hdr)) {
+        perror("send");
+        dbgprintf("Error sending confirmation (HELLO)\n");
+
+        PthreadScopedLock lock(&csock_lock);
+        close(osfd);
+        osfd = -1;
+        pthread_cond_broadcast(&csock_cv);
+        return;
+    }
+
+    PthreadScopedLock lock(&csock_lock);
+    connected = true;
+    pthread_cond_broadcast(&csock_cv);
 }
 
 bool
@@ -234,6 +289,25 @@ bool CSocket::is_fg()
             matches(CMM_LABEL_ONDEMAND|CMM_LABEL_LARGE));
 }
 
+extern int get_unsent_bytes(int sock);
+
+// must be holding scheduling_state_lock
+// return true iff the csocket is busy sending app data
+bool CSocket::is_busy()
+{
+    if (busy ||
+        !irob_indexes.new_irobs.empty() || 
+        !irob_indexes.new_chunks.empty()) {
+        return true;
+    }
+
+    int rc = get_unsent_bytes(osfd);
+    if (rc > 0) {
+        return true;
+    }
+    return false;
+}
+
 u_long
 CSocket::bandwidth()
 {
@@ -260,7 +334,7 @@ CSocket::retransmission_timeout()
 {
     // XXX: with a higher rto, the mobicom-intermittent benchmark is
     // timing out, so try this for now.
-    struct timespec dumb_rto = {5, 0};
+    struct timespec dumb_rto = {3, 0};
     return dumb_rto;
 
     // have a fairly high floor on this so that we don't
@@ -318,6 +392,30 @@ CSocket::retransmission_timeout()
     */
 }
 
+long int
+CSocket::tcp_rto()
+{
+    struct tcp_info info;
+    memset(&info, 0, sizeof(info));
+    socklen_t len = sizeof(info);
+    struct protoent *pe = getprotobyname("TCP");
+    int rc = -1;
+    if (pe) {
+	rc = getsockopt (osfd, pe->p_proto, TCP_INFO, &info, &len);
+        if (rc == 0) {
+            return info.tcpi_rto;
+        } else {
+            dbgprintf("getsockopt failed for TCP_INFO: %s\n",
+                      strerror(errno));
+        }
+    } else {
+        dbgprintf("getprotoent failed for TCP: %s\n",
+                  strerror(errno));
+    }
+
+    dbgprintf("Cannot read tcpi_rto; returning -1\n");
+    return -1;
+}
 
 //#define useconds(tv) ((tv).tv_sec*1000000 + (tv).tv_usec)
 

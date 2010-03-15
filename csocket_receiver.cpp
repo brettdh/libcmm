@@ -191,11 +191,14 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     try {
 	deps = read_deps_array(id, numdeps, hdr);
     } catch (CMMControlException& e) {
+        /* Sender sends Data_Check when a network goes down;
+         * so this is redundant
 	PthreadScopedLock lock(&sk->scheduling_state_lock);
 
 	IROBSchedulingData data(id, CMM_RESEND_REQUEST_DEPS);
 	csock->irob_indexes.resend_requests.insert(data);
 	pthread_cond_broadcast(&sk->scheduling_state_cv);
+        */
 	throw;
     }
 
@@ -203,22 +206,25 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     PendingReceiverIROB *pirob = new PendingReceiverIROB(id, numdeps, deps, 0, NULL,
                                                          ntohl(hdr.send_labels));
     
-    {
-        PthreadScopedLock lock(&sk->scheduling_state_lock);
-        if (!sk->incoming_irobs.insert(pirob, false)) {
-            delete pirob;
-            //throw CMMFatalError("Tried to begin committed IROB", hdr);
-            dbgprintf("do_begin_irob: duplicate IROB %ld, ignoring\n", id);
-        }
+    PthreadScopedLock lock(&sk->scheduling_state_lock);
+    if (!sk->incoming_irobs.insert(pirob, false)) {
+        delete pirob;
+        pirob = NULL;
+        //throw CMMFatalError("Tried to begin committed IROB", hdr);
+        dbgprintf("do_begin_irob: duplicate IROB %ld, ignoring\n", id);
     }
 
     if (numdeps > 0) {
         delete [] deps;
     }
     
+    if (!pirob) {
+        return;
+    }
+
     sk->incoming_irobs.release_if_ready(pirob, ReadyIROB());
     
-    if (pirob->is_complete()) {
+    if (pirob->is_complete() && !pirob->placeholder) {
         struct timeval completion_time;
         TIME(completion_time);
         IROBSchedulingData data(id, completion_time);
@@ -271,15 +277,17 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
                 assert(ret); // since it was absent before now
                 
                 resend_request = true;
-                req_type = CMM_RESEND_REQUEST_BOTH;
+                req_type = resend_request_type_t(CMM_RESEND_REQUEST_DEPS
+                                                 | CMM_RESEND_REQUEST_DATA);
             }
         }
         
         ssize_t expected_bytes = ntohl(hdr.op.end_irob.expected_bytes);
+        int expected_chunks = ntohl(hdr.op.end_irob.expected_chunks);
 
         assert(pirob);
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
-        if (!prirob->finish(expected_bytes)) {
+        if (!prirob->finish(expected_bytes, expected_chunks)) {
             //throw CMMFatalError("Tried to end already-done IROB", hdr);
             dbgprintf("do_end_irob: already-finished IROB %ld, ", id);
             if (prirob->is_complete()) {
@@ -300,6 +308,10 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
             }
         }
 
+        /* Sender sends Data_Check when a network goes down;
+         * so this is redundant */
+        resend_request = false; // easiest way to disable the resend request
+
         if (resend_request) {
             IROBSchedulingData data(id, req_type);
             csock->irob_indexes.resend_requests.insert(data);
@@ -307,7 +319,7 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
 
         sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
 
-        if (prirob->is_complete()) {
+        if (prirob->is_complete() && !prirob->placeholder) {
             struct timeval completion_time;
             TIME(completion_time);
             IROBSchedulingData data(id, completion_time);
@@ -338,11 +350,14 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     try {
 	buf = read_data_buffer(id, datalen, hdr);
     } catch (CMMControlException& e) {
+        /* Sender sends Data_Check when a network goes down;
+         * so this is redundant
 	PthreadScopedLock lock(&sk->scheduling_state_lock);
 
         IROBSchedulingData data(id, CMM_RESEND_REQUEST_DATA);
         csock->irob_indexes.resend_requests.insert(data);
 	pthread_cond_broadcast(&sk->scheduling_state_cv);
+        */
 	throw;
     }
 
@@ -367,9 +382,12 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
                 bool ret = sk->incoming_irobs.insert(pirob, false);
                 assert(ret); // since it was absent before now
 
+                /* Sender sends Data_Check when a network goes down;
+                 * so this is redundant
                 IROBSchedulingData data(id, CMM_RESEND_REQUEST_DEPS);
                 csock->irob_indexes.resend_requests.insert(data);
 		pthread_cond_broadcast(&sk->scheduling_state_cv);
+                */
             }
         }
         struct irob_chunk_data chunk;
@@ -387,7 +405,9 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
                 //throw CMMFatalError("Tried to add to completed IROB", hdr);
                 dbgprintf("do_irob_chunk: duplicate chunk %lu for IROB %ld, ignoring\n", 
                           chunk.seqno, id);
-            } else {
+            }
+            /*
+            else {
                 dbgprintf("do_irob_chunk: hole detected in IROB %ld, "
                           "requesting resend from offset %d\n",
                           id, prirob->recvdbytes());
@@ -396,6 +416,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
                 csock->irob_indexes.resend_requests.insert(data);
 		pthread_cond_broadcast(&sk->scheduling_state_cv);
             }
+            */
             delete [] buf;
         } else {
             dbgprintf("Successfully added chunk %lu to IROB %ld\n",
@@ -404,7 +425,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
 
         sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
 
-        if (prirob->is_complete()) {
+        if (prirob->is_complete() && !prirob->placeholder) {
             struct timeval completion_time;
             TIME(completion_time);
             IROBSchedulingData data(id, completion_time);
@@ -425,7 +446,8 @@ CSocketReceiver::do_new_interface(struct CMMSocketControlHdr hdr)
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_NEW_INTERFACE);
     struct net_interface iface = hdr.op.new_interface;
     iface.labels = ntohl(hdr.op.new_interface.labels);
-    iface.bandwidth = ntohl(hdr.op.new_interface.bandwidth);
+    iface.bandwidth_down = ntohl(hdr.op.new_interface.bandwidth_down);
+    iface.bandwidth_up = ntohl(hdr.op.new_interface.bandwidth_up);
     iface.RTT = ntohl(hdr.op.new_interface.RTT);
 
     sk->setup(iface, false);
@@ -550,9 +572,13 @@ CSocketReceiver::do_request_resend(struct CMMSocketControlHdr hdr)
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_RESEND_REQUEST);
     irob_id_t id = ntohl(hdr.op.resend_request.id);
     resend_request_type_t request = (resend_request_type_t)ntohl(hdr.op.resend_request.request);
-    ssize_t offset = ntohl(hdr.op.resend_request.offset);
+    u_long seqno = ntohl(hdr.op.resend_request.seqno);
+    //size_t offset = ntohl(hdr.op.resend_request.offset);
+    //size_t len = ntohl(hdr.op.resend_request.len);
+    int next_chunk = ntohl(hdr.op.resend_request.next_chunk);
 
-    sk->resend_request_received(id, request, offset);
+    sk->resend_request_received(id, request, seqno,
+                                next_chunk);//, offset, len);
 }
 
 void

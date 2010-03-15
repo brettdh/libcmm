@@ -35,6 +35,7 @@ struct begin_irob_data {
 struct end_irob_data {
     irob_id_t id;
     ssize_t expected_bytes;
+    int expected_chunks;
 };
 
 struct irob_chunk_data {
@@ -45,6 +46,14 @@ struct irob_chunk_data {
     char *data; /* NULL in network messages
                  * Allocated and used at receiver */
     /* followed by datalen bytes of application data */
+};
+
+struct SumChunkFunctor {
+    size_t sum;
+    SumChunkFunctor() : sum(0) {}
+    void operator()(const struct irob_chunk_data& chunk) {
+        sum += chunk.datalen;
+    }
 };
 
 #if 0
@@ -82,9 +91,10 @@ struct ack_data {
 
 typedef enum {
     CMM_RESEND_REQUEST_NONE = 0x0, // not used; only to complete type
-    CMM_RESEND_REQUEST_DEPS = 0x1,
-    CMM_RESEND_REQUEST_DATA = 0x2,
-    CMM_RESEND_REQUEST_BOTH = CMM_RESEND_REQUEST_DEPS|CMM_RESEND_REQUEST_DATA
+    CMM_RESEND_REQUEST_DEPS = 0x1, // resend Begin_IROB msg
+    CMM_RESEND_REQUEST_DATA = 0x2, // resend some chunks
+    CMM_RESEND_REQUEST_END = 0x4,  // resend End_IROB msg
+    CMM_RESEND_REQUEST_ALL = 0x7
 } resend_request_type_t;
 
 /* sender requesting the receiver to resend data associated
@@ -102,8 +112,15 @@ struct resend_request_data {
     irob_id_t id;
     resend_request_type_t request;
 
-    // If request includes DATA, this is how much data the receiver has
-    size_t offset;
+    // If request includes DATA, this describes the data that the receiver needs
+    u_long seqno; // the seqno identifies the offset and len uniquely.
+    //size_t offset;
+    //size_t len;
+
+    // If request includes END, this is the seqno of the last chunk I've received, +1.
+    //  Since I didn't receive the End_IROB message, I don't know how many 
+    //  chunks to expect, so tell the sender where to start.
+    int next_chunk;
 };
 
 struct data_check_data {

@@ -15,20 +15,23 @@ PendingReceiverIROB::PendingReceiverIROB(irob_id_t id, int numdeps, irob_id_t *d
                                          size_t datalen, char *data,
 					 u_long send_labels)
     : PendingIROB(id, numdeps, deps, datalen, data, send_labels),
-      offset(0), num_bytes(datalen), expected_bytes(-1), recvd_bytes(0)
+      offset(0), num_bytes(datalen), expected_bytes(-1), expected_chunks(-1), 
+      recvd_bytes(0), recvd_chunks(0)
 {
     partial_chunk.data = NULL;
     partial_chunk.datalen = 0;
 
     if (datalen > 0) {
         expected_bytes = recvd_bytes = datalen;
+        expected_chunks = recvd_chunks = 1;
     }
     assert(datalen == 0 || is_complete());
 }
 
 PendingReceiverIROB::PendingReceiverIROB(irob_id_t id_)
     : PendingIROB(id_),
-      offset(0), num_bytes(0), expected_bytes(-1), recvd_bytes(0)
+      offset(0), num_bytes(0), expected_bytes(-1), expected_chunks(-1), 
+      recvd_bytes(0), recvd_chunks(0)
 {
     /* this placeholder PendingReceiverIROB will be replaced by 
        the real one, when it arrives. */
@@ -47,7 +50,9 @@ PendingReceiverIROB::subsume(PendingIROB *other)
     offset = prirob->offset; // should be zero
     num_bytes = prirob->num_bytes;
     expected_bytes = prirob->expected_bytes;
+    expected_chunks = prirob->expected_chunks;
     recvd_bytes = prirob->recvd_bytes;
+    recvd_chunks = prirob->recvd_chunks;
     partial_chunk = prirob->partial_chunk; // should be {NULL, 0}
     prirob->partial_chunk.data = NULL; // prevent double free, just in case
 }
@@ -63,8 +68,18 @@ PendingReceiverIROB::assert_valid()
 {
     assert(recvd_bytes >= 0);
     for (size_t i = 1; i < chunks.size(); ++i) {
-        assert((chunks[i-1].offset + chunks[i-1].datalen)
-               == chunks[i].offset);
+        if (chunks[i-1].data != NULL &&
+            chunks[i].data != NULL) {
+            if ((chunks[i-1].offset + chunks[i-1].datalen)
+                != chunks[i].offset) {
+                dbgprintf("IROB validity check failed!\n");
+                dbgprintf("IROB %ld chunk %zu offset %zu datalen %zu\n",
+                          id, i-1, chunks[i-1].offset, chunks[i-1].datalen);
+                dbgprintf("IROB %ld chunk %zu offset %zu datalen %zu\n",
+                          id, i, chunks[i].offset, chunks[i].datalen);
+                assert(0);
+            }
+        }
     }
 }
 
@@ -75,52 +90,74 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
         // since we don't release bytes until the IROB is complete
         assert(num_bytes == recvd_bytes);
 
-        struct irob_chunk_data trimmed_chunk = chunk;
-        //trimmed_chunk.data = NULL;
-        if (chunk.offset < (size_t)recvd_bytes) {
-            for (size_t i = 0; i < chunks.size(); ++i) {
-                size_t this_chunk_end = chunks[i].offset + chunks[i].datalen;
-                if (this_chunk_end > trimmed_chunk.offset) {
-                    size_t seen_datalen = this_chunk_end - trimmed_chunk.offset;
-                    dbgprintf("Ignoring %zu bytes of already-seen data at offset %zu\n",
-                              seen_datalen, trimmed_chunk.offset);
-                    if (seen_datalen >= trimmed_chunk.datalen) {
-                        // this entire chunk is redundant; ignore it
-                        return true;
-                    } else {
-                        trimmed_chunk.datalen -= seen_datalen;
-                        trimmed_chunk.offset += seen_datalen;
-                    }
-                }
-            }
-            assert(trimmed_chunk.datalen > 0);
-            if (trimmed_chunk.datalen < chunk.datalen) {
-                //trimmed_chunk.data = new char[trimmed_chunk.datalen];
-                char *bufp = chunk.data + (chunk.datalen - trimmed_chunk.datalen);
-                //memcpy(trimmed_chunk.data, bufp, trimmed_chunk.datalen);
+//         struct irob_chunk_data trimmed_chunk = chunk;
+//         //trimmed_chunk.data = NULL;
+//         if (chunk.offset < (size_t)recvd_bytes) {
+//             for (size_t i = 0; i < chunks.size(); ++i) {
+//                 size_t this_chunk_end = chunks[i].offset + chunks[i].datalen;
+//                 if (this_chunk_end > trimmed_chunk.offset) {
+//                     size_t seen_datalen = this_chunk_end - trimmed_chunk.offset;
+//                     dbgprintf("Ignoring %zu bytes of already-seen data at offset %zu\n",
+//                               seen_datalen, trimmed_chunk.offset);
+//                     if (seen_datalen >= trimmed_chunk.datalen) {
+//                         // this entire chunk is redundant; ignore it
+//                         return true;
+//                     } else {
+//                         trimmed_chunk.datalen -= seen_datalen;
+//                         trimmed_chunk.offset += seen_datalen;
+//                     }
+//                 }
+//             }
+//             assert(trimmed_chunk.datalen > 0);
+//             if (trimmed_chunk.datalen < chunk.datalen) {
+//                 //trimmed_chunk.data = new char[trimmed_chunk.datalen];
+//                 char *bufp = chunk.data + (chunk.datalen - trimmed_chunk.datalen);
+//                 //memcpy(trimmed_chunk.data, bufp, trimmed_chunk.datalen);
 
-                // no need to reallocate; just overwrite the already-seen data,
-                // moving the good data to the start of the buffer
-                memmove(chunk.data, bufp, trimmed_chunk.datalen);
-                //delete [] chunk.data;
-            }
-            // update datalen, offset
-            chunk = trimmed_chunk;
-        }
+//                 // no need to reallocate; just overwrite the already-seen data,
+//                 // moving the good data to the start of the buffer
+//                 memmove(chunk.data, bufp, trimmed_chunk.datalen);
+//                 //delete [] chunk.data;
+//             }
+//             // update datalen, offset
+//             chunk = trimmed_chunk;
+//         }
 
-        //assert(chunk.offset == (size_t)recvd_bytes); // no holes
-        assert(chunk.offset >= (size_t)recvd_bytes);
-        if (chunk.offset > (size_t)recvd_bytes) {
-            // there's a hole before this chunk.  Ignore the chunk, and
-            // request a resend starting from the bytes we've already seen
-            // (resend done above this layer)
-            dbgprintf("add_chunk: detected hole in IROB %ld before chunk %lu\n",
-                      id, chunk.seqno);
+//         //assert(chunk.offset == (size_t)recvd_bytes); // no holes
+//         assert(chunk.offset >= (size_t)recvd_bytes);
+//         if (chunk.offset > (size_t)recvd_bytes) {
+//             // there's a hole before this chunk.  Ignore the chunk, and
+//             // request a resend starting from the bytes we've already seen
+//             // (resend done above this layer)
+//             dbgprintf("add_chunk: detected hole in IROB %ld before chunk %lu\n",
+//                       id, chunk.seqno);
+//             return false;
+//         }
+
+        u_long seqno = chunk.seqno;
+        if (expected_chunks != -1 && seqno >= (u_long)expected_chunks) {
+            dbgprintf("add_chunk: received seqno %lu IROB %ld, "
+                      "but expected only %d chunks\n",
+                      seqno, id, expected_chunks);
             return false;
         }
+        if (seqno >= chunks.size()) {
+            struct irob_chunk_data empty;
+            memset(&empty, 0, sizeof(empty));
+            chunks.resize(seqno + 1, empty);
+        }
+
+        if (chunks[seqno].data != NULL) {
+            dbgprintf("Ignoring already-seen chunk %lu "
+                      "(%zu bytes at offset %zu);\n",
+                      chunk.seqno, chunk.datalen, chunk.offset);
+            return true;
+        }
+        recvd_chunks++; // only valid because we don't do partial chunks
+
+        chunks[seqno] = chunk;
         num_bytes += chunk.datalen;
         recvd_bytes += chunk.datalen;
-        chunks.push_back(chunk);
 	dbgprintf("Added chunk %lu (%d bytes) to IROB %ld new total %d\n", 
 		  chunk.seqno, chunk.datalen, id, num_bytes);
         assert_valid();
@@ -139,28 +176,89 @@ PendingReceiverIROB::is_ready(void)
     return !placeholder && deps.empty();
 }
 
+bool
+PendingReceiverIROB::all_chunks_complete()
+{
+    for (size_t i = 0; i < chunks.size(); ++i) {
+        if (chunks[i].data == NULL) {
+            return false;
+        }
+    }
+    return true;
+}
+
+vector<struct irob_chunk_data>
+PendingReceiverIROB::get_missing_chunks()
+{
+    vector<struct irob_chunk_data> missing_chunks;
+    for (size_t i = 0; i < chunks.size(); ++i) {
+        if (chunks[i].data == NULL) {
+            // for now, just whole chunks can be missing.
+            struct irob_chunk_data missing_chunk;
+            missing_chunk.seqno = i;
+            missing_chunks.push_back(missing_chunk);
+        }
+    }
+    if (expected_chunks != -1 && (size_t)expected_chunks > chunks.size()) {
+        for (u_long i = (u_long)chunks.size(); i < (u_long)expected_chunks; ++i) {
+            struct irob_chunk_data missing_chunk;
+            missing_chunk.seqno = i;
+            missing_chunks.push_back(missing_chunk);
+        }
+    }
+    return missing_chunks;
+}
+
+int
+PendingReceiverIROB::next_chunk_seqno()
+{
+    return chunks.size();
+}
+
 bool 
 PendingReceiverIROB::is_complete(void)
 {
     assert(recvd_bytes <= expected_bytes || expected_bytes == -1);
-    return (expected_bytes == recvd_bytes) && complete;
+    assert(expected_chunks == -1 || recvd_chunks <= expected_chunks);
+    if (expected_bytes != recvd_bytes) {
+        dbgprintf("IROB %ld not complete; expected %d bytes, recvd %d so far\n",
+                  id, expected_bytes, recvd_bytes);
+        return false;
+    }
+    if (expected_chunks != recvd_chunks) {
+        dbgprintf("IROB %ld not complete; expected %d chunks, recvd %d so far\n",
+                  id, expected_chunks, recvd_chunks);
+        return false;
+    }
+    return ((expected_bytes == recvd_bytes) && 
+            (expected_chunks == recvd_chunks) && 
+            all_chunks_complete() && complete);
 }
 
 bool
-PendingReceiverIROB::finish(ssize_t expected_bytes_)
+PendingReceiverIROB::finish(ssize_t expected_bytes_, int num_chunks)
 {
     if (is_complete()) {
         return false;
     }
     complete = true;
 
-    if (expected_bytes == -1) {
+    if (expected_bytes == -1 || expected_chunks == -1) {
+        assert(expected_bytes == -1 && expected_chunks == -1);
         expected_bytes = expected_bytes_;
+        expected_chunks = num_chunks;
+        if (chunks.size() > (size_t)expected_chunks) {
+            dbgprintf("Finished IROB %ld with %d chunks expected, "
+                      "but it already has seqnos up to %zu\n",
+                      id, expected_bytes, chunks.size());
+            return false;
+        }
     } else {
         // otherwise, we've already set it;
         // we better not be trying to set it to something
         // different
-        assert(expected_bytes == expected_bytes_);
+        assert(expected_bytes == expected_bytes_ &&
+               expected_chunks == num_chunks);
         return false;
     }
 
@@ -273,7 +371,8 @@ PendingReceiverIROB PendingReceiverIROBLattice::empty_sentinel_irob(-1);
 PendingReceiverIROB *
 PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
 {
-    irob_id_t ready_irob_id = -1;
+    //irob_id_t ready_irob_id = -1;
+    IROBSchedulingData ready_irob_data;
     PendingIROB *pi = NULL;
     PendingReceiverIROB *pirob = NULL;
     if (partially_read_irob) {
@@ -311,13 +410,13 @@ PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
             }
 #endif
 
-            if (!pop_item(ready_irobs, ready_irob_id)) {
+            if (!ready_irobs.pop(ready_irob_data)) {
                 assert(0);
             }
-            pi = find(ready_irob_id);
+            pi = find(ready_irob_data.id);
             if (!pi) {
                 dbgprintf("Looks like IROB %ld was already received; "
-                          "ignoring\n", ready_irob_id);
+                          "ignoring\n", ready_irob_data.id);
             }
 	}
 	TIME(end);
@@ -337,7 +436,7 @@ PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
 
 // must call with scheduling_state_lock held
 void
-PendingReceiverIROBLattice::release(irob_id_t id)
+PendingReceiverIROBLattice::release(irob_id_t id, u_long send_labels)
 {
     if (ready_irobs.empty()) {
 #ifndef CMM_UNIT_TESTING
@@ -347,7 +446,7 @@ PendingReceiverIROBLattice::release(irob_id_t id)
         (void)send(sk->select_pipe[1], &c, 1, MSG_NOSIGNAL);
 #endif
     }
-    ready_irobs.insert(id);
+    ready_irobs.insert(IROBSchedulingData(id, false, send_labels));
 #ifndef CMM_UNIT_TESTING
     pthread_cond_broadcast(&sk->scheduling_state_cv);
 #endif

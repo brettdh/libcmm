@@ -57,7 +57,7 @@ IROBSchedulingData::operator<(const IROBSchedulingData& other) const
         return false;
     }
 
-    return ((owner && (owner->send_labels & send_labels)) ||
+    return (//(owner && (owner->send_labels & send_labels)) ||
             (timercmp(&completion_time, &other.completion_time, <)) ||
             (id < other.id));
 }
@@ -117,6 +117,7 @@ IROBSchedulingIndexes::IROBSchedulingIndexes(u_long send_labels_)
     finished_irobs.owner = this;
     waiting_acks.owner = this;
     resend_requests.owner = this;
+    waiting_data_checks.owner = this;
 }
 
 void
@@ -129,6 +130,8 @@ IROBSchedulingIndexes::add(const IROBSchedulingIndexes& other)
     waiting_acks.insert_range(other.waiting_acks.begin(), other.waiting_acks.end());
     resend_requests.insert_range(other.resend_requests.begin(), 
                                  other.resend_requests.end());
+    waiting_data_checks.insert_range(other.waiting_data_checks.begin(), 
+                                     other.waiting_data_checks.end());
 }
 
 /* transfer the IROB from this to other, giving it the new labels.

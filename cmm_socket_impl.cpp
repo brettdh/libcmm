@@ -50,8 +50,9 @@ pthread_mutex_t CMMSocketImpl::hashmaps_mutex = PTHREAD_MUTEX_INITIALIZER;
 // struct timeval CMMSocketImpl::total_inter_fg_time;
 // size_t CMMSocketImpl::fg_count;
 
-
-void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
+// return true if the listener received is the zero-sentinel
+//  marking the end of the list
+bool CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
 {
     struct CMMSocketControlHdr hdr;
     int rc = recv(bootstrap_sock, &hdr, sizeof(hdr), 0);
@@ -69,26 +70,34 @@ void CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
     memset(&new_listener.ip_addr, 0, sizeof(new_listener.ip_addr));
     new_listener.ip_addr = hdr.op.new_interface.ip_addr;
     new_listener.labels = ntohl(hdr.op.new_interface.labels);
-    new_listener.bandwidth = ntohl(hdr.op.new_interface.bandwidth);
+    new_listener.bandwidth_down = ntohl(hdr.op.new_interface.bandwidth_down);
+    new_listener.bandwidth_up = ntohl(hdr.op.new_interface.bandwidth_up);
     new_listener.RTT = ntohl(hdr.op.new_interface.RTT);
     
-    {
+    if (new_listener.ip_addr.s_addr == 0) {
+        // no more remote interfaces
+        dbgprintf("Done receiving remote interfaces\n");
+        return true;
+    } else {
         PthreadScopedRWLock sock_lock(&my_lock, true);
+        remote_ifaces.erase(new_listener); // make sure the values update
         remote_ifaces.insert(new_listener);
     }
     dbgprintf("Got new remote interface %s with labels %lu, "
-              "bandwidth %lu bytes/sec RTT %lu ms\n",
+              "bandwidth_down %lu bytes/sec bandwidth_up %lu bytes/sec RTT %lu ms\n",
 	      inet_ntoa(new_listener.ip_addr), new_listener.labels,
-              new_listener.bandwidth, new_listener.RTT);
+              new_listener.bandwidth_down, new_listener.bandwidth_up, new_listener.RTT);
+    return false;
 }
 
-void CMMSocketImpl::recv_remote_listeners(int bootstrap_sock)
+// returns the number of remote ifaces.
+int CMMSocketImpl::recv_hello(int bootstrap_sock)
 {
     struct CMMSocketControlHdr hdr;
     int rc = recv(bootstrap_sock, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr) || ntohs(hdr.type) != CMM_CONTROL_MSG_HELLO) {
 	perror("recv");
-	dbgprintf("Error receiving remote listeners\n");
+	dbgprintf("Error receiving hello\n");
         throw -1;
     }
 
@@ -96,10 +105,35 @@ void CMMSocketImpl::recv_remote_listeners(int bootstrap_sock)
         PthreadScopedRWLock sock_lock(&my_lock, true);
         remote_listener_port = hdr.op.hello.listen_port;
     }
+    return ntohl(hdr.op.hello.num_ifaces);
+}
 
-    int num_ifaces = ntohl(hdr.op.hello.num_ifaces);
-    for (int i = 0; i < num_ifaces; i++) {
-        recv_remote_listener(bootstrap_sock);
+void CMMSocketImpl::recv_remote_listeners(int bootstrap_sock, int num_ifaces)
+{
+    //for (int i = 0; i < num_ifaces; i++) {
+    bool done = false;
+    while (!done) {
+        done = recv_remote_listener(bootstrap_sock);
+    }
+}
+
+void
+CMMSocketImpl::send_hello(int bootstrap_sock)
+{
+    struct CMMSocketControlHdr hdr;
+    memset(&hdr, 0, sizeof(hdr));
+    hdr.type = htons(CMM_CONTROL_MSG_HELLO);
+
+    PthreadScopedRWLock sock_lock(&my_lock, false);
+    assert(listener_thread);
+    hdr.op.hello.listen_port = listener_thread->port();
+    hdr.op.hello.num_ifaces = htonl(local_ifaces.size());
+    
+    int rc = send(bootstrap_sock, &hdr, sizeof(hdr), 0);
+    if (rc != sizeof(hdr)) {
+        perror("send");
+        dbgprintf("Error sending hello\n");
+        throw -1;
     }
 }
 
@@ -111,7 +145,8 @@ void CMMSocketImpl::send_local_listener(int bootstrap_sock,
     hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
     hdr.op.new_interface.ip_addr = iface.ip_addr;
     hdr.op.new_interface.labels = htonl(iface.labels);
-    hdr.op.new_interface.bandwidth = htonl(iface.bandwidth);
+    hdr.op.new_interface.bandwidth_down = htonl(iface.bandwidth_down);
+    hdr.op.new_interface.bandwidth_up = htonl(iface.bandwidth_up);
     hdr.op.new_interface.RTT = htonl(iface.RTT);
     dbgprintf("Sending local interface info: %s with labels %lu\n",
 	      inet_ntoa(iface.ip_addr), iface.labels);
@@ -125,27 +160,30 @@ void CMMSocketImpl::send_local_listener(int bootstrap_sock,
 
 void CMMSocketImpl::send_local_listeners(int bootstrap_sock)
 {
-    struct CMMSocketControlHdr hdr;
-    memset(&hdr, 0, sizeof(hdr));
-    hdr.type = htons(CMM_CONTROL_MSG_HELLO);
+    PthreadScopedRWLock sock_lock(&my_lock, false);
+    assert(listener_thread);
+    
+    for (NetInterfaceSet::iterator it = local_ifaces.begin();
+         it != local_ifaces.end(); it++) {
+        send_local_listener(bootstrap_sock, *it);
+    }
 
-    {
-        PthreadScopedRWLock sock_lock(&my_lock, false);
-        assert(listener_thread);
-        hdr.op.hello.listen_port = listener_thread->port();
-        hdr.op.hello.num_ifaces = htonl(local_ifaces.size());
-        
-        int rc = send(bootstrap_sock, &hdr, sizeof(hdr), 0);
-        if (rc != sizeof(hdr)) {
-            perror("send");
-            dbgprintf("Error sending local listeners\n");
-            throw -1;
-        }
-        
-        for (NetInterfaceSet::iterator it = local_ifaces.begin();
-             it != local_ifaces.end(); it++) {
-            send_local_listener(bootstrap_sock, *it);
-        }
+    struct net_interface sentinel;
+    memset(&sentinel, 0, sizeof(sentinel));
+    send_local_listener(bootstrap_sock, sentinel);
+}
+
+void
+CMMSocketImpl::startup_csocks()
+{
+    PthreadScopedRWLock sock_lock(&my_lock, true);
+    for (NetInterfaceSet::iterator it = remote_ifaces.begin();
+         it != remote_ifaces.end(); it++) {
+        csock_map->setup(*it, false, false, false);
+    }
+    for (NetInterfaceSet::iterator it = local_ifaces.begin();
+         it != local_ifaces.end(); it++) {
+        csock_map->setup(*it, true, true, false);
     }
 }
 
@@ -163,6 +201,8 @@ int
 CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr, 
                                     socklen_t addrlen, int bootstrap_sock)
 {
+    accepting_side = (bootstrap_sock != -1);
+
     try {
         int rc;
         {
@@ -184,12 +224,26 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
                 struct net_interface localhost;
                 localhost.ip_addr.s_addr = htonl(INADDR_LOOPBACK);
                 localhost.labels = 0;
-                localhost.bandwidth = 100000000;
+                localhost.bandwidth_down = 100000000;
+                localhost.bandwidth_up = 100000000;
                 localhost.RTT = 0;
 
                 local_ifaces.insert(localhost);
+                remote_ifaces.insert(localhost);
             } else {
                 local_ifaces = ifaces;
+                if (bootstrap_sock == -1) {
+                    // connect()-side only
+                    struct net_interface bootstrap_iface;
+                    memcpy(&bootstrap_iface.ip_addr, &ip_sockaddr->sin_addr,
+                           sizeof(bootstrap_iface.ip_addr));
+                    // arbitrary; will be overwritten
+                    bootstrap_iface.bandwidth_down = 1250000;
+                    bootstrap_iface.bandwidth_up = 1250000;
+                    bootstrap_iface.RTT = 0;
+                    bootstrap_iface.labels = 0;
+                    remote_ifaces.insert(bootstrap_iface);
+                }
             }
         }
         
@@ -218,6 +272,13 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
     }
 
     return 0;
+}
+
+// only called on bootstrapping.
+void
+CMMSocketImpl::wait_for_connections()
+{
+    csock_map->wait_for_connections();
 }
 
 int
@@ -360,7 +421,9 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
       irob_indexes(0),
       sending_goodbye(false)
 {
-//     TIME(last_fg);
+    // gets updated on first FG activity
+    last_fg.tv_sec = last_fg.tv_usec = 0;
+
 //     total_inter_fg_time.tv_sec = total_inter_fg_time.tv_usec = 0;
 //     fg_count = 0;
 
@@ -1168,9 +1231,9 @@ CMMSocketImpl::interface_up(struct net_interface up_iface)
         if (timing_file) {
             struct timeval now;
             TIME(now);
-            fprintf(timing_file, "%lu.%06lu  Bringing up %s, bw %lu rtt %lu\n",
+            fprintf(timing_file, "%lu.%06lu  Bringing up %s, bw_down %lu bw_up %lu rtt %lu\n",
 		    now.tv_sec, now.tv_usec, inet_ntoa(up_iface.ip_addr),
-		    up_iface.bandwidth, up_iface.RTT);
+		    up_iface.bandwidth_down, up_iface.bandwidth_up, up_iface.RTT);
         }
     }
 #endif
@@ -1187,7 +1250,7 @@ CMMSocketImpl::interface_up(struct net_interface up_iface)
 	CMMSocketImplPtr sk = sk_iter->second;
 	assert(sk);
 
-	sk->setup(up_iface, true);
+        sk->setup(up_iface, true);
     }
     pthread_mutex_unlock(&hashmaps_mutex);
 }
@@ -1504,27 +1567,73 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
         return;
     }
 
-    PthreadScopedRWLock lock(&my_lock, true);
-
-    csock_map->setup(iface, local);
+    PthreadScopedRWLock sock_lock(&my_lock, true);
     
+    PthreadScopedLock lock(&scheduling_state_lock);
+    bool need_data_check = false;
+
+    NetInterfaceSet& iface_set = local ? local_ifaces : remote_ifaces;
+    NetInterfaceSet::const_iterator it = iface_set.find(iface);
+
+    if (it != iface_set.end()) {
+        // if bandwidth was previously reported to be zero,
+        //  some data probably got dropped.  
+        // If the bandwidth is now nonzero, let's check.
+        need_data_check = ((it->bandwidth_up == 0 && 
+                            iface.bandwidth_up != 0) ||
+                           (it->bandwidth_down == 0 && 
+                            iface.bandwidth_down != 0));
+    }
+
+    // if (local && need_data_check) {
+//         bootstrapper->restart(iface, true);
+//     }
+
+    // If bootstrapping is in progress, the bootstrapper is
+    //  in the middle of creating connections, so don't do it here.
+    bool make_connection = (bootstrapper && bootstrapper->status() == 0);
+    csock_map->setup(iface, local, make_connection, need_data_check);
+
     if (local) {
-        PthreadScopedLock lock(&scheduling_state_lock);
         if (local_ifaces.count(iface) > 0) {
             // make sure labels update if needed
             local_ifaces.erase(iface);
             changed_local_ifaces.erase(iface);
+
+            // in fact, only send a New_Interface message if this
+            //  interface is not new.
+            changed_local_ifaces.insert(iface);
+            pthread_cond_broadcast(&scheduling_state_cv);
         }
 
         local_ifaces.insert(iface);
-        changed_local_ifaces.insert(iface);
-        pthread_cond_broadcast(&scheduling_state_cv);
     } else {
         if (remote_ifaces.count(iface) > 0) {
             // make sure labels update if needed
             remote_ifaces.erase(iface);
         }
         remote_ifaces.insert(iface);
+    }
+
+    if (need_data_check) {
+        dbgprintf("Zero-bandwidth period over\n");
+        return;
+        // try leaving this particular bit of retransmission to TCP.
+        
+        //  Potential performance improvement: When a new network becomes 
+        //  available, do Data_Checks for all unACKed IROBS, hopefully 
+        //  proactively retransmitting some data on the new socket,
+        //  which has no queued data that TCP is waiting to retransmit.
+
+        /*
+        dbgprintf("Recovering from 0-bandwidth period; issuing data-check\n");
+        vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
+        outgoing_irobs.data_check_all();
+        for (size_t i = 0; i < ids.size(); ++i) {
+            IROBSchedulingData data_check(ids[i], false);
+            irob_indexes.waiting_data_checks.insert(data_check);
+        }
+        */
     }
 }
 
@@ -1554,9 +1663,16 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
         remote_ifaces.erase(iface);
     }
 
+    PthreadScopedLock lock(&scheduling_state_lock);
+    vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
+    outgoing_irobs.data_check_all();
+    for (size_t i = 0; i < ids.size(); ++i) {
+        IROBSchedulingData data_check(ids[i], false);
+        irob_indexes.waiting_data_checks.insert(data_check);
+    }
+
     // even in the remote case, any reading threads need to
     //  notice the csock is gone and wake up, if it's the last one
-    PthreadScopedLock lock(&scheduling_state_lock);
     pthread_cond_broadcast(&scheduling_state_cv);
 }
 
@@ -1662,6 +1778,22 @@ CMMSocketImpl::get_csock(u_long send_labels,
                 }
             }
         } else {
+            // for background sends, if there's a thunk provided,
+            //  check whether the csocket is busy sending any app data.
+            // If it is busy, pick a different csocket, or 
+            //  register the thunk if there's no free csocket.
+            if (send_labels & CMM_LABEL_BACKGROUND &&
+                resume_handler) {
+                if (csock->is_busy()) {
+                    csock = get_pointer(csock_map->get_idle_csock(false));
+                    if (!csock) {
+                        enqueue_handler(sock, send_labels, 
+                                        resume_handler, rh_arg);
+                        return CMM_DEFERRED;
+                    }
+                }
+            }
+
             return 0;
         }
     } catch (std::runtime_error& e) {
@@ -1796,7 +1928,8 @@ CMMSocketImpl::end_irob(irob_id_t id)
 
         PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
         assert(psirob);
-        if (psirob->announced && !psirob->end_announced) {
+        if (psirob->announced && !psirob->end_announced &&
+            psirob->is_complete() && psirob->all_chunks_sent()) {
             psirob->end_announced = true;
             if (csock->is_connected()) {
                 csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
@@ -1861,8 +1994,10 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
         rh_arg = psirob->rh_arg;
     }
 
+    // only the begin_irob should try to register a thunk.
     int ret = get_csock(send_labels,
-                       resume_handler, rh_arg, csock, true);
+                        NULL, NULL, csock, true);
+                       //resume_handler, rh_arg, csock, true);
     if (ret < 0) {
         return ret;
     }
@@ -1886,6 +2021,8 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
         }
         */
 
+        // XXX: begin and chunk can be out of order now; is this check still needed?
+        // XXX: then again, it probably never fails.
         if (psirob->announced) {
             if (csock->is_connected()) {
                 csock->irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));//chunk.seqno));
@@ -1995,6 +2132,8 @@ CMMSocketImpl::validate_default_irob(u_long send_labels,
 	return CMM_FAILED;
     }
 
+    // checking for thunking here makes sense too; it's separate
+    //  from the begin->chunk->ehd function flow.
     int ret = get_csock(send_labels, resume_handler, rh_arg, csock, true);
     if (ret < 0) {
         return ret;
@@ -2071,7 +2210,7 @@ CMMSocketImpl::ack_received(irob_id_t id)
 
 void
 CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t request,
-                                       ssize_t offset)
+                                       u_long seqno, int next_chunk)//, size_t offset, size_t len)
 {
     {
         // try to make sure there's a socket to do the resending
@@ -2095,12 +2234,25 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
     u_long send_labels = psirob->send_labels;
 
     if (request & CMM_RESEND_REQUEST_DEPS) {
+        dbgprintf("Enqueuing resend of deps for IROB %ld\n", id);
         irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
     }
     if (request & CMM_RESEND_REQUEST_DATA) {
-        psirob->rewind(offset);
+        dbgprintf("Enqueuing resend of chunk %lu for IROB %ld\n", seqno, id);
+        psirob->mark_not_received(seqno);//, offset, len);
         irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));
     }
+    if (request & CMM_RESEND_REQUEST_END) {
+        if (psirob->is_complete() && psirob->all_chunks_sent()) {
+            dbgprintf("Enqueuing resend of End_IROB for IROB %ld\n", id);
+            irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false, send_labels));
+        }
+        dbgprintf("Enqueuing resend of chunks %d-%zu for IROB %ld\n", 
+                  next_chunk, psirob->sent_chunks.size(), id);
+        psirob->mark_drop_point(next_chunk);
+        irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));
+    }
+    psirob->data_check = false;
     pthread_cond_broadcast(&scheduling_state_cv);
 }
 
@@ -2134,19 +2286,35 @@ CMMSocketImpl::data_check_requested(irob_id_t id)
             pthread_cond_broadcast(&scheduling_state_cv);
         } else {
             // never seen this one before; ask for everything
-            IROBSchedulingData request(id, CMM_RESEND_REQUEST_BOTH);
+            IROBSchedulingData request(id, CMM_RESEND_REQUEST_ALL);
             irob_indexes.resend_requests.insert(request);
             pthread_cond_broadcast(&scheduling_state_cv);
         }
     } else {
-        resend_request_type_t reqtype = CMM_RESEND_REQUEST_DATA;
+        resend_request_type_t reqtype = CMM_RESEND_REQUEST_NONE;
         if (pirob->placeholder) {
             reqtype = resend_request_type_t(reqtype |
                                             CMM_RESEND_REQUEST_DEPS);
         }
+        PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
+        assert(prirob);
+        if (!prirob->get_missing_chunks().empty()) {
+            reqtype = resend_request_type_t(reqtype
+                                            | CMM_RESEND_REQUEST_DATA);
+        }
+        if (prirob->expected_bytes == -1) {
+            reqtype = resend_request_type_t(reqtype
+                                            | CMM_RESEND_REQUEST_END);
+        }
 
-        IROBSchedulingData request(id, reqtype);
-        irob_indexes.resend_requests.insert(request);
+        if (reqtype == CMM_RESEND_REQUEST_NONE) {
+            struct timeval inval = {0, -1};
+            IROBSchedulingData data(id, inval);
+            irob_indexes.waiting_acks.insert(data);
+        } else {
+            IROBSchedulingData request(id, reqtype);
+            irob_indexes.resend_requests.insert(request);
+        }
         pthread_cond_broadcast(&scheduling_state_cv);
     }
 }
@@ -2185,6 +2353,15 @@ CMMSocketImpl::goodbye(bool remote_initiated)
 
     shutting_down = true; // picked up by sender-scheduler
     if (remote_initiated) {
+        // remote side thinks it's sent all ACKs;
+        //  if I haven't received them all, ask for them again.
+        vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
+        outgoing_irobs.data_check_all();
+        for (size_t i = 0; i < ids.size(); ++i) {
+            IROBSchedulingData data_check(ids[i], false);
+            irob_indexes.waiting_data_checks.insert(data_check);
+        }
+
         remote_shutdown = true;
     }
 
@@ -2388,14 +2565,8 @@ CMMSocketImpl::mc_set_failure_timeout(u_long label, const struct timespec *ts)
 //     return avg;
 // }
 
-// void
-// CMMSocketImpl::update_last_fg()
-// {
-//     struct timeval now, diff;
-//     TIME(now);
-
-//     TIMEDIFF(last_fg, now, diff);
-//     timeradd(&total_inter_fg_time, &diff, &total_inter_fg_time);
-//     fg_count++;
-//     last_fg = now;
-// }
+void
+CMMSocketImpl::update_last_fg()
+{
+    TIME(last_fg);
+}

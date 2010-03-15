@@ -13,6 +13,7 @@ class EndToEndTestsBase :  public CppUnit::TestFixture {
     void testNoInterleaving();
     void testPartialRecv();
     void testCMMPoll();
+    void testHalfShutdown();
 
   protected:
     friend class NonBlockingTestsBase;

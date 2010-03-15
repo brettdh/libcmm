@@ -43,10 +43,9 @@ std::string
 CMMSocketControlHdr::describe() const
 {
     std::ostringstream stream;
-    if (ntohs(type) != CMM_CONTROL_MSG_INVALID) {
-        stream << " Type: " << type_str() << " ";
-        stream << "Send labels: " << ntohl(send_labels) << " ";
-    }
+    stream << " Type: " << type_str() << "("  << ntohs(type) << ") ";
+    
+    stream << "Send labels: " << ntohl(send_labels) << " ";
 
     switch (ntohs(type)) {
     case CMM_CONTROL_MSG_HELLO:
@@ -59,7 +58,8 @@ CMMSocketControlHdr::describe() const
         break;
     case CMM_CONTROL_MSG_END_IROB:
       stream << "IROB: " << ntohl(op.end_irob.id) << " ";
-        stream << "expected_bytes: " << ntohl(op.end_irob.expected_bytes);
+      stream << "expected_bytes: " << ntohl(op.end_irob.expected_bytes) << " ";
+        stream << "expected_chunks: " << ntohl(op.end_irob.expected_chunks);
         break;
     case CMM_CONTROL_MSG_IROB_CHUNK:
         stream << "IROB: " << ntohl(op.irob_chunk.id) << " ";
@@ -77,7 +77,8 @@ CMMSocketControlHdr::describe() const
     case CMM_CONTROL_MSG_NEW_INTERFACE:
         stream << "IP: " << inet_ntoa(op.new_interface.ip_addr) << " ";
         stream << "labels: " << ntohl(op.new_interface.labels) << " ";
-        stream << "bandwidth: " << ntohl(op.new_interface.bandwidth) << " bytes/sec, ";
+        stream << "bandwidth_down: " << ntohl(op.new_interface.bandwidth_down) << " bytes/sec, ";
+        stream << "bandwidth_up: " << ntohl(op.new_interface.bandwidth_up) << " bytes/sec, ";
         stream << "RTT: " << ntohl(op.new_interface.RTT) << " ms";
         break;
     case CMM_CONTROL_MSG_DOWN_INTERFACE:
@@ -103,7 +104,10 @@ CMMSocketControlHdr::describe() const
     case CMM_CONTROL_MSG_RESEND_REQUEST:
         stream << "IROB: " << ntohl(op.resend_request.id) << " ";
         stream << "request: " << ntohl(op.resend_request.request) << " ";
-        stream << "offset: " << ntohl(op.resend_request.offset);
+        stream << "seqno: " << ntohl(op.resend_request.seqno) << " ";
+        //stream << "offset: " << ntohl(op.resend_request.offset) << " ";
+        //stream << "len: " << ntohl(op.resend_request.len);
+        stream << "next_chunk: " << ntohl(op.resend_request.next_chunk);
         break;
     case CMM_CONTROL_MSG_DATA_CHECK:
         stream << "IROB: " << ntohl(op.data_check.id);
