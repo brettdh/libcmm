@@ -134,3 +134,7 @@ It-would-be-nice TODOs:
   are not supported everywhere, require another library (librt),
   and leave persistent structures in a filesystem, which can fill up
   unexpectedly.
+  EDIT: never mind.  SysV message queues have many of the same problems.
+   instead...
+
+* Test & debug cleanup code for scout<=>process IPC.
