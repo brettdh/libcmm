@@ -17,26 +17,6 @@
         }                                               \
     } while (0)
 
-template <typename T>
-class ThreadsafePrimitive {
-  public:
-    explicit ThreadsafePrimitive(const T& v = T()) : val(v) {
-        pthread_rwlock_init(&lock, NULL);
-    }
-    operator T() {
-        PthreadScopedRWLock lk(&lock, false);
-        return val;
-    }
-    ThreadsafePrimitive<T>& operator=(const T& v) {
-        PthreadScopedRWLock lk(&lock, true);
-        val = v;
-        return *this;
-    }
-  private:
-    T val;
-    pthread_rwlock_t lock;
-};
-
 class PthreadScopedLock {
   public:
     PthreadScopedLock() : mutex(NULL) {}
@@ -107,6 +87,26 @@ class PthreadScopedRWLock {
   private:
     pthread_rwlock_t *mutex;
 
+};
+
+template <typename T>
+class ThreadsafePrimitive {
+  public:
+    explicit ThreadsafePrimitive(const T& v = T()) : val(v) {
+        pthread_rwlock_init(&lock, NULL);
+    }
+    operator T() {
+        PthreadScopedRWLock lk(&lock, false);
+        return val;
+    }
+    ThreadsafePrimitive<T>& operator=(const T& v) {
+        PthreadScopedRWLock lk(&lock, true);
+        val = v;
+        return *this;
+    }
+  private:
+    T val;
+    pthread_rwlock_t lock;
 };
 
 /* LockWrappedMap
