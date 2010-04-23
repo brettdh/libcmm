@@ -5,9 +5,9 @@ DEBUG_FLAGS:=-g -DCMM_DEBUG
 endif
 
 CXXFLAGS+=-Wall -Werror -I. -pthread -fPIC -m32 $(DEBUG_FLAGS) $(OPT_FLAGS)
-LIBTBB:=-ltbb_debug
+#LIBTBB:=-ltbb_debug
 LDFLAGS:=-L. -m32 
-LIBS:=$(LIBTBB) -lrt
+LIBS:=-lrt # $(LIBTBB)
 
 LIBRARIES:=libcmm.so
 EXECUTABLES:=conn_scout cmm_test_sender cmm_test_receiver cdf_test\
@@ -54,7 +54,7 @@ libcmm.so: libcmm.o libcmm_ipc.o cmm_socket.o cmm_socket_impl.o \
 
 .PHONY: libcmm.tgz
 libcmm.tgz:
-	tar czf ./libcmm.tgz *.h *.cpp Makefile Makeconf.local.sample README.txt tbb libtbb* tests/*.cpp tests/*.h tests/Makefile
+	tar czf ./libcmm.tgz *.h *.cpp Makefile Makeconf.local.sample README.txt tests/*.cpp tests/*.h tests/Makefile
 
 # Generate header dependency rules
 #   see http://stackoverflow.com/questions/204823/
@@ -74,15 +74,15 @@ include $(DEPS)
 # ---
 
 clean:
-	rm -f *~ *.o $(LIBRARIES) $(EXECUTABLES) .tbbinstall .libinstall .hdrinstall .bininstall libcmm.tgz
+	rm -f *~ *.o $(LIBRARIES) $(EXECUTABLES) .libinstall .hdrinstall .bininstall libcmm.tgz
 
-TBB_LIBS:=libtbbmalloc_debug.so libtbbmalloc.so.2 libtbb_debug.so \
-          libtbbmalloc_debug.so.2 libtbb.so libtbb_debug.so.2 \
-          libtbbmalloc.so libtbb.so.2
+#TBB_LIBS:=libtbbmalloc_debug.so libtbbmalloc.so.2 libtbb_debug.so \
+#          libtbbmalloc_debug.so.2 libtbb.so libtbb_debug.so.2 \
+#          libtbbmalloc.so libtbb.so.2
 
-.tbbinstall: $(TBB_LIBS)
-	install $(TBB_LIBS) /usr/local/lib
-	-touch .tbbinstall
+#.tbbinstall: $(TBB_LIBS)
+#	install $(TBB_LIBS) /usr/local/lib
+#	-touch .tbbinstall
 
 .libinstall: libcmm.so 
 	install libcmm.so /usr/local/lib/
@@ -97,7 +97,7 @@ TBB_LIBS:=libtbbmalloc_debug.so libtbbmalloc.so.2 libtbb_debug.so \
 	install conn_scout /usr/local/bin/
 	-touch .bininstall
 
-install: .tbbinstall .libinstall .hdrinstall .bininstall
+install: .libinstall .hdrinstall .bininstall #.tbbinstall
 
 .gitignore: Makefile
 	echo "$(EXECUTABLES) $(LIBRARIES) .*.dep *~ *.o .*install libcmm.tgz" | sed -e 's/\s+/ /' | tr ' ' '\n' > .gitignore

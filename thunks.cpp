@@ -4,8 +4,6 @@
 #include "pthread_util.h"
 #include "cmm_socket.private.h"
 #include <cassert>
-//#include "tbb/concurrent_hash_map.h"
-//#include "tbb/concurrent_queue.h"
 #include <string.h>
 #include <vector>
 using std::vector;
@@ -33,7 +31,6 @@ struct PtrLess {
     }
 };
 
-//typedef tbb::concurrent_queue<struct thunk*> ThunkQueue;
 typedef LockWrappedQueue<struct thunk*> ThunkQueue;
 struct labeled_thunk_queue {
     mc_socket_t sock;

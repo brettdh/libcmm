@@ -1,5 +1,5 @@
-CXXFLAGS:=-Wall -Werror -I. -I.. -m32 -g -DCMM_UNIT_TESTING -DCMM_DEBUG 
-LDFLAGS:=-L. -L.. -lcppunit -ldl -ltbb
+CXXFLAGS:=-Wall -Werror -I. -I.. -m32 -g -DCMM_UNIT_TESTING -DCMM_DEBUG -pthread
+LDFLAGS:=-L. -L.. -lcppunit -ldl -pthread -lrt
 
 EXECUTABLES=run_unit_tests run_lib_tests run_remote_tests run_thunk_tests run_trickle_tests \
 	    run_lib_tests_nb run_remote_tests_nb
