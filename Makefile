@@ -44,7 +44,7 @@ conn_scout: libcmm_scout.o cdf_sampler.o debug.o cmm_thread.o timeops.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -o $@ $^
 
 libcmm.so: libcmm.o libcmm_ipc.o cmm_socket.o cmm_socket_impl.o \
-	   cmm_socket_passthrough.o thunks.o cmm_timing.o signals.o csocket.o \
+	   cmm_socket_passthrough.o thunks.o cmm_timing.o csocket.o \
            csocket_mapping.o csocket_sender.o csocket_receiver.o \
            pending_irob.o pending_sender_irob.o pending_receiver_irob.o \
            cmm_thread.o cmm_internal_listener.o libcmm_irob.o debug.o \

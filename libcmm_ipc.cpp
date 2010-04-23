@@ -10,6 +10,8 @@
 #include <set>
 using std::set;
 
+#define CMM_SELECT_SIGNAL 42 /* I am assured this is okay in Linux. */
+
 #include "debug.h"
 
 static bool running = true;

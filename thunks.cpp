@@ -33,7 +33,8 @@ struct PtrLess {
     }
 };
 
-typedef tbb::concurrent_queue<struct thunk*> ThunkQueue;
+//typedef tbb::concurrent_queue<struct thunk*> ThunkQueue;
+typedef LockWrappedQueue<struct thunk*> ThunkQueue;
 struct labeled_thunk_queue {
     mc_socket_t sock;
     u_long send_labels; /* single label bit only; relax this in the future */
@@ -123,11 +124,13 @@ void print_thunks(void)
 	struct labeled_thunk_queue *tq = tq_iter->second;
 	dbgprintf("Send labels %lu, %d thunks\n",
 		tq->send_labels, (int)tq->thunk_queue.size());
-	for (ThunkQueue::iterator th_iter = tq->thunk_queue.begin();
-	     th_iter != tq->thunk_queue.end(); th_iter++) {
+
+        ThunkQueue tq_copy(tq->thunk_queue);
+	for (ThunkQueue::iterator th_iter = tq_copy.begin();
+	     th_iter != tq_copy.end(); th_iter++) {
 	    struct thunk *th = *th_iter;
 	    dbgprintf("    Thunk %p, arg %p, send labels %lu\n",
-		    th->fn, th->arg, th->send_labels);
+                      th->fn, th->arg, th->send_labels);
 	}
     }
 #endif

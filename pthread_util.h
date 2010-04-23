@@ -5,6 +5,7 @@
 #include <boost/shared_ptr.hpp>
 #include <map>
 #include <vector>
+#include <deque>
 #include <assert.h>
 #include "debug.h"
 
@@ -107,6 +108,47 @@ class ThreadsafePrimitive {
   private:
     T val;
     pthread_rwlock_t lock;
+};
+
+template <typename T>
+class LockWrappedQueue {
+  public:
+    LockWrappedQueue() {
+        pthread_mutex_init(&lock, NULL);
+        pthread_cond_init(&cv, NULL);
+    }
+    size_t size() {
+        PthreadScopedLock lk(&lock);
+        return q.size();
+    }
+    bool empty() { return size() == 0; }
+    void push(const T& val) {
+        PthreadScopedLock lk(&lock);
+        q.push_back(val);
+        pthread_cond_broadcast(&cv);
+    }
+    void pop(T& val) {
+        PthreadScopedLock lk(&lock);
+        while (q.empty()) {
+            pthread_cond_wait(&cv, &lock);
+        }
+        val = q.front();
+        q.pop_front();
+    }
+
+    // iteration is not thread-safe.
+    typedef typename std::deque<T>::iterator iterator;
+    iterator begin() {
+        return q.begin();
+    }
+
+    iterator end() {
+        return q.end();
+    }
+  private:
+    std::deque<T> q;
+    pthread_mutex_t lock;
+    pthread_cond_t cv;
 };
 
 /* LockWrappedMap

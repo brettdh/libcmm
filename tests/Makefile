@@ -36,7 +36,7 @@ timeops.o: ../timeops.cpp ../timeops.h
 TESTOBJS := pending_irob_test.o lattice_test.o intset_test.o \
 	    receiver_lattice_test.o pending_sender_irob_test.o \
 	    ack_timeouts_test.o pending_receiver_irob_test.o \
-	    estimation_test.o
+	    estimation_test.o pthread_util_test.o
 SUPPORTOBJS := pending_irob.o intset.o debug.o pending_receiver_irob.o \
 	       pending_sender_irob.o timeops.o ack_timeouts.o net_stats.o \
 	       test_common.o debug.o net_interface.o irob_scheduling.o
