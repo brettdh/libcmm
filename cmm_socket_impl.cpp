@@ -21,7 +21,6 @@
 using std::auto_ptr;
 
 #include <signal.h>
-#include "signals.h"
 #include "thunks.h"
 #include "cmm_timing.h"
 

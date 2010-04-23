@@ -25,7 +25,6 @@ using std::auto_ptr;
 #include "libcmm_ipc.h"
 #include "pending_irob.h"
 #include "debug.h"
-#include "signals.h"
 
 #include "cmm_timing.h"
 #include "pthread_util.h"

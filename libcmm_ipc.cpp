@@ -7,7 +7,6 @@
 #include <signal.h>
 #include "libcmm_ipc.h"
 #include "cmm_thread.h"
-#include "signals.h"
 #include <set>
 using std::set;
 
