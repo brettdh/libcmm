@@ -40,21 +40,12 @@ typedef std::map<int, struct sockopt> SockOptNames;
 /* < level, < optname, (optval, optlen) > > */
 typedef std::map<int, SockOptNames> SockOptHash;
 
-//#include "tbb/concurrent_hash_map.h"
-/* typedef tbb::concurrent_hash_map<mc_socket_t,  */
-/*                                  CMMSocketImplPtr,  */
-/*                                  IntegerHashCompare<mc_socket_t> > CMMSockHash; */
+
 #include "pthread_util.h"
-//typedef LockingMap<mc_socket_t, CMMSocketImplPtr> CMMSockHash;
 typedef LockWrappedMap<mc_socket_t, CMMSocketImplPtr> CMMSockHash;
 
-/* typedef tbb::concurrent_hash_map<irob_id_t, mc_socket_t,  */
-/*                                  IntegerHashCompare<irob_id_t> > IROBSockHash; */
 typedef LockingMap<irob_id_t, mc_socket_t> IROBSockHash;
 
-/* typedef tbb::concurrent_hash_map<int,  */
-/*                                  void*, /\* unused; keys only, no values *\/ */
-/*                                  IntegerHashCompare<int> > VanillaListenerSet; */
 typedef LockingMap<int, void*> VanillaListenerSet;
 
 class ConnBootstrapper;

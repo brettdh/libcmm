@@ -23,7 +23,6 @@ using std::queue; using std::deque;
 
 #include "libcmm.h"
 #include "libcmm_ipc.h"
-#include "tbb/atomic.h"
 #include "tbb/concurrent_hash_map.h"
 #include "common.h"
 #include "net_interface.h"
@@ -32,21 +31,16 @@ using std::queue; using std::deque;
 #include <memory>
 using std::auto_ptr;
 
-using tbb::atomic;
-
 struct subscriber_proc {
     pid_t pid;
     mqd_t mq_fd;
 };
 
-typedef 
-tbb::concurrent_hash_map<pid_t, subscriber_proc, 
-                         IntegerHashCompare<pid_t> > SubscriberProcHash;
+typedef LockingMap<pid_t, subscriber_proc> SubscriberProcHash;
 static SubscriberProcHash subscriber_procs;
 
 static bool running;
 static int emu_sock = -1;
-//static atomic<u_long> labels_available;
 
 static pthread_mutex_t ifaces_lock = PTHREAD_MUTEX_INITIALIZER;
 
