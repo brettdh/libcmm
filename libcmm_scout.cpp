@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <pthread.h>
-#include <mqueue.h>
 #include <signal.h>
 #include <assert.h>
 #include <math.h>
+#include <sys/socket.h>
+#include <linux/un.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <net/if.h>
@@ -33,11 +34,12 @@ using std::queue; using std::deque;
 using std::auto_ptr;
 
 struct subscriber_proc {
+    int ipc_sock;
     pid_t pid;
-    mqd_t mq_fd;
 };
 
-typedef LockingMap<pid_t, subscriber_proc> SubscriberProcHash;
+// map from IPC socket FD to data
+typedef LockingMap<int, subscriber_proc> SubscriberProcHash;
 static SubscriberProcHash subscriber_procs;
 
 static bool running;
@@ -59,11 +61,11 @@ static NetInterfaceMap net_interfaces;
 #define EMULATION_BOX_PORT 4422
 
 
-int notify_subscriber(pid_t pid, mqd_t mq_fd,
+int notify_subscriber(pid_t pid, int ipc_sock,
                       const IfaceList& changed_ifaces, 
                       const IfaceList& down_ifaces);
 
-int init_subscriber(pid_t pid, mqd_t mq_fd)
+int init_subscriber(pid_t pid, int ipc_sock)
 {
     /* tell the subscriber about all the current interfaces. */
     IfaceList up_ifaces;
@@ -74,164 +76,187 @@ int init_subscriber(pid_t pid, mqd_t mq_fd)
     }
     pthread_mutex_unlock(&ifaces_lock);
 
-    return notify_subscriber(pid, mq_fd, up_ifaces, IfaceList());
+    return notify_subscriber(pid, ipc_sock, up_ifaces, IfaceList());
 }
 
 /* REQ: ac must be bound to the desired victim by subscriber_procs.find() */
 void remove_subscriber(SubscriberProcHash::accessor &ac)
 {
-    char proc_mq_name[MAX_PROC_MQ_NAMELEN];
-
-    mq_close(ac->second.mq_fd);
-    int len = snprintf(proc_mq_name, MAX_PROC_MQ_NAMELEN-1, 
-		       SCOUT_PROC_MQ_NAME_FMT, ac->second.pid);
-    assert(len>0);
-    proc_mq_name[len] = '\0';
-    mq_unlink(proc_mq_name);
+    close(ac->second.ipc_sock);
     subscriber_procs.erase(ac);    
 }
+
+static int scout_control_ipc_sock = -1;
 
 void * IPC_Listener(void *)
 {
     int rc;
-    char proc_mq_name[MAX_PROC_MQ_NAMELEN];
-
-    struct mq_attr attr;
-    attr.mq_flags = 0;
-    attr.mq_maxmsg = 10;
-    attr.mq_msgsize = sizeof(struct cmm_msg);
-    mq_unlink(SCOUT_CONTROL_MQ_NAME);
-    mode_t default_mode = umask(0);
-    mqd_t scout_control_mq_fd = mq_open(SCOUT_CONTROL_MQ_NAME, O_CREAT|O_RDWR,
-					SCOUT_PROC_MQ_MODE, &attr);
-    (void)umask(default_mode);
-    if (scout_control_mq_fd < 0) {
-	perror("mq_open");
-	fprintf(stderr, "Failed to open message queue\n");
+    scout_control_ipc_sock = socket(PF_UNIX, SOCK_STREAM, 0);
+    if (scout_control_ipc_sock < 0) {
+	perror("socket");
+	fprintf(stderr, "Failed to open IPC socket\n");
 	raise(SIGINT); /* easy way to bail out */
     }
-    struct timespec timeout = {1, 0}; /* 1-second timeout */
+
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(&addr.sun_path[1], SCOUT_CONTROL_MQ_NAME, 
+            UNIX_PATH_MAX - 2);
+    rc = bind(scout_control_ipc_sock, (struct sockaddr*)&addr,
+              sizeof(addr));
+    if (rc < 0) {
+        perror("bind");
+        fprintf(stderr, "Failed to bind IPC socket\n");
+        raise(SIGINT);
+    }
+    rc = listen(scout_control_ipc_sock, 10);
+    if (rc < 0) {
+        perror("listen");
+        fprintf(stderr, "Failed to listen on IPC socket\n");
+        raise(SIGINT);
+    }
+
+    //struct timeval timeout = {1, 0}; /* 1-second timeout */
+
+    fd_set active_fds;
+    FD_ZERO(&active_fds);
+    FD_SET(scout_control_ipc_sock, &active_fds);
+    int maxfd = scout_control_ipc_sock;
 
     while (running) {
 	/* listen for IPCs */
-	struct cmm_msg msg;
 	errno = 0;
-	rc = mq_timedreceive(scout_control_mq_fd, (char*)&msg, sizeof(msg), 
-	                     NULL, &timeout);
-	if (rc < 0) {
-	    if (errno == EINTR || errno == ETIMEDOUT) {
+        fd_set fds = active_fds;
+        int ready_fds = select(maxfd + 1, &fds, NULL, NULL, NULL);//,timeout);
+        if (ready_fds == 0) {
+            // won't happen unless I enable the timeout
+            continue;
+        } else if (ready_fds < 0) {
+	    if (errno == EINTR) {
 		continue;
 	    } else {
-		perror("mq_receive");
-		fprintf(stderr, "Failed to receive message on control queue\n");
+		perror("select");
+		fprintf(stderr, "Failed to select on IPC socket\n");
 		raise(SIGINT);
 		break;
 	    }
 	}
-	switch (msg.opcode) {
-	case CMM_MSG_SUBSCRIBE:
-	{
-	    SubscriberProcHash::accessor ac;
-	    if (subscriber_procs.find(ac, msg.data.pid)) {
-		fprintf(stderr, 
-			"Duplicate subscribe request received "
-			"from process %d\n", msg.data.pid);
-		fprintf(stderr, "Reopening message queue\n");
-		mq_close(ac->second.mq_fd);
-	    } else {
-		subscriber_procs.insert(ac, msg.data.pid);
-		ac->second.pid = msg.data.pid;
-	    }
-	    int len = snprintf(proc_mq_name, MAX_PROC_MQ_NAMELEN-1, 
-			       SCOUT_PROC_MQ_NAME_FMT, msg.data.pid);
-	    assert(len>0);
-	    proc_mq_name[len] = '\0';
-	    
-	    mqd_t mq_fd = mq_open(proc_mq_name, O_WRONLY);
-	    if (mq_fd < 0) {
-		perror("mq_open");
-		fprintf(stderr, "Failed opening message queue "
-			"for process %d\n", msg.data.pid);
-		subscriber_procs.erase(ac);
-	    } else {
-		rc = init_subscriber(msg.data.pid, mq_fd);
-		if (rc < 0) {
-		    mq_close(mq_fd);
-		    subscriber_procs.erase(ac);
-		} else {
-		    ac->second.mq_fd = mq_fd;
-		    fprintf(stderr, "Process %d subscribed\n", 
-			    msg.data.pid);
-		}
-	    }
-	    break;
-	}
-	case CMM_MSG_UNSUBSCRIBE:
-	{
-	    SubscriberProcHash::accessor ac;
-	    if (subscriber_procs.find(ac, msg.data.pid)) {
-		remove_subscriber(ac);
-		fprintf(stderr, "Process %d unsubscribed\n", msg.data.pid);
-	    } else {
-		fprintf(stderr, 
-			"Received request to unsubscribe "
-			"unknown process %d, ignoring\n", msg.data.pid);
-	    }
-	    break;
-	}
-        /*
-	case CMM_MSG_UPDATE_STATUS:
-	{
-	    SubscriberProcHash::accessor ac;
-	    if (subscriber_procs.find(ac, msg.data.pid)) {
-		int rc = notify_subscriber(msg.data.pid, ac->second.mq_fd);
-		if (rc < 0) {
-		    remove_subscriber(ac);
-		}
-	    } else {
-		fprintf(stderr, "Received update request from "
-			"unknown process %d, ignoring\n", msg.data.pid);
-	    }
-	    break;
-	}
-        */
-	default:
-	    fprintf(stderr, "Received unexpected message type %d, ignoring\n",
-		    msg.opcode);
-	    break;
+
+	struct cmm_msg msg;
+
+        if (FD_ISSET(scout_control_ipc_sock, &fds)) {
+            // adding new subscriber process
+            struct sockaddr_un addr;
+            memset(&addr, 0, sizeof(addr));
+            socklen_t len = sizeof(addr);
+	    int ipc_sock = accept(scout_control_ipc_sock, 
+                                  (struct sockaddr *)&addr, &len);
+	    if (ipc_sock < 0) {
+		perror("accept");
+		fprintf(stderr, "Failed accepting new IPC socket\n");
+                ready_fds--;
+            } else {
+                rc = read(ipc_sock, &msg, sizeof(msg));
+                if (rc != sizeof(msg)) {
+                    if (rc < 0) {
+                        perror("read");
+                    }
+                    fprintf(stderr, "Failed to receive subscribe message\n");
+                    close(ipc_sock);
+                } else {
+                    SubscriberProcHash::accessor ac;
+                    if (subscriber_procs.find(ac, msg.data.pid)) {
+                        fprintf(stderr, 
+                                "Duplicate subscribe request received "
+                                "from process %d\n", msg.data.pid);
+                        fprintf(stderr, "Reopening socket\n");
+                        close(ac->second.ipc_sock);
+                    } else {
+                        subscriber_procs.insert(ac, ipc_sock);
+                        ac->second.pid = msg.data.pid;
+                    }
+                    
+                    rc = init_subscriber(msg.data.pid, ipc_sock);
+                    if (rc < 0) {
+                        close(ipc_sock);
+                        subscriber_procs.erase(ac);
+                    } else {
+                        ac->second.ipc_sock = ipc_sock;
+                        fprintf(stderr, "Process %d subscribed\n", 
+                                msg.data.pid);
+                        if (ipc_sock > maxfd) {
+                            maxfd = ipc_sock;
+                        }
+                        FD_SET(ipc_sock, &active_fds);
+                    }
+                    
+                    ready_fds--;
+                    if (ready_fds == 0) {
+                        continue;
+                    }
+                }
+            }
+        }
+
+        for (int s = 0; s <= maxfd; ++s) {
+            if (ready_fds == 0) {
+                break;
+            }
+
+            if (FD_ISSET(s, &fds)) {
+                SubscriberProcHash::accessor ac;
+                if (subscriber_procs.find(ac, s)) {
+                    rc = read(s, &msg, sizeof(msg));
+                    if (rc != sizeof(msg)) {
+                        if (rc < 0) {
+                            perror("read");
+                        }
+                        fprintf(stderr, "Hmm... process %d must have died\n",
+                                ac->second.pid);
+                    } else {
+                        fprintf(stderr, "Process %d unsubscribed\n", msg.data.pid);
+                    }
+                    remove_subscriber(ac);
+                    FD_CLR(s, &active_fds);
+                } else {
+                    // never happens; the socket wouldn't be in the fd_set
+                    assert(0);
+                }
+                ready_fds--;
+            }
 	}
     }
-    mq_close(scout_control_mq_fd);
-    mq_unlink(SCOUT_CONTROL_MQ_NAME);
+    close(scout_control_ipc_sock);
     return NULL;
 }
 
-int notify_subscriber_of_event(pid_t pid, mqd_t mq_fd, 
+int notify_subscriber_of_event(pid_t pid, int ipc_sock, 
                                struct net_interface iface, MsgOpcode opcode)
 {
-    struct timespec timeout = {1,0};
     struct cmm_msg msg;
     msg.opcode = opcode;
     msg.data.iface = iface;
-    int rc = mq_timedsend(mq_fd, (char*)&msg, sizeof(msg), 0, &timeout);
-    if (rc < 0) {
-	perror("mq_send");
+    int rc = write(ipc_sock, (char*)&msg, sizeof(msg));
+    if (rc != sizeof(msg)) {
+        if (rc < 0) {
+            perror("write");
+        }
 	fprintf(stderr, "Failed to notify subscriber proc %d\n", pid);
     } else {
 	fprintf(stderr, "Sent notification to process %d\n", pid);
-	//kill(pid, CMM_SIGNAL);
     }
     return rc;
 }
 
-int notify_subscriber(pid_t pid, mqd_t mq_fd,
+int notify_subscriber(pid_t pid, int ipc_sock,
                       const IfaceList& changed_ifaces, 
                       const IfaceList& down_ifaces)
 {
     int rc;
     for (size_t i = 0; i < changed_ifaces.size(); i++) {
         const struct net_interface& iface = changed_ifaces[i];
-        rc = notify_subscriber_of_event(pid, mq_fd, iface, 
+        rc = notify_subscriber_of_event(pid, ipc_sock, iface, 
                                         CMM_MSG_IFACE_LABELS);
         if (rc < 0) {
             return rc;
@@ -239,7 +264,7 @@ int notify_subscriber(pid_t pid, mqd_t mq_fd,
     }
     for (size_t i = 0; i < down_ifaces.size(); i++) {
         const struct net_interface& iface = down_ifaces[i];
-        rc = notify_subscriber_of_event(pid, mq_fd, iface, 
+        rc = notify_subscriber_of_event(pid, ipc_sock, iface, 
                                         CMM_MSG_IFACE_DOWN);
         if (rc < 0) {
             return rc;
@@ -257,7 +282,7 @@ void notify_all_subscribers(const IfaceList& changed_ifaces,
     
     for (SubscriberProcHash::iterator it = subscriber_procs.begin();
 	 it != subscriber_procs.end(); it++) {
-	rc = notify_subscriber(it->first, it->second.mq_fd,
+	rc = notify_subscriber(it->first, it->second.ipc_sock,
                                changed_ifaces, down_ifaces);
 	if (rc < 0) {
 	    failed_procs.push(it->first);
@@ -655,6 +680,8 @@ int main(int argc, char *argv[])
 
     delete up_time_samples;
     delete down_time_samples;
+
+    shutdown(scout_control_ipc_sock, SHUT_RDWR);
     pthread_join(tid, NULL);
     close(emu_sock);
     fprintf(stderr, "Scout gracefully quit.\n");

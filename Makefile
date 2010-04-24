@@ -7,7 +7,7 @@ endif
 CXXFLAGS+=-Wall -Werror -I. -pthread -fPIC -m32 $(DEBUG_FLAGS) $(OPT_FLAGS)
 #LIBTBB:=-ltbb_debug
 LDFLAGS:=-L. -m32 
-LIBS:=-lrt # $(LIBTBB)
+LIBS:=# -lrt $(LIBTBB)
 
 LIBRARIES:=libcmm.so
 EXECUTABLES:=conn_scout cmm_test_sender cmm_test_receiver cdf_test\
@@ -26,16 +26,16 @@ cmm_test_receiver: libcmm_test_receiver.o libcmm.so
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -lcmm -o $@ $<
 
 vanilla_test_sender: vanilla_test_sender.o timeops.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ -lrt
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
 vanilla_test_receiver: vanilla_test_receiver.o timeops.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ -lrt
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
 cmm_throughput_test: libcmm_throughput_test.o libcmm.so
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -lcmm -o $@ $<
 
 vanilla_throughput_test: vanilla_throughput_test.o timeops.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ -lrt
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
 vanilla_%.o: libcmm_%.cpp
 	$(CXX) $(CXXFLAGS) -DNOMULTISOCK $(LDFLAGS) -c -o $@ $<

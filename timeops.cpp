@@ -20,9 +20,12 @@ void TIME(struct timeval& tv)
     gettimeofday(&tv, NULL);
 }
 
-void TIME(struct timespec& tv)
+void TIME(struct timespec& ts)
 {
-    clock_gettime(CLOCK_REALTIME, &tv);
+    struct timeval tv;
+    TIME(tv);
+    ts.tv_sec = tv.tv_sec;
+    ts.tv_nsec = tv.tv_usec * 1000;
 }
 
 

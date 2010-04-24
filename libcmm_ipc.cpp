@@ -1,10 +1,11 @@
 #include <stdio.h>
 #include <errno.h>
-#include <mqueue.h>
 #include <string.h>
 #include <unistd.h>
 #include <assert.h>
 #include <signal.h>
+#include <sys/socket.h>
+#include <linux/un.h>
 #include "libcmm_ipc.h"
 #include "cmm_thread.h"
 #include <set>
@@ -17,7 +18,7 @@ using std::set;
 static bool running = true;
 
 /* per-process message queue with the scout. */
-static mqd_t scout_mq_fd;
+static int scout_ipc_fd;
 
 static pthread_t ipc_thread_id;
 
@@ -46,14 +47,17 @@ static int scout_recv(struct cmm_msg *msg)
 {
     int rc;
     int len = sizeof(*msg);
-    struct timespec timeout = {1, 0}; /* 1-second timeout */    
 
   try_receive:
-    rc = mq_timedreceive(scout_mq_fd, (char*)msg, len, NULL, &timeout);
+    rc = read(scout_ipc_fd, (char*)msg, len);
     if (rc != len) {
-	if (errno == EINTR || errno == ETIMEDOUT) {
-	    goto try_receive;
-	}
+        if (rc < 0) {
+            if (errno == EINTR) {
+                goto try_receive;
+            } else {
+                perror("read");
+            }
+        }
 	fprintf(stderr, 
 		"Receiving response from conn scout failed! rc=%d, errno=%d\n",
 		rc, errno);
@@ -65,92 +69,51 @@ static int scout_recv(struct cmm_msg *msg)
 
 static int send_control_message(const struct cmm_msg *msg)
 {
-    mqd_t scout_control_mq = mq_open(SCOUT_CONTROL_MQ_NAME, O_WRONLY);
-    if (scout_control_mq < 0) {
-	perror("mq_open");
-	return scout_control_mq;
-    }
-
-    int rc;
-    struct timespec timeout = {1, 0}; /* 1-second timeout */    
-
   try_send:
-    rc = mq_timedsend(scout_control_mq, (char*)msg, sizeof(*msg), 0, &timeout);
+    int rc = write(scout_ipc_fd, (char*)msg, sizeof(*msg));
     if (rc < 0) {
-	if (errno == EINTR || errno == ETIMEDOUT) {
+	if (errno == EINTR) {
 	    goto try_send;
 	}
-	perror("mq_timedsend");
-	return rc;
+	perror("write");
     }
 
-    mq_close(scout_control_mq);
-
-    return 0;
+    return rc;
 }
 
-static char mq_name[MAX_PROC_MQ_NAMELEN];
-
-#if 0
-static struct sigaction old_action;
-static struct sigaction ignore_action;
-static struct sigaction net_status_change_action;
-#endif
-
-static void net_status_change_handler();
+static int net_status_change_handler();
 static void *IPCThread(void*);
 
 bool scout_ipc_inited(void)
 {
-    return (scout_mq_fd > 0);
+    return (scout_ipc_fd > 0);
 }
 
 void scout_ipc_init()
 {
-    int rc;
     struct cmm_msg msg;
     memset(&msg, 0, sizeof(msg));
 
-    int len = snprintf(mq_name, MAX_PROC_MQ_NAMELEN-1, 
-		       SCOUT_PROC_MQ_NAME_FMT, getpid());
-    assert(len>0);
-    mq_name[len] = '\0';
-
-    struct mq_attr attr;
-    attr.mq_flags = 0;
-    attr.mq_maxmsg = 10;
-    attr.mq_msgsize = sizeof(struct cmm_msg);
-    mq_unlink(mq_name);
-    mode_t default_mode = umask(0);
-    scout_mq_fd = mq_open(mq_name, O_CREAT|O_RDWR,
-			  SCOUT_PROC_MQ_MODE, &attr);
-    (void)umask(default_mode);
-    if (scout_mq_fd < 0) {
-	fprintf(stderr, "Failed to open process message queue! errno=%d\n",
-		errno);
+    scout_ipc_fd = socket(PF_UNIX, SOCK_STREAM, 0);
+    if (scout_ipc_fd < 0) {
+	perror("socket");
 	return;
     }
 
-#if 0
-    memset(&ignore_action, 0, sizeof(ignore_action));
-    memset(&net_status_change_action, 0, sizeof(net_status_change_action));
-    memset(&old_action, 0, sizeof(old_action));
-
-    ignore_action.sa_handler = SIG_IGN;
-    net_status_change_action.sa_handler = net_status_change_handler;
-
-    sigaction(cmm_signal, &net_status_change_action, &old_action);
-    if (old_action.sa_handler != SIG_DFL) {
-	/* Unclear that this would ever happen, as this lib is probably
-	 * loaded before the app registers a signal handler of its own.
-	 * This places the burden on the app developer to avoid colliding
-	 * with our signal of choice. */
-	fprintf(stderr, 
-		"WARNING: the application has changed the "
-		"default handler for signal %d\n", cmm_signal);
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(&addr.sun_path[1], SCOUT_CONTROL_MQ_NAME,
+            UNIX_PATH_MAX - 2);
+    int rc = connect(scout_ipc_fd, (struct sockaddr *)&addr, sizeof(addr));
+    if (rc < 0) {
+        perror("connect");
+        fprintf(stderr, "Failed to connect to scout IPC socket\n");
+        close(scout_ipc_fd);
+        scout_ipc_fd = -1;
+        return;
     }
-#endif
-    
+
     msg.opcode = CMM_MSG_SUBSCRIBE;
     msg.data.pid = getpid();
     rc = send_control_message(&msg);
@@ -158,10 +121,8 @@ void scout_ipc_init()
 	fprintf(stderr, 
 		"Failed to send subscription message to scout, "
 		"errno=%d\n", errno);
-	mq_close(scout_mq_fd);
-	scout_mq_fd = -1;
-	mq_unlink(mq_name);
-	mq_name[0] = '\0';
+	close(scout_ipc_fd);
+	scout_ipc_fd = -1;
     } else {
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
@@ -172,7 +133,7 @@ void scout_ipc_init()
 
 void scout_ipc_deinit(void)
 {
-    if (scout_mq_fd > 0) {
+    if (scout_ipc_fd > 0) {
 	struct cmm_msg msg;
         memset(&msg, 0, sizeof(msg));
 	msg.opcode = CMM_MSG_UNSUBSCRIBE;
@@ -182,8 +143,7 @@ void scout_ipc_deinit(void)
 	    fprintf(stderr, "Warning: failed to send unsubscribe message\n");
 	}
         running = false;
-	mq_close(scout_mq_fd);
-	mq_unlink(mq_name);
+	close(scout_ipc_fd);
         pthread_kill(ipc_thread_id, CMM_SELECT_SIGNAL);
     }
 }
@@ -191,11 +151,14 @@ void scout_ipc_deinit(void)
 extern void process_interface_update(struct net_interface iface, bool down);
 
 /* only call when a message is definitely present. */
-static void net_status_change_handler(void)
+static int net_status_change_handler(void)
 {
     struct cmm_msg msg;
     memset(&msg, 0, sizeof(msg));
-    scout_recv(&msg);
+    int rc = scout_recv(&msg);
+    if (rc != sizeof(msg)) {
+        return -1;
+    }
 
     switch (msg.opcode) {
     case CMM_MSG_IFACE_LABELS:
@@ -207,8 +170,9 @@ static void net_status_change_handler(void)
     default:
 	fprintf(stderr, "Unexpected message opcode %d from conn scout\n",
 		msg.opcode);
-	return;
+        break;
     }
+    return 0;
 }
 
 static void *IPCThread(void *arg)
@@ -221,9 +185,9 @@ static void *IPCThread(void *arg)
     while (running) {
         fd_set readfds;
         FD_ZERO(&readfds);
-        FD_SET(scout_mq_fd, &readfds);
+        FD_SET(scout_ipc_fd, &readfds);
 
-        int rc = select(scout_mq_fd + 1, &readfds, NULL, NULL, NULL);
+        int rc = select(scout_ipc_fd + 1, &readfds, NULL, NULL, NULL);
         if (rc < 0) {
             if (errno == EINTR) {
                 continue;
@@ -231,7 +195,9 @@ static void *IPCThread(void *arg)
                 break;
             }
         } else {
-            net_status_change_handler();
+            if (net_status_change_handler() != 0) {
+                break;
+            }
         }
     }
     dbgprintf("IPC thread exiting.\n");

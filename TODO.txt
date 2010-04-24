@@ -126,7 +126,7 @@ Post-Mobisys TODO items
 
 * Consider adding irob_cancel and irob_change_label to the API.
 
-* Merge the striping branch.
+* Merge the striping branch. (DONE)
 
 It-would-be-nice TODOs:
 
@@ -139,3 +139,4 @@ It-would-be-nice TODOs:
 
 * Test & debug cleanup code for scout<=>process IPC.
   * It might make more sense to use a UNIX socket for this.
+    (DONE)

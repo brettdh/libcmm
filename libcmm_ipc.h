@@ -10,14 +10,7 @@
 #include "net_interface.h"
 
 /* single message queue for subscribing and unsubscribing. */
-#define SCOUT_CONTROL_MQ_NAME "/scout_control_mq"
-
-/* per-process message queue identified by pid */
-#define SCOUT_PROC_MQ_NAME_FMT "/scout_mq_proc_%d"
-#define MAX_PROC_MQ_NAMELEN 101
-
-#define SCOUT_PROC_MQ_MODE (S_IRUSR | S_IWUSR | S_IRGRP | \
-                            S_IWGRP | S_IROTH | S_IWOTH)
+#define SCOUT_CONTROL_MQ_NAME "scout_control_mq"
 
 void scout_ipc_init(void);
 void scout_ipc_deinit(void);
