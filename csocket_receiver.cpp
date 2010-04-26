@@ -457,7 +457,7 @@ void
 CSocketReceiver::do_down_interface(struct CMMSocketControlHdr hdr)
 {
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_DOWN_INTERFACE);
-    struct net_interface iface = {hdr.op.down_interface.ip_addr};
+    struct net_interface iface = {hdr.op.down_interface.ip_addr, 0, 0, 0, 0};
     sk->teardown(iface, false);
 }
 

@@ -139,7 +139,7 @@ class CMMSocketImpl : public CMMSocket {
     static VanillaListenerSet cmm_listeners;
     static NetInterfaceSet ifaces;
 
-    pthread_rwlock_t my_lock;
+    RWLOCK_T my_lock;
 
     virtual void setup(struct net_interface iface, bool local);
     virtual void teardown(struct net_interface iface, bool local);

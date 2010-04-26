@@ -122,12 +122,12 @@ void ConnBootstrapper::Run()
                                   (struct sockaddr*)&local_addr, sizeof(local_addr));
 
                     struct sockaddr *addr = (struct sockaddr *)remote_addr;
-                    pthread_rwlock_unlock(&sk->my_lock);
+                    sock_lock.release();
                     rc = connect(bootstrap_sock, addr, addrlen);
-                    pthread_rwlock_rdlock(&sk->my_lock);
+                    sock_lock.acquire(&sk->my_lock, false);
                     if (rc < 0) {
-                        pthread_rwlock_unlock(&sk->my_lock);
-                        pthread_rwlock_wrlock(&sk->my_lock);
+                        sock_lock.release();
+                        sock_lock.acquire(&sk->my_lock, true);
                         status_ = errno;
                         dbgprintf("Error connecting bootstrap socket: %s\n",
                                   strerror(errno));

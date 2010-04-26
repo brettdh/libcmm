@@ -12,7 +12,7 @@ void set_thread_name(const char *name);
 class CMMThread {
   public:
     int start();
-    virtual void stop();
+    //virtual void stop();
     void join();
 
     CMMThread();

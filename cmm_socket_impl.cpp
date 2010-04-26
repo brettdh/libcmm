@@ -472,7 +472,7 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
     pthread_mutex_init(&scheduling_state_lock, NULL);
     pthread_cond_init(&scheduling_state_cv, NULL);
     
-    pthread_rwlock_init(&my_lock, NULL);
+    RWLOCK_INIT(&my_lock, NULL);
 }
 
 CMMSocketImpl::~CMMSocketImpl()
@@ -1065,10 +1065,7 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
     ssize_t total_bytes = 0;
     for (int i = 0; i < count; i++) {
 	ssize_t bytes = total_bytes;
-	if (vec[i].iov_len < 0) {
-	    errno = EINVAL;
-	    return -1;
-	}
+
 	total_bytes += vec[i].iov_len;
 	if (total_bytes < bytes) {
 	    /* overflow */
@@ -1871,7 +1868,7 @@ CMMSocketImpl::end_irob(irob_id_t id)
 
     CSocket *csock;
     PendingIROB *pirob = NULL;
-    u_long send_labels;
+    u_long send_labels = 0;
     {
         PthreadScopedLock lock(&scheduling_state_lock);
 
@@ -2424,7 +2421,7 @@ CMMSocketImpl::wait_for_completion(u_long label)
         ptimeout = &abs_timeout;
     }
 
-    pthread_rwlock_unlock(&my_lock);
+    RWLOCK_RDUNLOCK(&my_lock);
     
     PthreadScopedLock lock(&thread.mutex);
     while (thread.rc == CMM_INVALID_RC) {
@@ -2433,7 +2430,7 @@ CMMSocketImpl::wait_for_completion(u_long label)
         } else {
             rc = pthread_cond_wait(&thread.cv, &thread.mutex);
         }
-        pthread_rwlock_rdlock(&my_lock); // XXX: double-check!
+        RWLOCK_RDLOCK(&my_lock); // XXX: double-check!
 
         if (rc == ETIMEDOUT) {
             errno = rc;

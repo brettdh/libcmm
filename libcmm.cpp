@@ -38,16 +38,20 @@ using std::auto_ptr;
 static void libcmm_init(void) __attribute__((constructor));
 static void libcmm_init(void)
 {
+#ifdef CMM_DEBUG
     set_debugging(false); // default: no dbgprintfs
+#endif
 
     ifstream config_input(CONFIG_FILE);
     if (config_input) {
         string line;
         while (getline(config_input, line)) {
+#ifdef CMM_DEBUG
             size_t pos = line.find("debug");
             if (pos != string::npos) {
                 set_debugging(true);
             }
+#endif
         }
         config_input.close();
     }

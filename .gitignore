@@ -9,6 +9,7 @@ vanilla_throughput_test
 libcmm.so
 .*.dep
 *~
+._*
 *.o
 .*install
 libcmm.tgz

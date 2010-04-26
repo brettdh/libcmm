@@ -282,7 +282,7 @@ int srv_connect(const char *hostname)
 int main(int argc, char *argv[])
 {
     bool receiver = false;
-    char ch;
+    int ch;
     int mbytes = 0, kbytes = 0, bytes = 0;
     int minchunksize = 64;
     u_long stutter_ms = 0;

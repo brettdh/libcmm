@@ -4,6 +4,7 @@
 #include "net_interface.h"
 #include <time.h>
 #include <pthread.h>
+#include "pthread_util.h"
 #include "libcmm_irob.h"
 #include "intset.h"
 #include <map>
@@ -177,7 +178,7 @@ class NetStats {
     struct in_addr remote_addr;
 
     // Enforces safe concurrent accesses and atomic updates of stats
-    pthread_rwlock_t my_lock;
+    RWLOCK_T my_lock;
 
     QueuingDelay outgoing_qdelay;
     //QueuingDelay incoming_qdelay;
@@ -200,7 +201,7 @@ class NetStats {
                                struct net_interface>,
                      struct estimate_set> StatsCache;
     static StatsCache stats_cache;
-    static pthread_rwlock_t stats_cache_lock;
+    static RWLOCK_T stats_cache_lock;
     void cache_save();
     void cache_restore();
 

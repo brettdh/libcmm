@@ -18,6 +18,23 @@
         }                                               \
     } while (0)
 
+#ifdef ANDROID
+#include <boost/thread/shared_mutex.hpp>
+typedef boost::shared_mutex RWLOCK_T;
+#define RWLOCK_INIT(LOCK, ATTR)
+inline int RWLOCK_RDLOCK(RWLOCK_T *lock)   { lock->lock_shared();   return 0; }
+inline int RWLOCK_WRLOCK(RWLOCK_T *lock)   { lock->lock();          return 0; }
+inline int RWLOCK_RDUNLOCK(RWLOCK_T *lock) { lock->unlock_shared(); return 0; }
+inline int RWLOCK_WRUNLOCK(RWLOCK_T *lock) { lock->unlock();        return 0; }
+#else
+typedef pthread_rwlock_t RWLOCK_T;
+#define RWLOCK_INIT pthread_rwlock_init
+#define RWLOCK_RDLOCK pthread_rwlock_rdlock
+#define RWLOCK_WRLOCK pthread_rwlock_wrlock
+#define RWLOCK_RDUNLOCK pthread_rwlock_unlock
+#define RWLOCK_WRUNLOCK pthread_rwlock_unlock
+#endif
+
 class PthreadScopedLock {
   public:
     PthreadScopedLock() : mutex(NULL) {}
@@ -37,8 +54,7 @@ class PthreadScopedLock {
     
     ~PthreadScopedLock() {
         if (mutex) {
-            int rc = pthread_mutex_unlock(mutex);
-            PTHREAD_ASSERT_SUCCESS(rc);
+            release();
         }
     }
     void release() {
@@ -55,46 +71,51 @@ class PthreadScopedRWLock {
   public:
     PthreadScopedRWLock() : mutex(NULL) {}
 
-    explicit PthreadScopedRWLock(pthread_rwlock_t *mutex_, bool writer) {
+    explicit PthreadScopedRWLock(RWLOCK_T *mutex_, bool writer) {
         mutex = NULL;
         acquire(mutex_, writer);
     }
 
-    void acquire(pthread_rwlock_t *mutex_, bool writer) {
+    void acquire(RWLOCK_T *mutex_, bool writer_) {
         assert(mutex == NULL);
         assert(mutex_);
         mutex = mutex_;
         int rc = 0;
-        if (writer) {
-            rc = pthread_rwlock_wrlock(mutex);
+        writer = writer_;
+        if (writer_) {
+            rc = RWLOCK_WRLOCK(mutex);
         } else {
-            rc = pthread_rwlock_rdlock(mutex);
+            rc = RWLOCK_RDLOCK(mutex);
         }
         PTHREAD_ASSERT_SUCCESS(rc);
     }
 
     ~PthreadScopedRWLock() {
         if (mutex) {
-            int rc = pthread_rwlock_unlock(mutex);
-            PTHREAD_ASSERT_SUCCESS(rc);
+            release();
         }
     }
     void release() {
-        int rc = pthread_rwlock_unlock(mutex);
+        int rc;
+        if (writer) {
+            rc = RWLOCK_WRUNLOCK(mutex);
+        } else {
+            rc = RWLOCK_RDUNLOCK(mutex);
+        }
         PTHREAD_ASSERT_SUCCESS(rc);
         
         mutex = NULL;
     }
   private:
-    pthread_rwlock_t *mutex;
-
+    RWLOCK_T *mutex;
+    bool writer;
 };
 
 template <typename T>
 class ThreadsafePrimitive {
   public:
     explicit ThreadsafePrimitive(const T& v = T()) : val(v) {
-        pthread_rwlock_init(&lock, NULL);
+        RWLOCK_INIT(&lock, NULL);
     }
     operator T() {
         PthreadScopedRWLock lk(&lock, false);
@@ -107,7 +128,7 @@ class ThreadsafePrimitive {
     }
   private:
     T val;
-    pthread_rwlock_t lock;
+    RWLOCK_T lock;
 };
 
 template <typename T>
@@ -233,16 +254,20 @@ class LockingMap {
 
     struct node {
         pair_type val;
-        pthread_rwlock_t lock;
+        RWLOCK_T lock;
 
         node(const KeyType& key) : val(key, ValueType()) {
-            pthread_rwlock_init(&lock, NULL);
+            RWLOCK_INIT(&lock, NULL);
         }
     };
 
     class accessor_base {
       public:
-        accessor_base() {}
+          accessor_base() { 
+              // will be set to the correct value
+              //  in the subclass' constructor
+              writer = false;
+          }
         pair_type* operator->() {
             assert(my_node);
             return &my_node->val;
@@ -257,23 +282,36 @@ class LockingMap {
         void release() {
             if (my_node) {
                 //dbgprintf("Releasing lock %p\n", &my_node->lock);
-                int rc = pthread_rwlock_unlock(&my_node->lock);
+                int rc;
+                if (writer) {
+                    rc = RWLOCK_WRUNLOCK(&my_node->lock);
+                } else {
+                    rc = RWLOCK_RDUNLOCK(&my_node->lock);
+                }
                 PTHREAD_ASSERT_SUCCESS(rc);
 
                 my_node.reset();
             }
         }
+
       protected:
         friend class LockingMap;
         NodePtr my_node;
+        bool writer;
       private:
         accessor_base(const accessor_base&);
         void operator=(const accessor_base&);
     };
 
   public:
-    class const_accessor : public accessor_base {};
-    class accessor : public accessor_base {};
+    class const_accessor : public accessor_base {
+      public:
+        const_accessor() { this->writer = false; }
+    };
+    class accessor : public accessor_base {
+      public:
+        accessor() { this->writer = true; }
+    };
 
     LockingMap();
     bool insert(accessor& ac, const KeyType& key);
@@ -374,7 +412,7 @@ class LockingMap {
 
   private:
     MapType the_map;
-    pthread_rwlock_t membership_lock;
+    RWLOCK_T membership_lock;
 };
 
 template <typename KeyType, typename ValueType, typename ordering>
@@ -390,7 +428,7 @@ void LockingMap<KeyType,ValueType,ordering>::iterator::update()
 template <typename KeyType, typename ValueType, typename ordering>
 LockingMap<KeyType,ValueType,ordering>::LockingMap()
 {
-    pthread_rwlock_init(&membership_lock, NULL);
+    RWLOCK_INIT(&membership_lock, NULL);
 }
 
 template <typename KeyType, typename ValueType, typename ordering>
@@ -407,7 +445,7 @@ bool LockingMap<KeyType,ValueType,ordering>::insert(accessor& ac, const KeyType&
     }
 
     //dbgprintf("Grabbing writelock %p\n", &target->lock);
-    int rc = pthread_rwlock_wrlock(&target->lock);
+    int rc = RWLOCK_WRLOCK(&target->lock);
     PTHREAD_ASSERT_SUCCESS(rc);
     ac.my_node = target;
 
@@ -427,7 +465,7 @@ bool LockingMap<KeyType,ValueType,ordering>::find(const_accessor& ac, const KeyT
         target = the_map[key];
     }
     //dbgprintf("Grabbing readlock %p\n", &target->lock);
-    int rc = pthread_rwlock_rdlock(&target->lock);
+    int rc = RWLOCK_RDLOCK(&target->lock);
     PTHREAD_ASSERT_SUCCESS(rc);
 
     ac.my_node = target;
@@ -448,7 +486,7 @@ bool LockingMap<KeyType,ValueType,ordering>::find(accessor& ac, const KeyType& k
         target = the_map[key];
     }
     //dbgprintf("Grabbing writelock %p\n", &target->lock);
-    int rc = pthread_rwlock_wrlock(&target->lock);
+    int rc = RWLOCK_WRLOCK(&target->lock);
     PTHREAD_ASSERT_SUCCESS(rc);
     ac.my_node = target;
 

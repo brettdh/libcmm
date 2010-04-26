@@ -10,6 +10,10 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#ifdef ANDROID
+typedef short in_port_t;
+#endif
+
 template <typename IntegerType>
 struct IntegerHashCompare {
     size_t hash(IntegerType i) const { return (size_t)i; }

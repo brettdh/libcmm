@@ -80,7 +80,7 @@ class CSockMapping {
     //CSockLabelMap csocks_by_send_label;
     boost::weak_ptr<CMMSocketImpl> sk;  /* XXX: janky.  Remove later? */
     CSockSet available_csocks;
-    pthread_rwlock_t sockset_mutex;
+    RWLOCK_T sockset_mutex;
 
     struct get_worker_tids;
 
@@ -108,11 +108,11 @@ void CSockMapping::for_each_by_ref(Functor& f)
     CSockSet::iterator it = available_csocks.begin();
     while (it != available_csocks.end()) {
 	CSocketPtr csock = *it++;
-        pthread_rwlock_unlock(&sockset_mutex);
+        lock.release();
         // add/erase doesn't invalidate iterators, 
         //   so it's okay to drop the lock here.
 	f(csock);
-        pthread_rwlock_rdlock(&sockset_mutex);
+        lock.acquire(&sockset_mutex, false);
     }
 }
 
@@ -123,11 +123,11 @@ int CSockMapping::for_each(Functor f)
     CSockSet::iterator it = available_csocks.begin();
     while (it != available_csocks.end()) {
 	CSocketPtr csock = *it++;
-        pthread_rwlock_unlock(&sockset_mutex);
+        lock.release();
         // add/erase doesn't invalidate iterators, 
         //   so it's okay to drop the lock here.
 	int rc = f(csock);
-        pthread_rwlock_rdlock(&sockset_mutex);
+        lock.acquire(&sockset_mutex, false);
 	if (rc < 0) {
 	    return rc;
 	}

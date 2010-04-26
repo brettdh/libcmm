@@ -405,12 +405,12 @@ struct trace_slice {
     u_long cellular_bw_up;
     u_long cellular_RTT;
 
-    void ntohl() {
+    void ntohl_all() {
         const size_t numints = sizeof(trace_slice) / sizeof(u_long);
         assert(numints*sizeof(u_long) == sizeof(trace_slice)); // no truncation
         for (size_t i = 0; i < numints; ++i) {
             u_long *pos = ((u_long*)this) + i;
-            *pos = ::ntohl(*pos);
+            *pos = ntohl(*pos);
         }
     }
 };
@@ -447,7 +447,7 @@ int get_trace(deque<struct trace_slice>& trace)
         rc = recv(sock, &slice, sizeof(slice), MSG_WAITALL);
         handle_error(rc != sizeof(slice), "Error receiving trace slice");
 
-        slice.ntohl();
+        slice.ntohl_all();
         if (slice.start.tv_sec < 0) {
             fprintf(stderr, "Error: invalid timestamp received with slice\n");
             exit(EXIT_FAILURE);

@@ -157,17 +157,17 @@ CMMThread::~CMMThread()
     pthread_cond_destroy(&starter_cv);
 }
 
-void
-CMMThread::stop()
-{
-    PthreadScopedLock lock(&starter_mutex);
-    if (running) {
-        lock.release();
-        if (pthread_cancel(tid) == 0) {
-            pthread_join(tid, NULL);
-        }
-    }
-}
+// void
+// CMMThread::stop()
+// {
+//     PthreadScopedLock lock(&starter_mutex);
+//     if (running) {
+//         lock.release();
+//         if (pthread_cancel(tid) == 0) {
+//             pthread_join(tid, NULL);
+//         }
+//     }
+// }
 
 void
 CMMThread::join()

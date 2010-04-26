@@ -588,7 +588,7 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
         
         // Avoid sending tiny chunks and thereby killing throughput with
         //  header overhead
-        const int MIN_CHUNKSIZE = 1500; // one Ethernet MTU
+        long int MIN_CHUNKSIZE = 1500; // one Ethernet MTU
         chunksize = max(chunksize, MIN_CHUNKSIZE);
 	
         int unsent_bytes = get_unsent_bytes(csock->osfd);

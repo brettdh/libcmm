@@ -26,7 +26,7 @@ using std::map;
 CSockMapping::CSockMapping(CMMSocketImplPtr sk_)
     : sk(sk_)
 {
-    pthread_rwlock_init(&sockset_mutex, NULL);
+    RWLOCK_INIT(&sockset_mutex, NULL);
 }
 
 CSockMapping::~CSockMapping()

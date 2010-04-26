@@ -12,7 +12,7 @@ using std::pair; using std::make_pair;
 class InvalidEstimateException {};
 
 NetStats::StatsCache NetStats::stats_cache;
-pthread_rwlock_t NetStats::stats_cache_lock;
+RWLOCK_T NetStats::stats_cache_lock;
 NetStats::static_initializer NetStats::init;
 
 NetStats::IROBIfaceMap NetStats::irob_iface_map;
@@ -22,7 +22,7 @@ pthread_mutex_t NetStats::irob_iface_map_lock = PTHREAD_MUTEX_INITIALIZER;
 
 NetStats::static_initializer::static_initializer()
 {
-    pthread_rwlock_init(&NetStats::stats_cache_lock, NULL);
+    RWLOCK_INIT(&NetStats::stats_cache_lock, NULL);
 }
 
 
@@ -39,7 +39,7 @@ NetStats::NetStats(struct net_interface local_iface,
                    struct net_interface remote_iface)
     : local_addr(local_iface.ip_addr), remote_addr(remote_iface.ip_addr)
 {
-    pthread_rwlock_init(&my_lock, NULL);
+    RWLOCK_INIT(&my_lock, NULL);
     last_RTT.tv_sec = last_srv_time.tv_sec = -1;
     last_RTT.tv_usec = last_srv_time.tv_usec = 0;
     last_req_size = 0;
