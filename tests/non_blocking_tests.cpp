@@ -177,7 +177,7 @@ NonBlockingTestsBase::testFragmentationNB(EndToEndTestsBase *base)
             } else {
                 CPPUNIT_ASSERT_MESSAGE("failed recv returns -1", rc < 0);
                 CPPUNIT_ASSERT_EQUAL_MESSAGE("failed recv is EAGAIN", 
-                                             EAGAIN, errno);
+                                             EAGAIN, (int)errno);
                 sock_wait(base->read_sock, true);
             }
         }

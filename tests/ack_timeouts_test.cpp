@@ -1,6 +1,7 @@
 #include <cppunit/Test.h>
 #include <cppunit/TestAssert.h>
 #include <cppunit/extensions/HelperMacros.h>
+#include <unistd.h>
 #include "ack_timeouts_test.h"
 #include "timeops.h"
 #include <vector>

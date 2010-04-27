@@ -1,5 +1,6 @@
 #include <cppunit/extensions/TestFactoryRegistry.h>
 #include <cppunit/ui/text/TestRunner.h>
+#include <unistd.h>
 
 using CppUnit::TestFactoryRegistry;
 
@@ -12,7 +13,7 @@ int main(int argc, char *argv[])
     CppUnit::TextUi::TestRunner runner;
     runner.addTest(registry.makeTest());
     
-    char ch;
+    int ch;
     while ((ch = getopt(argc, argv, "lh:")) != -1) {
         switch (ch) {
         case 'l':

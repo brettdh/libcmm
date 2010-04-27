@@ -1,6 +1,7 @@
 #include "debug.h"
 #include <stdio.h>
 #include <stdarg.h>
+#include <unistd.h>
 #include "timeops.h"
 #include <pthread.h>
 #include "cmm_thread.h"
