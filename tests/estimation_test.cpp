@@ -264,6 +264,12 @@ EstimationTest::testQueuingDelayInterleaved()
     assertStatsCorrect(5000, 20);    
 }
 
+static bool
+correctWithinError(double expected, double actual, double alpha)
+{
+    return abs(expected - actual) <= abs(alpha * expected);
+}
+
 void
 EstimationTest::assertStatsCorrect(u_long expected_bw, 
                                    u_long expected_latency)
@@ -277,6 +283,13 @@ EstimationTest::assertStatsCorrect(u_long expected_bw,
                                  expected_bw, bw);
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Latency estimate matches expected",
                                  expected_latency, latency);
+
+    // double alpha = 0.06; // assert correct within 6 %
+    // CPPUNIT_ASSERT_MESSAGE("Bandwidth estimate matches expected",
+    //                        correctWithinError(expected_bw, bw, alpha));
+    // CPPUNIT_ASSERT_MESSAGE("Latency estimate matches expected",
+    //                        correctWithinError(expected_latency, latency, 
+    //                                           alpha));
 }
 
 void

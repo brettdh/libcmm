@@ -5,8 +5,9 @@ ifneq ($(BDH_FULL_LIBSTDCXX),)
 common_C_INCLUDES := external/bdh_apps/cppunit/include \
                      external/bdh_apps/libcmm \
                      external/openssl/include
-common_CFLAGS:=-DCMM_UNIT_TESTING -DCMM_DEBUG
+common_CFLAGS:=-DCMM_UNIT_TESTING -DCMM_DEBUG -g
 common_STATIC_LIBRARIES:=libcppunit libboost_thread
+TESTSUITE_SRCS := run_all_tests.cpp test_common.cpp StdioOutputter.cpp
 
 # unit tests
 include $(CLEAR_VARS)
@@ -20,7 +21,7 @@ SUPPORT_SRCS := pending_irob.cpp intset.cpp debug.cpp pending_receiver_irob.cpp 
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests
 LOCAL_MODULE := run_unit_tests
-LOCAL_SRC_FILES := run_all_tests.cpp test_common.cpp \
+LOCAL_SRC_FILES := $(TESTSUITE_SRCS) \
                    $(TEST_SRCS) $(addprefix ../, $(SUPPORT_SRCS))
 LOCAL_C_INCLUDES := $(common_C_INCLUDES)
 LOCAL_CFLAGS := $(common_CFLAGS)
@@ -35,7 +36,7 @@ LIBTEST_SRCS := end_to_end_tests_base.cpp end_to_end_tests_forked.cpp \
                 forked_tests.cpp
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests
 LOCAL_MODULE := run_lib_tests
-LOCAL_SRC_FILES := run_all_tests.cpp test_common.cpp \
+LOCAL_SRC_FILES := $(TESTSUITE_SRCS) \
                    $(LIBTEST_SRCS)
 LOCAL_C_INCLUDES := $(common_C_INCLUDES)
 LOCAL_CFLAGS := $(common_CFLAGS)
@@ -49,7 +50,7 @@ REMOTETEST_SRCS := end_to_end_tests_base.cpp end_to_end_tests_remote.cpp \
                    remote_tests.cpp
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests
 LOCAL_MODULE := run_remote_tests
-LOCAL_SRC_FILES := run_all_tests.cpp \
+LOCAL_SRC_FILES := $(TESTSUITE_SRCS) \
                    $(REMOTETEST_SRCS)
 LOCAL_C_INCLUDES := $(common_C_INCLUDES)
 LOCAL_CFLAGS := $(common_CFLAGS)
@@ -67,7 +68,7 @@ REMOTETESTNB_SRCS := end_to_end_tests_remote.cpp \
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests
 LOCAL_MODULE := run_lib_tests_nb
-LOCAL_SRC_FILES := run_all_tests.cpp test_common.cpp \
+LOCAL_SRC_FILES := $(TESTSUITE_SRCS) \
                    $(NB_SRCS) $(LIBTESTNB_SRCS)
 LOCAL_C_INCLUDES := $(common_C_INCLUDES)
 LOCAL_CFLAGS := $(common_CFLAGS)
@@ -78,7 +79,7 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests
 LOCAL_MODULE := run_remote_tests_nb
-LOCAL_SRC_FILES := run_all_tests.cpp \
+LOCAL_SRC_FILES := $(TESTSUITE_SRCS) \
                    $(NB_SRCS) $(REMOTETESTNB_SRCS)
 LOCAL_C_INCLUDES := $(common_C_INCLUDES)
 LOCAL_CFLAGS := $(common_CFLAGS)
@@ -92,7 +93,7 @@ THUNKTEST_SRCS:=end_to_end_tests_base.cpp end_to_end_tests_remote.cpp \
                 thunk_tests.cpp
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests
 LOCAL_MODULE := run_thunk_tests
-LOCAL_SRC_FILES := run_all_tests.cpp $(THUNKTEST_SRCS)
+LOCAL_SRC_FILES := $(TESTSUITE_SRCS) $(THUNKTEST_SRCS)
 LOCAL_C_INCLUDES := $(common_C_INCLUDES)
 LOCAL_CFLAGS := $(common_CFLAGS)
 LOCAL_STATIC_LIBRARIES := $(common_STATIC_LIBRARIES)
@@ -105,7 +106,7 @@ TRICKLETEST_SRCS:=end_to_end_tests_base.cpp end_to_end_tests_remote.cpp \
                   trickle_tests.cpp
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests
 LOCAL_MODULE := run_trickle_tests
-LOCAL_SRC_FILES := run_all_tests.cpp test_common.cpp $(TRICKLETEST_SRCS)
+LOCAL_SRC_FILES := $(TESTSUITE_SRCS) $(TRICKLETEST_SRCS)
 LOCAL_C_INCLUDES := $(common_C_INCLUDES)
 LOCAL_CFLAGS := $(common_CFLAGS)
 LOCAL_STATIC_LIBRARIES := $(common_STATIC_LIBRARIES)

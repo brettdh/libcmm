@@ -24,3 +24,14 @@ void print_on_error(bool err, const char *str)
         perror(str);
     }
 }
+
+// void assertLessEq(std::string msg, T expected, T actual,
+//                   CppUnit::SourceLine line)
+// {
+//     CppUnit::Asserter::failIf(!(actual > expected),
+//                               CPPUNIT_NS::Message("assertion failed",
+//                                                   "Expression: "
+//                                                   #condition,
+//                                                   message),
+//                               line);
+// }

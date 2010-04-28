@@ -1,5 +1,6 @@
 #include <cppunit/extensions/TestFactoryRegistry.h>
 #include <cppunit/ui/text/TestRunner.h>
+#include "StdioOutputter.h"
 #include <unistd.h>
 
 using CppUnit::TestFactoryRegistry;
@@ -7,12 +8,17 @@ using CppUnit::TestFactoryRegistry;
 bool g_receiver = false;
 char *g_hostname = (char*)"localhost";
 
-int main(int argc, char *argv[])
+static void run_all_tests()
 {
     TestFactoryRegistry& registry = TestFactoryRegistry::getRegistry();
     CppUnit::TextUi::TestRunner runner;
     runner.addTest(registry.makeTest());
-    
+    runner.setOutputter(new StdioOutputter(&runner.result()));
+    runner.run();
+}
+
+int main(int argc, char *argv[])
+{
     int ch;
     while ((ch = getopt(argc, argv, "lh:")) != -1) {
         switch (ch) {
@@ -29,6 +35,6 @@ int main(int argc, char *argv[])
         }
     }
     
-    runner.run();
+    run_all_tests();
     return 0;
 }
