@@ -7,15 +7,16 @@
 void nowake_nanosleep(const struct timespec *duration);
 void print_on_error(bool err, const char *str);
 
-// namespace CppUnit {
-//     class SourceLine;
-// }
-// 
-// template <typename T>
-// void assertLessEq(std::string msg, T expected, T actual,
-//                   CppUnit::SourceLine line);
-// 
-// #define MY_CPPUNIT_ASSERT_LESSEQ_MESSAGE(message,expected,actual) \
-//     assertLessEq(message, expected, actual, CPPUNIT_SOURCELINE())
+#include <cppunit/SourceLine.h>
+
+void assertEqWithin(const std::string& actual_str, 
+                    const std::string& expected_str, 
+                    const std::string& message, 
+                    double expected, double actual, double alpha,
+                    CppUnit::SourceLine line);
+
+#define MY_CPPUNIT_ASSERT_EQWITHIN_MESSAGE(expected,actual,alpha, message) \
+    assertEqWithin(#actual, #expected, \
+                   message, expected, actual, alpha, CPPUNIT_SOURCELINE())
 
 #endif

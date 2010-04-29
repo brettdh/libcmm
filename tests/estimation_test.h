@@ -4,6 +4,7 @@
 #include <cppunit/TestFixture.h>
 #include <cppunit/extensions/HelperMacros.h>
 #include "net_stats.h"
+#include <string>
 
 class EstimationTest : public CppUnit::TestFixture {
     Estimate *estimate;
