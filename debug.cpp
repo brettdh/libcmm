@@ -1,6 +1,7 @@
 #include "debug.h"
 #include <stdio.h>
 #include <stdarg.h>
+#include <errno.h>
 #include <unistd.h>
 #include "timeops.h"
 #include <pthread.h>
@@ -39,7 +40,14 @@ static void vdbgprintf(bool plain, const char *fmt, va_list ap)
     string fmtstr(stream.str());
     fmtstr += fmt;
     
-    vfprintf(stderr, fmtstr.c_str(), ap);
+#ifdef ANDROID
+    int rc = vprintf(fmtstr.c_str(), ap);
+#else
+    int rc = vfprintf(stderr, fmtstr.c_str(), ap);
+#endif
+    if (rc <= 0) {
+        rc = std::printf("vfprintf error: %s\n", strerror(errno));
+    }
 }
 
 void dbgprintf(const char *fmt, ...)

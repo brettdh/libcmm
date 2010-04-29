@@ -5,7 +5,7 @@ ifneq ($(BDH_FULL_LIBSTDCXX),)
 common_C_INCLUDES := external/bdh_apps/cppunit/include \
                      external/bdh_apps/libcmm \
                      external/openssl/include
-common_CFLAGS:=-DCMM_UNIT_TESTING -DCMM_DEBUG -g -O0
+common_CFLAGS:=-DANDROID -DCMM_UNIT_TESTING -DCMM_DEBUG -g -O0
 common_STATIC_LIBRARIES:=libcppunit libboost_thread
 TESTSUITE_SRCS := run_all_tests.cpp test_common.cpp StdioOutputter.cpp
 
