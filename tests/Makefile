@@ -41,16 +41,16 @@ SUPPORTOBJS := pending_irob.o intset.o debug.o pending_receiver_irob.o \
 	       pending_sender_irob.o timeops.o ack_timeouts.o net_stats.o \
 	       test_common.o debug.o net_interface.o irob_scheduling.o
 
-run_unit_tests: run_all_tests.o $(TESTOBJS) $(SUPPORTOBJS)
+run_unit_tests: run_all_tests.o StdioOutputter.o $(TESTOBJS) $(SUPPORTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
 
 LIBTESTOBJS:=end_to_end_tests_base.o end_to_end_tests_forked.o forked_tests.o
 
-run_lib_tests: run_all_tests.o test_common.o $(LIBTESTOBJS)
+run_lib_tests: run_all_tests.o StdioOutputter.o test_common.o $(LIBTESTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
 
 REMOTETESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o remote_tests.o
-run_remote_tests: run_all_tests.o $(REMOTETESTOBJS)
+run_remote_tests: run_all_tests.o StdioOutputter.o $(REMOTETESTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
 
 
@@ -59,19 +59,19 @@ NBOBJS:=end_to_end_tests_base.o non_blocking_tests.o
 LIBTESTNBOBJS:=end_to_end_tests_forked.o non_blocking_tests_forked.o
 REMOTETESTNBOBJS:=end_to_end_tests_remote.o non_blocking_tests_remote.o
 
-run_lib_tests_nb: run_all_tests.o test_common.o $(NBOBJS) $(LIBTESTNBOBJS)
+run_lib_tests_nb: run_all_tests.o StdioOutputter.o test_common.o $(NBOBJS) $(LIBTESTNBOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
-run_remote_tests_nb: run_all_tests.o $(NBOBJS) $(REMOTETESTNBOBJS)
+run_remote_tests_nb: run_all_tests.o StdioOutputter.o $(NBOBJS) $(REMOTETESTNBOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
 
 
 
 THUNKTESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o thunk_tests.o
-run_thunk_tests: run_all_tests.o $(THUNKTESTOBJS)
+run_thunk_tests: run_all_tests.o StdioOutputter.o $(THUNKTESTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl -pthread
 
 TRICKLETESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o trickle_tests.o
-run_trickle_tests: run_all_tests.o $(TRICKLETESTOBJS) test_common.o
+run_trickle_tests: run_all_tests.o StdioOutputter.o $(TRICKLETESTOBJS) test_common.o
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl -pthread
 
 

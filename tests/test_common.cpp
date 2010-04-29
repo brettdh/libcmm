@@ -8,6 +8,8 @@
 #include <cppunit/Message.h>
 #include <cppunit/Asserter.h>
 #include <sstream>
+#include <cmath>
+using std::fabs;
 
 void nowake_nanosleep(const struct timespec *duration)
 {
@@ -35,8 +37,8 @@ void assertEqWithin(const std::string& actual_str,
                     double expected, double actual, double alpha,
                     CppUnit::SourceLine line)
 {
-    double val = abs(expected - actual);
-    double window = abs(alpha * expected);
+    double val = fabs(expected - actual);
+    double window = fabs(alpha * expected);
     
     const int precision = 15;
     char expected_buf[32];
