@@ -10,7 +10,7 @@ include $(BUILD_MULTI_PREBUILT)
 include $(CLEAR_VARS)
 
 LOCAL_MODULE := libcmm
-LOCAL_CFLAGS += -DANDROID -DCMM_DEBUG -g
+LOCAL_CFLAGS += -DANDROID -DCMM_DEBUG -g -O0
 LOCAL_SRC_FILES := \
 	ack_timeouts.cpp \
 	cmm_conn_bootstrapper.cpp \
