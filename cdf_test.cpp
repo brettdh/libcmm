@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <unistd.h>
 #include "cdf_sampler.h"
+#include "debug.h"
 
 int main(int argc, char *argv[])
 {

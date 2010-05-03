@@ -16,7 +16,7 @@ EXECUTABLES:=conn_scout cmm_test_sender cmm_test_receiver cdf_test\
 
 all: $(LIBRARIES) $(EXECUTABLES)
 
-cdf_test: cdf_test.o cdf_sampler.o
+cdf_test: cdf_test.o cdf_sampler.o debug.o timeops.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
 cmm_test_sender: libcmm_test_sender.o libcmm.so debug.o
