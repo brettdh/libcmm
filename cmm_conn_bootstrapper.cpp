@@ -120,6 +120,12 @@ void ConnBootstrapper::Run()
 
                     int rc = bind(bootstrap_sock, 
                                   (struct sockaddr*)&local_addr, sizeof(local_addr));
+                    if (rc < 0) {
+                        status_ = errno;
+                        dbgprintf("Failed to bind bootstrap socket: %s\n",
+                                  strerror(errno));
+                        throw rc;
+                    }
 
                     struct sockaddr *addr = (struct sockaddr *)remote_addr;
                     sock_lock.release();

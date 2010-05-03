@@ -5,6 +5,7 @@
 #include <set>
 #include <map>
 #include "libcmm.h"
+#include <signal.h>
 #include <cassert>
 #include <functional>
 #include <unistd.h>
@@ -64,5 +65,17 @@ bool pop_item(ContainerType& container, ItemType& item)
     } while (0)
 
 #define handle_error(cond, str) do { if (cond) { perror(str); exit(-1); } } while (0)
+
+inline void set_signal(int signo, void (*handler)(int))
+{
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+
+    sa.sa_handler = (void (*)(int))handler;
+#ifdef SA_INTERRUPT
+    sa.sa_flags = SA_INTERRUPT;
+#endif
+    sigaction(signo, &sa, NULL);
+}
 
 #endif

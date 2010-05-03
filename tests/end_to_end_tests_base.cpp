@@ -405,7 +405,7 @@ void handle_error(bool condition, const char *msg)
 {
     if (condition) {
         perror(msg);
-        abort();
+        exit(EXIT_FAILURE);
     }
 }
 

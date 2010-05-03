@@ -551,7 +551,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    signal(SIGINT, handle_term);
+    set_signal(SIGINT, handle_term);
 
     //labels_available = UP_LABELS;
     
