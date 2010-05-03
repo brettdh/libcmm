@@ -39,11 +39,11 @@ CMMSocket::interface_up(struct net_interface up_iface)
 
 int 
 CMMSocket::mc_select(mc_socket_t nfds, 
-		     fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
-		     struct timeval *timeout)
+                     fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
+                     struct timeval *timeout)
 {
     return CMMSocketImpl::mc_select(nfds, readfds, writefds, 
-				    exceptfds, timeout);
+                                    exceptfds, timeout);
 }
 
 int 

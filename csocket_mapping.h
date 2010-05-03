@@ -107,11 +107,11 @@ void CSockMapping::for_each_by_ref(Functor& f)
     PthreadScopedRWLock lock(&sockset_mutex, false);
     CSockSet::iterator it = available_csocks.begin();
     while (it != available_csocks.end()) {
-	CSocketPtr csock = *it++;
+        CSocketPtr csock = *it++;
         lock.release();
         // add/erase doesn't invalidate iterators, 
         //   so it's okay to drop the lock here.
-	f(csock);
+        f(csock);
         lock.acquire(&sockset_mutex, false);
     }
 }
@@ -122,15 +122,15 @@ int CSockMapping::for_each(Functor f)
     PthreadScopedRWLock lock(&sockset_mutex, false);
     CSockSet::iterator it = available_csocks.begin();
     while (it != available_csocks.end()) {
-	CSocketPtr csock = *it++;
+        CSocketPtr csock = *it++;
         lock.release();
         // add/erase doesn't invalidate iterators, 
         //   so it's okay to drop the lock here.
-	int rc = f(csock);
+        int rc = f(csock);
         lock.acquire(&sockset_mutex, false);
-	if (rc < 0) {
-	    return rc;
-	}
+        if (rc < 0) {
+            return rc;
+        }
     }
     return 0;
 }
@@ -146,12 +146,12 @@ CSockMapping::find_csock(Predicate pred, bool grab_lock)
 
     //PthreadScopedRWLock lock(&sockset_mutex, false);
     CSockSet::const_iterator it = find_if(available_csocks.begin(), 
-					  available_csocks.end(), 
-					  pred);
+                                          available_csocks.end(), 
+                                          pred);
     if (it == available_csocks.end()) {
         return CSocketPtr();
     } else {
-	return *it;
+        return *it;
     }
 }
 

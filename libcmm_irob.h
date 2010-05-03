@@ -82,19 +82,19 @@ int irob_writev(irob_id_t irob_id, const struct iovec *vector, int count);
  */
 ssize_t 
 cmm_write_with_deps(mc_socket_t sock, const void *buf, size_t len,
-		    int numdeps, const irob_id_t *deps, 
-		    u_long send_labels, resume_handler_t fn, void *arg,
-		    irob_id_t *irob_id);
+                    int numdeps, const irob_id_t *deps, 
+                    u_long send_labels, resume_handler_t fn, void *arg,
+                    irob_id_t *irob_id);
 ssize_t 
 cmm_send_with_deps(mc_socket_t sock, const void *buf, size_t len, int flags,
-		   int numdeps, const irob_id_t *deps, 
-		   u_long send_labels, resume_handler_t fn, void *arg,
-		   irob_id_t *irob_id);
+                   int numdeps, const irob_id_t *deps, 
+                   u_long send_labels, resume_handler_t fn, void *arg,
+                   irob_id_t *irob_id);
 int 
 cmm_writev_with_deps(mc_socket_t sock, const struct iovec *vector, int count,
-		     int numdeps, const irob_id_t *deps, 
-		     u_long send_labels, resume_handler_t fn, void *arg,
-		     irob_id_t *irob_id);
+                     int numdeps, const irob_id_t *deps, 
+                     u_long send_labels, resume_handler_t fn, void *arg,
+                     irob_id_t *irob_id);
 
 /* IROB modification functions */
 int irob_change_labels(irob_id_t irob_id, u_long new_labels);

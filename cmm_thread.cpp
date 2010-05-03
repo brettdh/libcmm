@@ -44,17 +44,17 @@ ThreadFn(void * arg)
     CMMThread *thread = (CMMThread*)arg;
     assert(thread);
     try {
-	pthread_mutex_lock(&thread->starter_mutex);
+        pthread_mutex_lock(&thread->starter_mutex);
         thread->running = true;
-	pthread_cond_signal(&thread->starter_cv);
-	pthread_mutex_unlock(&thread->starter_mutex);
+        pthread_cond_signal(&thread->starter_cv);
+        pthread_mutex_unlock(&thread->starter_mutex);
 
         thread->Run();
-	dbgprintf("Thread %08lx exited normally.\n", pthread_self());
+        dbgprintf("Thread %08lx exited normally.\n", pthread_self());
     } catch(const std::exception& e) {
-	dbgprintf("Thread %08lx exited: %s\n", pthread_self(), e.what());
+        dbgprintf("Thread %08lx exited: %s\n", pthread_self(), e.what());
     } catch(const CMMThreadFinish& e) {
-	dbgprintf("Thread %08lx was cancelled via exception.\n", pthread_self());
+        dbgprintf("Thread %08lx was cancelled via exception.\n", pthread_self());
     }
 
     pthread_cleanup_pop(1);
@@ -82,7 +82,7 @@ CMMThread::start()
     //#if 0
     pthread_mutex_lock(&starter_mutex);
     while (!running && !exiting) {
-	pthread_cond_wait(&starter_cv, &starter_mutex);
+        pthread_cond_wait(&starter_cv, &starter_mutex);
     }
     if (exiting) {
         dbgprintf("Thread %lx started, but is exiting "

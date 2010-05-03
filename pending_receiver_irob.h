@@ -17,7 +17,7 @@ class PendingReceiverIROB : public PendingIROB {
     // ints in the data structs should be in host byte order
     PendingReceiverIROB(irob_id_t id, int numdeps, irob_id_t *deps, 
                         size_t datalen, char *data,
-			u_long send_labels);
+                        u_long send_labels);
     virtual ~PendingReceiverIROB();
     bool add_chunk(struct irob_chunk_data&); /* host byte order */
 

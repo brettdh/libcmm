@@ -40,68 +40,68 @@ void * Worker(void * arg)
 #endif
     printf("Starting up on connection %d\n", sock);
     while (1) {
-	fd_set readfds;
-	FD_ZERO(&readfds);
-	FD_SET(sock, &readfds);
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(sock, &readfds);
 #ifdef NOMULTISOCK
-	int s_rc = select(sock+1, &readfds, NULL, NULL, NULL);
+        int s_rc = select(sock+1, &readfds, NULL, NULL, NULL);
 #else
-	/* XXX: make sure this is working properly. */
-	int s_rc = cmm_select(sock+1, &readfds, NULL, NULL, NULL);
-	//int s_rc = 1;
+        /* XXX: make sure this is working properly. */
+        int s_rc = cmm_select(sock+1, &readfds, NULL, NULL, NULL);
+        //int s_rc = 1;
 #endif
-	if (s_rc < 0) {
-	    perror("select");
-	    break;
-	}
+        if (s_rc < 0) {
+            perror("select");
+            break;
+        }
 
         struct chunk ch;
-	struct timeval begin, end, diff;
-	TIME(begin);
+        struct timeval begin, end, diff;
+        TIME(begin);
 #ifdef NOMULTISOCK
         int rc = read(sock, &ch, sizeof(ch));
 #else
         u_long sender_labels = 0;
         int rc = cmm_read(sock, &ch, sizeof(ch), &sender_labels);
 #endif
-	TIME(end);
+        TIME(end);
         if (rc != sizeof(ch)) {
-	    if (rc == 0) {
-		dbgprintf_always("Connection %d closed remotely\n", sock);
-	    } else {
-		dbgprintf_always("Connection %d had error %d\n", sock, errno);
-		perror("cmm_read");
-	    }
+            if (rc == 0) {
+                dbgprintf_always("Connection %d closed remotely\n", sock);
+            } else {
+                dbgprintf_always("Connection %d had error %d\n", sock, errno);
+                perror("cmm_read");
+            }
             break;
         }
-	TIMEDIFF(begin, end, diff);
-	dbgprintf_always("[%lu.%06lu][testapp] Received msg; took %lu.%06lu seconds\n",
-		end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec);
+        TIMEDIFF(begin, end, diff);
+        dbgprintf_always("[%lu.%06lu][testapp] Received msg; took %lu.%06lu seconds\n",
+                end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec);
 
         ch.data[sizeof(ch)-1] = '\0';
         printf("Msg: %*s\n", (int)(sizeof(ch) - 1), ch.data);
         //str_reverse(ch.data);
-	errno = 0;
-	//struct timeval begin, end, diff;
-	TIME(begin);
-	dbgprintf_always("[%lu.%06lu][testapp] About to send response\n",
-		begin.tv_sec, begin.tv_usec);
+        errno = 0;
+        //struct timeval begin, end, diff;
+        TIME(begin);
+        dbgprintf_always("[%lu.%06lu][testapp] About to send response\n",
+                begin.tv_sec, begin.tv_usec);
 #ifdef NOMULTISOCK
         rc = send(sock, &ch, sizeof(ch), 0);
 #else
         rc = cmm_send(sock, &ch, sizeof(ch), 0, 
                       sender_labels, NULL, NULL);
 #endif
-	TIME(end);
+        TIME(end);
         if (rc != sizeof(ch)) {
-	    dbgprintf_always("cmm_send returned %d (expected %u), errno=%d\n",
-		    rc, sizeof(ch), errno);
+            dbgprintf_always("cmm_send returned %d (expected %u), errno=%d\n",
+                    rc, sizeof(ch), errno);
             perror("cmm_send");
             break;
         }
-	TIMEDIFF(begin, end, diff);
-	dbgprintf_always("Sent message; took %lu.%06lu seconds\n", 
-		diff.tv_sec, diff.tv_usec);
+        TIMEDIFF(begin, end, diff);
+        dbgprintf_always("Sent message; took %lu.%06lu seconds\n", 
+                diff.tv_sec, diff.tv_usec);
     }
     
     printf("Done with connection %d\n", sock);
@@ -120,9 +120,9 @@ int main()
     
     int on = 1;
     int rc = setsockopt (listen_sock, SOL_SOCKET, SO_REUSEADDR,
-			 (char *) &on, sizeof(on));
+                         (char *) &on, sizeof(on));
     if (rc < 0) {
-	dbgprintf_always("Cannot reuse socket address");
+        dbgprintf_always("Cannot reuse socket address");
     }
 
     struct sockaddr_in addr;
@@ -157,8 +157,8 @@ int main()
 
 #ifdef NOMULTISOCK
         int connecting_sock = accept(listen_sock, 
-				     (struct sockaddr *)&addr, 
-				     &addrlen);
+                                     (struct sockaddr *)&addr, 
+                                     &addrlen);
 #else
         mc_socket_t connecting_sock = cmm_accept(listen_sock, 
                                                  (struct sockaddr *)&addr, 

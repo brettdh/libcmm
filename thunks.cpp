@@ -15,7 +15,7 @@ struct thunk {
     mc_socket_t sock; /* the socket that this thunk was thunk'd on */
 
     thunk(resume_handler_t f, void *a, u_long slbl, mc_socket_t s) 
-	: fn(f), arg(a), send_labels(slbl), sock(s) {}
+        : fn(f), arg(a), send_labels(slbl), sock(s) {}
     bool operator<(const struct thunk& other) {
         return (sock < other.sock ||
                 send_labels < other.send_labels ||
@@ -64,15 +64,15 @@ struct labeled_thunk_queue {
     labeled_thunk_queue(mc_socket_t sk, u_long s)
         : sock(sk), send_labels(s) {}
     ~labeled_thunk_queue() {
-	while (!thunk_queue.empty()) {
-	    struct thunk *th = NULL;
-	    thunk_queue.pop(th);
-	    assert(th);
-	    /* XXX: this leaks any outstanding thunk args.
-	     * maybe we can assume that a thunk queue being destroyed means
-	     * that the program is exiting. */
-	    delete th;
-	}
+        while (!thunk_queue.empty()) {
+            struct thunk *th = NULL;
+            thunk_queue.pop(th);
+            assert(th);
+            /* XXX: this leaks any outstanding thunk args.
+             * maybe we can assume that a thunk queue being destroyed means
+             * that the program is exiting. */
+            delete th;
+        }
     }
 };
 
@@ -96,10 +96,10 @@ void enqueue_handler(mc_socket_t sock, u_long send_labels,
 {
     ThunkHash::accessor hash_ac;
     if (!thunk_hash.find(hash_ac, tq_key(sock, send_labels))) {
-	struct labeled_thunk_queue *new_tq;
+        struct labeled_thunk_queue *new_tq;
         new_tq = new struct labeled_thunk_queue(sock, send_labels);
-	thunk_hash.insert(hash_ac, tq_key(sock, send_labels));
-	hash_ac->second = new_tq;
+        thunk_hash.insert(hash_ac, tq_key(sock, send_labels));
+        hash_ac->second = new_tq;
     }
 
     struct thunk * new_thunk = new struct thunk(fn, arg, send_labels, 
@@ -117,18 +117,18 @@ void print_thunks(void)
 {
 #ifdef CMM_DEBUG
     for (ThunkHash::iterator tq_iter = thunk_hash.begin();
-	 tq_iter != thunk_hash.end(); tq_iter++) {
-	struct labeled_thunk_queue *tq = tq_iter->second;
-	dbgprintf("Send labels %lu, %d thunks\n",
-		tq->send_labels, (int)tq->thunk_queue.size());
+         tq_iter != thunk_hash.end(); tq_iter++) {
+        struct labeled_thunk_queue *tq = tq_iter->second;
+        dbgprintf("Send labels %lu, %d thunks\n",
+                tq->send_labels, (int)tq->thunk_queue.size());
 
         ThunkQueue tq_copy(tq->thunk_queue);
-	for (ThunkQueue::iterator th_iter = tq_copy.begin();
-	     th_iter != tq_copy.end(); th_iter++) {
-	    struct thunk *th = *th_iter;
-	    dbgprintf("    Thunk %p, arg %p, send labels %lu\n",
+        for (ThunkQueue::iterator th_iter = tq_copy.begin();
+             th_iter != tq_copy.end(); th_iter++) {
+            struct thunk *th = *th_iter;
+            dbgprintf("    Thunk %p, arg %p, send labels %lu\n",
                       th->fn, th->arg, th->send_labels);
-	}
+        }
     }
 #endif
 }
@@ -173,7 +173,7 @@ static void *ThunkThreadFn(void *arg)
             delete th;
         }
 
-	if (!CMMSocketImpl::net_available(tq->sock, 
+        if (!CMMSocketImpl::net_available(tq->sock, 
                                           tq->send_labels)) {
             /* Prevent spurious thunk-firing if the network
              * goes away while a thunk is being handled. 
@@ -200,14 +200,14 @@ void fire_thunks(void)
      *  -for the same label in the order they were enqueued, and
      *  -for different labels in arbitrary order. */
     for (ThunkHash::iterator tq_iter = thunk_hash.begin(true, true);
-	 tq_iter != thunk_hash.end(); tq_iter++) {
-	struct labeled_thunk_queue *tq = tq_iter->second;
-	if (CMMSocketImpl::net_available(tq->sock, 
+         tq_iter != thunk_hash.end(); tq_iter++) {
+        struct labeled_thunk_queue *tq = tq_iter->second;
+        if (CMMSocketImpl::net_available(tq->sock, 
                                          tq->send_labels)) {
             if (!tq->thunk_queue.empty()) {
                 fire_one_thunk_queue(tq);
             }
-	}
+        }
     }
 }
 
@@ -217,11 +217,11 @@ void cancel_all_thunks(mc_socket_t sock)
     vector<struct labeled_thunk_queue*> victims;
 
     for (ThunkHash::iterator tq_iter = thunk_hash.begin(true, true);
-	 tq_iter != thunk_hash.end(); tq_iter++) {
-	struct labeled_thunk_queue *tq = tq_iter->second;
+         tq_iter != thunk_hash.end(); tq_iter++) {
+        struct labeled_thunk_queue *tq = tq_iter->second;
         if (tq->sock == sock) {
             victims.push_back(tq);
-	}
+        }
     }
     
     for (size_t i = 0; i < victims.size(); ++i) {
@@ -232,12 +232,12 @@ void cancel_all_thunks(mc_socket_t sock)
 }
 
 int cancel_thunk(mc_socket_t sock, u_long send_labels,
-		 void (*handler)(void*), void *arg,
-		 void (*deleter)(void*))
+                 void (*handler)(void*), void *arg,
+                 void (*deleter)(void*))
 {
     ThunkHash::accessor hash_ac;
     if (!thunk_hash.find(hash_ac, tq_key(sock, send_labels))) {
-	return 0;
+        return 0;
     }
     struct labeled_thunk_queue *tq = hash_ac->second;
     

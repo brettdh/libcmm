@@ -24,7 +24,7 @@ class PendingSenderIROB : public PendingIROB {
   public:
     PendingSenderIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array,
                       size_t datalen, char *data,
-		      u_long send_labels, 
+                      u_long send_labels, 
                       resume_handler_t resume_handler, void *rh_arg);
 
     virtual bool add_chunk(struct irob_chunk_data&);

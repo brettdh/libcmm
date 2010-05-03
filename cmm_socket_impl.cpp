@@ -56,13 +56,13 @@ bool CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
     struct CMMSocketControlHdr hdr;
     int rc = recv(bootstrap_sock, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr)) {
-	perror("recv");
-	dbgprintf("Error receiving remote listener\n");
+        perror("recv");
+        dbgprintf("Error receiving remote listener\n");
         throw -1;
     }
     short type = ntohs(hdr.type);
     if (type != CMM_CONTROL_MSG_NEW_INTERFACE) {
-	dbgprintf("Expected NEW_INTERFACE msg, got %d\n", type);
+        dbgprintf("Expected NEW_INTERFACE msg, got %d\n", type);
         throw -1;
     }
     struct net_interface new_listener;
@@ -84,7 +84,7 @@ bool CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
     }
     dbgprintf("Got new remote interface %s with labels %lu, "
               "bandwidth_down %lu bytes/sec bandwidth_up %lu bytes/sec RTT %lu ms\n",
-	      inet_ntoa(new_listener.ip_addr), new_listener.labels,
+              inet_ntoa(new_listener.ip_addr), new_listener.labels,
               new_listener.bandwidth_down, new_listener.bandwidth_up, new_listener.RTT);
     return false;
 }
@@ -95,8 +95,8 @@ int CMMSocketImpl::recv_hello(int bootstrap_sock)
     struct CMMSocketControlHdr hdr;
     int rc = recv(bootstrap_sock, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr) || ntohs(hdr.type) != CMM_CONTROL_MSG_HELLO) {
-	perror("recv");
-	dbgprintf("Error receiving hello\n");
+        perror("recv");
+        dbgprintf("Error receiving hello\n");
         throw -1;
     }
 
@@ -148,11 +148,11 @@ void CMMSocketImpl::send_local_listener(int bootstrap_sock,
     hdr.op.new_interface.bandwidth_up = htonl(iface.bandwidth_up);
     hdr.op.new_interface.RTT = htonl(iface.RTT);
     dbgprintf("Sending local interface info: %s with labels %lu\n",
-	      inet_ntoa(iface.ip_addr), iface.labels);
+              inet_ntoa(iface.ip_addr), iface.labels);
     int rc = send(bootstrap_sock, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr)) {
-	perror("send");
-	dbgprintf("Error sending local listener\n");
+        perror("send");
+        dbgprintf("Error sending local listener\n");
         throw -1;
     }
 }
@@ -302,20 +302,20 @@ CMMSocketImpl::create(int family, int type, int protocol)
     CMMSocketImplPtr new_sk;
     mc_socket_t new_sock = -1;
     try {
-	/* automatically clean up if cmm_sock() throws */
+        /* automatically clean up if cmm_sock() throws */
         CMMSocketImplPtr tmp(new CMMSocketImpl(family, type, protocol));
-	new_sock = tmp->sock;
+        new_sock = tmp->sock;
         new_sk = tmp;
         new_sk->csock_map = new CSockMapping(new_sk);
     } catch (int oserr) {
-	return oserr;
+        return oserr;
     }
     
     PthreadScopedLock lock(&hashmaps_mutex);
     if (!cmm_sock_hash.insert(new_sock, new_sk)) {
-	dbgprintf_always("Error: new socket %d is already in hash!  WTF?\n", 
-		new_sock);
-	assert(0);
+        dbgprintf_always("Error: new socket %d is already in hash!  WTF?\n", 
+                new_sock);
+        assert(0);
     }
 
     return new_sock;
@@ -391,11 +391,11 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
         }
 
         pthread_mutex_lock(&hashmaps_mutex);
-	cmm_sock_hash.erase(sock);
+        cmm_sock_hash.erase(sock);
         /* the CMMSocket object gets destroyed by the shared_ptr. */
         /* moved the rest of the cleanup to the destructor */
         pthread_mutex_unlock(&hashmaps_mutex);
-	return 0;
+        return 0;
     } else if (cmm_listeners.find(listener_ac, sock)) {
         pthread_mutex_lock(&hashmaps_mutex);
         cmm_listeners.erase(listener_ac);
@@ -403,7 +403,7 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
         close(sock);
         return 0;
     } else {
-	dbgprintf("Warning: cmm_close()ing a socket that's not "
+        dbgprintf("Warning: cmm_close()ing a socket that's not "
                   "in my hash\n");
         return close(sock);
     }
@@ -429,8 +429,8 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
     /* reserve a dummy OS file descriptor for this mc_socket. */
     sock = socket(family, type, protocol);
     if (sock < 0) {
-	/* invalid params, or no more FDs/memory left. */
-	throw sock; /* :-) */
+        /* invalid params, or no more FDs/memory left. */
+        throw sock; /* :-) */
     }
 
     int rc = socketpair(AF_UNIX, SOCK_STREAM, 0, select_pipe);
@@ -515,9 +515,9 @@ CMMSocketImpl::mc_connect(const struct sockaddr *serv_addr,
 {
     {    
         CMMSocketImplPtr sk;
-	if (!cmm_sock_hash.find(sock, sk)) {
+        if (!cmm_sock_hash.find(sock, sk)) {
             assert(0);
-	}
+        }
     }
 
     if (bootstrapper) {
@@ -550,20 +550,20 @@ int
 CMMSocketImpl::set_all_sockopts(int osfd)
 {
     if (osfd != -1) {
-	for (SockOptHash::const_iterator i = sockopts.begin(); i != sockopts.end(); i++) {
-	    int level = i->first;
-	    const SockOptNames &optnames = i->second;
-	    for (SockOptNames::const_iterator j = optnames.begin();
-		 j != optnames.end(); j++) {
-		int optname = j->first;
-		const struct sockopt &opt = j->second;
-		int rc = setsockopt(osfd, level, optname, 
-				    opt.optval, opt.optlen);
-		if (rc < 0) {
-		    return rc;
-		}
-	    }
-	}
+        for (SockOptHash::const_iterator i = sockopts.begin(); i != sockopts.end(); i++) {
+            int level = i->first;
+            const SockOptNames &optnames = i->second;
+            for (SockOptNames::const_iterator j = optnames.begin();
+                 j != optnames.end(); j++) {
+                int optname = j->first;
+                const struct sockopt &opt = j->second;
+                int rc = setsockopt(osfd, level, optname, 
+                                    opt.optval, opt.optlen);
+                if (rc < 0) {
+                    return rc;
+                }
+            }
+        }
     }
     
     return 0;
@@ -615,45 +615,45 @@ CMMSocketImpl::get_fds_for_select(mcSocketOsfdPairList &osfd_list,
 
 int 
 CMMSocketImpl::make_real_fd_set(int nfds, fd_set *fds,
-				mcSocketOsfdPairList &osfd_list, 
-				int *maxosfd, 
+                                mcSocketOsfdPairList &osfd_list, 
+                                int *maxosfd, 
                                 bool reading, bool writing)
 {
     if (!fds) {
-	return 0;
+        return 0;
     }
 
     //dbgprintf_always("DBG: about to check fd_set %p for mc_sockets\n", fds);
     for (mc_socket_t s = nfds - 1; s >= 0; s--) {
         //dbgprintf_always("DBG: checking fd %d\n", s);
-	if (FD_ISSET(s, fds)) {
+        if (FD_ISSET(s, fds)) {
             //dbgprintf_always("DBG: fd %d is set\n", s);
-	    CMMSocketImplPtr sk;
-	    if (!cmm_sock_hash.find(s, sk)) {
+            CMMSocketImplPtr sk;
+            if (!cmm_sock_hash.find(s, sk)) {
                 /* This must be a real file descriptor, not a mc_socket. 
                  * No translation needed. */
                 continue;
-	    }
+            }
 
-	    FD_CLR(s, fds);
-	    assert(sk);
+            FD_CLR(s, fds);
+            assert(sk);
             // lock only needed for get_fds_for_select, which now
             //   does its own locking
             //PthreadScopedRWLock lock(&sk->my_lock, false);
-	    sk->get_fds_for_select(osfd_list, reading, writing);
-	}
+            sk->get_fds_for_select(osfd_list, reading, writing);
+        }
         
         
     }
 
     if (osfd_list.size() == 0) {
-	return 0;
+        return 0;
     }
 
     assert (maxosfd);
     for (size_t i = 0; i < osfd_list.size(); i++) {
         FD_CLR(osfd_list[i].first, fds);
-	FD_SET(osfd_list[i].second, fds);
+        FD_SET(osfd_list[i].second, fds);
         if (osfd_list[i].second > *maxosfd) {
             *maxosfd = osfd_list[i].second;
         }
@@ -665,17 +665,17 @@ CMMSocketImpl::make_real_fd_set(int nfds, fd_set *fds,
  * duplicate mc_sockets. */
 int 
 CMMSocketImpl::make_mc_fd_set(fd_set *fds, 
-			      const mcSocketOsfdPairList &osfd_list)
+                              const mcSocketOsfdPairList &osfd_list)
 {
     int dups = 0;
     if (!fds) {
-	return 0;
+        return 0;
     }
 
     for (size_t j = 0; j < osfd_list.size(); j++) {
-	if (FD_ISSET(osfd_list[j].second, fds)) {
+        if (FD_ISSET(osfd_list[j].second, fds)) {
             /* this works because mc_socket fds and osfds never overlap */
-	    FD_CLR(osfd_list[j].second, fds);
+            FD_CLR(osfd_list[j].second, fds);
             if (FD_ISSET(osfd_list[j].first, fds)) {
                 dups++;
             } else {
@@ -683,7 +683,7 @@ CMMSocketImpl::make_mc_fd_set(fd_set *fds,
                 dbgprintf("Mapped osfd %d back to msocket %d\n",
                           osfd_list[j].second, osfd_list[j].first);
             }
-	}
+        }
     }
 
     return dups;
@@ -691,8 +691,8 @@ CMMSocketImpl::make_mc_fd_set(fd_set *fds,
 
 int 
 CMMSocketImpl::mc_select(mc_socket_t nfds, 
-			 fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
-			 struct timeval *timeout)
+                         fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
+                         struct timeval *timeout)
 {
     int maxosfd = nfds - 1;
     int rc;
@@ -712,23 +712,23 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
     dbgprintf("libcmm: mc_select: making real fd_sets\n");
 
     if (exceptfds) {
-	tmp_exceptfds = *exceptfds;
-	rc = make_real_fd_set(nfds, &tmp_exceptfds, exceptosfd_list,&maxosfd, false, false);
+        tmp_exceptfds = *exceptfds;
+        rc = make_real_fd_set(nfds, &tmp_exceptfds, exceptosfd_list,&maxosfd, false, false);
         if (rc < 0) {
             return -1;
         }
     }
 
     if (writefds) {
-	tmp_writefds = *writefds; 
-	rc = make_real_fd_set(nfds, &tmp_writefds, writeosfd_list, &maxosfd, false, true);
+        tmp_writefds = *writefds; 
+        rc = make_real_fd_set(nfds, &tmp_writefds, writeosfd_list, &maxosfd, false, true);
         if (rc < 0) {
             return -1;
         }
     }
     if (readfds) {
-	tmp_readfds = *readfds;
-	rc = make_real_fd_set(nfds, &tmp_readfds, readosfd_list, &maxosfd, true, false);
+        tmp_readfds = *readfds;
+        rc = make_real_fd_set(nfds, &tmp_readfds, readosfd_list, &maxosfd, true, false);
         if (rc < 0) {
             return -1;
         }
@@ -747,13 +747,13 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
     dbgprintf("libcmm: about to call select(), maxosfd=%d\n", maxosfd);
 
     rc = select(maxosfd + 1, &tmp_readfds, &tmp_writefds, &tmp_exceptfds, 
-		timeout);
+                timeout);
 
     dbgprintf("libcmm: returned from select()\n");
     
     if (rc < 0) {
-	/* select does not modify the fd_sets if failure occurs */
-	return rc;
+        /* select does not modify the fd_sets if failure occurs */
+        return rc;
     }
 
     for (size_t i = 0; i < writeosfd_list.size(); ++i) {
@@ -843,18 +843,18 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
     //set<int> write_fds;
 
     for(nfds_t i=0; i<nfds; i++) {
-	mcSocketOsfdPairList osfd_list;
+        mcSocketOsfdPairList osfd_list;
         CMMSocketImplPtr sk;
-	if(!cmm_sock_hash.find(fds[i].fd, sk)) {
-	    real_fds_list.push_back(fds[i]);
-	    osfds_to_pollfds[fds[i].fd] = &fds[i];
-	    continue; //this is a non mc_socket
-	} else {
-	    assert(sk);
+        if(!cmm_sock_hash.find(fds[i].fd, sk)) {
+            real_fds_list.push_back(fds[i]);
+            osfds_to_pollfds[fds[i].fd] = &fds[i];
+            continue; //this is a non mc_socket
+        } else {
+            assert(sk);
             // lock only needed for get_fds_for_select, which now
             //   does its own locking
             //PthreadScopedRWLock lock(&sk->my_lock, false); 
-	    //sk->csock_map->get_real_fds(osfd_list);
+            //sk->csock_map->get_real_fds(osfd_list);
             if (fds[i].events & POLLIN) {
                 sk->get_fds_for_select(osfd_list, true, false);
             }
@@ -870,17 +870,17 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
                 }
                 */
             }
-	    if (osfd_list.size() == 0) {
-		/* XXX: is this right? should we instead
-		 * wait for connections to poll on? */
-		errno = ENOTCONN;
-		return -1;
-	    }
-	    for (size_t j = 0; j < osfd_list.size(); j++) {
-		/* copy struct pollfd, overwrite fd */
-		real_fds_list.push_back(fds[i]);
+            if (osfd_list.size() == 0) {
+                /* XXX: is this right? should we instead
+                 * wait for connections to poll on? */
+                errno = ENOTCONN;
+                return -1;
+            }
+            for (size_t j = 0; j < osfd_list.size(); j++) {
+                /* copy struct pollfd, overwrite fd */
+                real_fds_list.push_back(fds[i]);
                 struct pollfd& real_fd = real_fds_list.back();
-		real_fd.fd = osfd_list[j].second;
+                real_fd.fd = osfd_list[j].second;
 
                 // a POLLOUT poll request on a multisocket
                 //  must be translated to a POLLIN request 
@@ -897,9 +897,9 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
                     //real_fd.events |= POLLIN;
                     real_fd.events = POLLIN;
                 }
-		osfds_to_pollfds[osfd_list[j].second] = &fds[i];
-	    }
-	}
+                osfds_to_pollfds[osfd_list[j].second] = &fds[i];
+            }
+        }
     }
 
     nfds_t real_nfds = real_fds_list.size();
@@ -907,7 +907,7 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
     dbgprintf("About to call poll(): %lu fds [ ",
               real_nfds);
     for (nfds_t i = 0; i < real_nfds; i++) {
-	realfds[i] = real_fds_list[i];
+        realfds[i] = real_fds_list[i];
         dbgprintf_plain("%d%s%s ", realfds[i].fd,
                         (realfds[i].events & POLLIN)?"i":"",
                         (realfds[i].events & POLLOUT)?"o":"");
@@ -925,21 +925,21 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
     dbgprintf_plain("]\n");
     if (rc <= 0) {
         delete [] realfds;
-	return rc;
+        return rc;
     }
 
     //int lastfd = -1;
     set<int> orig_fds;
     for (nfds_t i = 0; i < real_nfds; i++) {
-	struct pollfd *origfd = osfds_to_pollfds[realfds[i].fd];
-	assert(origfd);
+        struct pollfd *origfd = osfds_to_pollfds[realfds[i].fd];
+        assert(origfd);
         CMMSocketImplPtr sk;
-	if(!cmm_sock_hash.find(fds[i].fd, sk)) {
-	    origfd->revents = realfds[i].revents;
-	} else {
+        if(!cmm_sock_hash.find(fds[i].fd, sk)) {
+            origfd->revents = realfds[i].revents;
+        } else {
             //CMMSocketImplPtr sk = ac->second;
-	    //assert(sk);
-	    //sk->poll_map_back(origfd, &realfds[i]);
+            //assert(sk);
+            //sk->poll_map_back(origfd, &realfds[i]);
 
             // if a read event happened on write_ready_pipe[0],
             // it really means that POLLOUT happened on the multisocket
@@ -962,7 +962,7 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
                           sk->sock);
                 sk->clear_select_pipe(sk->write_ready_pipe[0]);
             }
-	}
+        }
         if (origfd->revents & (POLLIN | POLLOUT)) {
             if (orig_fds.find(origfd->fd) == orig_fds.end()) {
                 orig_fds.insert(origfd->fd);
@@ -987,12 +987,12 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 
 ssize_t 
 CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
-		       u_long send_labels, 
-		       resume_handler_t resume_handler, void *arg)
+                       u_long send_labels, 
+                       resume_handler_t resume_handler, void *arg)
 {
     if ((ssize_t)len < 0) {
-	errno = EINVAL;
-	return -1;
+        errno = EINVAL;
+        return -1;
     }
     
     int cstatus = connect_status();
@@ -1022,7 +1022,7 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("mc_send (%d bytes) took %lu.%06lu seconds, start-to-finish\n", 
-	      rc, diff.tv_sec, diff.tv_usec);
+              rc, diff.tv_sec, diff.tv_usec);
 
 #ifdef CMM_TIMING
     if (rc > 0) {
@@ -1042,14 +1042,14 @@ CMMSocketImpl::mc_send(const void *buf, size_t len, int flags,
 
 int 
 CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
-			 u_long send_labels, 
+                         u_long send_labels, 
                          resume_handler_t resume_handler, void *arg)
 {
     if (count < 0) {
-	errno = EINVAL;
-	return -1;
+        errno = EINVAL;
+        return -1;
     } else if (count == 0) {
-	return 0;
+        return 0;
     }
 
     int cstatus = connect_status();
@@ -1064,14 +1064,14 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
 
     ssize_t total_bytes = 0;
     for (int i = 0; i < count; i++) {
-	ssize_t bytes = total_bytes;
+        ssize_t bytes = total_bytes;
 
-	total_bytes += vec[i].iov_len;
-	if (total_bytes < bytes) {
-	    /* overflow */
-	    errno = EINVAL;
-	    return -1;
-	}
+        total_bytes += vec[i].iov_len;
+        if (total_bytes < bytes) {
+            /* overflow */
+            errno = EINVAL;
+            return -1;
+        }
     }
 
     struct timeval begin, end, diff;
@@ -1092,7 +1092,7 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("mc_writev (%d bytes) took %lu.%06lu seconds, start-to-finish\n", 
-	      rc, diff.tv_sec, diff.tv_usec);
+              rc, diff.tv_sec, diff.tv_usec);
     
 #ifdef CMM_TIMING
     if (rc > 0) {
@@ -1115,9 +1115,9 @@ struct shutdown_each {
     shutdown_each(int how_) : how(how_) {}
 
     int operator()(CSocketPtr csock) {
-	assert(csock);
-	assert(csock->osfd >= 0);
-	return shutdown(csock->osfd, how);
+        assert(csock);
+        assert(csock->osfd >= 0);
+        return shutdown(csock->osfd, how);
     }
 };
 
@@ -1159,7 +1159,7 @@ CMMSocketImpl::mc_begin_irob(int numdeps, const irob_id_t *deps,
     }
     IROBSockHash::accessor ac;
     if (!irob_sock_hash.insert(ac, id)) {
-	assert(0);
+        assert(0);
     }
     ac->second = sock;
 
@@ -1172,7 +1172,7 @@ CMMSocketImpl::mc_end_irob(irob_id_t id)
     PthreadScopedRWLock sock_lock(&my_lock, false);
     int rc = end_irob(id);
     if (rc == 0) {
-	irob_sock_hash.erase(id);
+        irob_sock_hash.erase(id);
     }
     return rc;
 }
@@ -1228,8 +1228,8 @@ CMMSocketImpl::interface_up(struct net_interface up_iface)
             struct timeval now;
             TIME(now);
             fprintf(timing_file, "%lu.%06lu  Bringing up %s, bw_down %lu bw_up %lu rtt %lu\n",
-		    now.tv_sec, now.tv_usec, inet_ntoa(up_iface.ip_addr),
-		    up_iface.bandwidth_down, up_iface.bandwidth_up, up_iface.RTT);
+                    now.tv_sec, now.tv_usec, inet_ntoa(up_iface.ip_addr),
+                    up_iface.bandwidth_down, up_iface.bandwidth_up, up_iface.RTT);
         }
     }
 #endif
@@ -1242,9 +1242,9 @@ CMMSocketImpl::interface_up(struct net_interface up_iface)
     ifaces.insert(up_iface);
 
     for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
-	 sk_iter != cmm_sock_hash.end(); sk_iter++) {
-	CMMSocketImplPtr sk = sk_iter->second;
-	assert(sk);
+         sk_iter != cmm_sock_hash.end(); sk_iter++) {
+        CMMSocketImplPtr sk = sk_iter->second;
+        assert(sk);
 
         sk->setup(up_iface, true);
     }
@@ -1261,7 +1261,7 @@ CMMSocketImpl::interface_down(struct net_interface down_iface)
             struct timeval now;
             TIME(now);
             fprintf(timing_file, "%lu.%06lu  Bringing down %s\n",
-		    now.tv_sec, now.tv_usec, inet_ntoa(down_iface.ip_addr));
+                    now.tv_sec, now.tv_usec, inet_ntoa(down_iface.ip_addr));
         }
     }
 #endif
@@ -1274,11 +1274,11 @@ CMMSocketImpl::interface_down(struct net_interface down_iface)
 
     /* put down the sockets connected on now-unavailable networks. */
     for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
-	 sk_iter != cmm_sock_hash.end(); sk_iter++) {
-	CMMSocketImplPtr sk = sk_iter->second;
-	assert(sk);
+         sk_iter != cmm_sock_hash.end(); sk_iter++) {
+        CMMSocketImplPtr sk = sk_iter->second;
+        assert(sk);
 
-	sk->teardown(down_iface, true);
+        sk->teardown(down_iface, true);
     }
     pthread_mutex_unlock(&hashmaps_mutex);
 }
@@ -1385,7 +1385,7 @@ CMMSocketImpl::mc_recv(void *buf, size_t count, int flags,
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("mc_read (%d bytes) took %lu.%06lu seconds, start-to-finish\n", 
-	      rc, diff.tv_sec, diff.tv_usec);
+              rc, diff.tv_sec, diff.tv_usec);
 
     return rc;
 }
@@ -1416,7 +1416,7 @@ CMMSocketImpl::mc_getsockopt(int level, int optname,
 
     CSocketPtr csock = csock_map->csock_with_labels(0);
     if (csock) {
-	return getsockopt(csock->osfd, level, optname, optval, optlen);
+        return getsockopt(csock->osfd, level, optname, optval, optlen);
     } else {
         struct sockopt &opt = sockopts[level][optname];
         if (opt.optval) {
@@ -1425,7 +1425,7 @@ CMMSocketImpl::mc_getsockopt(int level, int optname,
             return 0;
         } else {
             /* last resort; we haven't set this opt on this socket before,
-	     * and we don't have any connected sockets right now,
+             * and we don't have any connected sockets right now,
              * so just return the default for the dummy socket */
             return getsockopt(sock, level, optname, optval, optlen);
         }
@@ -1438,11 +1438,11 @@ struct set_sock_opt {
     const void *optval;
     socklen_t optlen;
     set_sock_opt(int l, int o, const void *v, socklen_t len)
-	: level(l), optname(0), optval(v), optlen(len) {}
+        : level(l), optname(0), optval(v), optlen(len) {}
 
     int operator()(CSocketPtr csock) {
-	assert(csock);
-	assert(csock->osfd >= 0);
+        assert(csock);
+        assert(csock->osfd >= 0);
 
         if(optname == O_NONBLOCK) {
             int flags;
@@ -1470,7 +1470,7 @@ CMMSocketImpl::mc_setsockopt(int level, int optname,
     PthreadScopedRWLock lock(&my_lock, true);
 
     if (optname == O_NONBLOCK) {
-	non_blocking = true;
+        non_blocking = true;
     }
 
     if (optname != O_NONBLOCK) {
@@ -1808,10 +1808,10 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
                             resume_handler_t resume_handler, void *rh_arg)
 {
     if (is_shutting_down()) {
-	dbgprintf("Tried to begin IROB, but mc_socket %d is shutting down\n", 
-		  sock);
-	errno = EPIPE;
-	return CMM_FAILED;
+        dbgprintf("Tried to begin IROB, but mc_socket %d is shutting down\n", 
+                  sock);
+        errno = EPIPE;
+        return CMM_FAILED;
     }
 
     struct timeval begin, end, diff;
@@ -1848,7 +1848,7 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Completed request in %lu.%06lu seconds (begin_irob)\n",
-	      diff.tv_sec, diff.tv_usec);
+              diff.tv_sec, diff.tv_usec);
     
     return 0;
 }
@@ -1857,10 +1857,10 @@ int
 CMMSocketImpl::end_irob(irob_id_t id)
 {
     if (is_shutting_down()) {
-	dbgprintf("Tried to end IROB, but mc_socket %d is shutting down\n", 
-		  sock);
-	errno = EPIPE;
-	return CMM_FAILED;
+        dbgprintf("Tried to end IROB, but mc_socket %d is shutting down\n", 
+                  sock);
+        errno = EPIPE;
+        return CMM_FAILED;
     }
 
     struct timeval begin, end, diff;
@@ -1938,7 +1938,7 @@ CMMSocketImpl::end_irob(irob_id_t id)
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Completed request in %lu.%06lu seconds (end_irob)\n",
-	      diff.tv_sec, diff.tv_usec);
+              diff.tv_sec, diff.tv_usec);
 
     return 0;
 }
@@ -1952,10 +1952,10 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
                             int flags)
 {
     if (is_shutting_down()) {
-	dbgprintf("Tried to send IROB chunk, but mc_socket %d is shutting down\n", 
-		  sock);
-	errno = EPIPE;
-	return CMM_FAILED;
+        dbgprintf("Tried to send IROB chunk, but mc_socket %d is shutting down\n", 
+                  sock);
+        errno = EPIPE;
+        return CMM_FAILED;
     }
 
     struct timeval begin, end, diff;
@@ -1974,14 +1974,14 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 
         pirob = outgoing_irobs.find(id);
         if (!pirob) {
-	    dbgprintf("Tried to add to nonexistent IROB %ld\n", id);
-	    throw CMMException();
-	}
-	
-	if (pirob->is_complete()) {
-	    dbgprintf("Tried to add to complete IROB %ld\n", id);
-	    throw CMMException();
-	}
+            dbgprintf("Tried to add to nonexistent IROB %ld\n", id);
+            throw CMMException();
+        }
+        
+        if (pirob->is_complete()) {
+            dbgprintf("Tried to add to complete IROB %ld\n", id);
+            throw CMMException();
+        }
 
         psirob = dynamic_cast<PendingSenderIROB*>(pirob);
         assert(psirob);
@@ -2002,14 +2002,14 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
     {
         PthreadScopedLock lock(&scheduling_state_lock);
 
-	chunk.id = id;
-	chunk.seqno = 0; /* will be overwritten 
+        chunk.id = id;
+        chunk.seqno = 0; /* will be overwritten 
                           * with new seqno */
-	chunk.datalen = len;
-	chunk.data = new char[len];
-	memcpy(chunk.data, buf, len);
+        chunk.datalen = len;
+        chunk.data = new char[len];
+        memcpy(chunk.data, buf, len);
 
-	psirob->add_chunk(chunk); /* writes correct seqno into struct */
+        psirob->add_chunk(chunk); /* writes correct seqno into struct */
 
         /*
         if (send_labels & CMM_LABEL_ONDEMAND) {
@@ -2032,7 +2032,7 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Completed request in %lu.%06lu seconds (irob_chunk)\n",
-	      diff.tv_sec, diff.tv_usec);
+              diff.tv_sec, diff.tv_usec);
 
 #ifdef CMM_TIMING
     {
@@ -2074,7 +2074,7 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Completed request in %lu.%06lu seconds (default_irob_send)\n",
-	      diff.tv_sec, diff.tv_usec);
+              diff.tv_sec, diff.tv_usec);
 
     return rc;
 }
@@ -2111,7 +2111,7 @@ CMMSocketImpl::default_irob_writev(irob_id_t next_irob,
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Completed request in %lu.%06lu seconds (default_irob_writev)\n",
-	      diff.tv_sec, diff.tv_usec);
+              diff.tv_sec, diff.tv_usec);
 
     return rc;
 }
@@ -2122,10 +2122,10 @@ CMMSocketImpl::validate_default_irob(u_long send_labels,
                                      CSocket *& csock)
 {
     if (is_shutting_down()) {
-	dbgprintf("Tried to send default IROB, but mc_socket %d is shutting down\n", 
-		  sock);
-	errno = EPIPE;
-	return CMM_FAILED;
+        dbgprintf("Tried to send default IROB, but mc_socket %d is shutting down\n", 
+                  sock);
+        errno = EPIPE;
+        return CMM_FAILED;
     }
 
     // checking for thunking here makes sense too; it's separate
@@ -2325,13 +2325,13 @@ void CMMSocketImpl::remove_if_unneeded(PendingIROB *pirob)
         outgoing_irobs.erase(pirob->id);
         delete pirob;
 
-	if (outgoing_irobs.empty()) {
-	    if (shutting_down) {
+        if (outgoing_irobs.empty()) {
+            if (shutting_down) {
                 // make sure a sender thread wakes up 
                 // to send the goodbye-ack
                 pthread_cond_broadcast(&scheduling_state_cv);
-	    }
-	}
+            }
+        }
     }
 }
 
@@ -2342,9 +2342,9 @@ CMMSocketImpl::goodbye(bool remote_initiated)
     if (shutting_down) {
         //csock_map->join_to_all_workers();
 
-	// make sure recv()s get woken up if they need to fail
-	pthread_cond_broadcast(&scheduling_state_cv);
-	return;
+        // make sure recv()s get woken up if they need to fail
+        pthread_cond_broadcast(&scheduling_state_cv);
+        return;
     }
 
     shutting_down = true; // picked up by sender-scheduler

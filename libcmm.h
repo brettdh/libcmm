@@ -81,10 +81,10 @@ typedef void (*resume_handler_t)(void* arg);
  *  potential performance gains by reordering.
  */
 ssize_t cmm_send(mc_socket_t sock, const void *buf, size_t len, int flags,
-		 u_long send_labels, 
+                 u_long send_labels, 
                  resume_handler_t handler, void *arg);
 ssize_t cmm_write(mc_socket_t sock, const void *buf, size_t len,
-		 u_long send_labels, 
+                 u_long send_labels, 
                  resume_handler_t handler, void *arg);
 int cmm_writev(mc_socket_t sock, const struct iovec *vector, int count,
                u_long send_labels, 
@@ -101,14 +101,14 @@ int cmm_recv(mc_socket_t sock, void *buf, size_t count, int flags,
 
 /* simple, no-thunk wrappers */
 int cmm_getsockopt(mc_socket_t sock, int level, int optname, 
-		   void *optval, socklen_t *optlen);
+                   void *optval, socklen_t *optlen);
 int cmm_setsockopt(mc_socket_t sock, int level, int optname, 
-		   const void *optval, socklen_t optlen);
+                   const void *optval, socklen_t optlen);
 
 /* fd_sets can contain mc_sockets and real os fds. */
 int cmm_select(mc_socket_t nfds, 
-	       fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
-	       struct timeval *timeout);
+               fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
+               struct timeval *timeout);
 
 int cmm_poll(struct pollfd fds[], nfds_t nfds, int timeout);
 
@@ -164,8 +164,8 @@ int cmm_shutdown(mc_socket_t sock, int how);
  * If deleter is non-NULL, it will be called on the handler's arg. */
 /* returns the number of thunks cancelled. */
 int cmm_thunk_cancel(mc_socket_t sock, u_long label, 
-		     void (*handler)(void*), void *arg,
-		     void (*deleter)(void*));
+                     void (*handler)(void*), void *arg,
+                     void (*deleter)(void*));
 
 /* functions for getting/setting the failure timeout. 
  * this timeout is invoked when calling a multi-socket operation

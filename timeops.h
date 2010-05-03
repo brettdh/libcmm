@@ -35,14 +35,14 @@ void TIME(struct timespec& tv);
 #define TIMEDIFF(tvb,tve,tvr)                                    \
 do {                                                             \
     assert(((tve).tv_sec > (tvb).tv_sec)                         \
-	   || (((tve).tv_sec == (tvb).tv_sec)                    \
-	       && (subseconds(tve) >= subseconds(tvb))));             \
+           || (((tve).tv_sec == (tvb).tv_sec)                    \
+               && (subseconds(tve) >= subseconds(tvb))));             \
     if (subseconds(tve) < subseconds(tvb)) {                         \
-	subseconds(tvr) = MAX_SUBSECS(tvr) + subseconds(tve) - subseconds(tvb); \
-	(tvr).tv_sec = (tve).tv_sec - (tvb).tv_sec - 1;          \
+        subseconds(tvr) = MAX_SUBSECS(tvr) + subseconds(tve) - subseconds(tvb); \
+        (tvr).tv_sec = (tve).tv_sec - (tvb).tv_sec - 1;          \
     } else {                                                     \
-	subseconds(tvr) = subseconds(tve) - subseconds(tvb);           \
-	(tvr).tv_sec = (tve).tv_sec - (tvb).tv_sec;              \
+        subseconds(tvr) = subseconds(tve) - subseconds(tvb);           \
+        (tvr).tv_sec = (tve).tv_sec - (tvb).tv_sec;              \
     }                                                            \
 } while (0)
 
@@ -103,13 +103,13 @@ struct TimeFunctionBody {
     const char *str;
   
     TimeFunctionBody(const char *str_) : str(str_) { 
-	TIME(begin); 
+        TIME(begin); 
     }
     ~TimeFunctionBody() {
-	TIME(end);
-	TIMEDIFF(begin, end, diff);
-	dbgprintf("%s took %lu.%06lu seconds\n", str,
-		  diff.tv_sec, diff.tv_usec);
+        TIME(end);
+        TIMEDIFF(begin, end, diff);
+        dbgprintf("%s took %lu.%06lu seconds\n", str,
+                  diff.tv_sec, diff.tv_usec);
     }
 #endif
 };

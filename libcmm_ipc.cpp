@@ -58,10 +58,10 @@ static int scout_recv(struct cmm_msg *msg)
                 perror("read");
             }
         }
-	dbgprintf_always(
-		"Receiving response from conn scout failed! rc=%d, errno=%d\n",
-		rc, errno);
-	return rc;
+        dbgprintf_always(
+                "Receiving response from conn scout failed! rc=%d, errno=%d\n",
+                rc, errno);
+        return rc;
     }
 
     return rc;
@@ -72,10 +72,10 @@ static int send_control_message(const struct cmm_msg *msg)
   try_send:
     int rc = write(scout_ipc_fd, (char*)msg, sizeof(*msg));
     if (rc < 0) {
-	if (errno == EINTR) {
-	    goto try_send;
-	}
-	perror("write");
+        if (errno == EINTR) {
+            goto try_send;
+        }
+        perror("write");
     }
 
     return rc;
@@ -96,8 +96,8 @@ void scout_ipc_init()
 
     scout_ipc_fd = socket(PF_UNIX, SOCK_STREAM, 0);
     if (scout_ipc_fd < 0) {
-	perror("socket");
-	return;
+        perror("socket");
+        return;
     }
 
     struct sockaddr_un addr;
@@ -118,15 +118,15 @@ void scout_ipc_init()
     msg.data.pid = getpid();
     rc = send_control_message(&msg);
     if (rc < 0) {
-	dbgprintf_always(
-		"Failed to send subscription message to scout, "
-		"errno=%d\n", errno);
-	close(scout_ipc_fd);
-	scout_ipc_fd = -1;
+        dbgprintf_always(
+                "Failed to send subscription message to scout, "
+                "errno=%d\n", errno);
+        close(scout_ipc_fd);
+        scout_ipc_fd = -1;
     } else {
-	pthread_attr_t attr;
-	pthread_attr_init(&attr);
-	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+        pthread_attr_t attr;
+        pthread_attr_init(&attr);
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
         rc = pthread_create(&ipc_thread_id, &attr, IPCThread, NULL);
     }
 }
@@ -134,16 +134,16 @@ void scout_ipc_init()
 void scout_ipc_deinit(void)
 {
     if (scout_ipc_fd > 0) {
-	struct cmm_msg msg;
+        struct cmm_msg msg;
         memset(&msg, 0, sizeof(msg));
-	msg.opcode = CMM_MSG_UNSUBSCRIBE;
-	msg.data.pid = getpid();
-	int rc = send_control_message(&msg);
-	if (rc < 0) {
-	    dbgprintf_always("Warning: failed to send unsubscribe message\n");
-	}
+        msg.opcode = CMM_MSG_UNSUBSCRIBE;
+        msg.data.pid = getpid();
+        int rc = send_control_message(&msg);
+        if (rc < 0) {
+            dbgprintf_always("Warning: failed to send unsubscribe message\n");
+        }
         running = false;
-	close(scout_ipc_fd);
+        close(scout_ipc_fd);
         pthread_kill(ipc_thread_id, CMM_SELECT_SIGNAL);
     }
 }
@@ -168,8 +168,8 @@ static int net_status_change_handler(void)
         process_interface_update(msg.data.iface, true);
         break;
     default:
-	dbgprintf_always("Unexpected message opcode %d from conn scout\n",
-		msg.opcode);
+        dbgprintf_always("Unexpected message opcode %d from conn scout\n",
+                msg.opcode);
         break;
     }
     return 0;

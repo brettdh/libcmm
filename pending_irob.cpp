@@ -27,7 +27,7 @@ PendingIROB::PendingIROB(irob_id_t id_)
 }
 
 PendingIROB::PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array,
-			 size_t datalen, char *data, u_long send_labels_)
+                         size_t datalen, char *data, u_long send_labels_)
     : id(id_),
       send_labels(send_labels_),
       anonymous(false),

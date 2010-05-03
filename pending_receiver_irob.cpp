@@ -13,7 +13,7 @@ using std::min; using std::vector;
 
 PendingReceiverIROB::PendingReceiverIROB(irob_id_t id, int numdeps, irob_id_t *deps,
                                          size_t datalen, char *data,
-					 u_long send_labels)
+                                         u_long send_labels)
     : PendingIROB(id, numdeps, deps, datalen, data, send_labels),
       offset(0), num_bytes(datalen), expected_bytes(-1), expected_chunks(-1), 
       recvd_bytes(0), recvd_chunks(0)
@@ -158,12 +158,12 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
         chunks[seqno] = chunk;
         num_bytes += chunk.datalen;
         recvd_bytes += chunk.datalen;
-	dbgprintf("Added chunk %lu (%d bytes) to IROB %ld new total %d\n", 
-		  chunk.seqno, chunk.datalen, id, num_bytes);
+        dbgprintf("Added chunk %lu (%d bytes) to IROB %ld new total %d\n", 
+                  chunk.seqno, chunk.datalen, id, num_bytes);
         assert_valid();
     } else {
-	dbgprintf("Adding chunk %lu (%d bytes) on IROB %ld failed! recvd_bytes=%d, expected_bytes=%d\n",
-		  chunk.seqno, chunk.datalen, id, recvd_bytes, expected_bytes);
+        dbgprintf("Adding chunk %lu (%d bytes) on IROB %ld failed! recvd_bytes=%d, expected_bytes=%d\n",
+                  chunk.seqno, chunk.datalen, id, recvd_bytes, expected_bytes);
         return false;
     }
 
@@ -271,11 +271,11 @@ PendingReceiverIROB::read_data(void *buf, size_t len)
     ssize_t bytes_copied = 0;
 
     dbgprintf("Attempting to copy %zu bytes from irob %ld, which has %d bytes,\n"
-	      "                   %d untouched chunks, and %s partial chunk\n", 
-	      len, id, num_bytes, chunks.size(), (partial_chunk.data?"a":"no"));
+              "                   %d untouched chunks, and %s partial chunk\n", 
+              len, id, num_bytes, chunks.size(), (partial_chunk.data?"a":"no"));
     if (partial_chunk.data) {
-	dbgprintf("Copying first from partial chunk; offset=%d, datalen=%d\n",
-		  offset, partial_chunk.datalen);
+        dbgprintf("Copying first from partial chunk; offset=%d, datalen=%d\n",
+                  offset, partial_chunk.datalen);
         ssize_t bytes = min(len, partial_chunk.datalen - offset);
         assert(bytes > 0);
         memcpy(buf, partial_chunk.data + offset, bytes);
@@ -296,8 +296,8 @@ PendingReceiverIROB::read_data(void *buf, size_t len)
         struct irob_chunk_data chunk = chunks.front();
         chunks.pop_front();
 
-	dbgprintf("Copying from chunk: datalen=%d, data=%p\n", 
-		  chunk.datalen, chunk.data);
+        dbgprintf("Copying from chunk: datalen=%d, data=%p\n", 
+                  chunk.datalen, chunk.data);
 
         ssize_t bytes = min(len, chunk.datalen);
         memcpy((char*)buf + bytes_copied, chunk.data, bytes);
@@ -309,8 +309,8 @@ PendingReceiverIROB::read_data(void *buf, size_t len)
             delete [] chunk.data;
         }
         len -= bytes;
-	dbgprintf("Read %d bytes; %d bytes remaining in request\n",
-		  bytes, len);
+        dbgprintf("Read %d bytes; %d bytes remaining in request\n",
+                  bytes, len);
     }
     num_bytes -= bytes_copied;
     dbgprintf("Copied %d bytes from IROB %ld\n", bytes_copied, id);
@@ -378,15 +378,15 @@ PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
     if (partially_read_irob) {
         if (!partially_read_irob->is_complete()) {
             /* TODO: block until more bytes are available */
-	    assert(0);
+            assert(0);
         }
         pirob = partially_read_irob;
         partially_read_irob = NULL;
         dbgprintf("get_ready_irob: returning partially-read IROB %ld\n", 
                   pirob->id);
     } else {
-	struct timeval begin, end, diff;
-	TIME(begin);
+        struct timeval begin, end, diff;
+        TIME(begin);
         while (pi == NULL) {
 #ifndef CMM_UNIT_TESTING
             while (ready_irobs.empty()) {
@@ -418,11 +418,11 @@ PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
                 dbgprintf("Looks like IROB %ld was already received; "
                           "ignoring\n", ready_irob_data.id);
             }
-	}
-	TIME(end);
-	TIMEDIFF(begin, end, diff);
-	dbgprintf("recv: spent %lu.%06lu seconds waiting for a ready IROB\n",
-		  diff.tv_sec, diff.tv_usec);
+        }
+        TIME(end);
+        TIMEDIFF(begin, end, diff);
+        dbgprintf("recv: spent %lu.%06lu seconds waiting for a ready IROB\n",
+                  diff.tv_sec, diff.tv_usec);
 
         assert(pi);
         pirob = dynamic_cast<PendingReceiverIROB*>(pi);
@@ -476,17 +476,17 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
 
     ssize_t bytes_passed = 0;
     while ((size_t)bytes_passed < len) {
-	struct timeval one_begin, one_end, one_diff;
-	TIME(one_begin);
+        struct timeval one_begin, one_end, one_diff;
+        TIME(one_begin);
         // if the socket is in blocking mode, this will block
         //    if bytes_passed == 0
         bool block_for_data = ((bytes_passed == 0) || (flags & MSG_WAITALL));
         PendingReceiverIROB *pirob = get_ready_irob(block_for_data);
-	TIME(one_end);
-	TIMEDIFF(one_begin, one_end, one_diff);
-	dbgprintf("Getting one ready IROB took %lu.%06lu seconds\n",
-		  one_diff.tv_sec, one_diff.tv_usec);
-	if (!pirob) {
+        TIME(one_end);
+        TIMEDIFF(one_begin, one_end, one_diff);
+        dbgprintf("Getting one ready IROB took %lu.%06lu seconds\n",
+                  one_diff.tv_sec, one_diff.tv_usec);
+        if (!pirob) {
             // XXX: for now assume we're shutting down; we need a sentinel
             // to differentiate this from non-blocking read with no ready data
             
@@ -494,13 +494,13 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
             return bytes_passed;
 #else
             assert(sk);
-	    if (sk->shutting_down) {
+            if (sk->shutting_down) {
                 return bytes_passed;
             } else {
-	        assert(0); /* XXX: nonblocking case may return NULL */
+                assert(0); /* XXX: nonblocking case may return NULL */
             }
 #endif
-	}
+        }
 
 #ifndef CMM_UNIT_TESTING
         if (pirob->numbytes() == 0) {
@@ -553,7 +553,7 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("recv: gathering and copying bytes took %lu.%06lu seconds\n", 
-	      diff.tv_sec, diff.tv_usec);
+              diff.tv_sec, diff.tv_usec);
 
     dbgprintf("Passing %d bytes to application\n", bytes_passed);
 #if defined(CMM_TIMING) && !defined(CMM_UNIT_TESTING)

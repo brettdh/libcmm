@@ -86,8 +86,8 @@ class CMMSocketImpl : public CMMSocket {
     virtual int irob_relabel(irob_id_t id, u_long new_labels);
 
     static int mc_select(mc_socket_t nfds, 
-			 fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
-			 struct timeval *timeout);
+                         fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
+                         struct timeval *timeout);
     static int mc_poll(struct pollfd fds[], nfds_t nfds, int timeout);
 
     static int mc_listen(int listener_sock, int backlog);
@@ -210,15 +210,15 @@ class CMMSocketImpl : public CMMSocket {
     // and other data that the network threads are monitoring
     int begin_irob(irob_id_t next_irob, 
                    int numdeps, const irob_id_t *deps,
-		   u_long send_labels, 
+                   u_long send_labels, 
                    resume_handler_t resume_handler, void *rh_arg);
     int end_irob(irob_id_t id);
     long irob_chunk(irob_id_t, const void *buf, size_t len, int flags);
 
     int default_irob(irob_id_t next_irob, 
-		     const void *buf, size_t len, int flags,
-		     u_long send_labels, 
-		     resume_handler_t resume_handler, void *arg);
+                     const void *buf, size_t len, int flags,
+                     u_long send_labels, 
+                     resume_handler_t resume_handler, void *arg);
     int default_irob_writev(irob_id_t next_irob, 
                             const struct iovec *vec, int count, 
                             ssize_t total_bytes,
@@ -235,7 +235,7 @@ class CMMSocketImpl : public CMMSocket {
     void new_interface(struct in_addr ip_addr, u_long labels);
     void down_interface(struct in_addr ip_addr);
     void ack(irob_id_t id, u_long seqno, 
-	     u_long ack_send_labels);
+             u_long ack_send_labels);
     void goodbye(bool remote_initiated);
     
     /* These are called by the receiver when their associated messages
@@ -251,14 +251,14 @@ class CMMSocketImpl : public CMMSocket {
 #define CMM_INVALID_RC -10
 
     struct AppThread {
-	pthread_mutex_t mutex;
-	pthread_cond_t cv;
-	long rc;
-	
-	AppThread() : rc(CMM_INVALID_RC) {
-	    pthread_mutex_init(&mutex, NULL);
-	    pthread_cond_init(&cv, NULL);
-	}
+        pthread_mutex_t mutex;
+        pthread_cond_t cv;
+        long rc;
+        
+        AppThread() : rc(CMM_INVALID_RC) {
+            pthread_mutex_init(&mutex, NULL);
+            pthread_cond_init(&cv, NULL);
+        }
         ~AppThread() {
             pthread_mutex_destroy(&mutex);
             pthread_cond_destroy(&cv);

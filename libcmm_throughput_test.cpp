@@ -53,7 +53,7 @@ void handle_error(const char *str, int sock = -1)
 {
     perror(str);
     if (sock != -1) {
-	CLOSE(sock);
+        CLOSE(sock);
     }
     exit(-1);
 }
@@ -86,23 +86,23 @@ void send_bytes(int sock, char *buf, size_t bytes)
     ssize_t bytes_sent = 0;
     while (bytes_sent < (ssize_t)bytes) {
 #ifdef NOMULTISOCK
-	int rc = SEND(sock, buf + bytes_sent, 
-		      bytes - bytes_sent, 0);
+        int rc = SEND(sock, buf + bytes_sent, 
+                      bytes - bytes_sent, 0);
 #else
-	int rc = cmm_send(sock, buf + bytes_sent, 
+        int rc = cmm_send(sock, buf + bytes_sent, 
                           bytes - bytes_sent, 0,
                           CMM_LABEL_BACKGROUND, NULL, NULL);
 #endif
-	if (rc < 0) {
-	    handle_error("send", sock);
-	}
-	bytes_sent += rc;
+        if (rc < 0) {
+            handle_error("send", sock);
+        }
+        bytes_sent += rc;
     }
 }
 
 void send_bytes_by_chunk(int sock, char *buf, size_t bytes, size_t chunksize,
-			 u_long stutter_ms, 
-			 struct timeval *avg_time, struct timeval *avg_stutter_time)
+                         u_long stutter_ms, 
+                         struct timeval *avg_time, struct timeval *avg_stutter_time)
 {
     struct timeval total_time = {0,0};
     struct timeval total_stutter_time = {0,0};
@@ -110,26 +110,26 @@ void send_bytes_by_chunk(int sock, char *buf, size_t bytes, size_t chunksize,
     size_t bytes_sent = 0;
     struct timespec stutter = {0, stutter_ms * 1000 * 1000};
     while (bytes_sent < bytes) {
-	struct timeval begin, end, diff;
-	size_t len = (chunksize > (bytes - bytes_sent)) 
-	    ? (bytes - bytes_sent) : chunksize;
+        struct timeval begin, end, diff;
+        size_t len = (chunksize > (bytes - bytes_sent)) 
+            ? (bytes - bytes_sent) : chunksize;
 
-	TIME(begin);
-	send_bytes(sock, buf + bytes_sent, len);
-	TIME(end);
-	TIMEDIFF(begin, end, diff);
-	timeradd(&total_time, &diff, &total_time);
-	count++;
+        TIME(begin);
+        send_bytes(sock, buf + bytes_sent, len);
+        TIME(end);
+        TIMEDIFF(begin, end, diff);
+        timeradd(&total_time, &diff, &total_time);
+        count++;
 
-	bytes_sent += len;
+        bytes_sent += len;
 
-	if (stutter_ms > 0) {
-	    TIME(begin);
-	    nanosleep(&stutter, NULL);
-	    TIME(end);
-	    TIMEDIFF(begin, end, diff);
-	    timeradd(&total_stutter_time, &diff, &total_stutter_time);
-	}
+        if (stutter_ms > 0) {
+            TIME(begin);
+            nanosleep(&stutter, NULL);
+            TIME(end);
+            TIMEDIFF(begin, end, diff);
+            timeradd(&total_stutter_time, &diff, &total_stutter_time);
+        }
     }
 
     assert(avg_time);
@@ -140,8 +140,8 @@ void send_bytes_by_chunk(int sock, char *buf, size_t bytes, size_t chunksize,
 
 #ifndef NOMULTISOCK
 void send_bytes_by_chunk_one_irob(int sock, char *buf, size_t bytes, size_t chunksize,
-				  u_long stutter_ms, 
-				  struct timeval *avg_time, struct timeval *avg_stutter_time)
+                                  u_long stutter_ms, 
+                                  struct timeval *avg_time, struct timeval *avg_stutter_time)
 {
     struct timeval total_time = {0, 0};
     struct timeval total_stutter_time = {0, 0};
@@ -151,38 +151,38 @@ void send_bytes_by_chunk_one_irob(int sock, char *buf, size_t bytes, size_t chun
 
     irob_id_t irob = begin_irob(sock, 0, NULL, CMM_LABEL_BACKGROUND, NULL, NULL);
     if (irob < 0) {
-	handle_error("begin_irob", sock);
+        handle_error("begin_irob", sock);
     }
     while (bytes_sent < bytes) {
-	struct timeval begin, end, diff;
-	size_t len = min(chunksize, (bytes - bytes_sent));
+        struct timeval begin, end, diff;
+        size_t len = min(chunksize, (bytes - bytes_sent));
 
-	TIME(begin);
-	int rc = irob_send(irob, buf + bytes_sent, len, 0);
-	if (rc < 0) {
-	    handle_error("irob_send", sock);
-	}
-	TIME(end);
-	TIMEDIFF(begin, end, diff);
-	timeradd(&total_time, &diff, &total_time);
-	count++;
+        TIME(begin);
+        int rc = irob_send(irob, buf + bytes_sent, len, 0);
+        if (rc < 0) {
+            handle_error("irob_send", sock);
+        }
+        TIME(end);
+        TIMEDIFF(begin, end, diff);
+        timeradd(&total_time, &diff, &total_time);
+        count++;
 
-	bytes_sent += rc;
+        bytes_sent += rc;
 
-	// this doesn't really accomplish anything extra,
-	//  since the lib has its own stutter.
-	if (stutter_ms > 0) {
-	    TIME(begin);
-	    nanosleep(&stutter, NULL);
-	    TIME(end);
-	    TIMEDIFF(begin, end, diff);
-	    timeradd(&total_stutter_time, &diff, &total_stutter_time);
-	}
+        // this doesn't really accomplish anything extra,
+        //  since the lib has its own stutter.
+        if (stutter_ms > 0) {
+            TIME(begin);
+            nanosleep(&stutter, NULL);
+            TIME(end);
+            TIMEDIFF(begin, end, diff);
+            timeradd(&total_stutter_time, &diff, &total_stutter_time);
+        }
     }
     int rc = end_irob(irob);
     if (rc < 0) {
-	dbgprintf_always("Failed ending IROB %lu\n", irob);
-	exit(-1);
+        dbgprintf_always("Failed ending IROB %lu\n", irob);
+        exit(-1);
     }
 
     assert(avg_time);
@@ -201,14 +201,14 @@ ssize_t read_bytes(int sock, void *buf, size_t count)
 {
     ssize_t bytes_read = 0;
     while (bytes_read < (ssize_t)count) {
-	int rc = READ(sock, (char*)buf + bytes_read, 
-		      count - bytes_read);
-	if (rc < 0) {
-	    handle_error("read", sock);
-	} else if (rc == 0) {
-	    return rc;
-	}
-	bytes_read += rc;
+        int rc = READ(sock, (char*)buf + bytes_read, 
+                      count - bytes_read);
+        if (rc < 0) {
+            handle_error("read", sock);
+        } else if (rc == 0) {
+            return rc;
+        }
+        bytes_read += rc;
     }
     return bytes_read;
 }
@@ -218,7 +218,7 @@ void run_all_chunksizes(const char *hostname, int minchunksize,
                         send_chunk_fn_t send_chunk_fn)
 {
     struct timeval begin, end, diff;
-	
+        
     for (int chunk = minchunksize; chunk <= bytes; chunk *= 2) {
         int sock = srv_connect(hostname);
 
@@ -229,7 +229,7 @@ void run_all_chunksizes(const char *hostname, int minchunksize,
         struct timeval avg_stutter_time = {0,0};
         TIME(begin);
         send_chunk_fn(sock, buf, bytes, chunk, stutter_ms, &avg_send_time,
-		      &avg_stutter_time);
+                      &avg_stutter_time);
         int done = 0;
         read_bytes(sock, (char*)&done, sizeof(done));
         TIME(end);
@@ -242,7 +242,7 @@ void run_all_chunksizes(const char *hostname, int minchunksize,
                 chunk<1024?chunk:chunk/1024, chunk<1024?"B":"K",
                 diff.tv_sec, diff.tv_usec,
                 avg_send_time.tv_sec, avg_send_time.tv_usec,
-		avg_stutter_time.tv_sec, avg_stutter_time.tv_usec);
+                avg_stutter_time.tv_sec, avg_stutter_time.tv_usec);
     }
 }
 
@@ -251,8 +251,8 @@ int get_int_from_string(const char *str, const char *name)
     errno = 0;
     int val = strtol(str, NULL, 10);
     if (errno != 0) {
-	dbgprintf_always("Error: %s argument must be an integer\n", name);
-	usage();
+        dbgprintf_always("Error: %s argument must be an integer\n", name);
+        usage();
     }
     return val;
 }
@@ -268,8 +268,8 @@ int srv_connect(const char *hostname)
     srv_addr.sin_port = htons(LISTEN_PORT);
     struct hostent *hp = gethostbyname(hostname);
     if (hp == NULL) {
-	dbgprintf_always("Failed to lookup hostname %s\n", hostname);
-	exit(-1);
+        dbgprintf_always("Failed to lookup hostname %s\n", hostname);
+        exit(-1);
     }
     memcpy(&srv_addr.sin_addr, hp->h_addr, hp->h_length);
     
@@ -287,99 +287,99 @@ int main(int argc, char *argv[])
     int minchunksize = 64;
     u_long stutter_ms = 0;
     while ((ch = getopt(argc, argv, "lb:k:m:s:c:")) != -1) {
-	switch (ch) {
-	case 'l':
-	    receiver = true;
-	    break;
-	case 'c':
-	    minchunksize = get_int_from_string(optarg, "minchunksize");
-	    break;
-	case 'b':
-	    if (bytes != 0) {
-		dbgprintf_always("Error: specify only one of -b, -k, -m\n");
-		usage();
-	    }
-	    bytes = get_int_from_string(optarg, "bytes");
-	    kbytes = bytes / 1024;
-	    mbytes = kbytes / 1024;
-	    break;
-	case 'k':
-	    if (bytes != 0) {
-		dbgprintf_always("Error: specify only one of -b, -k, -m\n");
-		usage();
-	    }
-	    kbytes = get_int_from_string(optarg, "kbytes");
-	    bytes = kbytes * 1024;
-	    mbytes = kbytes / 1024;
-	    if (bytes < kbytes) {
-		dbgprintf_always("Error: kbytes argument is too large! (overflow)\n");
-		usage();
-	    }
-	    break;
-	case 'm':
-	    if (bytes != 0) {
-		dbgprintf_always("Error: specify only one of -b, -k, -m\n");
-		usage();
-	    }
-	    mbytes = get_int_from_string(optarg, "mbytes");
-	    kbytes = mbytes * 1024;
-	    bytes = kbytes * 1024;
-	    if (bytes < kbytes || kbytes < mbytes) {
-		dbgprintf_always("Error: mbytes argument is too large! (overflow)\n");
-		usage();
-	    }
-	    break;
-	case 's':
-	    stutter_ms = get_int_from_string(optarg, "stutter_ms");
-	    if (stutter_ms >= 1000) {
-		dbgprintf_always("Error: stutter_ms must be <1000ms\n");
-		usage();
-	    }
-	}
+        switch (ch) {
+        case 'l':
+            receiver = true;
+            break;
+        case 'c':
+            minchunksize = get_int_from_string(optarg, "minchunksize");
+            break;
+        case 'b':
+            if (bytes != 0) {
+                dbgprintf_always("Error: specify only one of -b, -k, -m\n");
+                usage();
+            }
+            bytes = get_int_from_string(optarg, "bytes");
+            kbytes = bytes / 1024;
+            mbytes = kbytes / 1024;
+            break;
+        case 'k':
+            if (bytes != 0) {
+                dbgprintf_always("Error: specify only one of -b, -k, -m\n");
+                usage();
+            }
+            kbytes = get_int_from_string(optarg, "kbytes");
+            bytes = kbytes * 1024;
+            mbytes = kbytes / 1024;
+            if (bytes < kbytes) {
+                dbgprintf_always("Error: kbytes argument is too large! (overflow)\n");
+                usage();
+            }
+            break;
+        case 'm':
+            if (bytes != 0) {
+                dbgprintf_always("Error: specify only one of -b, -k, -m\n");
+                usage();
+            }
+            mbytes = get_int_from_string(optarg, "mbytes");
+            kbytes = mbytes * 1024;
+            bytes = kbytes * 1024;
+            if (bytes < kbytes || kbytes < mbytes) {
+                dbgprintf_always("Error: mbytes argument is too large! (overflow)\n");
+                usage();
+            }
+            break;
+        case 's':
+            stutter_ms = get_int_from_string(optarg, "stutter_ms");
+            if (stutter_ms >= 1000) {
+                dbgprintf_always("Error: stutter_ms must be <1000ms\n");
+                usage();
+            }
+        }
     }
     
     if (!receiver) {
-	if (bytes == 0) {
-	    dbgprintf_always("Error: sender needs positive integer "
-		    "for one of -b, -k, or -m args\n");
-	    usage();
-	}
+        if (bytes == 0) {
+            dbgprintf_always("Error: sender needs positive integer "
+                    "for one of -b, -k, or -m args\n");
+            usage();
+        }
     }
 
     signal(SIGPIPE, SIG_IGN);
     signal(SIGINT, handle_term);
 
     if (receiver) {
-	listen_sock = socket(PF_INET, SOCK_STREAM, 0);
-	if (listen_sock < 0) handle_error("socket");
+        listen_sock = socket(PF_INET, SOCK_STREAM, 0);
+        if (listen_sock < 0) handle_error("socket");
 
-	int on = 1;
-	int rc = setsockopt (listen_sock, SOL_SOCKET, SO_REUSEADDR,
-			     (char *) &on, sizeof(on));
-	if (rc < 0) {
-	    dbgprintf_always("Cannot reuse socket address");
-	}
-	
-	struct sockaddr_in addr;
-	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = INADDR_ANY;
-	addr.sin_port = htons(LISTEN_PORT);
-	socklen_t addrlen = sizeof(addr);
-	rc = bind(listen_sock, (struct sockaddr *)&addr, addrlen);
-	if (rc < 0) handle_error("bind");
+        int on = 1;
+        int rc = setsockopt (listen_sock, SOL_SOCKET, SO_REUSEADDR,
+                             (char *) &on, sizeof(on));
+        if (rc < 0) {
+            dbgprintf_always("Cannot reuse socket address");
+        }
+        
+        struct sockaddr_in addr;
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = INADDR_ANY;
+        addr.sin_port = htons(LISTEN_PORT);
+        socklen_t addrlen = sizeof(addr);
+        rc = bind(listen_sock, (struct sockaddr *)&addr, addrlen);
+        if (rc < 0) handle_error("bind");
 
-	rc = LISTEN(listen_sock, 5);
-	if (rc < 0) handle_error("listen");
+        rc = LISTEN(listen_sock, 5);
+        if (rc < 0) handle_error("listen");
 
-	do {
+        do {
             int sock = ACCEPT(listen_sock, (struct sockaddr *)&addr, &addrlen);
-	    if (sock < 0) handle_error("accept", sock);
+            if (sock < 0) handle_error("accept", sock);
 
-	    printf("Accepted connection %d\n", sock);
-	    struct timeval total_read_time;
-	    int total_reads = 0;
+            printf("Accepted connection %d\n", sock);
+            struct timeval total_read_time;
+            int total_reads = 0;
 
-	    timerclear(&total_read_time);
+            timerclear(&total_read_time);
 
             int bytes = 0;
             rc = read_bytes(sock, &bytes, sizeof(bytes));
@@ -402,42 +402,42 @@ int main(int argc, char *argv[])
                 send_bytes(sock, (char*)&done, sizeof(done));
             }
 
-	    CLOSE(sock);
-	    printf("Closed connection %d\n", sock);
+            CLOSE(sock);
+            printf("Closed connection %d\n", sock);
 
-	    struct timeval avg_time = {0,0};
-	    calc_avg_time(total_read_time, total_reads, &avg_time);
-	    printf("Average read() time: %lu.%06lu\n",
-		   avg_time.tv_sec, avg_time.tv_usec);
-	} while (running);
+            struct timeval avg_time = {0,0};
+            calc_avg_time(total_read_time, total_reads, &avg_time);
+            printf("Average read() time: %lu.%06lu\n",
+                   avg_time.tv_sec, avg_time.tv_usec);
+        } while (running);
 
-	close(listen_sock);
+        close(listen_sock);
     } else {
-	if (!argv[optind]) {
-	    dbgprintf_always("Error: host arg required for sender\n");
-	    usage();
-	}
+        if (!argv[optind]) {
+            dbgprintf_always("Error: host arg required for sender\n");
+            usage();
+        }
 
-	char *buf = new char[bytes];
-	memset(buf, 'Q', bytes);
-	if (mbytes > 0) {
-	    dbgprintf_always("Sending %dMB\n", mbytes);
-	} else if (kbytes > 0) {
-	    dbgprintf_always("Sending %dKB\n", kbytes);
-	} else if (bytes > 0) {
-	    dbgprintf_always("Sending %d bytes\n", bytes);
-	} else assert(0);
-	
+        char *buf = new char[bytes];
+        memset(buf, 'Q', bytes);
+        if (mbytes > 0) {
+            dbgprintf_always("Sending %dMB\n", mbytes);
+        } else if (kbytes > 0) {
+            dbgprintf_always("Sending %dKB\n", kbytes);
+        } else if (bytes > 0) {
+            dbgprintf_always("Sending %d bytes\n", bytes);
+        } else assert(0);
+        
         run_all_chunksizes(argv[optind], minchunksize, buf, bytes,
                            stutter_ms, send_bytes_by_chunk);
 
 #ifndef NOMULTISOCK
-	dbgprintf_always("  In a single IROB:\n");
+        dbgprintf_always("  In a single IROB:\n");
         run_all_chunksizes(argv[optind], minchunksize, buf, bytes,
                            stutter_ms, send_bytes_by_chunk_one_irob);
 #endif
 
-	delete [] buf;
+        delete [] buf;
     }
     
     return 0;

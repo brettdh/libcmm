@@ -37,8 +37,8 @@ class CMMSocket {
                            socklen_t addrlen) = 0;
     
     static int mc_select(mc_socket_t nfds, 
-			 fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
-			 struct timeval *timeout);
+                         fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
+                         struct timeval *timeout);
     static int mc_poll(struct pollfd fds[], nfds_t nfds, int timeout);
 
     static int mc_listen(int listener_sock, int backlog);
@@ -49,9 +49,9 @@ class CMMSocket {
                         u_long *recv_labels) = 0;
 
     virtual int mc_getpeername(struct sockaddr *address, 
-			       socklen_t *address_len) = 0;
+                               socklen_t *address_len) = 0;
     virtual int mc_getsockname(struct sockaddr *address, 
-			       socklen_t *address_len) = 0;
+                               socklen_t *address_len) = 0;
     virtual int mc_getsockopt(int level, int optname, 
                               void *optval, socklen_t *optlen) = 0;
     virtual int mc_setsockopt(int level, int optname, 

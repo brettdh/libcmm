@@ -16,14 +16,14 @@ CDFSampler::CDFSampler(const char *cdf_filename, double duration)
     read_distribution(cdf_filename);
     next = 0;
     if (duration > 0) {
-	/* pre-sample the given duration so we don't have to do
-	 * potentiall large binary searches on the fly */
-	double total = 0.0;
-	while (total < duration) {
-	    double sample = sample_quantile();
-	    samples.push_back(sample);
-	    total += sample;
-	}
+        /* pre-sample the given duration so we don't have to do
+         * potentiall large binary searches on the fly */
+        double total = 0.0;
+        while (total < duration) {
+            double sample = sample_quantile();
+            samples.push_back(sample);
+            total += sample;
+        }
     }
 }
 
@@ -31,9 +31,9 @@ double
 CDFSampler::sample()
 {
     if (next < samples.size()) {
-	return samples[next++];
+        return samples[next++];
     } else {
-	return sample_quantile();
+        return sample_quantile();
     }
 }
 
@@ -44,25 +44,25 @@ CDFSampler::read_distribution(const char *cdf_filename)
     cdf_map.clear();
     FILE *input = fopen(cdf_filename, "r");
     if (!input) {
-	throw CDFErr("Failed to open file");
+        throw CDFErr("Failed to open file");
     }
 
     while (fscanf(input, "%lf %lf", &val, &percent) == 2) {
-	if (percent < 0.0) {
-	    fclose(input);
-	    throw CDFErr("Invalid data in file");
-	}
-	
-	if (cdf_map.find(percent) != cdf_map.end()) {
-	    fclose(input);
-	    dbgprintf_always("Duplicate value %f found in file\n", percent);
-	    throw CDFErr("CDF function is not invertible");
-	}
-	cdf_map[percent] = val;
+        if (percent < 0.0) {
+            fclose(input);
+            throw CDFErr("Invalid data in file");
+        }
+        
+        if (cdf_map.find(percent) != cdf_map.end()) {
+            fclose(input);
+            dbgprintf_always("Duplicate value %f found in file\n", percent);
+            throw CDFErr("CDF function is not invertible");
+        }
+        cdf_map[percent] = val;
     }
     fclose(input);
     if (percent < 0.0) {
-	throw CDFErr("No data read from file");
+        throw CDFErr("No data read from file");
     }
 }
 
@@ -77,18 +77,18 @@ CDFSampler::sample_quantile()
     upper_val = upper->second;
 
     if (upper == cdf_map.begin()) {
-	/* try again.  Probably the next sample won't fall outside
-	 * the range of the CDF. */
-	return sample_quantile();
+        /* try again.  Probably the next sample won't fall outside
+         * the range of the CDF. */
+        return sample_quantile();
     }
     
     cdf_map_t::const_reverse_iterator lower(upper);
     lower++;
 
     if (lower == cdf_map.rend()) {
-	/* try again.  Probably the next sample won't fall outside
-	 * the range of the CDF. */
-	return sample_quantile();
+        /* try again.  Probably the next sample won't fall outside
+         * the range of the CDF. */
+        return sample_quantile();
     }
 
     //cdf_map_t::const_iterator lower = cdf_map.lower_bound(alpha);

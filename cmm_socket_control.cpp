@@ -18,23 +18,23 @@ const char *
 CMMSocketControlHdr::type_str() const
 {
     static const char *strs[] = {
-	"Hello",
-	"Begin_IROB",
-	"End_IROB",
-	"IROB_chunk",
-	"(unknown)",//"Default IROB",
-	"New_Interface",
-	"Down_Interface",
-	"Ack",
-	"Goodbye",
+        "Hello",
+        "Begin_IROB",
+        "End_IROB",
+        "IROB_chunk",
+        "(unknown)",//"Default IROB",
+        "New_Interface",
+        "Down_Interface",
+        "Ack",
+        "Goodbye",
         "Resend_Request",
         "Data_Check",
-	"(unknown)"
+        "(unknown)"
     };
 
     short my_type = ntohs(type);
     if (my_type >= CMM_CONTROL_MSG_INVALID || my_type < CMM_CONTROL_MSG_HELLO) {
-	my_type = CMM_CONTROL_MSG_INVALID;
+        my_type = CMM_CONTROL_MSG_INVALID;
     }
     return strs[my_type];
 }
@@ -63,8 +63,8 @@ CMMSocketControlHdr::describe() const
         break;
     case CMM_CONTROL_MSG_IROB_CHUNK:
         stream << "IROB: " << ntohl(op.irob_chunk.id) << " ";
-	stream << "seqno: " << ntohl(op.irob_chunk.seqno) << " ";
-	stream << "offset: " << ntohl(op.irob_chunk.offset) << " ";
+        stream << "seqno: " << ntohl(op.irob_chunk.seqno) << " ";
+        stream << "offset: " << ntohl(op.irob_chunk.offset) << " ";
         stream << "datalen: " << ntohl(op.irob_chunk.datalen);
         break;
 #if 0
@@ -72,7 +72,7 @@ CMMSocketControlHdr::describe() const
         stream << "IROB: " << ntohl(op.default_irob.id) << " ";
         stream << "numdeps: " << ntohl(op.default_irob.numdeps);
         stream << "datalen: " << ntohl(op.default_irob.datalen);
-	break;
+        break;
 #endif
     case CMM_CONTROL_MSG_NEW_INTERFACE:
         stream << "IP: " << inet_ntoa(op.new_interface.ip_addr) << " ";
@@ -100,7 +100,7 @@ CMMSocketControlHdr::describe() const
                << ntohl(op.ack.qdelay.tv_usec);
         break;
     case CMM_CONTROL_MSG_GOODBYE:
-	break;
+        break;
     case CMM_CONTROL_MSG_RESEND_REQUEST:
         stream << "IROB: " << ntohl(op.resend_request.id) << " ";
         stream << "request: " << ntohl(op.resend_request.request) << " ";

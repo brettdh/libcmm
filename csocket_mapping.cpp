@@ -53,14 +53,14 @@ struct push_osfd {
     mc_socket_t mc_sock;
     mcSocketOsfdPairList &osfd_list;
     push_osfd(mc_socket_t mcs, mcSocketOsfdPairList& list) 
-	: mc_sock(mcs), osfd_list(list) {}
+        : mc_sock(mcs), osfd_list(list) {}
     int operator()(CSocketPtr csock) {
-	assert(csock);
+        assert(csock);
         int osfd = csock->osfd;
         assert(osfd > 0);
 
         osfd_list.push_back(pair<mc_socket_t,int>(mc_sock,osfd));
-	return 0;
+        return 0;
     }
 };
 
@@ -76,7 +76,7 @@ struct get_matching_csocks {
     bool local;
     get_matching_csocks(const struct net_interface& iface_,
                         vector<CSocketPtr>& matches_, bool local_)
-	: iface(iface_), matches(matches_), local(local_) {}
+        : iface(iface_), matches(matches_), local(local_) {}
 
     int operator()(CSocketPtr csock) {
         assert(csock);
@@ -90,7 +90,7 @@ struct get_matching_csocks {
         if (candidate->ip_addr.s_addr == iface.ip_addr.s_addr) {
             matches.push_back(csock);
         }
-	return 0;
+        return 0;
     }
 };
 
@@ -381,8 +381,8 @@ CSockMapping::connected_csock_with_labels(u_long send_label, bool locked)
     }
 
     for (CSockSet::iterator it = available_csocks.begin();
-	 it != available_csocks.end(); it++) {
-	CSocketPtr csock = *it;
+         it != available_csocks.end(); it++) {
+        CSocketPtr csock = *it;
         if (csock->is_connected()) {
             matcher.consider(csock);
             
@@ -471,7 +471,7 @@ CSockMapping::make_new_csocket(struct net_interface local_iface,
 {
     CSocketPtr csock;
     {
-	PthreadScopedRWLock lock(&sockset_mutex, true);
+        PthreadScopedRWLock lock(&sockset_mutex, true);
         
         csock = csock_by_ifaces(local_iface, remote_iface, false);
         if (csock) {
@@ -560,7 +560,7 @@ CSockMapping::make_new_csocket(struct net_interface local_iface,
                                 accepted_sock);
         /* cleanup if constructor throws */
         
-	available_csocks.insert(csock);
+        available_csocks.insert(csock);
     }
 
     csock->startup_workers(); // sender thread calls phys_connect()
@@ -650,7 +650,7 @@ CSockMapping::add_connection(int sock,
                              struct net_interface remote_iface)
 {
     dbgprintf("Adding new connection on %s ",
-	      inet_ntoa(local_addr));
+              inet_ntoa(local_addr));
     dbgprintf_plain("from %s\n", inet_ntoa(remote_iface.ip_addr));
     struct net_interface local_iface;
     if (!get_local_iface_by_addr(local_addr, local_iface)) {

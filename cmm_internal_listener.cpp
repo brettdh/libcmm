@@ -34,22 +34,22 @@ ListenerThread::ListenerThread(CMMSocketImpl *sk_)
     }
     
     do {
-	rc = bind(listener_sock, 
-		  (struct sockaddr *)&bind_addr, sizeof(bind_addr));
-	if (rc < 0) {
+        rc = bind(listener_sock, 
+                  (struct sockaddr *)&bind_addr, sizeof(bind_addr));
+        if (rc < 0) {
             //if (bind_addr.sin_port == htons(INTERNAL_LISTEN_PORT)) {
             bind_addr.sin_port = htons(ntohs(bind_addr.sin_port) + 1);
             //} else {
             //break;
             //}
-	}
+        }
     } while (rc < 0);
     
     if (rc < 0) {
-	perror("bind");
-	dbgprintf("Listener failed to bind!\n");
-	close(listener_sock);
-	throw rc;
+        perror("bind");
+        dbgprintf("Listener failed to bind!\n");
+        close(listener_sock);
+        throw rc;
     }
     dbgprintf("Listener bound to port %d\n", ntohs(bind_addr.sin_port));
 
@@ -58,7 +58,7 @@ ListenerThread::ListenerThread(CMMSocketImpl *sk_)
                      (struct sockaddr *)&bind_addr, &addrlen);
     if (rc < 0) {
         perror("getsockname");
-	dbgprintf("Couldn't get local listener sockaddr!\n");
+        dbgprintf("Couldn't get local listener sockaddr!\n");
         close(listener_sock);
         throw rc;
     }
@@ -111,15 +111,15 @@ ListenerThread::Run()
         FD_ZERO(&readfds);
         FD_SET(listener_sock, &readfds);
         int rc = select(listener_sock + 1, &readfds, NULL, NULL, NULL);
-	if (rc < 0) {
-	    if (errno == EINTR) {
-		continue;
-	    } else {
+        if (rc < 0) {
+            if (errno == EINTR) {
+                continue;
+            } else {
                 close(listener_sock);
                 //dbgprintf("Exiting.\n");
-		return;
-	    }
-	}
+                return;
+            }
+        }
 
         struct sockaddr_in remote_addr;
         socklen_t addrlen = sizeof(remote_addr);
@@ -128,7 +128,7 @@ ListenerThread::Run()
         if (sock < 0) {
             dbgprintf("Listener socket shutdown, listener thread exiting,"
                       " errno=%d\n",errno);
-	    close(listener_sock);
+            close(listener_sock);
             //throw std::runtime_error("Socket error");
             //dbgprintf("Exiting.\n");
             return;

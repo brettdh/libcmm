@@ -67,8 +67,8 @@ static void libcmm_init(void)
     TIME(now);
     timing_file = fopen(TIMING_FILE, "a");
     if (timing_file) {
-	fprintf(timing_file, "*** Started new run at %ld.%06ld, PID %d\n",
-		now.tv_sec, now.tv_usec, getpid());
+        fprintf(timing_file, "*** Started new run at %ld.%06ld, PID %d\n",
+                now.tv_sec, now.tv_usec, getpid());
     }
 #endif
 }
@@ -83,15 +83,15 @@ static void libcmm_deinit(void)
 //                PendingIROB::objs());
 
         PthreadScopedLock lock(&timing_mutex);
-	
-	if (timing_file) {
-	    struct timeval now;
-	    TIME(now);
-	    fprintf(timing_file, "*** Finished run at %ld.%06ld, PID %d;\n",
-		    now.tv_sec, now.tv_usec, getpid());
+        
+        if (timing_file) {
+            struct timeval now;
+            TIME(now);
+            fprintf(timing_file, "*** Finished run at %ld.%06ld, PID %d;\n",
+                    now.tv_sec, now.tv_usec, getpid());
 
             //fclose(timing_file);
-	}
+        }
     }
 #endif
 
@@ -99,8 +99,8 @@ static void libcmm_deinit(void)
     ThunkHash::iterator it;
 
     for (it = thunk_hash.begin(); it != thunk_hash.end(); it++) {
-	struct labeled_thunk_queue *tq = it->second;
-	delete tq;
+        struct labeled_thunk_queue *tq = it->second;
+        delete tq;
     }
     thunk_hash.clear();
 #endif
@@ -133,7 +133,7 @@ void process_interface_update(struct net_interface iface, bool down)
     
     /* bitmask of all available bit labels ORed together */
     dbgprintf("Got update from scout: %s is %s, bandwidth_down %lu bandwidth_up %lu bytes/sec RTT %lu ms\n",
-	      inet_ntoa(iface.ip_addr), down?"down":"up",
+              inet_ntoa(iface.ip_addr), down?"down":"up",
               iface.bandwidth_down, iface.bandwidth_up, iface.RTT);
 
     //dbgprintf_always("Before:\n---\n");
@@ -156,11 +156,11 @@ void process_interface_update(struct net_interface iface, bool down)
 /*** CMM socket function wrappers ***/
 
 ssize_t cmm_send(mc_socket_t sock, const void *buf, size_t len, int flags,
-		 u_long send_labels, 
+                 u_long send_labels, 
                  void (*resume_handler)(void*), void *arg)
 {
     return CMMSocket::lookup(sock)->mc_send(buf, len, flags,
-					    send_labels, 
+                                            send_labels, 
                                             resume_handler, arg);
 }
 
@@ -181,8 +181,8 @@ int cmm_writev(mc_socket_t sock, const struct iovec *vec, int count,
 }
 
 int cmm_select(mc_socket_t nfds, 
-	       fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
-	       struct timeval *timeout)
+               fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
+               struct timeval *timeout)
 {
     return CMMSocket::mc_select(nfds, readfds, writefds, exceptfds, timeout);
 
@@ -209,13 +209,13 @@ int cmm_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 }
 
 int cmm_getpeername(mc_socket_t sock, struct sockaddr *address, 
-		    socklen_t *address_len)
+                    socklen_t *address_len)
 {
     return CMMSocket::lookup(sock)->mc_getpeername(address, address_len);
 }
 
 int cmm_getsockname(mc_socket_t sock, struct sockaddr *address, 
-		    socklen_t *address_len)
+                    socklen_t *address_len)
 {
     return CMMSocket::lookup(sock)->mc_getsockname(address, address_len);
 }
@@ -243,21 +243,21 @@ int cmm_recv(mc_socket_t sock, void *buf, size_t count, int flags,
 }
 
 int cmm_getsockopt(mc_socket_t sock, int level, int optname, 
-		   void *optval, socklen_t *optlen)
+                   void *optval, socklen_t *optlen)
 {
     return CMMSocket::lookup(sock)->mc_getsockopt(level, optname, 
-						  optval, optlen);
+                                                  optval, optlen);
 }
 
 int cmm_setsockopt(mc_socket_t sock, int level, int optname, 
-		   const void *optval, socklen_t optlen)
+                   const void *optval, socklen_t optlen)
 {
     return CMMSocket::lookup(sock)->mc_setsockopt(level, optname,
-						  optval, optlen);
+                                                  optval, optlen);
 }
 
 int cmm_connect(mc_socket_t sock, 
-		const struct sockaddr *serv_addr, socklen_t addrlen)
+                const struct sockaddr *serv_addr, socklen_t addrlen)
 {
     return CMMSocket::lookup(sock)->mc_connect(serv_addr, addrlen);
 }
@@ -279,8 +279,8 @@ int cmm_close(mc_socket_t sock)
 
 /* if deleter is non-NULL, it will be called on the handler's arg. */
 int cmm_thunk_cancel(mc_socket_t sock, u_long send_labels,
-		     void (*handler)(void*), void *arg,
-		     void (*deleter)(void*))
+                     void (*handler)(void*), void *arg,
+                     void (*deleter)(void*))
 {
     return cancel_thunk(sock, send_labels, handler, arg, deleter);
 }

@@ -12,7 +12,7 @@ using std::for_each;
 PendingSenderIROB::PendingSenderIROB(irob_id_t id_, 
                                      int numdeps, const irob_id_t *deps_array,
                                      size_t datalen, char *data,
-				     u_long send_labels,
+                                     u_long send_labels,
                                      resume_handler_t resume_handler_, 
                                      void *rh_arg_)
     : PendingIROB(id_, numdeps, deps_array, datalen, data, send_labels),

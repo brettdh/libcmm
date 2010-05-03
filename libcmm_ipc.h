@@ -27,7 +27,7 @@ typedef enum {
 struct cmm_msg {
     MsgOpcode opcode;
     union {
-	pid_t pid;
+        pid_t pid;
         struct net_interface iface;
     } data;
 };

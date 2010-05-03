@@ -70,7 +70,7 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
     rc = setsockopt (osfd, IPPROTO_TCP, TCP_NODELAY, 
                      (char *) &on, sizeof(on));
     if (rc < 0) {
-	dbgprintf("Cannot make socket TCP_NODELAY");
+        dbgprintf("Cannot make socket TCP_NODELAY");
     }
 
     // we want our CSockets to die immediately on shutdown/close, and
@@ -103,9 +103,9 @@ CSocket::~CSocket()
 {
     dbgprintf("CSocket %d is being destroyed\n", osfd);
     if (osfd > 0) {
-	/* if it's a real open socket */
+        /* if it's a real open socket */
         assert(csock_sendr == NULL && csock_recvr == NULL);
-	close(osfd);
+        close(osfd);
     }    
 }
 
@@ -262,13 +262,13 @@ void
 CSocket::startup_workers()
 {
     if (!csock_sendr && !csock_recvr) {
-	csock_sendr = new CSocketSender(CSocketPtr(self_ptr));
-	csock_recvr = new CSocketReceiver(CSocketPtr(self_ptr));
-	int rc = csock_sendr->start();
+        csock_sendr = new CSocketSender(CSocketPtr(self_ptr));
+        csock_recvr = new CSocketReceiver(CSocketPtr(self_ptr));
+        int rc = csock_sendr->start();
         if (rc != 0) {
             throw std::runtime_error("Failed to create csocket_sender thread!");
         }
-	rc = csock_recvr->start();
+        rc = csock_recvr->start();
         if (rc != 0) {
             throw std::runtime_error("Failed to create csocket_receiver thread!");
         }
@@ -346,21 +346,21 @@ CSocket::retransmission_timeout()
     socklen_t len = sizeof(bufsize);
     int rc = getsockopt(osfd, SOL_SOCKET, SO_SNDBUF, &bufsize, &len);
     if (rc < 0) {
-	dbgprintf("Failed to get socket send buffer size: %s\n", strerror(errno));
-	dbgprintf("   returning default RTO\n");
-	return default_rto;
+        dbgprintf("Failed to get socket send buffer size: %s\n", strerror(errno));
+        dbgprintf("   returning default RTO\n");
+        return default_rto;
     }
 
     u_long bw = bandwidth();
     if (bw == 0) {
-	return default_rto;
+        return default_rto;
     }
     u_long rto = ((bufsize / bandwidth()) + 2 * (u_long)RTT()) * 2;
     struct timeval tv = convert_to_timeval(rto);
     struct timespec ts_rto = {tv.tv_sec, tv.tv_usec * 1000};
 
     if (ts_rto.tv_sec < min_rto.tv_sec) {
-	return min_rto;
+        return min_rto;
     }
     return ts_rto;
 
@@ -370,7 +370,7 @@ CSocket::retransmission_timeout()
     struct protoent *pe = getprotobyname("TCP");
     int rc = -1;
     if (pe) {
-	rc = getsockopt (osfd, pe->p_proto, TCP_INFO, &info, &len);
+        rc = getsockopt (osfd, pe->p_proto, TCP_INFO, &info, &len);
         if (rc == 0) {
             long int usecs = info.tcpi_rto;
             ret.tv_sec = usecs / 1000000;
@@ -384,7 +384,7 @@ CSocket::retransmission_timeout()
                   strerror(errno));
     }
     if (rc < 0) {
-	dbgprintf("Cannot read tcpi_rto; making a lazy guess\n");
+        dbgprintf("Cannot read tcpi_rto; making a lazy guess\n");
         //TODO: more accurate guess?
     }
     dbgprintf("Retransmission timeout for csock %d is %ld.%09ld\n",
@@ -401,7 +401,7 @@ CSocket::tcp_rto()
     struct protoent *pe = getprotobyname("TCP");
     int rc = -1;
     if (pe) {
-	rc = getsockopt (osfd, pe->p_proto, TCP_INFO, &info, &len);
+        rc = getsockopt (osfd, pe->p_proto, TCP_INFO, &info, &len);
         if (rc == 0) {
             return info.tcpi_rto;
         } else {

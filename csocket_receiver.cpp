@@ -52,14 +52,14 @@ read_bytes(int sock, void *buf, size_t count)
 {
     ssize_t bytes_read = 0;
     while (bytes_read < (ssize_t)count) {
-	int rc = read(sock, (char*)buf + bytes_read, 
-		      count - bytes_read);
-	if (rc < 0) {
+        int rc = read(sock, (char*)buf + bytes_read, 
+                      count - bytes_read);
+        if (rc < 0) {
             return rc;
-	} else if (rc == 0) {
-	    return rc;
-	}
-	bytes_read += rc;
+        } else if (rc == 0) {
+            return rc;
+        }
+        bytes_read += rc;
     }
     return bytes_read;
 }
@@ -81,15 +81,15 @@ CSocketReceiver::Run(void)
     while (1) {
         struct CMMSocketControlHdr hdr;
 
-	dbgprintf("About to wait for network messages\n");
+        dbgprintf("About to wait for network messages\n");
 
         int rc = read_bytes(csock->osfd, &hdr, sizeof(hdr));
         if (rc != sizeof(hdr)) {
-	    dbgprintf("CSocketReceiver: recv failed, rc = %d, errno=%d\n", rc, errno);
+            dbgprintf("CSocketReceiver: recv failed, rc = %d, errno=%d\n", rc, errno);
             return;
         }
 
-	dbgprintf("Received message: %s\n", hdr.describe().c_str());
+        dbgprintf("Received message: %s\n", hdr.describe().c_str());
 
         try {
             dispatch(hdr);
@@ -189,17 +189,17 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     int numdeps = ntohl(hdr.op.begin_irob.numdeps);
     irob_id_t *deps = NULL;
     try {
-	deps = read_deps_array(id, numdeps, hdr);
+        deps = read_deps_array(id, numdeps, hdr);
     } catch (CMMControlException& e) {
         /* Sender sends Data_Check when a network goes down;
          * so this is redundant
-	PthreadScopedLock lock(&sk->scheduling_state_lock);
+        PthreadScopedLock lock(&sk->scheduling_state_lock);
 
-	IROBSchedulingData data(id, CMM_RESEND_REQUEST_DEPS);
-	csock->irob_indexes.resend_requests.insert(data);
-	pthread_cond_broadcast(&sk->scheduling_state_cv);
+        IROBSchedulingData data(id, CMM_RESEND_REQUEST_DEPS);
+        csock->irob_indexes.resend_requests.insert(data);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
         */
-	throw;
+        throw;
     }
 
 
@@ -235,7 +235,7 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Receiver began IROB %ld, took %lu.%06lu seconds\n",
-	      id, diff.tv_sec, diff.tv_usec);
+              id, diff.tv_sec, diff.tv_usec);
 }
 
 void
@@ -326,15 +326,15 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
             csock->irob_indexes.waiting_acks.insert(data);
         }
 
-	if (prirob->is_complete() || resend_request) {
-	    pthread_cond_broadcast(&sk->scheduling_state_cv);
-	}
+        if (prirob->is_complete() || resend_request) {
+            pthread_cond_broadcast(&sk->scheduling_state_cv);
+        }
     }
 
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Receiver ended IROB %ld, took %lu.%06lu seconds\n",
-	      id, diff.tv_sec, diff.tv_usec);
+              id, diff.tv_sec, diff.tv_usec);
 }
 
 
@@ -348,17 +348,17 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     int datalen = ntohl(hdr.op.irob_chunk.datalen);
     char *buf = NULL;
     try {
-	buf = read_data_buffer(id, datalen, hdr);
+        buf = read_data_buffer(id, datalen, hdr);
     } catch (CMMControlException& e) {
         /* Sender sends Data_Check when a network goes down;
          * so this is redundant
-	PthreadScopedLock lock(&sk->scheduling_state_lock);
+        PthreadScopedLock lock(&sk->scheduling_state_lock);
 
         IROBSchedulingData data(id, CMM_RESEND_REQUEST_DATA);
         csock->irob_indexes.resend_requests.insert(data);
-	pthread_cond_broadcast(&sk->scheduling_state_cv);
+        pthread_cond_broadcast(&sk->scheduling_state_cv);
         */
-	throw;
+        throw;
     }
 
     hdr.op.irob_chunk.data = buf;
@@ -386,7 +386,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
                  * so this is redundant
                 IROBSchedulingData data(id, CMM_RESEND_REQUEST_DEPS);
                 csock->irob_indexes.resend_requests.insert(data);
-		pthread_cond_broadcast(&sk->scheduling_state_cv);
+                pthread_cond_broadcast(&sk->scheduling_state_cv);
                 */
             }
         }
@@ -414,7 +414,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
 
                 IROBSchedulingData data(id, CMM_RESEND_REQUEST_DATA);
                 csock->irob_indexes.resend_requests.insert(data);
-		pthread_cond_broadcast(&sk->scheduling_state_cv);
+                pthread_cond_broadcast(&sk->scheduling_state_cv);
             }
             */
             delete [] buf;
@@ -437,7 +437,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Added chunk %d in IROB %ld, took %lu.%06lu seconds\n",
-	      ntohl(hdr.op.irob_chunk.seqno), id, diff.tv_sec, diff.tv_usec);
+              ntohl(hdr.op.irob_chunk.seqno), id, diff.tv_sec, diff.tv_usec);
 }
 
 void
@@ -539,8 +539,8 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("Receiver got ACK for IROB %ld and %u others, took %lu.%06lu seconds\n",
-	      (irob_id_t)ntohl(hdr.op.ack.id), num_acks,
-	      diff.tv_sec, diff.tv_usec);
+              (irob_id_t)ntohl(hdr.op.ack.id), num_acks,
+              diff.tv_sec, diff.tv_usec);
 }
 
 void
@@ -548,14 +548,14 @@ CSocketReceiver::do_goodbye(struct CMMSocketControlHdr hdr)
 {
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_GOODBYE);
     if (sk->is_shutting_down()) {
-	/* I initiated the shutdown; this is the "FIN/ACK" */
-	/* at this point, both sides have stopped sending. */
-	sk->goodbye_acked();
+        /* I initiated the shutdown; this is the "FIN/ACK" */
+        /* at this point, both sides have stopped sending. */
+        sk->goodbye_acked();
         throw CMMThreadFinish();
     } else {
-	/* The other side initiated the shutdown; this is the "FIN" */
-	/* Send the "FIN/ACK" */
-	sk->goodbye(true);
+        /* The other side initiated the shutdown; this is the "FIN" */
+        /* Send the "FIN/ACK" */
+        sk->goodbye(true);
         
         /* wake up any selectors */
         dbgprintf("Received goodbye for msocket %d; waking selectors\n",
