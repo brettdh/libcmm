@@ -1,0 +1,243 @@
+
+project build/
+diff --git a/core/base_rules.mk b/core/base_rules.mk
+index 4ee2985..7d02421 100644
+--- a/core/base_rules.mk
++++ b/core/base_rules.mk
+@@ -343,6 +343,19 @@ $(cleantarget)::
+ 	$(hide) rm -rf $(PRIVATE_CLEAN_FILES)
+ 
+ ###########################################################
++## make push- targets (BDH)
++###########################################################
++pushtarget := push-$(LOCAL_MODULE)
++$(pushtarget) : PRIVATE_MODULE := $(LOCAL_MODULE)
++$(pushtarget) : PRIVATE_INSTALLED_MODULE := \
++		$(LOCAL_INSTALLED_MODULE)
++$(pushtarget) : DEVICE_MODULE_PATH := $(PRIVATE_INSTALLED_MODULE)
++$(pushtarget) : DEVICE_MODULE_PATH := $(subst $(PRODUCT_OUT),"", $(DEVICE_MODULE_PATH))
++$(pushtarget):: $(LOCAL_MODULE)
++	@echo "Push: $(PRIVATE_INSTALLED_MODULE) => $(DEVICE_MODULE_PATH)"
++	$(hide) adb push $(PRIVATE_INSTALLED_MODULE) $(DEVICE_MODULE_PATH)
++
++###########################################################
+ ## Common definitions for module.
+ ###########################################################
+ 
+diff --git a/core/combo/linux-arm.mk b/core/combo/linux-arm.mk
+index fa5f67e..7b70350 100644
+--- a/core/combo/linux-arm.mk
++++ b/core/combo/linux-arm.mk
+@@ -92,7 +92,9 @@ KERNEL_HEADERS := $(KERNEL_HEADERS_COMMON) $(KERNEL_HEADERS_ARCH)
+ $(combo_target)C_INCLUDES := \
+ 	$(libc_root)/arch-arm/include \
+ 	$(libc_root)/include \
+-	$(libstdc++_root)/include \
++	$(if $(BDH_FULL_LIBSTDCXX),, \
++	    $(libstdc++_root)/include \
++	 ) \
+ 	$(KERNEL_HEADERS) \
+ 	$(libm_root)/include \
+ 	$(libm_root)/include/arch/arm \
+@@ -104,7 +106,15 @@ TARGET_CRTEND_O := $(TARGET_OUT_STATIC_LIBRARIES)/crtend_android.o
+ 
+ TARGET_STRIP_MODULE:=true
+ 
+-$(combo_target)DEFAULT_SYSTEM_SHARED_LIBRARIES := libc libstdc++ libm
++$(combo_target)DEFAULT_SYSTEM_SHARED_LIBRARIES := libc libm  # libstdc++ 
++ifeq ($(BDH_FULL_LIBSTDCXX),)
++$(combo_target)DEFAULT_SYSTEM_SHARED_LIBRARIES += libstdc++ 
++endif
++
++ifneq ($(BDH_FULL_LIBSTDCXX),)
++TARGET_CXXLIBS := $(shell $(TARGET_CXX) -mthumb-interwork -print-file-name=libstdc++.a)
++TARGET_CXXLIBS += $(shell $(TARGET_CXX) -mthumb-interwork -print-file-name=libsupc++.a)
++endif
+ 
+ $(combo_target)CUSTOM_LD_COMMAND := true
+ define transform-o-to-shared-lib-inner
+@@ -121,6 +131,9 @@ $(TARGET_CXX) \
+ 	$(call normalize-target-libraries,$(PRIVATE_ALL_SHARED_LIBRARIES)) \
+ 	-o $@ \
+ 	$(PRIVATE_LDFLAGS) \
++	$(if $(BDH_FULL_LIBSTDCXX), \
++	    $(TARGET_CXXLIBS) \
++	 ) \
+ 	$(TARGET_LIBGCC)
+ endef
+ 
+@@ -137,6 +150,9 @@ $(TARGET_CXX) -nostdlib -Bdynamic -Wl,-T,$(BUILD_SYSTEM)/armelf.x \
+ 	$(PRIVATE_ALL_OBJECTS) \
+ 	$(call normalize-target-libraries,$(PRIVATE_ALL_STATIC_LIBRARIES)) \
+ 	$(PRIVATE_LDFLAGS) \
++	$(if $(BDH_FULL_LIBSTDCXX), \
++	    $(TARGET_CXXLIBS) \
++	 ) \
+ 	$(TARGET_LIBGCC) \
+ 	$(TARGET_CRTEND_O)
+ endef
+@@ -150,6 +166,9 @@ $(TARGET_CXX) -nostdlib -Bstatic -Wl,-T,$(BUILD_SYSTEM)/armelf.x \
+ 	$(PRIVATE_LDFLAGS) \
+ 	$(PRIVATE_ALL_OBJECTS) \
+ 	$(call normalize-target-libraries,$(PRIVATE_ALL_STATIC_LIBRARIES)) \
++	$(if $(BDH_FULL_LIBSTDCXX), \
++	    $(TARGET_CXXLIBS) \
++	 ) \
+ 	$(TARGET_LIBGCC) \
+ 	$(TARGET_CRTEND_O)
+ endef
+diff --git a/core/combo/select.mk b/core/combo/select.mk
+index c54da22..3fc2fc3 100644
+--- a/core/combo/select.mk
++++ b/core/combo/select.mk
+@@ -38,7 +38,10 @@ $(combo_target)HAVE_STRLCAT := 0
+ $(combo_target)HAVE_KERNEL_MODULES := 0
+ 
+ # These flags might (will) be overridden by the target makefiles
+-$(combo_target)GLOBAL_CFLAGS := -fno-exceptions -Wno-multichar
++$(combo_target)GLOBAL_CFLAGS := -Wno-multichar   # -fno-exceptions 
++ifeq ($(BDH_FULL_LIBSTDCXX),)
++$(combo_target)GLOBAL_CFLAGS += -fno-exceptions 
++endif
+ $(combo_target)DEBUG_CFLAGS := -O0 -g
+ $(combo_target)RELEASE_CFLAGS := -O2 -g -fno-strict-aliasing
+ $(combo_target)GLOBAL_ARFLAGS := crs
+diff --git a/core/definitions.mk b/core/definitions.mk
+index 17ec646..5afb901 100644
+--- a/core/definitions.mk
++++ b/core/definitions.mk
+@@ -736,7 +736,9 @@ $(hide) $(PRIVATE_CXX) \
+ 	    $(TARGET_GLOBAL_CPPFLAGS) \
+ 	    $(PRIVATE_ARM_CFLAGS) \
+ 	 ) \
+-	-fno-rtti \
++	$(if $(BDH_FULL_LIBSTDCXX),, \
++	    -fno-rtti \
++	 ) \
+ 	$(PRIVATE_CFLAGS) \
+ 	$(PRIVATE_CPPFLAGS) \
+ 	$(PRIVATE_DEBUG_CFLAGS) \
+@@ -745,6 +747,7 @@ $(hide) $(transform-d-to-p)
+ endef
+ 
+ 
++
+ ###########################################################
+ ## Commands for running gcc to compile a C file
+ ###########################################################
+diff --git a/core/envsetup.mk b/core/envsetup.mk
+index ba93549..a914d46 100644
+--- a/core/envsetup.mk
++++ b/core/envsetup.mk
+@@ -328,6 +328,7 @@ $(info   HOST_ARCH=$(HOST_ARCH))
+ $(info   HOST_OS=$(HOST_OS))
+ $(info   HOST_BUILD_TYPE=$(HOST_BUILD_TYPE))
+ $(info   BUILD_ID=$(BUILD_ID))
++$(info   BDH_FULL_LIBSTDCXX=$(BDH_FULL_LIBSTDCXX))
+ $(info ============================================)
+ endif
+ 
+diff --git a/core/main.mk b/core/main.mk
+index fdf2567..d02a4f5 100644
+--- a/core/main.mk
++++ b/core/main.mk
+@@ -425,6 +425,18 @@ include $(ONE_SHOT_MAKEFILE)
+ # so that the modules will be installed in the same place they
+ # would have been with a normal make.
+ CUSTOM_MODULES := $(sort $(call get-tagged-modules,$(ALL_MODULE_TAGS),))
++
++SPECIAL_CMD_TARGETS := 
++# BDH: check whether we're doing a special pseudo-target like clean or push
++ifneq ($(CMD),)
++#$(warning "ALL_MODULES is [ $(ALL_MODULES) ]")
++#$(warning "CUSTOM_MODULES is [ $(CUSTOM_MODULES) ]")
++SPECIAL_CMD_TARGETS := $(addprefix $(CMD)-,$(basename $(notdir $(CUSTOM_MODULES))))
++#SPECIAL_CMD_TARGETS := $(addprefix $(CMD)-,$(filter-out $(ALL_PREBUILT),$(ALL_MODULES)))
++#$(warning "SPECIAL_CMD_TARGETS is [ $(SPECIAL_CMD_TARGETS) ]")
++CUSTOM_MODULES := 
++endif
++
+ FULL_BUILD :=
+ INTERNAL_DEFAULT_DOCS_TARGETS :=
+ # Stub out the notice targets, which probably aren't defined
+@@ -585,7 +597,8 @@ $(ALL_C_CPP_ETC_OBJECTS): | all_copied_headers
+ 
+ # All the droid stuff, in directories
+ .PHONY: files
+-files: prebuilt $(modules_to_install) $(INSTALLED_ANDROID_INFO_TXT_TARGET)
++files: prebuilt $(modules_to_install) $(INSTALLED_ANDROID_INFO_TXT_TARGET) \
++	$(SPECIAL_CMD_TARGETS)  #BDH: put it here so it gets picked up in the base_rules.mk
+ 
+ # -------------------------------------------------------------------
+ 
+diff --git a/envsetup.sh b/envsetup.sh
+index f8f20ab..ceeafb4 100644
+--- a/envsetup.sh
++++ b/envsetup.sh
+@@ -102,7 +102,11 @@ function setpaths()
+     # and in with the new
+     CODE_REVIEWS=
+     prebuiltdir=$(getprebuilt)
+-    export ANDROID_EABI_TOOLCHAIN=$prebuiltdir/toolchain/arm-eabi-4.2.1/bin
++    if [ -n $BDH_FULL_LIBSTDCXX ]; then
++        export ANDROID_EABI_TOOLCHAIN=$prebuiltdir/toolchain/arm-eabi-4.2.1-with-exceptions/bin
++    else
++        export ANDROID_EABI_TOOLCHAIN=$prebuiltdir/toolchain/arm-eabi-4.2.1/bin
++    fi
+     export ANDROID_TOOLCHAIN=$ANDROID_EABI_TOOLCHAIN
+     export ANDROID_QTOOLS=$T/development/emulator/qtools
+     export ANDROID_BUILD_PATHS=:$(get_build_var ANDROID_BUILD_PATHS):$ANDROID_QTOOLS:$ANDROID_TOOLCHAIN:$ANDROID_EABI_TOOLCHAIN$CODE_REVIEWS
+@@ -452,11 +456,14 @@ function add_lunch_combo()
+ # add the default one here
+ add_lunch_combo generic-eng
+ 
++# BDH: add one for the full C++ toolchain
++add_lunch_combo generic-eng-full-cxx
++
+ # if we're on linux, add the simulator.  There is a special case
+ # in lunch to deal with the simulator
+-if [ "$(uname)" = "Linux" ] ; then
+-    add_lunch_combo simulator
+-fi
++#if [ "$(uname)" = "Linux" ] ; then
++#    add_lunch_combo simulator
++#fi
+ 
+ function print_lunch_menu()
+ {
+@@ -503,6 +510,12 @@ function lunch()
+         if [ $answer -le ${#LUNCH_MENU_CHOICES[@]} ]
+         then
+             selection=${LUNCH_MENU_CHOICES[$(($answer-$_arrayoffset))]}
++            if [ "$selection" = "generic-eng-full-cxx" ]; then
++                selection=generic-eng
++                export BDH_FULL_LIBSTDCXX=yes
++            else
++                export BDH_FULL_LIBSTDCXX=
++            fi
+         fi
+     elif (echo -n $answer | grep -q -e "^[^\-][^\-]*-[^\-][^\-]*$")
+     then
+@@ -633,7 +646,21 @@ function mm()
+         elif [ ! "$M" ]; then
+             echo "Couldn't locate a makefile from the current directory."
+         else
+-            ONE_SHOT_MAKEFILE=$M make -C $T files $@
++            # BDH: look for 'clean' or 'push' pseudo-target for a local build.
++            local ARGS=$(echo "$@" | awk -v RS=" " -v ORS=" " '/^[^-].*$/')
++            local SPECIAL=
++            for ARG in $ARGS ; do
++                if [ "$ARG" = "clean" ]; then
++                    SPECIAL="clean"
++                elif [ "$ARG" = "push" ]; then
++                    SPECIAL="push"
++                fi
++            done
++            if [ "$SPECIAL" ]; then
++                ONE_SHOT_MAKEFILE=$M CMD=$SPECIAL make -C $T files 
++            else
++                ONE_SHOT_MAKEFILE=$M make -C $T files $@
++            fi
+         fi
+     fi
+ }
