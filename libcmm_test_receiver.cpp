@@ -67,15 +67,15 @@ void * Worker(void * arg)
 	TIME(end);
         if (rc != sizeof(ch)) {
 	    if (rc == 0) {
-		fprintf(stderr, "Connection %d closed remotely\n", sock);
+		dbgprintf_always("Connection %d closed remotely\n", sock);
 	    } else {
-		fprintf(stderr, "Connection %d had error %d\n", sock, errno);
+		dbgprintf_always("Connection %d had error %d\n", sock, errno);
 		perror("cmm_read");
 	    }
             break;
         }
 	TIMEDIFF(begin, end, diff);
-	fprintf(stderr, "[%lu.%06lu][testapp] Received msg; took %lu.%06lu seconds\n",
+	dbgprintf_always("[%lu.%06lu][testapp] Received msg; took %lu.%06lu seconds\n",
 		end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec);
 
         ch.data[sizeof(ch)-1] = '\0';
@@ -84,7 +84,7 @@ void * Worker(void * arg)
 	errno = 0;
 	//struct timeval begin, end, diff;
 	TIME(begin);
-	fprintf(stderr, "[%lu.%06lu][testapp] About to send response\n",
+	dbgprintf_always("[%lu.%06lu][testapp] About to send response\n",
 		begin.tv_sec, begin.tv_usec);
 #ifdef NOMULTISOCK
         rc = send(sock, &ch, sizeof(ch), 0);
@@ -94,13 +94,13 @@ void * Worker(void * arg)
 #endif
 	TIME(end);
         if (rc != sizeof(ch)) {
-	    fprintf(stderr, "cmm_send returned %d (expected %u), errno=%d\n",
+	    dbgprintf_always("cmm_send returned %d (expected %u), errno=%d\n",
 		    rc, sizeof(ch), errno);
             perror("cmm_send");
             break;
         }
 	TIMEDIFF(begin, end, diff);
-	fprintf(stderr, "Sent message; took %lu.%06lu seconds\n", 
+	dbgprintf_always("Sent message; took %lu.%06lu seconds\n", 
 		diff.tv_sec, diff.tv_usec);
     }
     
@@ -122,7 +122,7 @@ int main()
     int rc = setsockopt (listen_sock, SOL_SOCKET, SO_REUSEADDR,
 			 (char *) &on, sizeof(on));
     if (rc < 0) {
-	fprintf(stderr, "Cannot reuse socket address");
+	dbgprintf_always("Cannot reuse socket address");
     }
 
     struct sockaddr_in addr;

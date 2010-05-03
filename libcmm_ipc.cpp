@@ -58,7 +58,7 @@ static int scout_recv(struct cmm_msg *msg)
                 perror("read");
             }
         }
-	fprintf(stderr, 
+	dbgprintf_always(
 		"Receiving response from conn scout failed! rc=%d, errno=%d\n",
 		rc, errno);
 	return rc;
@@ -108,7 +108,7 @@ void scout_ipc_init()
     int rc = connect(scout_ipc_fd, (struct sockaddr *)&addr, sizeof(addr));
     if (rc < 0) {
         perror("connect");
-        fprintf(stderr, "Failed to connect to scout IPC socket\n");
+        dbgprintf_always("Failed to connect to scout IPC socket\n");
         close(scout_ipc_fd);
         scout_ipc_fd = -1;
         return;
@@ -118,7 +118,7 @@ void scout_ipc_init()
     msg.data.pid = getpid();
     rc = send_control_message(&msg);
     if (rc < 0) {
-	fprintf(stderr, 
+	dbgprintf_always(
 		"Failed to send subscription message to scout, "
 		"errno=%d\n", errno);
 	close(scout_ipc_fd);
@@ -140,7 +140,7 @@ void scout_ipc_deinit(void)
 	msg.data.pid = getpid();
 	int rc = send_control_message(&msg);
 	if (rc < 0) {
-	    fprintf(stderr, "Warning: failed to send unsubscribe message\n");
+	    dbgprintf_always("Warning: failed to send unsubscribe message\n");
 	}
         running = false;
 	close(scout_ipc_fd);
@@ -168,7 +168,7 @@ static int net_status_change_handler(void)
         process_interface_update(msg.data.iface, true);
         break;
     default:
-	fprintf(stderr, "Unexpected message opcode %d from conn scout\n",
+	dbgprintf_always("Unexpected message opcode %d from conn scout\n",
 		msg.opcode);
         break;
     }

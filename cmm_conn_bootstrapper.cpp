@@ -110,13 +110,13 @@ void ConnBootstrapper::Run()
 
                     // XXX: HACK HACK HACKETY HACK to avoid failing the bootstrapper.
                     //   Right way to do this: somehow make bootstrapping reliable.
-                    if (sk->local_ifaces.size() > 1) {
-                        int ip_rc = inet_aton("10.0.0.42", &local_addr.sin_addr);
-                        assert(ip_rc != 0);
-                    } else {
-                        memcpy(&local_addr.sin_addr, &sk->local_ifaces.begin()->ip_addr, 
-                               sizeof(local_addr.sin_addr));
-                    }
+                    // if (sk->local_ifaces.size() > 1) {
+                    //     int ip_rc = inet_aton("10.0.0.42", &local_addr.sin_addr);
+                    //     assert(ip_rc != 0);
+                    // } else {
+                    memcpy(&local_addr.sin_addr, &sk->local_ifaces.begin()->ip_addr, 
+                           sizeof(local_addr.sin_addr));
+                    // }
 
                     int rc = bind(bootstrap_sock, 
                                   (struct sockaddr*)&local_addr, sizeof(local_addr));

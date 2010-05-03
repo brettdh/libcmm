@@ -19,22 +19,22 @@ all: $(LIBRARIES) $(EXECUTABLES)
 cdf_test: cdf_test.o cdf_sampler.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
-cmm_test_sender: libcmm_test_sender.o libcmm.so 
+cmm_test_sender: libcmm_test_sender.o libcmm.so debug.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -lcmm -o $@ $<
 
-cmm_test_receiver: libcmm_test_receiver.o libcmm.so 
+cmm_test_receiver: libcmm_test_receiver.o libcmm.so debug.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -lcmm -o $@ $<
 
-vanilla_test_sender: vanilla_test_sender.o timeops.o
+vanilla_test_sender: vanilla_test_sender.o timeops.o debug.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
-vanilla_test_receiver: vanilla_test_receiver.o timeops.o
+vanilla_test_receiver: vanilla_test_receiver.o timeops.o debug.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
-cmm_throughput_test: libcmm_throughput_test.o libcmm.so
+cmm_throughput_test: libcmm_throughput_test.o libcmm.so debug.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -lcmm -o $@ $<
 
-vanilla_throughput_test: vanilla_throughput_test.o timeops.o
+vanilla_throughput_test: vanilla_throughput_test.o timeops.o debug.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
 vanilla_%.o: libcmm_%.cpp

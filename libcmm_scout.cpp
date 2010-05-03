@@ -94,7 +94,7 @@ void * IPC_Listener(void *)
     scout_control_ipc_sock = socket(PF_UNIX, SOCK_STREAM, 0);
     if (scout_control_ipc_sock < 0) {
 	perror("socket");
-	fprintf(stderr, "Failed to open IPC socket\n");
+	dbgprintf_always("Failed to open IPC socket\n");
 	raise(SIGINT); /* easy way to bail out */
     }
 
@@ -107,13 +107,13 @@ void * IPC_Listener(void *)
               sizeof(addr));
     if (rc < 0) {
         perror("bind");
-        fprintf(stderr, "Failed to bind IPC socket\n");
+        dbgprintf_always("Failed to bind IPC socket\n");
         raise(SIGINT);
     }
     rc = listen(scout_control_ipc_sock, 10);
     if (rc < 0) {
         perror("listen");
-        fprintf(stderr, "Failed to listen on IPC socket\n");
+        dbgprintf_always("Failed to listen on IPC socket\n");
         raise(SIGINT);
     }
 
@@ -137,7 +137,7 @@ void * IPC_Listener(void *)
 		continue;
 	    } else {
 		perror("select");
-		fprintf(stderr, "Failed to select on IPC socket\n");
+		dbgprintf_always("Failed to select on IPC socket\n");
 		raise(SIGINT);
 		break;
 	    }
@@ -154,7 +154,7 @@ void * IPC_Listener(void *)
                                   (struct sockaddr *)&addr, &len);
 	    if (ipc_sock < 0) {
 		perror("accept");
-		fprintf(stderr, "Failed accepting new IPC socket\n");
+		dbgprintf_always("Failed accepting new IPC socket\n");
                 ready_fds--;
             } else {
                 rc = read(ipc_sock, &msg, sizeof(msg));
@@ -162,15 +162,15 @@ void * IPC_Listener(void *)
                     if (rc < 0) {
                         perror("read");
                     }
-                    fprintf(stderr, "Failed to receive subscribe message\n");
+                    dbgprintf_always("Failed to receive subscribe message\n");
                     close(ipc_sock);
                 } else {
                     SubscriberProcHash::accessor ac;
                     if (subscriber_procs.find(ac, msg.data.pid)) {
-                        fprintf(stderr, 
+                        dbgprintf_always(
                                 "Duplicate subscribe request received "
                                 "from process %d\n", msg.data.pid);
-                        fprintf(stderr, "Reopening socket\n");
+                        dbgprintf_always("Reopening socket\n");
                         close(ac->second.ipc_sock);
                     } else {
                         subscriber_procs.insert(ac, ipc_sock);
@@ -183,7 +183,7 @@ void * IPC_Listener(void *)
                         subscriber_procs.erase(ac);
                     } else {
                         ac->second.ipc_sock = ipc_sock;
-                        fprintf(stderr, "Process %d subscribed\n", 
+                        dbgprintf_always("Process %d subscribed\n", 
                                 msg.data.pid);
                         if (ipc_sock > maxfd) {
                             maxfd = ipc_sock;
@@ -212,10 +212,10 @@ void * IPC_Listener(void *)
                         if (rc < 0) {
                             perror("read");
                         }
-                        fprintf(stderr, "Hmm... process %d must have died\n",
+                        dbgprintf_always("Hmm... process %d must have died\n",
                                 ac->second.pid);
                     } else {
-                        fprintf(stderr, "Process %d unsubscribed\n", msg.data.pid);
+                        dbgprintf_always("Process %d unsubscribed\n", msg.data.pid);
                     }
                     remove_subscriber(ac);
                     FD_CLR(s, &active_fds);
@@ -242,9 +242,9 @@ int notify_subscriber_of_event(pid_t pid, int ipc_sock,
         if (rc < 0) {
             perror("write");
         }
-	fprintf(stderr, "Failed to notify subscriber proc %d\n", pid);
+	dbgprintf_always("Failed to notify subscriber proc %d\n", pid);
     } else {
-	fprintf(stderr, "Sent notification to process %d\n", pid);
+	dbgprintf_always("Sent notification to process %d\n", pid);
     }
     return rc;
 }
@@ -301,26 +301,26 @@ void notify_all_subscribers(const IfaceList& changed_ifaces,
 
 void handle_term(int)
 {
-    fprintf(stderr, "Scout attempting to quit gracefully...\n");
+    dbgprintf_always("Scout attempting to quit gracefully...\n");
     running = false;
     shutdown(emu_sock, SHUT_RDWR);
 }
 
 void usage(char *argv[])
 {
-    fprintf(stderr, 
+    dbgprintf_always(
             "Usage: conn_scout <FG iface> <bandwidth> <RTT>\n"
             "                  [<BG iface> <bandwidth> <RTT>\n"
             "                   [uptime downtime]]\n");
-    fprintf(stderr, 
+    dbgprintf_always(
             "Usage:    uptime, downtime are in seconds;\n"
             "          bandwidth=bytes/sec, RTT=ms.\n");
-    fprintf(stderr, 
+    dbgprintf_always(
             "Usage 2: conn_scout <FG iface> <bandwidth> <RTT>\n"
             "                    <BG iface> <bandwidth> <RTT>\n"
 	    "                    cdf <encounter duration cdf file>\n"
 	    "                        <disconnect duration cdf file>\n");
-    fprintf(stderr, 
+    dbgprintf_always(
             "Usage 3: conn_scout replay <FG iface> <BG iface>\n"
             "   -Connects to the emulation box, which will transmit\n"
             "     the trace of network measurements.\n");
@@ -338,7 +338,7 @@ void thread_sleep(double fseconds)
     timeout.tv_usec = (long)(fnseconds*1000000);
 
     if (fseconds <= 0.0) {
-	fprintf(stderr, "Error: fseconds <= 0.0 (or just too big!)\n");
+	dbgprintf_always("Error: fseconds <= 0.0 (or just too big!)\n");
 	raise(SIGINT);
     }
 
@@ -370,7 +370,7 @@ void thread_sleep(struct timeval tv)
 int get_ip_address(const char *ifname, struct in_addr *ip_addr)
 {
     if (strlen(ifname) > IF_NAMESIZE) {
-	fprintf(stderr, "Error: ifname too long (longer than %d)\n", IF_NAMESIZE);
+	dbgprintf_always("Error: ifname too long (longer than %d)\n", IF_NAMESIZE);
 	return -1;
     }
 
@@ -436,7 +436,7 @@ int get_trace(deque<struct trace_slice>& trace)
 
     trace_size = ntohl(trace_size);
     if (trace_size <= 0) {
-        fprintf(stderr, "Received invalid trace size %d\n", trace_size);
+        dbgprintf_always("Received invalid trace size %d\n", trace_size);
         exit(EXIT_FAILURE);
     }
     
@@ -449,7 +449,7 @@ int get_trace(deque<struct trace_slice>& trace)
 
         slice.ntohl_all();
         if (slice.start.tv_sec < 0) {
-            fprintf(stderr, "Error: invalid timestamp received with slice\n");
+            dbgprintf_always("Error: invalid timestamp received with slice\n");
             exit(EXIT_FAILURE);
         }
         if (trace_start.tv_sec == -1) {
@@ -459,7 +459,7 @@ int get_trace(deque<struct trace_slice>& trace)
             timersub(&slice.start, &trace_start, &slice.start);
             
             if (!timercmp(&slice.start, &last_slice_start, >)) {
-                fprintf(stderr, "Error: out-of-order timestamps in trace\n");
+                dbgprintf_always("Error: out-of-order timestamps in trace\n");
                 exit(EXIT_FAILURE);
             }
             last_slice_start = slice.start;
@@ -533,7 +533,7 @@ int main(int argc, char *argv[])
 		up_time_samples = up_ptr.release();
 		down_time_samples = down_ptr.release();
 	    } catch (CDFErr &e) {
-		fprintf(stderr, "CDF Error: %s\n", e.str.c_str());
+		dbgprintf_always("CDF Error: %s\n", e.str.c_str());
 		exit(1);
 	    }
 	} else {
@@ -543,7 +543,7 @@ int main(int argc, char *argv[])
 	    up_time = atof(argv[argi++]);
 	    down_time = atof(argv[argi++]);
 	    if (up_time < MIN_TIME || down_time < MIN_TIME) {
-		fprintf(stderr, 
+		dbgprintf_always(
 			"Error: uptime and downtime must be greater than "
 			"%f seconds.\n", MIN_TIME);
 		exit(-1);
@@ -571,7 +571,7 @@ int main(int argc, char *argv[])
     for (size_t i = 0; i < num_ifs; i++) {
         int rc = get_ip_address(ifnames[i], &ifs[i].ip_addr);
 	if (rc < 0) {
-	    fprintf(stderr, "blah, couldn't get IP address for %s\n", ifnames[i]);
+	    dbgprintf_always("blah, couldn't get IP address for %s\n", ifnames[i]);
 	    exit(-1);
 	}
         net_interfaces[ifs[i].ip_addr.s_addr] = ifs[i];
@@ -604,18 +604,18 @@ int main(int argc, char *argv[])
     int rc = pthread_create(&tid, NULL, IPC_Listener, NULL);
     if (rc < 0) {
 	perror("pthread_create");
-	fprintf(stderr, "Couldn't create IPCListener thread, exiting\n");
+	dbgprintf_always("Couldn't create IPCListener thread, exiting\n");
 	exit(-1);
     }
 
     if (trace_replay) {
-        fprintf(stderr, "Starting trace replay\n");
+        dbgprintf_always("Starting trace replay\n");
 	/*
         for (int i = 3; i > 0; --i) {
-            fprintf(stderr, "%d..", i);
+            dbgprintf_always("%d..", i);
             sleep(1);
         }
-        fprintf(stderr, "\n");
+        dbgprintf_always("\n");
 	*/
 
         char ch = 0;
@@ -635,7 +635,7 @@ int main(int argc, char *argv[])
     while (running) {
         if (trace_replay) {
 	    if (cur_trace_slice + 1 == trace.size()) {
-		fprintf(stderr, "Looping the trace\n");
+		dbgprintf_always("Looping the trace\n");
 		cur_trace_slice = 0;
 		continue;
 	    }
@@ -654,7 +654,7 @@ int main(int argc, char *argv[])
 	}
 	//labels_available = UP_LABELS;
         
-	fprintf(stderr, "%s is up for %lf seconds\n", bg_iface_name, up_time);
+	dbgprintf_always("%s is up for %lf seconds\n", bg_iface_name, up_time);
         pthread_mutex_lock(&ifaces_lock);
         net_interfaces[bg_iface.ip_addr.s_addr] = bg_iface;
         pthread_mutex_unlock(&ifaces_lock);
@@ -667,7 +667,7 @@ int main(int argc, char *argv[])
 	    down_time = down_time_samples->sample();
 	}
 	//labels_available = DOWN_LABELS;
-	fprintf(stderr, "%s is down for %lf seconds\n", bg_iface_name, down_time);
+	dbgprintf_always("%s is down for %lf seconds\n", bg_iface_name, down_time);
 
         pthread_mutex_lock(&ifaces_lock);
         net_interfaces.erase(bg_iface.ip_addr.s_addr);
@@ -684,14 +684,19 @@ int main(int argc, char *argv[])
     shutdown(scout_control_ipc_sock, SHUT_RDWR);
     pthread_join(tid, NULL);
     close(emu_sock);
-    fprintf(stderr, "Scout gracefully quit.\n");
+    dbgprintf_always("Scout gracefully quit.\n");
     return 0;
 }
 
-static void print_slice(FILE *fp, struct trace_slice slice, struct timeval end,
+static void print_slice(struct trace_slice slice, struct timeval end,
 			struct net_interface cellular_iface,
 			struct net_interface wifi_iface)
 {
+#ifdef ANDROID
+    FILE *fp = stdout;
+#else
+    FILE *fp = stderr;
+#endif
     fprintf(fp, "Trace slice  start %lu.%06lu  end ",
             slice.start.tv_sec, slice.start.tv_usec);
     if (end.tv_sec != -1) {
@@ -735,7 +740,7 @@ static void emulate_slice(struct trace_slice slice, struct timeval end,
     emu_slice_start.tv_sec = ntohl(emu_slice_start.tv_sec);
     emu_slice_start.tv_usec = ntohl(emu_slice_start.tv_usec);
     if (!timercmp(&emu_slice_start, &slice.start, ==)) {
-	fprintf(stderr, "slice.start=%lu.%06lu, but "
+	dbgprintf_always("slice.start=%lu.%06lu, but "
 		"emubox says it's %lu.%06lu; exiting\n",
 		slice.start.tv_sec, slice.start.tv_usec, 
 		emu_slice_start.tv_sec, emu_slice_start.tv_usec);
@@ -751,7 +756,7 @@ static void emulate_slice(struct trace_slice slice, struct timeval end,
     wifi_iface.bandwidth_up = slice.wifi_bw_up;
     wifi_iface.RTT = slice.wifi_RTT;
 
-    print_slice(stderr, slice, end, cellular_iface, wifi_iface);
+    print_slice(slice, end, cellular_iface, wifi_iface);
 
     pthread_mutex_lock(&ifaces_lock);
     if (wifi_iface.bandwidth_up == 0) {

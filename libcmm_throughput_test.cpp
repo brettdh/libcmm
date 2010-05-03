@@ -60,10 +60,10 @@ void handle_error(const char *str, int sock = -1)
 
 void usage()
 {
-    fprintf(stderr, "Usage:\n");
-    fprintf(stderr, "   receiver:  throughput_test -l\n");
-    fprintf(stderr, "     sender:  throughput_test <host> < -b <bytes> | -k <kbytes> | -m <mbytes> > [-c minchunksize]\n");
-    fprintf(stderr, "              (default minchunksize is 64 bytes; always specify in bytes)\n");
+    dbgprintf_always("Usage:\n");
+    dbgprintf_always("   receiver:  throughput_test -l\n");
+    dbgprintf_always("     sender:  throughput_test <host> < -b <bytes> | -k <kbytes> | -m <mbytes> > [-c minchunksize]\n");
+    dbgprintf_always("              (default minchunksize is 64 bytes; always specify in bytes)\n");
     exit(-1);
 }
 
@@ -181,7 +181,7 @@ void send_bytes_by_chunk_one_irob(int sock, char *buf, size_t bytes, size_t chun
     }
     int rc = end_irob(irob);
     if (rc < 0) {
-	fprintf(stderr, "Failed ending IROB %lu\n", irob);
+	dbgprintf_always("Failed ending IROB %lu\n", irob);
 	exit(-1);
     }
 
@@ -237,7 +237,7 @@ void run_all_chunksizes(const char *hostname, int minchunksize,
         CLOSE(sock);
         
         TIMEDIFF(begin, end, diff);
-        fprintf(stderr, "   In %d%s chunks: %lu.%06lu seconds "
+        dbgprintf_always("   In %d%s chunks: %lu.%06lu seconds "
                 "(each send avg %lu.%06lu seconds stutter avg %lu.%06lu)\n", 
                 chunk<1024?chunk:chunk/1024, chunk<1024?"B":"K",
                 diff.tv_sec, diff.tv_usec,
@@ -251,7 +251,7 @@ int get_int_from_string(const char *str, const char *name)
     errno = 0;
     int val = strtol(str, NULL, 10);
     if (errno != 0) {
-	fprintf(stderr, "Error: %s argument must be an integer\n", name);
+	dbgprintf_always("Error: %s argument must be an integer\n", name);
 	usage();
     }
     return val;
@@ -268,7 +268,7 @@ int srv_connect(const char *hostname)
     srv_addr.sin_port = htons(LISTEN_PORT);
     struct hostent *hp = gethostbyname(hostname);
     if (hp == NULL) {
-	fprintf(stderr, "Failed to lookup hostname %s\n", hostname);
+	dbgprintf_always("Failed to lookup hostname %s\n", hostname);
 	exit(-1);
     }
     memcpy(&srv_addr.sin_addr, hp->h_addr, hp->h_length);
@@ -296,7 +296,7 @@ int main(int argc, char *argv[])
 	    break;
 	case 'b':
 	    if (bytes != 0) {
-		fprintf(stderr, "Error: specify only one of -b, -k, -m\n");
+		dbgprintf_always("Error: specify only one of -b, -k, -m\n");
 		usage();
 	    }
 	    bytes = get_int_from_string(optarg, "bytes");
@@ -305,34 +305,34 @@ int main(int argc, char *argv[])
 	    break;
 	case 'k':
 	    if (bytes != 0) {
-		fprintf(stderr, "Error: specify only one of -b, -k, -m\n");
+		dbgprintf_always("Error: specify only one of -b, -k, -m\n");
 		usage();
 	    }
 	    kbytes = get_int_from_string(optarg, "kbytes");
 	    bytes = kbytes * 1024;
 	    mbytes = kbytes / 1024;
 	    if (bytes < kbytes) {
-		fprintf(stderr, "Error: kbytes argument is too large! (overflow)\n");
+		dbgprintf_always("Error: kbytes argument is too large! (overflow)\n");
 		usage();
 	    }
 	    break;
 	case 'm':
 	    if (bytes != 0) {
-		fprintf(stderr, "Error: specify only one of -b, -k, -m\n");
+		dbgprintf_always("Error: specify only one of -b, -k, -m\n");
 		usage();
 	    }
 	    mbytes = get_int_from_string(optarg, "mbytes");
 	    kbytes = mbytes * 1024;
 	    bytes = kbytes * 1024;
 	    if (bytes < kbytes || kbytes < mbytes) {
-		fprintf(stderr, "Error: mbytes argument is too large! (overflow)\n");
+		dbgprintf_always("Error: mbytes argument is too large! (overflow)\n");
 		usage();
 	    }
 	    break;
 	case 's':
 	    stutter_ms = get_int_from_string(optarg, "stutter_ms");
 	    if (stutter_ms >= 1000) {
-		fprintf(stderr, "Error: stutter_ms must be <1000ms\n");
+		dbgprintf_always("Error: stutter_ms must be <1000ms\n");
 		usage();
 	    }
 	}
@@ -340,7 +340,7 @@ int main(int argc, char *argv[])
     
     if (!receiver) {
 	if (bytes == 0) {
-	    fprintf(stderr, "Error: sender needs positive integer "
+	    dbgprintf_always("Error: sender needs positive integer "
 		    "for one of -b, -k, or -m args\n");
 	    usage();
 	}
@@ -357,7 +357,7 @@ int main(int argc, char *argv[])
 	int rc = setsockopt (listen_sock, SOL_SOCKET, SO_REUSEADDR,
 			     (char *) &on, sizeof(on));
 	if (rc < 0) {
-	    fprintf(stderr, "Cannot reuse socket address");
+	    dbgprintf_always("Cannot reuse socket address");
 	}
 	
 	struct sockaddr_in addr;
@@ -414,25 +414,25 @@ int main(int argc, char *argv[])
 	close(listen_sock);
     } else {
 	if (!argv[optind]) {
-	    fprintf(stderr, "Error: host arg required for sender\n");
+	    dbgprintf_always("Error: host arg required for sender\n");
 	    usage();
 	}
 
 	char *buf = new char[bytes];
 	memset(buf, 'Q', bytes);
 	if (mbytes > 0) {
-	    fprintf(stderr, "Sending %dMB\n", mbytes);
+	    dbgprintf_always("Sending %dMB\n", mbytes);
 	} else if (kbytes > 0) {
-	    fprintf(stderr, "Sending %dKB\n", kbytes);
+	    dbgprintf_always("Sending %dKB\n", kbytes);
 	} else if (bytes > 0) {
-	    fprintf(stderr, "Sending %d bytes\n", bytes);
+	    dbgprintf_always("Sending %d bytes\n", bytes);
 	} else assert(0);
 	
         run_all_chunksizes(argv[optind], minchunksize, buf, bytes,
                            stutter_ms, send_bytes_by_chunk);
 
 #ifndef NOMULTISOCK
-	fprintf(stderr, "  In a single IROB:\n");
+	dbgprintf_always("  In a single IROB:\n");
         run_all_chunksizes(argv[optind], minchunksize, buf, bytes,
                            stutter_ms, send_bytes_by_chunk_one_irob);
 #endif

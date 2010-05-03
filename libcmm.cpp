@@ -54,6 +54,9 @@ static void libcmm_init(void)
 #endif
         }
         config_input.close();
+    } else {
+        dbgprintf_always("Warning: config file not read; couldn't open %s\n",
+                CONFIG_FILE);
     }
     
     scout_ipc_init();
@@ -126,14 +129,14 @@ void process_interface_update(struct net_interface iface, bool down)
      * 3) Clean up.
      */
 
-    //fprintf(stderr, "Signalled by scout\n");
+    //dbgprintf_always("Signalled by scout\n");
     
     /* bitmask of all available bit labels ORed together */
     dbgprintf("Got update from scout: %s is %s, bandwidth_down %lu bandwidth_up %lu bytes/sec RTT %lu ms\n",
 	      inet_ntoa(iface.ip_addr), down?"down":"up",
               iface.bandwidth_down, iface.bandwidth_up, iface.RTT);
 
-    //fprintf(stderr, "Before:\n---\n");
+    //dbgprintf_always("Before:\n---\n");
     //print_thunks();
 
     if (down) {
@@ -145,7 +148,7 @@ void process_interface_update(struct net_interface iface, bool down)
         //fire_thunks();
     }
 
-    //fprintf(stderr, "After:\n---\n");
+    //dbgprintf_always("After:\n---\n");
     //print_thunks();
 }
 

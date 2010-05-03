@@ -49,7 +49,7 @@ include $(BUILD_SHARED_LIBRARY)
 include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE := cmm_test_sender
-LOCAL_SRC_FILES := libcmm_test_sender.cpp
+LOCAL_SRC_FILES := libcmm_test_sender.cpp debug.cpp
 LOCAL_SHARED_LIBRARIES := libcmm
 include $(BUILD_EXECUTABLE)
 
@@ -59,7 +59,7 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE := cmm_test_receiver
-LOCAL_SRC_FILES := libcmm_test_receiver.cpp
+LOCAL_SRC_FILES := libcmm_test_receiver.cpp debug.cpp
 LOCAL_SHARED_LIBRARIES := libcmm
 include $(BUILD_EXECUTABLE)
 
@@ -69,7 +69,7 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE := vanilla_test_sender
-LOCAL_SRC_FILES := libcmm_test_sender.cpp timeops.cpp
+LOCAL_SRC_FILES := libcmm_test_sender.cpp timeops.cpp debug.cpp
 LOCAL_CFLAGS += -DNOMULTISOCK
 LOCAL_STATIC_LIBRARIES := libboost_thread
 include $(BUILD_EXECUTABLE)
@@ -80,7 +80,7 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE := vanilla_test_receiver
-LOCAL_SRC_FILES := libcmm_test_receiver.cpp timeops.cpp
+LOCAL_SRC_FILES := libcmm_test_receiver.cpp timeops.cpp debug.cpp
 LOCAL_CFLAGS += -DNOMULTISOCK
 include $(BUILD_EXECUTABLE)
 
@@ -90,7 +90,7 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE := cmm_throughput_test
-LOCAL_SRC_FILES := libcmm_throughput_test.cpp
+LOCAL_SRC_FILES := libcmm_throughput_test.cpp debug.cpp
 LOCAL_SHARED_LIBRARIES := libcmm
 include $(BUILD_EXECUTABLE)
 
@@ -100,7 +100,7 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE := vanilla_throughput_test
-LOCAL_SRC_FILES := libcmm_throughput_test.cpp timeops.cpp
+LOCAL_SRC_FILES := libcmm_throughput_test.cpp timeops.cpp debug.cpp
 LOCAL_CFLAGS += -DNOMULTISOCK
 include $(BUILD_EXECUTABLE)
 

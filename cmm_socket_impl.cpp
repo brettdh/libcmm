@@ -313,7 +313,7 @@ CMMSocketImpl::create(int family, int type, int protocol)
     
     PthreadScopedLock lock(&hashmaps_mutex);
     if (!cmm_sock_hash.insert(new_sock, new_sk)) {
-	fprintf(stderr, "Error: new socket %d is already in hash!  WTF?\n", 
+	dbgprintf_always("Error: new socket %d is already in hash!  WTF?\n", 
 		new_sock);
 	assert(0);
     }
@@ -346,7 +346,7 @@ sanity_check(mc_socket_t sock)
             }
         }
     }
-    fprintf(stderr, "ERROR: mc_socket sanity check FAILED!\n");
+    dbgprintf_always("ERROR: mc_socket sanity check FAILED!\n");
     return -1;
 #endif
 }
@@ -623,11 +623,11 @@ CMMSocketImpl::make_real_fd_set(int nfds, fd_set *fds,
 	return 0;
     }
 
-    //fprintf(stderr, "DBG: about to check fd_set %p for mc_sockets\n", fds);
+    //dbgprintf_always("DBG: about to check fd_set %p for mc_sockets\n", fds);
     for (mc_socket_t s = nfds - 1; s >= 0; s--) {
-        //fprintf(stderr, "DBG: checking fd %d\n", s);
+        //dbgprintf_always("DBG: checking fd %d\n", s);
 	if (FD_ISSET(s, fds)) {
-            //fprintf(stderr, "DBG: fd %d is set\n", s);
+            //dbgprintf_always("DBG: fd %d is set\n", s);
 	    CMMSocketImplPtr sk;
 	    if (!cmm_sock_hash.find(s, sk)) {
                 /* This must be a real file descriptor, not a mc_socket. 

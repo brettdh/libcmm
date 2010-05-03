@@ -6,7 +6,7 @@
 int main(int argc, char *argv[])
 {
     if (argc != 3) {
-	fprintf(stderr, "Usage: %s <filename> <duration>\n", argv[0]);
+	dbgprintf_always("Usage: %s <filename> <duration>\n", argv[0]);
 	exit(1);
     }
 
@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
 	    sleep(1);
 	}
     } catch (CDFErr &e) {
-	fprintf(stderr, "Error: %s\n", e.str.c_str());
+	dbgprintf_always("Error: %s\n", e.str.c_str());
 	exit(1);
     }
     

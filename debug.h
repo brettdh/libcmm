@@ -7,6 +7,15 @@
 #define CDECL 
 #endif
 
+#include <pthread.h>
+extern pthread_key_t thread_name_key;
+#define MAX_NAME_LEN 20
+char * get_thread_name();
+void set_thread_name(const char *name);
+
+CDECL void dbgprintf_always(const char *fmt, ...)
+    __attribute__((format(printf, 1, 2)));
+
 #ifdef CMM_DEBUG
 CDECL void set_debugging(bool value);
 CDECL void dbgprintf(const char *format, ...)
