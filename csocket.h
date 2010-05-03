@@ -75,6 +75,7 @@ class CSocket {
     ssize_t trickle_chunksize();
 
     long int tcp_rto();
+    void print_tcp_rto();
   private:
     // only allow shared_ptr creation
     CSocket(boost::weak_ptr<CMMSocketImpl> sk_, 

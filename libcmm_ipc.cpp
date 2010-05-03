@@ -89,7 +89,7 @@ bool scout_ipc_inited(void)
     return (scout_ipc_fd > 0);
 }
 
-void scout_ipc_init()
+int scout_ipc_init()
 {
     struct cmm_msg msg;
     memset(&msg, 0, sizeof(msg));
@@ -97,7 +97,7 @@ void scout_ipc_init()
     scout_ipc_fd = socket(PF_UNIX, SOCK_STREAM, 0);
     if (scout_ipc_fd < 0) {
         perror("socket");
-        return;
+        return -1;
     }
 
     struct sockaddr_un addr;
@@ -111,7 +111,7 @@ void scout_ipc_init()
         dbgprintf_always("Failed to connect to scout IPC socket\n");
         close(scout_ipc_fd);
         scout_ipc_fd = -1;
-        return;
+        return -1;
     }
 
     msg.opcode = CMM_MSG_SUBSCRIBE;
@@ -128,7 +128,15 @@ void scout_ipc_init()
         pthread_attr_init(&attr);
         pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
         rc = pthread_create(&ipc_thread_id, &attr, IPCThread, NULL);
+        if (rc != 0) {
+            close(scout_ipc_fd);
+            scout_ipc_fd = -1;
+            dbgprintf_always("Failed to create IPC thread, rc=%d\n", rc);
+            return -1;
+        }
     }
+    
+    return 0;
 }
 
 void scout_ipc_deinit(void)

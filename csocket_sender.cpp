@@ -735,7 +735,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     dbgprintf_plain("\n");
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     csock->stats.report_send_event(id, bytes);
-    dbgprintf("TCP RTO for csock %d is %lu\n", csock->osfd, csock->tcp_rto());
+    csock->print_tcp_rto();
     int rc = writev(csock->osfd, vec, count);
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
@@ -798,7 +798,7 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     csock->stats.report_send_event(data.id, sizeof(hdr));
-    dbgprintf("TCP RTO for csock %d is %lu\n", csock->osfd, csock->tcp_rto());
+    csock->print_tcp_rto();
     int rc = write(csock->osfd, &hdr, sizeof(hdr));
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
@@ -990,7 +990,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
                   waiting_ack_irob);
     }
     csock->stats.report_send_event(id, sizeof(hdr) + chunksize);
-    dbgprintf("TCP RTO for csock %d is %lu\n", csock->osfd, csock->tcp_rto());
+    csock->print_tcp_rto();
     int rc = writev(csock->osfd, vec, veccount);
     delete [] vec;
     pthread_mutex_lock(&sk->scheduling_state_lock);
@@ -1099,7 +1099,7 @@ CSocketSender::new_interface(struct net_interface iface)
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     csock->stats.report_send_event(sizeof(hdr));
-    dbgprintf("TCP RTO for csock %d is %lu\n", csock->osfd, csock->tcp_rto());
+    csock->print_tcp_rto();
     int rc = write(csock->osfd, &hdr, sizeof(hdr));
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
@@ -1130,7 +1130,7 @@ CSocketSender::down_interface(struct net_interface iface)
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     csock->stats.report_send_event(sizeof(hdr));
-    dbgprintf("TCP RTO for csock %d is %lu\n", csock->osfd, csock->tcp_rto());
+    csock->print_tcp_rto();
     int rc = write(csock->osfd, &hdr, sizeof(hdr));
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
@@ -1207,7 +1207,7 @@ CSocketSender::send_acks(const IROBSchedulingData& data,
     hdr.op.ack.qdelay.tv_sec = htonl(hdr.op.ack.qdelay.tv_sec);
     hdr.op.ack.qdelay.tv_usec = htonl(hdr.op.ack.qdelay.tv_usec);
 
-    dbgprintf("TCP RTO for csock %d is %lu\n", csock->osfd, csock->tcp_rto());
+    csock->print_tcp_rto();
     int rc = writev(csock->osfd, vec, numvecs);
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
@@ -1238,7 +1238,7 @@ CSocketSender::goodbye()
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     csock->stats.report_send_event(sizeof(hdr));
-    dbgprintf("TCP RTO for csock %d is %lu\n", csock->osfd, csock->tcp_rto());
+    csock->print_tcp_rto();
     int rc = write(csock->osfd, &hdr, sizeof(hdr));
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
@@ -1319,7 +1319,7 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
               hdrs[0].describe().c_str(), hdrcount - 1);
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     csock->stats.report_send_event(bytes);
-    dbgprintf("TCP RTO for csock %d is %lu\n", csock->osfd, csock->tcp_rto());
+    csock->print_tcp_rto();
     int rc = write(csock->osfd, hdrs, bytes);
     pthread_mutex_lock(&sk->scheduling_state_lock);
     
@@ -1352,7 +1352,7 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
     dbgprintf("About to send message: %s\n", 
               data_check_hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
-    dbgprintf("TCP RTO for csock %d is %lu\n", csock->osfd, csock->tcp_rto());
+    csock->print_tcp_rto();
     int rc = write(csock->osfd, &data_check_hdr, sizeof(data_check_hdr));
     pthread_mutex_lock(&sk->scheduling_state_lock);
     if (rc != sizeof(data_check_hdr)) {

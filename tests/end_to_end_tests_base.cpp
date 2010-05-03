@@ -58,11 +58,11 @@ void
 EndToEndTestsBase::setUp()
 {
     int rc = -1;
-    rc = system("ps aux | grep -v grep | grep conn_scout > /dev/null");
-    if (rc != 0) {
-        fprintf(stderr, "conn_scout is not running; please start it first.\n");
-        exit(EXIT_FAILURE);
-    }
+    // rc = system("ps aux | grep -v grep | grep conn_scout > /dev/null");
+    // if (rc != 0) {
+    //     fprintf(stderr, "conn_scout is not running; please start it first.\n");
+    //     exit(EXIT_FAILURE);
+    // }
 
     if (!static_inited) {
         chooseRole();

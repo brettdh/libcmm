@@ -59,7 +59,10 @@ static void libcmm_init(void)
                 CONFIG_FILE);
     }
     
-    scout_ipc_init();
+    if (scout_ipc_init() < 0) {
+        // XXX: is there any problem with doing this here?
+        exit(EXIT_FAILURE);
+    }
 
 #ifdef CMM_TIMING
     PthreadScopedLock lock(&timing_mutex);

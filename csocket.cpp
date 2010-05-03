@@ -417,6 +417,16 @@ CSocket::tcp_rto()
     return -1;
 }
 
+void
+CSocket::print_tcp_rto()
+{
+    // getprotobyname isn't implemented on Android (1.5, at least)
+    //  I could fake it, but this isn't crucial.
+#ifndef ANDROID
+    dbgprintf("TCP RTO for csock %d is %lu\n", osfd, tcp_rto());
+#endif
+}
+
 //#define useconds(tv) ((tv).tv_sec*1000000 + (tv).tv_usec)
 
 ssize_t
