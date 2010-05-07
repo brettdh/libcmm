@@ -75,16 +75,7 @@ run_trickle_tests: run_all_tests.o StdioOutputter.o $(TRICKLETESTOBJS) test_comm
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl -pthread
 
 
-# Generate header dependency rules
-#   see http://stackoverflow.com/questions/204823/
-# ---
-SRCS=$(wildcard *.cpp)
-DEPS=$(SRCS:%.cpp=.%.dep)
-
-.%.dep: %.cpp
-	g++ -MM $(CXXFLAGS) $< >$@
-
-include $(DEPS)
+include ../deps.mk
 
 clean:
 	rm -f *.o *~ $(EXECUTABLES)
