@@ -12,4 +12,8 @@ public class IntNWConnScout extends Activity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
     }
+
+    static {
+        System.loadLibrary("conn_scout");
+    }
 }

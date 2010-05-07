@@ -106,12 +106,12 @@ include $(BUILD_EXECUTABLE)
 
 # conn_scout: libcmm_scout.o cdf_sampler.o debug.o cmm_thread.o timeops.o
 
-include $(CLEAR_VARS)
-LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
-LOCAL_MODULE := conn_scout
-LOCAL_SRC_FILES := \
-    libcmm_scout.cpp cdf_sampler.cpp debug.cpp cmm_thread.cpp timeops.cpp
-LOCAL_STATIC_LIBRARIES := libboost_thread
-include $(BUILD_EXECUTABLE)
+# include $(CLEAR_VARS)
+# LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
+# LOCAL_MODULE := conn_scout
+# LOCAL_SRC_FILES := \
+#     libcmm_scout.cpp cdf_sampler.cpp debug.cpp cmm_thread.cpp timeops.cpp
+# LOCAL_STATIC_LIBRARIES := libboost_thread
+# include $(BUILD_EXECUTABLE)
 
 endif

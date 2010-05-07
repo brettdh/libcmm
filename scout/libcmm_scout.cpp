@@ -29,7 +29,10 @@ using std::queue; using std::deque;
 #include "net_interface.h"
 #include <errno.h>
 
+#ifndef BUILDING_SCOUT_SHLIB
 #include "cdf_sampler.h"
+#endif
+
 #include <memory>
 using std::auto_ptr;
 
