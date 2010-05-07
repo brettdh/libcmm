@@ -61,11 +61,12 @@ static NetInterfaceMap net_interfaces;
 #define EMULATION_BOX_PORT 4422
 
 
+static
 int notify_subscriber(pid_t pid, int ipc_sock,
                       const IfaceList& changed_ifaces, 
                       const IfaceList& down_ifaces);
 
-int init_subscriber(pid_t pid, int ipc_sock)
+static int init_subscriber(pid_t pid, int ipc_sock)
 {
     /* tell the subscriber about all the current interfaces. */
     IfaceList up_ifaces;
@@ -80,6 +81,7 @@ int init_subscriber(pid_t pid, int ipc_sock)
 }
 
 /* REQ: ac must be bound to the desired victim by subscriber_procs.find() */
+static
 void remove_subscriber(SubscriberProcHash::accessor &ac)
 {
     close(ac->second.ipc_sock);
@@ -88,6 +90,7 @@ void remove_subscriber(SubscriberProcHash::accessor &ac)
 
 static int scout_control_ipc_sock = -1;
 
+static
 void * IPC_Listener(void *)
 {
     int rc;
@@ -231,6 +234,7 @@ void * IPC_Listener(void *)
     return NULL;
 }
 
+static
 int notify_subscriber_of_event(pid_t pid, int ipc_sock, 
                                struct net_interface iface, MsgOpcode opcode)
 {
@@ -249,6 +253,7 @@ int notify_subscriber_of_event(pid_t pid, int ipc_sock,
     return rc;
 }
 
+static
 int notify_subscriber(pid_t pid, int ipc_sock,
                       const IfaceList& changed_ifaces, 
                       const IfaceList& down_ifaces)
@@ -274,6 +279,7 @@ int notify_subscriber(pid_t pid, int ipc_sock,
     return 0;
 }
 
+static
 void notify_all_subscribers(const IfaceList& changed_ifaces,
                             const IfaceList& down_ifaces)
 {
@@ -299,6 +305,7 @@ void notify_all_subscribers(const IfaceList& changed_ifaces,
     }
 }
 
+static
 void handle_term(int)
 {
     dbgprintf_always("Scout attempting to quit gracefully...\n");
@@ -306,6 +313,7 @@ void handle_term(int)
     shutdown(emu_sock, SHUT_RDWR);
 }
 
+static
 void usage(char *argv[])
 {
     dbgprintf_always(
@@ -327,6 +335,7 @@ void usage(char *argv[])
     exit(-1);
 }
 
+static
 void thread_sleep(struct timeval tv);
 
 void thread_sleep(double fseconds)
@@ -345,6 +354,7 @@ void thread_sleep(double fseconds)
     thread_sleep(timeout);
 }
 
+static
 void thread_sleep(struct timeval tv)
 {
     struct timespec timeout, rem;
@@ -367,6 +377,7 @@ void thread_sleep(struct timeval tv)
 
 }
 
+static
 int get_ip_address(const char *ifname, struct in_addr *ip_addr)
 {
     if (strlen(ifname) > IF_NAMESIZE) {
@@ -415,6 +426,7 @@ struct trace_slice {
     }
 };
 
+static
 int get_trace(deque<struct trace_slice>& trace)
 {
     int sock = socket(PF_INET, SOCK_STREAM, 0);
@@ -476,6 +488,22 @@ static void emulate_slice(struct trace_slice slice, struct timeval end,
                           int emu_sock);
 #define MIN_TIME 0.0
 
+#ifdef BUILDING_SCOUT_SHLIB
+static void scout_init(void) __attribute__((constructor));
+static void scout_init(void)
+{
+    set_signal(SIGINT, handle_term);
+    running = true;
+
+    pthread_t tid;
+    int rc = pthread_create(&tid, NULL, IPC_Listener, NULL);
+    if (rc < 0) {
+        perror("pthread_create");
+        dbgprintf_always("Couldn't create IPCListener thread, exiting\n");
+        exit(-1);
+    }
+}
+#else
 int main(int argc, char *argv[])
 {
     if (argc < 4) {
@@ -687,6 +715,7 @@ int main(int argc, char *argv[])
     dbgprintf_always("Scout gracefully quit.\n");
     return 0;
 }
+#endif /* ifdef BUILDING_SCOUT_SHLIB */
 
 static void print_slice(struct trace_slice slice, struct timeval end,
                         struct net_interface cellular_iface,

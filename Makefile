@@ -10,11 +10,17 @@ LDFLAGS:=-L. -m32
 LIBS:=# -lrt $(LIBTBB)
 
 LIBRARIES:=libcmm.so
-EXECUTABLES:=conn_scout cmm_test_sender cmm_test_receiver cdf_test\
+EXECUTABLES:=cmm_test_sender cmm_test_receiver cdf_test\
 	     vanilla_test_sender vanilla_test_receiver \
 	     cmm_throughput_test vanilla_throughput_test
 
-all: $(LIBRARIES) $(EXECUTABLES)
+SUBDIRS := conn_scout
+.PHONY: subdirs $(SUBDIRS)
+subdirs: $(SUBDIRS)
+$(SUBDIRS):
+    make -C $@
+
+all: $(LIBRARIES) $(EXECUTABLES) conn_scout
 
 cdf_test: cdf_test.o cdf_sampler.o debug.o timeops.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
@@ -40,9 +46,6 @@ vanilla_throughput_test: vanilla_throughput_test.o timeops.o debug.o
 vanilla_%.o: libcmm_%.cpp
 	$(CXX) $(CXXFLAGS) -DNOMULTISOCK $(LDFLAGS) -c -o $@ $<
 
-conn_scout: libcmm_scout.o cdf_sampler.o debug.o cmm_thread.o timeops.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -o $@ $^
-
 libcmm.so: libcmm.o libcmm_ipc.o cmm_socket.o cmm_socket_impl.o \
 	   cmm_socket_passthrough.o thunks.o cmm_timing.o csocket.o \
            csocket_mapping.o csocket_sender.o csocket_receiver.o \
@@ -56,25 +59,10 @@ libcmm.so: libcmm.o libcmm_ipc.o cmm_socket.o cmm_socket_impl.o \
 libcmm.tgz:
 	tar czf ./libcmm.tgz *.h *.cpp Makefile Makeconf.local.sample README.txt tests/*.cpp tests/*.h tests/Makefile
 
-# Generate header dependency rules
-#   see http://stackoverflow.com/questions/204823/
-# ---
-SRCS=$(wildcard *.cpp)
-DEPS=$(SRCS:%.cpp=.%.dep)
-
-.%.dep: %.cpp
-	g++ -MM $(CXXFLAGS) $< >$@
-
-include $(DEPS)
-
-#depend: $(SRCS)
-#	g++ -MM $(CXXFLAGS) $(SRCS) >depend
-
-#include depend
-# ---
+include deps.mk
 
 clean:
-	rm -f *~ *.o $(LIBRARIES) $(EXECUTABLES) .libinstall .hdrinstall .bininstall libcmm.tgz
+	rm -f *~ *.o $(LIBRARIES) $(EXECUTABLES) .libinstall .hdrinstall libcmm.tgz
 
 #TBB_LIBS:=libtbbmalloc_debug.so libtbbmalloc.so.2 libtbb_debug.so \
 #          libtbbmalloc_debug.so.2 libtbb.so libtbb_debug.so.2 \
@@ -93,11 +81,11 @@ clean:
 	install libcmm_irob.h /usr/local/include/
 	-touch .hdrinstall
 
-.bininstall: conn_scout
-	install conn_scout /usr/local/bin/
-	-touch .bininstall
+.PHONY: scout_install
+scout_install:
+    make -C conn_scout install
 
-install: .libinstall .hdrinstall .bininstall #.tbbinstall
+install: .libinstall .hdrinstall scout_install
 
 .gitignore: Makefile
 	echo "$(EXECUTABLES) $(LIBRARIES) .*.dep *~ *.o .*install libcmm.tgz" | sed -e 's/\s+/ /' | tr ' ' '\n' > .gitignore

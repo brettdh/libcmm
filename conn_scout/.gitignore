@@ -1,0 +1,6 @@
+conn_scout
+.*.dep
+*~
+._*
+*.o
+.*install
