@@ -7,12 +7,14 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.os.IBinder;
+import edu.umich.intnw.ServiceCompat;
 
-public class ConnScoutService extends Service
+public class ConnScoutService extends ServiceCompat
 {
     @Override
     public void onCreate() {
-        mNM = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+        //mNM = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+        super.onCreate();
         int rc = startScoutIPC();
         if (rc < 0) {
             stopSelf();
@@ -31,7 +33,7 @@ public class ConnScoutService extends Service
     @Override
     public void onDestroy() {
         stopScoutIPC();
-        mNM.cancel(R.string.service_started);
+        //mNM.cancel(R.string.service_started);
         Toast.makeText(this, R.string.service_stopped, 
                        Toast.LENGTH_SHORT).show();
     }
@@ -68,8 +70,10 @@ public class ConnScoutService extends Service
 
         // Send the notification.
         // We use a layout id because it is a unique number.  We use it later to cancel.
-        mNM.notify(R.string.service_started, notification);
+        //setForeground(true);
+        //mNM.notify(R.string.service_started, notification);
+        startForegroundCompat(R.string.service_started, notification);
     }
     
-    private NotificationManager mNM;
+    //private NotificationManager mNM;
 }
