@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">ConnScout</string>
+    <string name="scout_service_label">Connection Scout Service</string>
+    <string name="service_started">Connection Scout has started.</string>
+    <string name="service_stopped">Connection Scout has stopped.</string>
 </resources>
