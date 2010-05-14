@@ -13,6 +13,6 @@ LOCAL_SRC_FILES := \
     $(addprefix ../../../, debug.cpp cmm_thread.cpp timeops.cpp)
 LOCAL_CFLAGS += -DBUILDING_SCOUT_SHLIB
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/../../../
-LOCAL_LDLIBS := -L$(LOCAL_PATH)/../../.. -lboost_thread
+LOCAL_LDLIBS := -L$(LOCAL_PATH)/../../.. -lboost_thread -llog
 
 include $(BUILD_SHARED_LIBRARY)
