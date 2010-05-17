@@ -36,6 +36,7 @@ public class ConnScoutService extends ServiceCompat
         //mNM.cancel(R.string.service_started);
         Toast.makeText(this, R.string.service_stopped, 
                        Toast.LENGTH_SHORT).show();
+        stopForegroundCompat(R.string.service_started);
     }
     
     public native int startScoutIPC();
