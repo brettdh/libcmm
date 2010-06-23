@@ -1,0 +1,21 @@
+Goals for multi-app interaction witn Intentional Networking
+
+1) FG/BG should be enforced across all running IN apps
+   * Should likewise be applied between multisockets in same app
+   * Simple test
+     - 2 apps; one only sends FG, one only sends BG
+     - FG app waits for a while, so that BG traffic gets flowing fast
+     - FG performance should start slow, then quickly improve
+     - Repeat with two multisockets in one app
+
+2) FG traffic in different IN apps should compete fairly for the network
+
+3) IN apps and non-IN apps should compete fairly for the network
+
+
+Design
+
+1) Currently, there's a per-interface-pair timestamp of the last FG transmission.
+2) We'll make this per-local-interface and stick the value in shared memory, 
+   which all IN processes can read/write.
+3) Reading/writing the timestamp must be atomic.
