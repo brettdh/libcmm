@@ -11,6 +11,8 @@ conn_scout: libcmm_scout.o ../cdf_sampler.o ../debug.o \
 	install conn_scout /usr/local/bin/
 	-touch .bininstall
 
+install: .bininstall
+
 include ../deps.mk
 
 clean:
