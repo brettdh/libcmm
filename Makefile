@@ -14,13 +14,13 @@ EXECUTABLES:=cmm_test_sender cmm_test_receiver cdf_test\
 	     vanilla_test_sender vanilla_test_receiver \
 	     cmm_throughput_test vanilla_throughput_test
 
+all: $(LIBRARIES) $(EXECUTABLES) subdirs
+
 SUBDIRS := scout
 .PHONY: subdirs $(SUBDIRS)
 subdirs: $(SUBDIRS)
 $(SUBDIRS):
 	make -C $@
-
-all: $(LIBRARIES) $(EXECUTABLES) scout
 
 cdf_test: cdf_test.o cdf_sampler.o debug.o timeops.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
