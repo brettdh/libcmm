@@ -7,15 +7,75 @@ Goals for multi-app interaction witn Intentional Networking
      - FG app waits for a while, so that BG traffic gets flowing fast
      - FG performance should start slow, then quickly improve
      - Repeat with two multisockets in one app
+     - Repeat with one multisocket (regression test)
 
 2) FG traffic in different IN apps should compete fairly for the network
+   - Experiment: scale up number of concurrently running apps
+     - Two distinct setups:
+       a) 1-n non-IN apps competing for the network
+       b) 1-n IN apps competing for the network
+     - Latency/throughput curves should look similar for IN/non-IN
 
 3) IN apps and non-IN apps should compete fairly for the network
+   - Similar experiment, setups slightly different:
+     a) n non-IN apps
+     b) 1 non-IN, (n-1) IN apps
+   - Latency/throughput of non-IN app should not degrade
+   - We can really do no worse than this, because:
+     - We don't control the non-IN apps
+     - We don't do prioritization between IN and non-IN traffic
+
+  Toy apps or real apps for those last two experiments?
+  * Toy apps seem more appropriate here; it's a microbenchmark
+  * Worst-case: all apps are using the network heavily
+    - Large BG sends w/ small, frequent FG sends?
+
+  In both cases, want to demonstrate that scenarios with IN apps involved
+    scale similarly to scenarios without IN apps.
 
 
 Design
 
 1) Currently, there's a per-interface-pair timestamp of the last FG transmission.
-2) We'll make this per-local-interface and stick the value in shared memory, 
-   which all IN processes can read/write.
-3) Reading/writing the timestamp must be atomic.
+   a) We'll make this per-local-interface and stick the value in shared memory, 
+      which all IN processes can read/write.
+   b) Reading/writing the timestamp must be atomic.
+   c) This timestamp is used to ramp up the trickling rate during periods
+      with no FG activity.
+2) For each local interface, don't send BG traffic if any other process has
+   enqueued FG traffic ready to go on the same interface.
+   a) Keep a per-local-interface count of FG-sending processes in shared memory.
+   b) Processes increment/decrement it atomically when FG traffic is 
+      enqueued/sent.
+   c) Use the normal polling loop to check whether it's okay to send BG traffic.
+      - We want to avoid sending background traffic when foreground traffic
+        is competing for the local bandwidth...
+      - ...i.e. until we know the FG traffic has left the local pipe.
+      - ...but we don't know that for sure until it's ACK'd and cleared
+        from the socket buffer.
+      - Possible strategies:
+         i) Wait for the FG data to clear the buffer 
+             (or wait for the IROB ACK? Simpler)
+            - acts as a barrier, keeping BG data behind FG data, 
+              even in separate multisockets/processes
+            - would add a roundtrip to each BG message that follows a FG message
+            - BG traffic could starve if FG traffic is globally constant
+            - ...but, BG traffic can already starve if FG traffic is constant
+              on a single multisocket
+            - This approach appears to slightly increase the risk of starvation,
+              because without the barrier, BG traffic could start to be sent
+              as soon as the FG traffic enters the kernel buffer, without waiting
+              for the ACK
+        ii) Rely on the 50ms trickling rule (no barrier for sending BG data)
+            - allows BG data to fight with FG data, but only as much as it can
+              now, in a single multisocket
+            - ...except that, without the barrier, there's no way to make sure
+              BG traffic gets globally queued *behind* FG traffic
+            - kernel can pick bytes to send from any buffer it wants, defeating
+              our prioritization scheme
+            - still adds roundtrips to BG data
+      - The first strategy looks right, since it better ensures the priority
+        of foreground traffic.  Will need to evaluate its impact on BG traffic.
+        Therefore, in b) above, a process is no longer sending FG data when it
+        has none enqueued and none waiting to be ACK'd, at which point it 
+        decrements the count.
