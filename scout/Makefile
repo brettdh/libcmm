@@ -1,5 +1,6 @@
 DEBUG_FLAGS:=-g -DCMM_DEBUG
-CXXFLAGS+=-Wall -Werror -I.. -pthread -fPIC -m32 $(DEBUG_FLAGS)
+CXXFLAGS+=-Wall -Werror -I.. -I/usr/local/include -pthread -fPIC -m32 \
+	  $(DEBUG_FLAGS)
 
 all: conn_scout
 

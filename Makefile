@@ -4,9 +4,10 @@ else
 DEBUG_FLAGS:=-g -DCMM_DEBUG
 endif
 
-CXXFLAGS+=-Wall -Werror -I. -pthread -fPIC -m32 $(DEBUG_FLAGS) $(OPT_FLAGS)
+CXXFLAGS+=-Wall -Werror -I. -I/usr/local/include -pthread -fPIC -m32 \
+	   $(DEBUG_FLAGS) $(OPT_FLAGS)
 #LIBTBB:=-ltbb_debug
-LDFLAGS:=-L. -m32 
+LDFLAGS:=-L.  -L/usr/local/lib -m32
 LIBS:=# -lrt $(LIBTBB)
 
 LIBRARIES:=libcmm.so
