@@ -423,7 +423,7 @@ CSocket::print_tcp_rto()
     // getprotobyname isn't implemented on Android (1.5, at least)
     //  I could fake it, but this isn't crucial.
 #ifndef ANDROID
-    dbgprintf("TCP RTO for csock %d is %lu\n", osfd, tcp_rto());
+    dbgprintf("TCP RTO for csock %d is %ld\n", osfd, tcp_rto());
 #endif
 }
 
