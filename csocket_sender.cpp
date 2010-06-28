@@ -575,21 +575,7 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
         */
     } else {
         chunksize = csock->trickle_chunksize();
-
-        /* BEGIN encapsulate these lines in a function */
-        /* vvv */
-        // hack to increase trickling rate when FG traffic ceases
-        struct timeval time_since_last_fg, now;
-        TIME(now);
-        //TIMEDIFF(CMMSocketImpl::last_fg, now, time_since_last_fg);
-        TIMEDIFF(csock->last_fg, now, time_since_last_fg);
-        if (time_since_last_fg.tv_sec > 5) {
-            chunksize = csock->bandwidth();
-            do_trickle = true;
-        }
-        /* ^^^ */
-        /* END encapsulate these lines in a function */
-        do_trickle = CMMSocketImpl::allow_bg_send(csock);
+        do_trickle = CMMSocketImpl::allow_bg_send(csock, chunksize);
         
         // Avoid sending tiny chunks and thereby killing throughput with
         //  header overhead

@@ -49,21 +49,11 @@ pthread_mutex_t CMMSocketImpl::hashmaps_mutex = PTHREAD_MUTEX_INITIALIZER;
 // struct timeval CMMSocketImpl::total_inter_fg_time;
 // size_t CMMSocketImpl::fg_count;
 
-#ifdef MULTI_PROCESS_SUPPORT
-struct fg_iface_data {
-    gint last_fg_tv_sec; // last fg data on this iface, in epoch-seconds
-    gint num_fg_senders; // number of processes with unACK'd FG data.
-};
-
-typedef boost::interprocess::map ShmemMap;
-static ShmemMap<struct in_addr, struct timeval> fg_proc_map;
-
-#endif
-
-bool CMMSocketImpl::allow_bg_send(CSocketPtr csock)
+bool CMMSocketImpl::allow_bg_send(CSocketPtr csock, ssize_t& chunksize)
 {
     struct timeval time_since_last_fg, now;
     struct timeval last_fg;
+    bool do_trickle = true;
 
     // get last_fg value
 #ifdef MULTI_PROCESS_SUPPORT
@@ -77,8 +67,9 @@ bool CMMSocketImpl::allow_bg_send(CSocketPtr csock)
     TIMEDIFF(last_fg, now, time_since_last_fg);
     if (time_since_last_fg.tv_sec > 5) {
         chunksize = csock->bandwidth();
-        do_trickle = true;
     }
+
+    return do_trickle;
 }
 
 // return true if the listener received is the zero-sentinel

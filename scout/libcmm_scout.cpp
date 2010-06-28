@@ -591,8 +591,24 @@ Java_edu_umich_intnw_ConnScoutService_updateNetwork(JNIEnv *env,
     }
 }
 #else
+#include <boost/interprocess/managed_shared_memory.hpp>
+using boost::interprocess::shared_memory_object;
+using boost::interprocess::managed_shared_memory;
+using boost::interprocess::create_only;
+
 int main(int argc, char *argv[])
 {
+    // ensure shared memory gets cleaned up when I exit
+    struct shmem_remover {
+        shmem_remover() { shared_memory_object::remove(INTNW_SHMEM_NAME); }
+        ~shmem_remover() { shared_memory_object::remove(INTNW_SHMEM_NAME); }
+    } remover;
+
+    // construct shared memory segment and data structures
+    managed_shared_memory segment(create_only, 
+                                  INTNW_SHMEM_NAME, INTNW_SHMEM_SIZE);
+    
+
     if (argc < 4) {
         usage(argv);
     }

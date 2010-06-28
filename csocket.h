@@ -2,7 +2,7 @@
 #define csocket_h_incl
 
 #include "cmm_socket_control.h"
-#include "cmm_socket.private.h"
+//#include "cmm_socket.private.h"
 #include <map>
 #include <set>
 
@@ -30,7 +30,7 @@ class CSocket {
   public:
     int osfd;
     int oserr; // if non-zero, there was an error.
-    CMMSocketImplPtr sk;
+    boost::shared_ptr<CMMSocketImpl> sk;
     //CMMSocketSender *sendr;
     //CMMSocketReceiver *recvr;
     struct net_interface local_iface;

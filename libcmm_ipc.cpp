@@ -89,8 +89,17 @@ bool scout_ipc_inited(void)
     return (scout_ipc_fd > 0);
 }
 
+#ifdef MULTI_PROCESS_SUPPORT
+static void ipc_shmem_init();
+static void ipc_shmem_deinit();
+#endif
+
 int scout_ipc_init()
 {
+#ifdef MULTI_PROCESS_SUPPORT
+    ipc_shmem_init();
+#endif
+
     struct cmm_msg msg;
     memset(&msg, 0, sizeof(msg));
 
@@ -154,6 +163,10 @@ void scout_ipc_deinit(void)
         close(scout_ipc_fd);
         pthread_kill(ipc_thread_id, CMM_SELECT_SIGNAL);
     }
+
+#ifdef MULTI_PROCESS_SUPPORT
+    ipc_shmem_deinit();
+#endif
 }
 
 extern void process_interface_update(struct net_interface iface, bool down);
@@ -211,3 +224,27 @@ static void *IPCThread(void *arg)
     dbgprintf("IPC thread exiting.\n");
     return NULL;
 }
+
+#ifdef MULTI_PROCESS_SUPPORT
+#include <boost/interprocess/sync/shareable_lock.hpp>
+using boost::interprocess::managed_shared_memory;
+using boost::interprocess::open_only;
+
+static managed_shared_memory *segment;
+static 
+FGDataMap *fg_proc_map;
+
+boost::interprocess::named_upgradable_mutex *fg_proc_ipc_mutex;
+
+static void ipc_shmem_init()
+{
+    segment = new managed_shared_memory(open_only, INTNW_SHMEM_NAME);
+    //fg_proc_map = 
+    // TODO: continue.
+}
+
+static void ipc_shmem_deinit()
+{
+    
+}
+#endif
