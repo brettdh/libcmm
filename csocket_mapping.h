@@ -9,6 +9,7 @@
 #include "net_interface.h"
 #include "pthread_util.h"
 
+#include "cmm_socket.private.h"
 #include "csocket.h"
 
 #include <memory>

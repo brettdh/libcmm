@@ -8,6 +8,7 @@
 
 //#include "cmm_socket.private.h"
 #include "pending_irob.h"
+#include "irob_scheduling.h"
 
 #include "net_stats.h"
 

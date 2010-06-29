@@ -24,6 +24,7 @@ using std::queue; using std::deque;
 
 #include "libcmm.h"
 #include "libcmm_ipc.h"
+#include "libcmm_shmem.h"
 #include "pthread_util.h"
 #include "common.h"
 #include "net_interface.h"
@@ -591,23 +592,25 @@ Java_edu_umich_intnw_ConnScoutService_updateNetwork(JNIEnv *env,
     }
 }
 #else
+#ifdef MULTI_PROCESS_SUPPORT
 #include <boost/interprocess/managed_shared_memory.hpp>
 using boost::interprocess::shared_memory_object;
 using boost::interprocess::managed_shared_memory;
 using boost::interprocess::create_only;
+#endif
 
 int main(int argc, char *argv[])
 {
+#ifdef MULTI_PROCESS_SUPPORT
     // ensure shared memory gets cleaned up when I exit
     struct shmem_remover {
-        shmem_remover() { shared_memory_object::remove(INTNW_SHMEM_NAME); }
-        ~shmem_remover() { shared_memory_object::remove(INTNW_SHMEM_NAME); }
+        ~shmem_remover() { ipc_shmem_deinit(); }
     } remover;
 
-    // construct shared memory segment and data structures
-    managed_shared_memory segment(create_only, 
-                                  INTNW_SHMEM_NAME, INTNW_SHMEM_SIZE);
+    ipc_shmem_init(true);
     
+    
+#endif
 
     if (argc < 4) {
         usage(argv);

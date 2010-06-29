@@ -1,11 +1,17 @@
+ifeq ($(wildcard ../Makeconf.local),../Makeconf.local)
+include ../Makeconf.local
+else
 DEBUG_FLAGS:=-g -DCMM_DEBUG
+endif
 CXXFLAGS+=-Wall -Werror -I.. -I/usr/local/include -pthread -fPIC -m32 \
+	   -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include \
 	  $(DEBUG_FLAGS)
+LDFLAGS+=-lrt
 
 all: conn_scout
 
 conn_scout: libcmm_scout.o ../cdf_sampler.o ../debug.o \
-	    ../cmm_thread.o ../timeops.o
+	    ../cmm_thread.o ../timeops.o ../libcmm_shmem.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
 .bininstall: conn_scout

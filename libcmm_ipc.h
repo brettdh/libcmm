@@ -32,21 +32,4 @@ struct cmm_msg {
     } data;
 };
 
-#ifdef MULTI_PROCESS_SUPPORT
-#include <boost/interprocess/containers/map.hpp>
-#include <boost/interprocess/allocators/allocator.hpp>
-#include <boost/interprocess/managed_shared_memory.hpp>
-#include <boost/interprocess/smart_ptr/shared_ptr.hpp>
-#include <glib.h>
-
-struct fg_iface_data {
-    gint last_fg_tv_sec; // last fg data on this iface, in epoch-seconds
-    gint num_fg_senders; // number of processes with unACK'd FG data.
-};
-
-typedef boost::interprocess::managed_shared_ptr<struct fg_iface_data> FGDataPtr;
-typedef boost::interprocess::map ShmemMap;
-typedef ShmemMap<struct in_addr, FGDataPtr> FGDataMap;
-#endif
-
 #endif /* LIBCMM_IPC_H_INCL */
