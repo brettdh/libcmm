@@ -9,7 +9,7 @@
 #include <sys/types.h>
 #include "net_interface.h"
 
-CPPUNIT_TEST_SUITE_REGISTRATION(EstimationTest);
+//CPPUNIT_TEST_SUITE_REGISTRATION(EstimationTest);
 
 void
 EstimationTest::setUp()

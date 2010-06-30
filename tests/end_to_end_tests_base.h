@@ -46,6 +46,4 @@ class EndToEndTestsBase :  public CppUnit::TestFixture {
     static const short TEST_PORT;
 };
 
-void handle_error(bool condition, const char *msg);
-
 #endif

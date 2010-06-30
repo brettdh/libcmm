@@ -31,6 +31,14 @@ void print_on_error(bool err, const char *str)
     }
 }
 
+void handle_error(bool condition, const char *msg)
+{
+    if (condition) {
+        perror(msg);
+        exit(EXIT_FAILURE);
+    }
+}
+
 void assertEqWithin(const std::string& actual_str, 
                     const std::string& expected_str, 
                     const std::string& message, 

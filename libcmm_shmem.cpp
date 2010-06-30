@@ -1,4 +1,5 @@
 #include "libcmm_shmem.h"
+#include "timeops.h"
 
 #ifdef MULTI_PROCESS_SUPPORT
 #include <boost/interprocess/managed_shared_memory.hpp>
@@ -37,6 +38,8 @@ void ipc_shmem_init(bool create)
     // construct shared memory segment and data structures
     if (creator) {
         shared_memory_object::remove(INTNW_SHMEM_NAME);
+        named_upgradable_mutex::remove(INTNW_SHMEM_MUTEX_NAME);
+
         segment = new managed_shared_memory(create_only, 
                                             INTNW_SHMEM_NAME, 
                                             INTNW_SHMEM_SIZE);
@@ -58,11 +61,15 @@ void ipc_shmem_deinit()
 
     // clean up process-local data structures
     delete fg_data_map_lock;
+    if (creator) {
+        segment->destroy<FGDataMap>(INTNW_SHMEM_MAP_NAME);
+    }
     delete fg_map_allocator;
     delete segment;
 
     if (creator) {
         shared_memory_object::remove(INTNW_SHMEM_NAME);
+        named_upgradable_mutex::remove(INTNW_SHMEM_MUTEX_NAME);
     }
 }
 
@@ -97,12 +104,13 @@ gint ipc_fg_sender_count(struct in_addr ip_addr)
     }
 }
 
-void ipc_update_fg_timestamp(struct in_addr ip_addr,
-                             gint tv_sec)
+void ipc_update_fg_timestamp(struct in_addr ip_addr)
 {
     FGDataPtr fg_data = map_lookup(ip_addr);
     if (fg_data) {
-        g_atomic_int_set(&fg_data->last_fg_tv_sec, tv_sec);
+        struct timeval now;
+        TIME(now);
+        g_atomic_int_set(&fg_data->last_fg_tv_sec, now.tv_sec);
     }
 }
 
@@ -122,7 +130,7 @@ void ipc_decrement_fg_senders(struct in_addr ip_addr)
     }
 }
 
-bool add_iface(struct in_addr ip_addr)
+bool ipc_add_iface(struct in_addr ip_addr)
 {
     upgradable_lock<named_upgradable_mutex> lock(*fg_data_map_lock);
     if (!map_lookup(ip_addr)) {
@@ -142,10 +150,10 @@ bool add_iface(struct in_addr ip_addr)
     }
 }
 
-bool remove_iface(struct in_addr ip_addr)
+bool ipc_remove_iface(struct in_addr ip_addr)
 {
     upgradable_lock<named_upgradable_mutex> lock(*fg_data_map_lock);
-    if (!map_lookup(ip_addr)) {
+    if (map_lookup(ip_addr)) {
         // upgrade to exclusive
         scoped_lock<named_upgradable_mutex> writelock(move(lock));
         fg_data_map->erase(ip_addr);

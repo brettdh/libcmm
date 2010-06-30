@@ -48,8 +48,8 @@ void ipc_update_fg_timestamp(struct in_addr ip_addr);
 void ipc_increment_fg_senders(struct in_addr ip_addr);
 void ipc_decrement_fg_senders(struct in_addr ip_addr);
 
-bool add_iface(struct in_addr ip_addr);
-bool remove_iface(struct in_addr ip_addr);
+bool ipc_add_iface(struct in_addr ip_addr);
+bool ipc_remove_iface(struct in_addr ip_addr);
 #endif
 
 #endif

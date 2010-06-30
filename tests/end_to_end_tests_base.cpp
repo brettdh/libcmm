@@ -19,6 +19,8 @@
 #include <functional>
 using std::min;
 
+#include "test_common.h"
+
 
 const short EndToEndTestsBase::TEST_PORT = 4242;
 
@@ -400,14 +402,6 @@ EndToEndTestsBase::testCMMPoll()
     }
 }
 
-
-void handle_error(bool condition, const char *msg)
-{
-    if (condition) {
-        perror(msg);
-        exit(EXIT_FAILURE);
-    }
-}
 
 static bool is_sorted(const int nums[], size_t n)
 {

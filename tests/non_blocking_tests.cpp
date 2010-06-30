@@ -18,6 +18,7 @@
 #include <fcntl.h>
 #include <functional>
 using std::min;
+#include "test_common.h"
 
 static void set_nonblocking(int sock)
 {

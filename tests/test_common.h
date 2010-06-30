@@ -19,4 +19,6 @@ void assertEqWithin(const std::string& actual_str,
     assertEqWithin(#actual, #expected, \
                    message, expected, actual, alpha, CPPUNIT_SOURCELINE())
 
+void handle_error(bool condition, const char *msg);
+
 #endif

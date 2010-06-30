@@ -1,5 +1,7 @@
-CXXFLAGS:=-Wall -Werror -I. -I.. -m32 -g -DCMM_UNIT_TESTING -DCMM_DEBUG -pthread
-LDFLAGS:=-L. -L.. -lcppunit -ldl -pthread -lrt
+CXXFLAGS:=-Wall -Werror -I. -I.. -m32 -g -DCMM_UNIT_TESTING -DCMM_DEBUG -pthread \
+	  -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include \
+	  -DMULTI_PROCESS_SUPPORT
+LDFLAGS:=-L. -L.. -lcppunit -ldl -pthread -lrt -lglib-2.0
 
 EXECUTABLES=run_unit_tests run_lib_tests run_remote_tests run_thunk_tests run_trickle_tests \
 	    run_lib_tests_nb run_remote_tests_nb
@@ -33,15 +35,21 @@ pending_receiver_irob.o: ../pending_receiver_irob.cpp ../pending_receiver_irob.h
 timeops.o: ../timeops.cpp ../timeops.h
 	g++ $(CXXFLAGS) -c -o $@ $<
 
+
+shmem_test_helper: shmem_test_helper.o shmem_test_common.o libcmm_shmem.o \
+		   timeops.o debug.o test_common.o
+
 TESTOBJS := pending_irob_test.o lattice_test.o intset_test.o \
 	    receiver_lattice_test.o pending_sender_irob_test.o \
 	    ack_timeouts_test.o pending_receiver_irob_test.o \
 	    estimation_test.o pthread_util_test.o
 SUPPORTOBJS := pending_irob.o intset.o debug.o pending_receiver_irob.o \
 	       pending_sender_irob.o timeops.o ack_timeouts.o net_stats.o \
-	       test_common.o debug.o net_interface.o irob_scheduling.o
+	       test_common.o debug.o net_interface.o irob_scheduling.o \
+	       shmem_test.o shmem_test_common.o libcmm_shmem.o
 
-run_unit_tests: run_all_tests.o StdioOutputter.o $(TESTOBJS) $(SUPPORTOBJS)
+run_unit_tests:: shmem_test_helper
+run_unit_tests:: run_all_tests.o StdioOutputter.o $(TESTOBJS) $(SUPPORTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
 
 LIBTESTOBJS:=end_to_end_tests_base.o end_to_end_tests_forked.o forked_tests.o
@@ -50,7 +58,7 @@ run_lib_tests: run_all_tests.o StdioOutputter.o test_common.o $(LIBTESTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
 
 REMOTETESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o remote_tests.o
-run_remote_tests: run_all_tests.o StdioOutputter.o $(REMOTETESTOBJS)
+run_remote_tests: run_all_tests.o StdioOutputter.o test_common.o $(REMOTETESTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
 
 
@@ -61,19 +69,18 @@ REMOTETESTNBOBJS:=end_to_end_tests_remote.o non_blocking_tests_remote.o
 
 run_lib_tests_nb: run_all_tests.o StdioOutputter.o test_common.o $(NBOBJS) $(LIBTESTNBOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
-run_remote_tests_nb: run_all_tests.o StdioOutputter.o $(NBOBJS) $(REMOTETESTNBOBJS)
+run_remote_tests_nb: run_all_tests.o StdioOutputter.o test_common.o $(NBOBJS) $(REMOTETESTNBOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
 
 
 
 THUNKTESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o thunk_tests.o
-run_thunk_tests: run_all_tests.o StdioOutputter.o $(THUNKTESTOBJS)
+run_thunk_tests: run_all_tests.o StdioOutputter.o test_common.o $(THUNKTESTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl -pthread
 
 TRICKLETESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o trickle_tests.o
 run_trickle_tests: run_all_tests.o StdioOutputter.o $(TRICKLETESTOBJS) test_common.o
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl -pthread
-
 
 include ../deps.mk
 
