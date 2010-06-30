@@ -18,13 +18,20 @@ struct fg_iface_data {
 
 typedef boost::interprocess::managed_shared_memory ManagedShmem;
 typedef boost::interprocess::managed_shared_ptr<struct fg_iface_data,
-                                                ManagedShmem> FGDataPtr;
+                                                ManagedShmem>::type FGDataPtr;
 
 typedef ManagedShmem::segment_manager MemMgr;
 typedef boost::interprocess::allocator<std::pair<struct in_addr, FGDataPtr>, 
                                        MemMgr> FGDataAllocator;
 
-typedef boost::interprocess::map<struct in_addr, FGDataPtr,
+struct in_addr_less {
+    bool operator()(const struct in_addr& addr1,
+                    const struct in_addr& addr2) const {
+        return addr1.s_addr < addr2.s_addr;
+    }
+};
+
+typedef boost::interprocess::map<struct in_addr, FGDataPtr, in_addr_less,
                                  FGDataAllocator> FGDataMap;
 
 #define INTNW_SHMEM_NAME "IntNWSharedSegment"
@@ -41,8 +48,8 @@ void ipc_update_fg_timestamp(struct in_addr ip_addr);
 void ipc_increment_fg_senders(struct in_addr ip_addr);
 void ipc_decrement_fg_senders(struct in_addr ip_addr);
 
-void add_iface(struct in_addr ip_addr);
-void remove_iface(struct in_addr ip_addr);
+bool add_iface(struct in_addr ip_addr);
+bool remove_iface(struct in_addr ip_addr);
 #endif
 
 #endif

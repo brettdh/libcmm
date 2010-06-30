@@ -606,10 +606,9 @@ int main(int argc, char *argv[])
     struct shmem_remover {
         ~shmem_remover() { ipc_shmem_deinit(); }
     } remover;
+    (void)remover; // suppress "unused variable" warning
 
     ipc_shmem_init(true);
-    
-    
 #endif
 
     if (argc < 4) {

@@ -4,13 +4,22 @@
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/sync/named_upgradable_mutex.hpp>
 #include <boost/interprocess/sync/sharable_lock.hpp>
+#include <boost/interprocess/sync/upgradable_lock.hpp>
 #include <boost/interprocess/sync/scoped_lock.hpp>
 using boost::interprocess::managed_shared_memory;
+using boost::interprocess::shared_memory_object;
+using boost::interprocess::make_managed_shared_ptr;
 using boost::interprocess::create_only;
 using boost::interprocess::open_only;
 using boost::interprocess::named_upgradable_mutex;
 using boost::interprocess::sharable_lock;
+using boost::interprocess::upgradable_lock;
 using boost::interprocess::scoped_lock;
+using boost::interprocess::move;
+using boost::interprocess::anonymous_instance;
+
+#include <map>
+using std::make_pair;
 
 static managed_shared_memory *segment;
 
@@ -40,7 +49,7 @@ void ipc_shmem_init(bool create)
     }
 
     fg_map_allocator = new FGDataAllocator(segment->get_segment_manager());
-    fg_data_map = segment->find_or_construct<FGDataMap>(INTNW_SHMEM_MAP_NAME)(*fg_map_allocator); // never constructs; scout is first
+    fg_data_map = segment->find_or_construct<FGDataMap>(INTNW_SHMEM_MAP_NAME)(in_addr_less(), *fg_map_allocator); // never constructs; scout is first
 }
 
 void ipc_shmem_deinit()
@@ -59,14 +68,13 @@ void ipc_shmem_deinit()
 
 static FGDataPtr map_lookup(struct in_addr ip_addr)
 {
-    FGDataPtr fg_data;
-
-    sharable_lock read_lock(*fg_data_map_lock);
-    if (fg_data_map->count(ip_addr) > 0) {
-        fg_data.reset((*fg_data_map)[ip_addr]);
+    sharable_lock<named_upgradable_mutex> read_lock(*fg_data_map_lock);
+    if (fg_data_map->find(ip_addr) != fg_data_map->end()) {
+        FGDataPtr fg_data(fg_data_map->at(ip_addr));
+        return fg_data;
     }
 
-    return fg_data;
+    return FGDataPtr();
 }
 
 gint ipc_last_fg_tv_sec(struct in_addr ip_addr)
@@ -114,18 +122,38 @@ void ipc_decrement_fg_senders(struct in_addr ip_addr)
     }
 }
 
-void add_iface(struct in_addr ip_addr)
+bool add_iface(struct in_addr ip_addr)
 {
-    scoped_lock lock(*fg_data_map_lock);
-    // TODO: pick up here.
+    upgradable_lock<named_upgradable_mutex> lock(*fg_data_map_lock);
+    if (!map_lookup(ip_addr)) {
+        FGDataPtr new_data = make_managed_shared_ptr(
+            segment->construct<struct fg_iface_data>(anonymous_instance)(),
+            *segment
+            );
+        new_data->last_fg_tv_sec = 0;
+        new_data->num_fg_senders = 0;
+
+        // upgrade to exclusive
+        scoped_lock<named_upgradable_mutex> writelock(move(lock));
+        fg_data_map->insert(make_pair(ip_addr, new_data));
+        return true;
+    } else {
+        return false;
+    }
 }
 
-void remove_iface(struct in_addr ip_addr)
+bool remove_iface(struct in_addr ip_addr)
 {
-    scoped_lock lock(*fg_data_map_lock);
-    
+    upgradable_lock<named_upgradable_mutex> lock(*fg_data_map_lock);
+    if (!map_lookup(ip_addr)) {
+        // upgrade to exclusive
+        scoped_lock<named_upgradable_mutex> writelock(move(lock));
+        fg_data_map->erase(ip_addr);
+        return true;
+    } else {
+        return false;
+    }
 }
-// TODO: and then test it out!
 
 
 #endif
