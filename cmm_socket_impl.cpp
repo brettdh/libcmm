@@ -38,6 +38,8 @@ using std::map; using std::vector;
 using std::set; using std::pair;
 using std::max; using std::min;
 
+#include "libcmm_shmem.h"
+
 CMMSockHash CMMSocketImpl::cmm_sock_hash;
 VanillaListenerSet CMMSocketImpl::cmm_listeners;
 NetInterfaceSet CMMSocketImpl::ifaces;
@@ -57,7 +59,11 @@ bool CMMSocketImpl::allow_bg_send(CSocketPtr csock, ssize_t& chunksize)
 
     // get last_fg value
 #ifdef MULTI_PROCESS_SUPPORT
-    
+    if (ipc_fg_sender_count(csock->local_iface.ip_addr) > 0) {
+        do_trickle = false;
+    }
+    last_fg.tv_sec = ipc_last_fg_tv_sec(csock->local_iface.ip_addr);
+    last_fg.tv_usec = 0;
 #else
     last_fg = csock->last_fg;
 #endif

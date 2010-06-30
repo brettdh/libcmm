@@ -26,6 +26,7 @@ using std::vector; using std::max; using std::min;
 #include <errno.h>
 
 #include "cmm_timing.h"
+#include "libcmm_shmem.h"
 
 // easy handle to enable/disable striping.
 static bool striping = true;
@@ -66,6 +67,10 @@ CSocketSender::Run()
 
         if (csock->matches(CMM_LABEL_ONDEMAND)) {
             csock->last_fg = sk->last_fg;
+            int last_fg_secs = ipc_last_fg_tv_sec(csock->local_iface.ip_addr);
+            ipc_set_last_fg_tv_sec(csock->local_iface.ip_addr, 
+                                   max((int)sk->last_fg.tv_sec,
+                                       last_fg_secs));
         }
 
         PthreadScopedLock lock(&sk->scheduling_state_lock);

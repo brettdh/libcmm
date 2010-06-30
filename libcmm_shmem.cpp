@@ -106,13 +106,19 @@ gint ipc_fg_sender_count(struct in_addr ip_addr)
 
 void ipc_update_fg_timestamp(struct in_addr ip_addr)
 {
+    struct timeval now;
+    TIME(now);
+    ipc_set_last_fg_tv_sec(ip_addr, now.tv_sec);
+}
+
+void ipc_set_last_fg_tv_sec(struct in_addr ip_addr, gint secs)
+{
     FGDataPtr fg_data = map_lookup(ip_addr);
     if (fg_data) {
-        struct timeval now;
-        TIME(now);
-        g_atomic_int_set(&fg_data->last_fg_tv_sec, now.tv_sec);
+        g_atomic_int_set(&fg_data->last_fg_tv_sec, secs);
     }
 }
+
 
 void ipc_increment_fg_senders(struct in_addr ip_addr)
 {

@@ -11,6 +11,7 @@
 #include "csocket_sender.h"
 #include "csocket_receiver.h"
 #include "csocket_mapping.h"
+#include "libcmm_shmem.h"
 #include <functional>
 using std::max;
 
@@ -458,4 +459,5 @@ CSocket::update_last_fg()
     //TIMEDIFF(last_fg, now, diff);
     //last_fg = now;
     TIME(last_fg);
+    ipc_update_fg_timestamp(local_iface.ip_addr);
 }

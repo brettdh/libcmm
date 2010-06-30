@@ -45,6 +45,7 @@ void ipc_shmem_deinit();
 gint ipc_last_fg_tv_sec(struct in_addr ip_addr);
 gint ipc_fg_sender_count(struct in_addr ip_addr);
 void ipc_update_fg_timestamp(struct in_addr ip_addr);
+void ipc_set_last_fg_tv_sec(struct in_addr ip_addr, gint secs);
 void ipc_increment_fg_senders(struct in_addr ip_addr);
 void ipc_decrement_fg_senders(struct in_addr ip_addr);
 
