@@ -5,11 +5,12 @@ DEBUG_FLAGS:=-g -DCMM_DEBUG
 endif
 
 CXXFLAGS+=-Wall -Werror -I. -I/usr/local/include \
+	   -I./libancillary \
 	   -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include \
 	   -pthread -fPIC -m32 $(DEBUG_FLAGS) $(OPT_FLAGS)
 #LIBTBB:=-ltbb_debug
-LDFLAGS:=-L.  -L/usr/local/lib -m32
-LIBS:=-lrt -lglib-2.0 -lboost_thread
+LDFLAGS:=-L.  -L/usr/local/lib -L./libancillary -m32
+LIBS:=-lrt -lglib-2.0 -lboost_thread -lancillary
 
 LIBRARIES:=libcmm.so
 EXECUTABLES:=cmm_test_sender cmm_test_receiver cdf_test\
@@ -21,7 +22,7 @@ all: $(LIBRARIES) $(EXECUTABLES) subdirs
 SUBDIRS := scout
 .PHONY: subdirs $(SUBDIRS)
 subdirs: $(SUBDIRS)
-$(SUBDIRS):
+$(SUBDIRS)::
 	make -C $@
 
 cdf_test: cdf_test.o cdf_sampler.o debug.o timeops.o
@@ -64,7 +65,15 @@ libcmm.tgz:
 
 include deps.mk
 
-clean:
+.PHONY: subdirclean
+subdirclean:
+ifdef SUBDIRS
+	@for d in $(SUBDIRS) ; do \
+	    ${MAKE} -C $$d clean; \
+	done
+endif
+
+clean: subdirclean
 	rm -f *~ *.o $(LIBRARIES) $(EXECUTABLES) .libinstall .hdrinstall libcmm.tgz
 
 #TBB_LIBS:=libtbbmalloc_debug.so libtbbmalloc.so.2 libtbb_debug.so \
