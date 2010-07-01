@@ -753,6 +753,8 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     if (data.send_labels & CMM_LABEL_ONDEMAND) {
         sk->update_last_fg();
         csock->update_last_fg();
+        ipc_increment_fg_senders(csock->local_iface.ip_addr);
+        CMMSocketImpl::fg_irobs_inflight++;
     }
 
     pirob = sk->outgoing_irobs.find(id);

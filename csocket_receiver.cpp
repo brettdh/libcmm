@@ -9,6 +9,7 @@
 #include "csocket_mapping.h"
 #include "pthread_util.h"
 #include "cmm_timing.h"
+#include "libcmm_shmem.h"
 
 CSocketReceiver::handler_fn_t CSocketReceiver::handlers[] = {
     &CSocketReceiver::unrecognized_control_msg, /* HELLO not expected */
@@ -483,6 +484,10 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
     csock->stats.report_ack(id, srv_time, ack_qdelay, &ack_time);
 
     sk->ack_received(id);
+    if (CMMSocketImpl::fg_irobs_inflight == 0) {
+        ipc_decrement_all_fg_senders();
+    }
+
 
     size_t num_acks = ntohl(hdr.op.ack.num_acks);
 #ifdef CMM_TIMING

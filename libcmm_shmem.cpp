@@ -19,6 +19,7 @@ using boost::interprocess::scoped_lock;
 using boost::interprocess::move;
 using boost::interprocess::anonymous_instance;
 
+#include <vector>
 #include <map>
 using std::make_pair;
 
@@ -29,6 +30,14 @@ static FGDataMap *fg_data_map;
 static named_upgradable_mutex *fg_data_map_lock;
 
 static bool creator = false;
+
+#include <map>
+#include <boost/thread/locks.hpp>
+#include <boost/thread/shared_mutex.hpp>
+
+typedef std::map<struct in_addr, bool, in_addr_less> SendingFGMap;
+static SendingFGMap proc_local_sending_fg_map;
+static boost::shared_mutex proc_local_fg_map_lock;
 
 void ipc_shmem_init(bool create)
 {
@@ -124,7 +133,15 @@ void ipc_increment_fg_senders(struct in_addr ip_addr)
 {
     FGDataPtr fg_data = map_lookup(ip_addr);
     if (fg_data) {
-        g_atomic_int_inc(&fg_data->num_fg_senders);
+        boost::upgrade_lock<boost::shared_mutex> lock(proc_local_fg_map_lock);
+        if (proc_local_sending_fg_map.count(ip_addr) == 0 ||
+            proc_local_sending_fg_map[ip_addr] == false) {
+            // only increment once per process (until decrement)
+            boost::unique_lock<boost::shared_mutex> wrlock(boost::move(lock));
+            proc_local_sending_fg_map[ip_addr] = true;
+
+            g_atomic_int_inc(&fg_data->num_fg_senders);
+        }
     }
 }
 
@@ -132,7 +149,33 @@ void ipc_decrement_fg_senders(struct in_addr ip_addr)
 {
     FGDataPtr fg_data = map_lookup(ip_addr);
     if (fg_data) {
-        (void)g_atomic_int_dec_and_test(&fg_data->num_fg_senders);
+        boost::upgrade_lock<boost::shared_mutex> lock(proc_local_fg_map_lock);
+        if (proc_local_sending_fg_map.count(ip_addr) > 0 &&
+            proc_local_sending_fg_map[ip_addr] == true) {
+            // only decrement once per process (until increment)
+            boost::unique_lock<boost::shared_mutex> wrlock(boost::move(lock));
+            proc_local_sending_fg_map[ip_addr] = false;
+
+            (void)g_atomic_int_dec_and_test(&fg_data->num_fg_senders);
+        }
+    }
+}
+
+// call when there are now no FG IROBs in flight
+void ipc_decrement_all_fg_senders()
+{
+    std::vector<struct in_addr> ifaces;
+    {
+        boost::shared_lock<boost::shared_mutex> lock(proc_local_fg_map_lock);
+        for (std::map<struct in_addr, bool>::iterator it 
+                 = proc_local_sending_fg_map.begin();
+             it != proc_local_sending_fg_map.end(); it++) {
+            ifaces.push_back(it->first);
+        }
+    }
+
+    for (size_t i = 0; i < ifaces.size(); ++i) {
+        ipc_decrement_fg_senders(ifaces[i]);
     }
 }
 
@@ -150,6 +193,13 @@ bool ipc_add_iface(struct in_addr ip_addr)
         // upgrade to exclusive
         scoped_lock<named_upgradable_mutex> writelock(move(lock));
         fg_data_map->insert(make_pair(ip_addr, new_data));
+        //writelock.release();
+
+        boost::unique_lock<boost::shared_mutex> local_lock(proc_local_fg_map_lock);
+        if (proc_local_sending_fg_map.count(ip_addr) == 0) {
+            proc_local_sending_fg_map[ip_addr] = false;
+        }
+
         return true;
     } else {
         return false;
@@ -163,6 +213,12 @@ bool ipc_remove_iface(struct in_addr ip_addr)
         // upgrade to exclusive
         scoped_lock<named_upgradable_mutex> writelock(move(lock));
         fg_data_map->erase(ip_addr);
+        //writelock.release();
+
+        boost::unique_lock<boost::shared_mutex> local_lock(proc_local_fg_map_lock);
+        if (proc_local_sending_fg_map.count(ip_addr) > 0) {
+            proc_local_sending_fg_map.erase(ip_addr);
+        }
         return true;
     } else {
         return false;

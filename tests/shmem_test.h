@@ -7,8 +7,10 @@
 class ShmemTest : public CppUnit::TestFixture {
     CPPUNIT_TEST_SUITE(ShmemTest);
     CPPUNIT_TEST(testCount);
-    CPPUNIT_TEST(testRace);
     CPPUNIT_TEST(testMap);
+
+    // removed because procs can only increment once.
+    //CPPUNIT_TEST(testRace);
     CPPUNIT_TEST_SUITE_END();    
 
     int master_fd;

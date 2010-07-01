@@ -4,7 +4,7 @@ ifneq ($(BDH_FULL_LIBSTDCXX),)
 
 include $(CLEAR_VARS)
 
-LOCAL_PREBUILT_LIBS := libboost_thread.a
+LOCAL_PREBUILT_LIBS := android_libs/libboost_thread.a
 include $(BUILD_MULTI_PREBUILT)
 
 include $(CLEAR_VARS)
@@ -39,7 +39,7 @@ LOCAL_SRC_FILES := \
 	thunks.cpp \
 	timeops.cpp
 
-LOCAL_STATIC_LIBRARIES := libboost_thread
+LOCAL_STATIC_LIBRARIES := android_libs/libboost_thread
 LOCAL_PRELINK_MODULE := false
 include $(BUILD_SHARED_LIBRARY)
 
@@ -71,7 +71,7 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE := vanilla_test_sender
 LOCAL_SRC_FILES := libcmm_test_sender.cpp timeops.cpp debug.cpp
 LOCAL_CFLAGS += -DNOMULTISOCK
-LOCAL_STATIC_LIBRARIES := libboost_thread
+LOCAL_STATIC_LIBRARIES := android_libs/libboost_thread
 include $(BUILD_EXECUTABLE)
 
 # vanilla_test_receiver: vanilla_test_receiver.o timeops.o
@@ -111,7 +111,7 @@ include $(BUILD_EXECUTABLE)
 # LOCAL_MODULE := conn_scout
 # LOCAL_SRC_FILES := \
 #     libcmm_scout.cpp cdf_sampler.cpp debug.cpp cmm_thread.cpp timeops.cpp
-# LOCAL_STATIC_LIBRARIES := libboost_thread
+# LOCAL_STATIC_LIBRARIES := android_libs/libboost_thread
 # include $(BUILD_EXECUTABLE)
 
 endif

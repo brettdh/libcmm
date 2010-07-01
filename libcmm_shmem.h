@@ -49,6 +49,9 @@ void ipc_set_last_fg_tv_sec(struct in_addr ip_addr, gint secs);
 void ipc_increment_fg_senders(struct in_addr ip_addr);
 void ipc_decrement_fg_senders(struct in_addr ip_addr);
 
+// call when there are now no FG IROBs in flight
+void ipc_decrement_all_fg_senders();
+
 bool ipc_add_iface(struct in_addr ip_addr);
 bool ipc_remove_iface(struct in_addr ip_addr);
 #endif

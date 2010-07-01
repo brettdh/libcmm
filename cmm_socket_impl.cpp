@@ -47,6 +47,8 @@ IROBSockHash CMMSocketImpl::irob_sock_hash;
 irob_id_t CMMSocketImpl::g_next_irob;
 pthread_mutex_t CMMSocketImpl::hashmaps_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+int CMMSocketImpl::fg_irobs_inflight = 0;
+
 // struct timeval CMMSocketImpl::last_fg;
 // struct timeval CMMSocketImpl::total_inter_fg_time;
 // size_t CMMSocketImpl::fg_count;
@@ -2357,8 +2359,13 @@ void CMMSocketImpl::remove_if_unneeded(PendingIROB *pirob)
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
     if (psirob->is_acked() && psirob->is_complete()) {
+        u_long irob_labels = psirob->send_labels;
         outgoing_irobs.erase(pirob->id);
         delete pirob;
+
+        if (irob_labels & CMM_LABEL_ONDEMAND) {
+            fg_irobs_inflight--;
+        }
 
         if (outgoing_irobs.empty()) {
             if (shutting_down) {

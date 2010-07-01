@@ -1,7 +1,7 @@
 CXXFLAGS:=-Wall -Werror -I. -I.. -m32 -g -DCMM_UNIT_TESTING -DCMM_DEBUG -pthread \
 	  -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include \
 	  -DMULTI_PROCESS_SUPPORT
-LDFLAGS:=-L. -L.. -lcppunit -ldl -pthread -lrt -lglib-2.0
+LDFLAGS:=-L. -L.. -lcppunit -ldl -pthread -lrt -lglib-2.0 -lboost_thread
 
 EXECUTABLES=run_unit_tests run_lib_tests run_remote_tests run_thunk_tests run_trickle_tests \
 	    run_lib_tests_nb run_remote_tests_nb

@@ -6,7 +6,7 @@ endif
 CXXFLAGS+=-Wall -Werror -I.. -I/usr/local/include -pthread -fPIC -m32 \
 	   -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include \
 	  $(DEBUG_FLAGS)
-LDFLAGS+=-lrt -lglib-2.0
+LDFLAGS+=-lrt -lglib-2.0 -lboost_thread
 
 all: conn_scout
 

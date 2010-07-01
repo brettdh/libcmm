@@ -9,7 +9,7 @@ CXXFLAGS+=-Wall -Werror -I. -I/usr/local/include \
 	   -pthread -fPIC -m32 $(DEBUG_FLAGS) $(OPT_FLAGS)
 #LIBTBB:=-ltbb_debug
 LDFLAGS:=-L.  -L/usr/local/lib -m32
-LIBS:=-lrt -lglib-2.0
+LIBS:=-lrt -lglib-2.0 -lboost_thread
 
 LIBRARIES:=libcmm.so
 EXECUTABLES:=cmm_test_sender cmm_test_receiver cdf_test\
