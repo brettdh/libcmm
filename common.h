@@ -78,4 +78,6 @@ inline void set_signal(int signo, void (*handler)(int))
     sigaction(signo, &sa, NULL);
 }
 
+int get_unsent_bytes(int sock);
+
 #endif

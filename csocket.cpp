@@ -13,6 +13,7 @@
 #include "csocket_mapping.h"
 #include "libcmm_shmem.h"
 #include <functional>
+#include "common.h"
 using std::max;
 
 CSocketPtr
@@ -289,8 +290,6 @@ bool CSocket::is_fg()
     return (matches(CMM_LABEL_ONDEMAND|CMM_LABEL_SMALL) ||
             matches(CMM_LABEL_ONDEMAND|CMM_LABEL_LARGE));
 }
-
-extern int get_unsent_bytes(int sock);
 
 // must be holding scheduling_state_lock
 // return true iff the csocket is busy sending app data

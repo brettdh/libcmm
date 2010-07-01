@@ -27,6 +27,7 @@ using std::vector; using std::max; using std::min;
 
 #include "cmm_timing.h"
 #include "libcmm_shmem.h"
+#include "common.h"
 
 // easy handle to enable/disable striping.
 static bool striping = true;
@@ -37,8 +38,6 @@ CSocketSender::CSocketSender(CSocketPtr csock_)
     trickle_timeout.tv_sec = -1;
     trickle_timeout.tv_nsec = 0;
 }
-
-int get_unsent_bytes(int sock);
 
 void
 CSocketSender::Run()
@@ -535,29 +534,6 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
     }
 
     return false;
-}
-
-int get_unsent_bytes(int sock)
-{
-    int bytes_in_send_buffer = 0;
-    int rc = ioctl(sock, SIOCOUTQ, &bytes_in_send_buffer);
-    if (rc < 0) {
-        return rc;
-    }
-
-    struct tcp_info info;
-    socklen_t len = sizeof(info);
-    rc = getsockopt(sock, IPPROTO_TCP, TCP_INFO, &info, &len);
-    if (rc < 0) {
-        dbgprintf("Error getting TCP_INFO: %s\n", strerror(errno));
-        return bytes_in_send_buffer;
-    }
-
-    // subtract the "in-flight" bytes.
-    int unsent_bytes = bytes_in_send_buffer - info.tcpi_unacked;
-    dbgprintf("%d bytes in sndbuf and %d bytes unacked = %d bytes unsent?\n",
-              bytes_in_send_buffer, info.tcpi_unacked, unsent_bytes);
-    return unsent_bytes;
 }
 
 bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
