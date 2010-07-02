@@ -44,7 +44,8 @@
 #include "ancillary.h"
 
 int
-ancil_recv_fds_with_buffer(int sock, int *fds, unsigned n_fds, void *buffer)
+ancil_recv_fds_with_buffer_from(int sock, int *fds, unsigned n_fds, void *buffer,
+                                struct sockaddr *from, socklen_t fromlen)
 {
     struct msghdr msghdr;
     char nothing;
@@ -54,8 +55,10 @@ ancil_recv_fds_with_buffer(int sock, int *fds, unsigned n_fds, void *buffer)
 
     nothing_ptr.iov_base = &nothing;
     nothing_ptr.iov_len = 1;
-    msghdr.msg_name = NULL;
-    msghdr.msg_namelen = 0;
+    //msghdr.msg_name = NULL;
+    //msghdr.msg_namelen = 0;
+    msghdr.msg_name = from;
+    msghdr.msg_namelen = fromlen;
     msghdr.msg_iov = &nothing_ptr;
     msghdr.msg_iovlen = 1;
     msghdr.msg_flags = 0;
@@ -74,6 +77,12 @@ ancil_recv_fds_with_buffer(int sock, int *fds, unsigned n_fds, void *buffer)
 	fds[i] = ((int *)CMSG_DATA(cmsg))[i];
     n_fds = (msghdr.msg_controllen - sizeof(struct cmsghdr)) / sizeof(int);
     return(n_fds);
+}
+
+int
+ancil_recv_fds_with_buffer(int sock, int *fds, unsigned n_fds, void *buffer)
+{
+    return ancil_recv_fds_with_buffer_from(sock, fds, n_fds, buffer, NULL, 0);
 }
 
 #ifndef SPARE_RECV_FDS
@@ -96,3 +105,23 @@ ancil_recv_fd(int sock, int *fd)
     return(ancil_recv_fds_with_buffer(sock, fd, 1, &buffer) == 1 ? 0 : -1);
 }
 #endif /* SPARE_RECV_FD */
+
+int
+ancil_recv_fds_from(int sock, int *fd, unsigned n_fds, 
+                    struct sockaddr *from, socklen_t fromlen)
+{
+    ANCIL_FD_BUFFER(ANCIL_MAX_N_FDS) buffer;
+
+    assert(n_fds <= ANCIL_MAX_N_FDS);
+    return(ancil_recv_fds_with_buffer_from(sock, fd, n_fds, &buffer, 
+                                           from, fromlen));
+}
+
+int
+ancil_recv_fd_from(int sock, int *fd, struct sockaddr *from, socklen_t fromlen)
+{
+    ANCIL_FD_BUFFER(1) buffer;
+
+    return(ancil_recv_fds_with_buffer_from(sock, fd, 1, &buffer, 
+                                           from, fromlen) == 1 ? 0 : -1);
+}

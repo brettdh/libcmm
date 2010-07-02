@@ -44,7 +44,8 @@
 #include "ancillary.h"
 
 int
-ancil_send_fds_with_buffer(int sock, const int *fds, unsigned n_fds, void *buffer)
+ancil_send_fds_with_buffer_to(int sock, const int *fds, unsigned n_fds, void *buffer,
+                              struct sockaddr *to, socklen_t tolen)
 {
     struct msghdr msghdr;
     char nothing = '!';
@@ -54,8 +55,11 @@ ancil_send_fds_with_buffer(int sock, const int *fds, unsigned n_fds, void *buffe
 
     nothing_ptr.iov_base = &nothing;
     nothing_ptr.iov_len = 1;
-    msghdr.msg_name = NULL;
-    msghdr.msg_namelen = 0;
+    //msghdr.msg_name = NULL;
+    //msghdr.msg_namelen = 0;
+    // BDH: support sendto-style
+    msghdr.msg_name = to;
+    msghdr.msg_namelen = tolen;
     msghdr.msg_iov = &nothing_ptr;
     msghdr.msg_iovlen = 1;
     msghdr.msg_flags = 0;
@@ -68,6 +72,12 @@ ancil_send_fds_with_buffer(int sock, const int *fds, unsigned n_fds, void *buffe
     for(i = 0; i < n_fds; i++)
 	((int *)CMSG_DATA(cmsg))[i] = fds[i];
     return(sendmsg(sock, &msghdr, 0) >= 0 ? 0 : -1);
+}
+
+int
+ancil_send_fds_with_buffer(int sock, const int *fds, unsigned n_fds, void *buffer)
+{
+    return ancil_send_fds_with_buffer_to(sock, fds, n_fds, buffer, NULL, 0);
 }
 
 #ifndef SPARE_SEND_FDS
@@ -90,3 +100,22 @@ ancil_send_fd(int sock, int fd)
     return(ancil_send_fds_with_buffer(sock, &fd, 1, &buffer));
 }
 #endif /* SPARE_SEND_FD */
+
+/* BDH: add sendto wrapper. */
+int
+ancil_send_fds_to(int sock, const int *fds, unsigned n_fds,
+                  struct sockaddr *to, socklen_t tolen)
+{
+    ANCIL_FD_BUFFER(ANCIL_MAX_N_FDS) buffer;
+
+    assert(n_fds <= ANCIL_MAX_N_FDS);
+    return(ancil_send_fds_with_buffer_to(sock, fds, n_fds, &buffer, to, tolen));
+}
+
+int
+ancil_send_fd_to(int sock, int fd, struct sockaddr *to, socklen_t tolen)
+{
+    ANCIL_FD_BUFFER(1) buffer;
+
+    return(ancil_send_fds_with_buffer_to(sock, &fd, 1, &buffer, to, tolen));
+}

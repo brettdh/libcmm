@@ -120,4 +120,19 @@ ancil_recv_fd(int, int *);
  * Returns : -1 and errno in case of error, 0 in case of success.
  */
 
+/* BDH: the below functions add support for the sendto/recvfrom equivalents. */
+extern int
+ancil_send_fds_to(int sock, const int *fds, unsigned n_fds,
+                  struct sockaddr *to, socklen_t tolen);
+
+extern int
+ancil_send_fd_to(int sock, int fd, struct sockaddr *to, socklen_t tolen);
+
+extern int
+ancil_recv_fds_from(int sock, int *fd, unsigned n_fds, 
+                    struct sockaddr *from, socklen_t fromlen);
+
+extern int
+ancil_recv_fd_from(int sock, int *fd, struct sockaddr *from, socklen_t fromlen);
+
 #endif /* ANCILLARY_H__ */

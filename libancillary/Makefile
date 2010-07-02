@@ -39,7 +39,7 @@ TAR=tar
 GZIP=gzip -9
 
 NAME=libancillary
-DISTRIBUTION=API COPYING Makefile ancillary.h fd_send.c fd_recv.c test.c
+DISTRIBUTION=API COPYING Makefile ancillary.h fd_send.c fd_recv.c test.c test_tofrom.c
 VERSION=0.9.1
 
 OBJECTS=fd_send.o fd_recv.o
@@ -63,8 +63,11 @@ fd_recv.o: ancillary.h
 test: test.c libancillary.a
 	$(CC) -o $@ $(CFLAGS) $(LDFLAGS) -L. test.c -lancillary $(LIBS)
 
+test_tofrom: test_tofrom.c libancillary.a
+	$(CC) -o $@ $(CFLAGS) $(LDFLAGS) -L. test_tofrom.c -lancillary $(LIBS)
+
 clean:
-	-$(RM) -f *.o *.a test 
+	-$(RM) -f *.o *.a test test_tofrom
 
 dist:
 	$(MKDIR) $(NAME)-$(VERSION)
