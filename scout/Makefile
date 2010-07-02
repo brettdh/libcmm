@@ -10,8 +10,9 @@ LDFLAGS+=-lrt -lglib-2.0 -lboost_thread
 
 all: conn_scout
 
-conn_scout: libcmm_scout.o ../cdf_sampler.o ../debug.o \
-	    ../cmm_thread.o ../timeops.o ../libcmm_shmem.o
+conn_scout: libcmm_scout.o ../cdf_sampler.o ../debug.o ../common.o \
+	    ../cmm_thread.o ../timeops.o ../libcmm_shmem.o \
+	    ../libancillary/libancillary.a
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
 .bininstall: conn_scout

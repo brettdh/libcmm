@@ -1,5 +1,6 @@
 #include "libcmm_shmem.h"
 #include "timeops.h"
+#include "common.h"
 
 #ifdef MULTI_PROCESS_SUPPORT
 #include <boost/interprocess/managed_shared_memory.hpp>
@@ -21,7 +22,12 @@ using boost::interprocess::anonymous_instance;
 
 #include <vector>
 #include <map>
+#include <set>
 using std::make_pair;
+
+#include <sys/socket.h>
+#include <linux/un.h>
+#include <ancillary.h>
 
 static managed_shared_memory *segment;
 
@@ -34,6 +40,7 @@ static named_upgradable_mutex *shmem_lock;
 static bool creator = false;
 
 #include <map>
+#include <boost/thread.hpp>
 #include <boost/thread/locks.hpp>
 #include <boost/thread/shared_mutex.hpp>
 
@@ -42,11 +49,11 @@ struct proc_sock_info {
     int remote_fd; // socket fd as the remote process knows it
     int local_fd;  // valid in this process; created by ancil_recv_fd
 
-    bool operator<(const struct proc_sock_info& other) {
+    bool operator<(const struct proc_sock_info& other) const {
         return (pid < other.pid ||
                 (pid == other.pid && remote_fd < other.remote_fd));
     }
-    bool operator==(const struct proc_sock_info& other) {
+    bool operator==(const struct proc_sock_info& other) const {
         return (pid == other.pid &&
                 remote_fd == other.remote_fd);
     }
@@ -68,15 +75,42 @@ struct fd_sharing_packet {
     char remove_fd; // 1 iff recipient should remove this remote_fd.
 };
 
+
+void add_or_remove_csocket(struct in_addr ip_addr, 
+                           pid_t pid, int remote_fd, int local_fd, 
+                           bool remove_fd)
+{
+    boost::upgrade_lock<boost::shared_mutex> lock(proc_local_lock);
+    if (all_intnw_csockets.count(ip_addr) == 0) {
+        // must have been removed by scout; ignore
+        return;
+    }
+    
+    boost::unique_lock<boost::shared_mutex> writelock(boost::move(lock));
+    proc_sock_info info(pid, remote_fd, local_fd);
+    if (remove_fd) {
+        dbgprintf("removing (PID: %d remote_fd: %d)"
+                  " info from iface %s\n", pid, remote_fd,
+                  inet_ntoa(ip_addr));
+        all_intnw_csockets[ip_addr].erase(info);
+    } else {
+        dbgprintf("adding (PID: %d remote_fd: %d local_fd: %d) "
+                  "info to iface %s\n", 
+                  pid, remote_fd, local_fd,
+                  inet_ntoa(ip_addr));
+        all_intnw_csockets[ip_addr].insert(info);
+    }
+}
+
 // to be followed by a PID
 #define INTNW_FD_SHARING_SOCKET_FMT "IntNWFDSharingSocket_%d"
 
 struct FDSharingThread {
-    int fd_share_ipc_sock;
+    int sock;
     
     FDSharingThread() {
-        fd_share_ipc_sock = socket(AF_UNIX, SOCK_DGRAM, 0);
-        if (fd_share_ipc_sock < 0) {
+        sock = socket(AF_UNIX, SOCK_DGRAM, 0);
+        if (sock < 0) {
             perror("FDSharingThread: socket");
         } else {
             struct sockaddr_un addr;
@@ -84,28 +118,32 @@ struct FDSharingThread {
             addr.sun_family = AF_UNIX;
             snprintf(&addr.sun_path[1], UNIX_PATH_MAX - 2,
                      INTNW_FD_SHARING_SOCKET_FMT, getpid());
-            rc = bind(fd_share_ipc_sock, (struct sockaddr*)&addr,
-                      sizeof(addr));
+            int rc = bind(sock, (struct sockaddr*)&addr,
+                          sizeof(addr));
             if (rc < 0) {
                 perror("FDSharingThread: bind");
                 dbgprintf("Failed to bind FDSharingThread socket\n");
-                close(fd_share_ipc_sock);
-                fd_share_ipc_sock = -1;
+                close(sock);
+                sock = -1;
             }
         }
     }
 
     void operator()() {
-        if (fd_share_ipc_sock < 0) {
+        if (sock < 0) {
             return;
         }
 
+        char name[MAX_NAME_LEN+1];
+        strncpy(name, "FDSharingThread", MAX_NAME_LEN);
+        set_thread_name(name);
+        
         while (1) {
             struct sockaddr_un addr;
             socklen_t addrlen = sizeof(addr);
             struct fd_sharing_packet packet;
             int new_fd = -1;
-            int rc = recvfrom(fd_share_ipc_sock, &packet, sizeof(packet), 0, 
+            int rc = recvfrom(sock, &packet, sizeof(packet), 0, 
                               (struct sockaddr *)&addr, &addrlen);
             if (rc != sizeof(packet)) {
                 if (rc < 0) {
@@ -119,35 +157,24 @@ struct FDSharingThread {
             }
 
             if (!packet.remove_fd) {
-                rc = ancil_recv_fd(fd_share_ipc_sock, &new_fd);
+                rc = ancil_recv_fd(sock, &new_fd);
                 if (rc != 0) {
                     perror("FDSharingThread: ancil_recv_fd");
                     break;
                 }
             }
 
-            boost::upgrade_lock lock(proc_local_lock);
-            if (all_intnw_sockets.count(packet.ip_addr) == 0) {
-                // must have been removed by scout; ignore
-                continue;
-            }
-            
-            boost::unique_lock writelock(boost::move(lock));
-            proc_sock_info info(packet.pid, packet.remote_fd, new_fd);
-            if (packet.remove_fd) {
-                dbgprintf("FDSharingThread: removing (PID: %d remote_fd: %d)"
-                          " info from iface %s\n", packet.pid, packet.remote_fd,
-                          inet_ntoa(packet.ip_addr););
-                all_intnw_sockets[packet.ip_addr].erase(info);
-            } else {
-                dbgprintf("FDSharingThread: adding "
-                          "(PID: %d remote_fd: %d local_fd: %d) info to iface %s\n", 
-                          packet.pid, packet.remote_fd, packet.local_fd,
-                          inet_ntoa(packet.ip_addr));
-                all_intnw_sockets[packet.ip_addr].insert(info);
-            }
+            dbgprintf("Received shared socket from PID %d: "
+                      "iface %s remote_fd %d local_fd %d remove? %s\n",
+                      packet.pid, inet_ntoa(packet.ip_addr), 
+                      packet.remote_fd, new_fd, 
+                      packet.remove_fd ? "yes" : "no");
+
+            add_or_remove_csocket(packet.ip_addr, 
+                                  packet.pid, packet.remote_fd, new_fd,
+                                  packet.remove_fd);
         }
-        close(fd_share_ipc_sock);
+        close(sock);
     }
 };
 
@@ -169,21 +196,57 @@ static int send_local_csocket_fd(struct in_addr ip_addr, pid_t target,
     addr.sun_family = AF_UNIX;
     snprintf(&addr.sun_path[1], UNIX_PATH_MAX - 2,
              INTNW_FD_SHARING_SOCKET_FMT, target);
-    
-    boost::unique_lock lock(proc_local_lock);
-    int rc = connect(fd_sharing_thread_data->fd_share_ipc_sock,
-                     (struct sockaddr *)&addr, sizeof(addr));
-    if (rc != 0) {
-        // TODO: continue.  turns out I need ancil_sendto_fd and ancil_recvfrom_fd.
-    }
 
-    if (!remove_fd) {
-        rc = ancil_send_fd(fd_sharing_thread_data->fd_share_ipc_sock, local_fd);
-        if (rc != 0) {
-            // that process must be gone
-            
+    dbgprintf("Sending socket fd %d to PID %d remove? %s\n",
+              local_fd, target, remove_fd ? "yes" : "no");
+    boost::unique_lock<boost::shared_mutex> lock(proc_local_lock);
+    int rc = sendto(fd_sharing_thread_data.sock, &packet, sizeof(packet), 0,
+                    (struct sockaddr *)&addr, sizeof(addr));
+    if (rc == sizeof(packet)) {
+        if (!remove_fd) {
+            rc = ancil_send_fd_to(fd_sharing_thread_data.sock, local_fd,
+                                  (struct sockaddr *)&addr, sizeof(addr));
+            if (rc != 0) {
+                perror("ancil_send_fd_to");
+                return rc;
+            }
+        }
+        return 0;
+    } else if (rc < 0) {
+        return rc;
+    } else {
+        dbgprintf("WARNING: Sent local csocket packet size %zu, "
+                  "only %d bytes sent\n", sizeof(packet), rc);
+        return -1;
+    }
+}
+
+static void add_proc(pid_t pid)
+{
+    scoped_lock<named_upgradable_mutex> lock(*shmem_lock);
+    intnw_pids->insert(pid);
+}
+
+static void remove_proc(pid_t pid)
+{
+    {
+        boost::unique_lock<boost::shared_mutex> local_lock(proc_local_lock);
+        for (CSocketMap::iterator it = all_intnw_csockets.begin(); 
+             it != all_intnw_csockets.end(); it++) {
+            std::set<struct proc_sock_info>& s = it->second;
+            for (std::set<struct proc_sock_info>::iterator victim = s.begin();
+                 victim != s.end(); ) {
+                if (victim->pid == pid && pid != getpid()) {
+                    close(victim->local_fd);
+                    s.erase(victim++);
+                } else { 
+                    ++victim;
+                }
+            }
         }
     }
+    scoped_lock<named_upgradable_mutex> lock(*shmem_lock);
+    intnw_pids->erase(pid);
 }
 
 void ipc_shmem_init(bool create)
@@ -216,10 +279,19 @@ void ipc_shmem_init(bool create)
     intnw_pids = segment->find_or_construct<ShmemIntSet>(INTNW_SHMEM_PID_SET_NAME)(
         std::less<int>(), *int_allocator
         ); // never constructs; scout is first
+
+    add_proc(getpid());
+    fd_sharing_thread = new boost::thread(boost::ref(fd_sharing_thread_data));
 }
 
 void ipc_shmem_deinit()
 {
+    shutdown(fd_sharing_thread_data.sock, SHUT_RDWR);
+    fd_sharing_thread->join();
+    delete fd_sharing_thread;
+    
+    remove_proc(getpid());
+
     // scout takes care of deallocating shared memory objects when it exits
 
     // clean up process-local data structures
@@ -347,15 +419,18 @@ bool ipc_add_iface(struct in_addr ip_addr)
             *segment
             );
         new_data->last_fg_tv_sec = 0;
-        new_data->num_fg_senders = 0;
+        //new_data->num_fg_senders = 0;
 
         // upgrade to exclusive
         scoped_lock<named_upgradable_mutex> writelock(move(lock));
         fg_data_map->insert(make_pair(ip_addr, new_data));
-        //writelock.release();
+        writelock.unlock();
 
         boost::unique_lock<boost::shared_mutex> local_lock(proc_local_lock);
-        (void)all_intnw_csockets[ip_addr]; // inserts empty set
+        if (all_intnw_csockets.count(ip_addr) == 0) {
+            // inserts empty set
+            all_intnw_csockets[ip_addr] = CSocketMap::mapped_type();
+        }
         /*
         if (proc_local_sending_fg_map.count(ip_addr) == 0) {
             proc_local_sending_fg_map[ip_addr] = false;
@@ -375,14 +450,14 @@ bool ipc_remove_iface(struct in_addr ip_addr)
         // upgrade to exclusive
         scoped_lock<named_upgradable_mutex> writelock(move(lock));
         fg_data_map->erase(ip_addr);
-        //writelock.release();
+        writelock.unlock();
 
         boost::unique_lock<boost::shared_mutex> local_lock(proc_local_lock);
         if (all_intnw_csockets.count(ip_addr) > 0) {
             // clean up all local (dup'd) file descriptors
-            set<proc_sock_info>& sockinfo = all_intnw_csockets[ip_addr].begin();
-            for (set<proc_sock_info>::iterator it = sockinfo.begin();
-                 it !+ sockinfo.end(); it++) {
+            std::set<proc_sock_info>& sockinfo = all_intnw_csockets[ip_addr];
+            for (std::set<proc_sock_info>::iterator it = sockinfo.begin();
+                 it != sockinfo.end(); it++) {
                 if (it->pid != getpid()) {
                     // only close the ones that are dups from other procs.
                     // my own csocket fds will get closed by their
@@ -403,5 +478,84 @@ bool ipc_remove_iface(struct in_addr ip_addr)
     }
 }
 
+bool send_csocket_to_all_pids(struct in_addr ip_addr, int local_fd, 
+                              bool remove_fd)
+{
+    std::vector<pid_t> failed_procs;
+    bool rc;
+
+    {
+        sharable_lock<named_upgradable_mutex> lock(*shmem_lock);
+        if (map_lookup(ip_addr)) {
+            std::set<pid_t> target_procs(intnw_pids->begin(), intnw_pids->end());
+            lock.unlock();
+            
+            dbgprintf("Sending local socket fd %d to %d pids\n",
+                      local_fd, target_procs.size());
+            for (std::set<pid_t>::iterator it = target_procs.begin();
+                 it != target_procs.end(); it++) {
+                pid_t pid = *it;
+                if (pid != getpid()) {
+                    int rc = send_local_csocket_fd(ip_addr, pid, local_fd, 
+                                                   remove_fd);
+                    if (rc != 0) {
+                        failed_procs.push_back(pid);
+                    }
+                }
+            }
+            rc = true;
+        } else {
+            rc = false;
+        }
+    }
+    for (size_t i = 0; i < failed_procs.size(); ++i) {
+        remove_proc(failed_procs[i]);
+    }
+    return rc;
+}
+
+bool ipc_add_csocket(struct in_addr ip_addr, int local_fd)
+{
+    add_or_remove_csocket(ip_addr, getpid(), local_fd, local_fd, false);
+    return send_csocket_to_all_pids(ip_addr, local_fd, false);
+}
+
+bool ipc_remove_csocket(struct in_addr ip_addr, int local_fd)
+{
+    add_or_remove_csocket(ip_addr, getpid(), local_fd, local_fd, true);
+    return send_csocket_to_all_pids(ip_addr, local_fd, true);
+}
+
+size_t ipc_total_bytes_inflight(struct in_addr ip_addr)
+{
+    size_t bytes = 0;
+    boost::shared_lock<boost::shared_mutex> lock(proc_local_lock);
+    if (map_lookup(ip_addr)) {
+        std::set<struct proc_sock_info>& sockinfo = all_intnw_csockets[ip_addr];
+        for (std::set<struct proc_sock_info>::iterator it = sockinfo.begin();
+             it != sockinfo.end(); it++) {
+            int unsent_bytes = get_unsent_bytes(it->local_fd);
+            if (unsent_bytes < 0) {
+                dbgprintf("Error checking buffer usage for socket %d\n",
+                          it->local_fd);
+            } else {
+                dbgprintf("Socket %d has %zu bytes in buffer\n",
+                          it->local_fd, unsent_bytes);
+                bytes += unsent_bytes;
+            }
+        }
+
+        if (sockinfo.empty()) {
+            dbgprintf("iface %s has no connected sockets\n",
+                      inet_ntoa(ip_addr));
+        }
+    } else {
+        dbgprintf("total_bytes_inflight: unknown iface %s ; returning 0\n",
+                  inet_ntoa(ip_addr));
+    }
+                
+
+    return bytes;
+}
 
 #endif

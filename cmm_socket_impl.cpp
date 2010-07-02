@@ -47,8 +47,6 @@ IROBSockHash CMMSocketImpl::irob_sock_hash;
 irob_id_t CMMSocketImpl::g_next_irob;
 pthread_mutex_t CMMSocketImpl::hashmaps_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-int CMMSocketImpl::fg_irobs_inflight = 0;
-
 // struct timeval CMMSocketImpl::last_fg;
 // struct timeval CMMSocketImpl::total_inter_fg_time;
 // size_t CMMSocketImpl::fg_count;
@@ -64,12 +62,6 @@ bool CMMSocketImpl::allow_bg_send(CSocketPtr csock, ssize_t& chunksize)
 
     // get last_fg value
 #ifdef MULTI_PROCESS_SUPPORT
-    if (ipc_fg_sender_count(csock->local_iface.ip_addr) > 0) {
-        // BG send function in CSocketSender will return false;
-        //  BG data won't get sent right away
-        // thread will poll, similar to when trickling BG data
-        do_trickle = false;
-    }
     iface_last_fg.tv_sec = ipc_last_fg_tv_sec(csock->local_iface.ip_addr);
     iface_last_fg.tv_usec = 0;
 #else
@@ -82,6 +74,7 @@ bool CMMSocketImpl::allow_bg_send(CSocketPtr csock, ssize_t& chunksize)
     if (time_since_last_fg.tv_sec > 5) {
         chunksize = csock->bandwidth();
     }
+    // TODO: check all socket buffers, check trickle size
 
     return do_trickle;
 }
@@ -2359,13 +2352,8 @@ void CMMSocketImpl::remove_if_unneeded(PendingIROB *pirob)
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
     if (psirob->is_acked() && psirob->is_complete()) {
-        u_long irob_labels = psirob->send_labels;
         outgoing_irobs.erase(pirob->id);
         delete pirob;
-
-        if (irob_labels & CMM_LABEL_ONDEMAND) {
-            fg_irobs_inflight--;
-        }
 
         if (outgoing_irobs.empty()) {
             if (shutting_down) {

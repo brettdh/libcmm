@@ -61,6 +61,9 @@ size_t ipc_total_bytes_inflight(struct in_addr ip_addr);
 
 bool ipc_add_iface(struct in_addr ip_addr);
 bool ipc_remove_iface(struct in_addr ip_addr);
+bool ipc_add_csocket(struct in_addr ip_addr, int local_fd);
+bool ipc_remove_csocket(struct in_addr ip_addr, int local_fd);
+
 #endif
 
 #endif

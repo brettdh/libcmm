@@ -196,10 +196,6 @@ class CMMSocketImpl : public CMMSocket {
     struct timeval last_fg; // the time of the last foreground activity.
     void update_last_fg();
 
-    // for keeping track of how many FG IROBS an entire process is sending
-    //  used to implement barrier for BG traffic
-    static int fg_irobs_inflight;
-
     NetInterfaceSet local_ifaces;
     ListenerThread *listener_thread;
 

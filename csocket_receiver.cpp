@@ -484,10 +484,6 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
     csock->stats.report_ack(id, srv_time, ack_qdelay, &ack_time);
 
     sk->ack_received(id);
-    if (CMMSocketImpl::fg_irobs_inflight == 0) {
-        ipc_decrement_all_fg_senders();
-    }
-
 
     size_t num_acks = ntohl(hdr.op.ack.num_acks);
 #ifdef CMM_TIMING

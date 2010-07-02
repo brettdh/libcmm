@@ -9,8 +9,8 @@ CXXFLAGS+=-Wall -Werror -I. -I/usr/local/include \
 	   -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include \
 	   -pthread -fPIC -m32 $(DEBUG_FLAGS) $(OPT_FLAGS)
 #LIBTBB:=-ltbb_debug
-LDFLAGS:=-L.  -L/usr/local/lib -L./libancillary -m32
-LIBS:=-lrt -lglib-2.0 -lboost_thread -lancillary
+LDFLAGS:=-L.  -L/usr/local/lib -m32
+LIBS:=-lrt -lglib-2.0 -lboost_thread
 
 LIBRARIES:=libcmm.so
 EXECUTABLES:=cmm_test_sender cmm_test_receiver cdf_test\
@@ -56,7 +56,7 @@ libcmm.so: libcmm.o libcmm_ipc.o cmm_socket.o cmm_socket_impl.o \
            cmm_thread.o cmm_internal_listener.o libcmm_irob.o debug.o \
            intset.o cmm_socket_control.o irob_scheduling.o timeops.o \
 	   ack_timeouts.o net_interface.o net_stats.o cmm_conn_bootstrapper.o \
-	   libcmm_shmem.o common.o
+	   libcmm_shmem.o common.o libancillary/libancillary.a
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -shared -o $@ $^
 
 .PHONY: libcmm.tgz

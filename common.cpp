@@ -1,4 +1,11 @@
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <linux/sockios.h>
+#include <linux/tcp.h>
+#include <errno.h>
 #include "common.h"
+#include "debug.h"
 
 int get_unsent_bytes(int sock)
 {

@@ -41,6 +41,10 @@
  * functions; this is so that all can fit in one page.
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern int
 ancil_send_fds_with_buffer(int, const int *, unsigned, void *);
 /*
@@ -134,5 +138,9 @@ ancil_recv_fds_from(int sock, int *fd, unsigned n_fds,
 
 extern int
 ancil_recv_fd_from(int sock, int *fd, struct sockaddr *from, socklen_t fromlen);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 #endif /* ANCILLARY_H__ */

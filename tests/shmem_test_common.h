@@ -9,4 +9,6 @@ extern struct in_addr shmem_iface2;
 
 #define MASTER_SOCKET_NAME "shmem_test_master"
 
+#define TEST_SOCKET_BUFSIZE 32708
+
 #endif
