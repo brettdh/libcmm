@@ -1,10 +1,16 @@
 #ifndef MULTI_APP_TEST_HELPER_H_INCL
 #define MULTI_APP_TEST_HELPER_H_INCL
 
+#include <libcmm.h>
+
 struct packet_hdr {
     int seqno;
     size_t len;
 };
+
+#define MULTI_APP_TEST_PORT 4242
+
+int cmm_connect_to(mc_socket_t sock, const char *hostname, in_port_t port);
 
 class ThreadGroup;
 
@@ -20,6 +26,14 @@ struct SenderThread {
     ThreadGroup *group;
 
     void operator()(); // thread function
+
+    SenderThread(mc_socket_t sock_, bool foreground_, size_t chunksize_,
+                 struct timeval send_period_, 
+                 struct timeval start_delay_, 
+                 struct timeval sending_duration_)
+        : sock(sock_), foreground(foreground_), chunksize(chunksize_), 
+          send_period(send_period_), start_delay(start_delay_), 
+          sending_duration(sending_duration_) {}
 };
 
 struct ReceiverThread {
@@ -28,18 +42,24 @@ struct ReceiverThread {
     ThreadGroup *group;
 
     void operator()(); // thread function
+    ReceiverThread(mc_socket_t sock_) : sock(sock_) {}
 };
+
+typedef std::map<int, struct timeval> TimestampMap;
+typedef std::vector<std::pair<struct timeval, struct timeval> > TimeResultVector;
 
 class ThreadGroup : public boost::thread_group {
   public:
-    std::map<int, struct timeval> fg_timestamps;
-    std::map<int, struct timeval> bg_timestamps;
-    std::vector<std::pair<struct timeval, struct timeval> > fg_results;
-    std::vector<std::pair<struct timeval, struct timeval> > bg_results;
+    TimestampMap fg_timestamps;
+    TimestampMap bg_timestamps;
+    TimeResultVector fg_results;
+    TimeResultVector bg_results;
     int seqno;
     boost::mutex mutex;
 
     ThreadGroup() : seqno(0) {}
 };
+
+void print_stats(const TimeResultVector& results);
 
 #endif

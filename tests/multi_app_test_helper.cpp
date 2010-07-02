@@ -8,6 +8,34 @@ using std::vector;
 using std::pair;
 using std::make_pair;
 
+int cmm_connect_to(mc_socket_t sock, const char *hostname, in_port_t port)
+{
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+
+    if (!strcmp(hostname, "localhost")) {
+        fprintf(stderr, "Using INADDR_LOOPBACK\n");
+        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    } else {
+        fprintf(stderr, "Looking up %s\n", hostname);
+        struct hostent *he = gethostbyname(hostname);
+        if (!he) {
+            herror("gethostbyname");
+            exit(EXIT_FAILURE);
+        }
+        
+        memcpy(&addr.sin_addr, he->h_addr, he->h_length);
+        fprintf(stderr, "Resolved %s to %s\n", 
+                hostname, inet_ntoa(addr.sin_addr));
+    }
+    addr.sin_port = htons(port);
+
+    socklen_t addrlen = sizeof(addr);
+
+    return cmm_connect(send_sock, (struct sockaddr*)&addr, addrlen);
+}
+
 void 
 SenderThread::operator()()
 {
@@ -24,7 +52,7 @@ SenderThread::operator()()
 
     irob_id_t last_irob = -1;
     
-    // TODO: Wait for a duration, then start sending for a duration
+    // Wait for a duration, then start sending for a duration
     struct timespec duration = { start_delay.tv_sec, 
                                  start_delay.tv_usec * 1000 };
     nowake_nanosleep(&duration);
@@ -43,6 +71,13 @@ SenderThread::operator()()
         irob_id_t *deps = (last_irob == -1) ? NULL : &last_irob;
         u_long labels = foreground ? CMM_LABEL_ONDEMAND : CMM_LABEL_BACKGROUND;
 
+        TIME(now);
+        {
+            scoped_lock lock(group->mutex);
+            map<int, struct timeval>& timestamps = 
+                foreground ? group->fg_timestamps : group->bg_timestamps;
+            timestamps[ntohl(hdr.seqno)] = now;
+        }
         int rc = cmm_writev_with_deps(sock, vecs, 2, num_deps, deps,
                                       labels, NULL, NULL, &last_irob);
         if (rc != (sizeof(hdr) + chunksize)) {
@@ -50,10 +85,12 @@ SenderThread::operator()()
                     foreground ? "foreground" : "background",
                     ntohl(hdr.seqno));
         }
-        // TODO: finish this function.
+        
+        nowake_nanosleep(&send_period);
 
         TIME(now);
     }
+    cmm_shutdown(sock, SHUT_WR);
 }
 
 void
@@ -95,10 +132,113 @@ ReceiverThread::operator()()
     }
 }
 
+#define USAGE_MSG \
+"usage: $prog <foreground|background> <chunksize> <-- bytes\
+              <send_period> <start_delay> <sending_duration> <-- seconds\
+              <vanilla|intnw> <hostname>\
+ Starts a single sender and single receiver thread."
+
+void usage()
+{
+    fprintf(stderr, USAGE_MSG);
+    exit(1);
+}
+
+void print_stats(const TimeResultVector& results)
+{
+    for (int i = 0; i < 70; ++i) { 
+        fprintf(stderr, "-");
+    }
+    fprintf(stderr, "\n");
+    //TODO: finish. print raw results and summary.
+    // maybe produce a graph too?
+}
+
 #ifdef MULTI_APP_TEST_EXECUTABLE
 int main(int argc, char *argv[])
 {
-    // TODO: create (multi)socket(s), run tests
+    // usage: $prog <foreground|background> <chunksize> <-- bytes
+    //              <send_period> <start_delay> <sending_duration> <-- seconds
+    //              <vanilla|intnw> <hostname>
+    // Starts a single sender and single receiver thread.
+    if (argc != 7) usage();
+    bool foreground;
+    if (!strcmp(argv[1], "foreground")) {
+        foreground = true;
+    } else if (!strcmp(argv[1], "background")) {
+        foreground = false;
+    } else usage();
+
+    if (atoi(argv[2]) < 0 ||
+        atoi(argv[3]) < 0 ||
+        atoi(argv[4]) < 0 ||
+        atoi(argv[5]) < 0) {
+        fprintf(stderr, "Error: all numerical arguments must be positive integers\n");
+        usage();
+    }
+    size_t chunksize = atoi(argv[2]);
+    struct timeval send_period = { atoi(argv[3]), 0 };
+    struct timeval start_delay = { atoi(argv[4]), 0 };
+    struct timeval sending_duration = { atoi(argv[5]), 0 };
+
+    bool intnw;
+    if (!strcmp(argv[6], "vanilla")) {
+        intnw = false;
+    } else if (!strcmp(argv[1], "intnw")) {
+        intnw = true;
+    } else usage();
+
+    mc_socket_t sock;
+    if (intnw) {
+        sock = cmm_socket(PF_INET, SOCK_STREAM, 0);
+    } else {
+        sock = socket(PF_INET, SOCK_STREAM, 0);
+    }
+    handle_error(sock < 0, intnw ? "cmm_socket" : "socket");
+    
+    const char *hostname = argv[7];
+    int rc = cmm_connect_to(sock, hostname, MULTI_APP_TEST_PORT);
+    handle_error(rc < 0, "cmm_connect");
+
+    SenderThread sender(sock, foreground, chunksize, 
+                        send_period, start_delay, sending_duration);
+    ReceiverThread receiver(sock);
+
+    ThreadGroup group;
+    sender.group = &group;
+    receiver.group = &group;
+    group.create_thread(boost::ref(receiver));
+    group.create_thread(boost::ref(sender));
+
+    group.join_all();
+    close(sock);
+
+    // TODO: summarize stats: fg latency, bg throughput
+    if (!group.fg_results.empty() && !group.bg_results.empty()) {
+        fprintf("WARNING: weirdness.  I should only have fg *or* "
+                "bg results, but I have both.\n");
+    }
+
+    if (!group.fg_results.empty()) {
+        fprintf(stderr, "Worker PID %d, %s%s sender results%s\n", getpid(), 
+                intnw ? "intnw" : "vanilla",
+                intnw ? "foreground" : "",
+                foreground ? "" : " (weird)");
+        for (int i = 0; i < 70; ++i) { 
+            fprintf(stderr, "-");
+        }
+        fprintf(stderr, "\n");
+        
+        print_stats(group.fg_results);
+    }
+    if (!group.bg_results.empty()) {
+        fprintf(stderr, "Worker PID %d, %s%s sender results%s\n", getpid(), 
+                intnw ? "intnw" : "vanilla",
+                intnw ? "background" : "",
+                foreground ? " (weird)" : "");
+
+        print_stats(group.bg_results);
+    }
 
     return 0;
 }
