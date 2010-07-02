@@ -72,6 +72,8 @@ CSocketSender::Run()
                                        last_fg_secs));
         }
 
+        ipc_add_csocket(csock->local_iface.ip_addr, csock->osfd);
+
         PthreadScopedLock lock(&sk->scheduling_state_lock);
 
         // on startup, find all IROBs that might benefit from me sending
@@ -556,14 +558,31 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
         */
     } else {
         chunksize = csock->trickle_chunksize();
-        do_trickle = CMMSocketImpl::allow_bg_send(csock, chunksize);
+
+        struct timeval time_since_last_fg, now;
+        struct timeval iface_last_fg;
+
+        // get last_fg value
+#ifdef MULTI_PROCESS_SUPPORT
+        iface_last_fg.tv_sec = ipc_last_fg_tv_sec(csock->local_iface.ip_addr);
+        iface_last_fg.tv_usec = 0;
+#else
+        iface_last_fg = csock->last_fg;
+#endif
+        
+        TIME(now);
+        
+        TIMEDIFF(iface_last_fg, now, time_since_last_fg);
+        if (time_since_last_fg.tv_sec > 5) {
+            chunksize = csock->bandwidth();
+        }
         
         // Avoid sending tiny chunks and thereby killing throughput with
         //  header overhead
         ssize_t MIN_CHUNKSIZE = 1500; // one Ethernet MTU
         chunksize = max(chunksize, MIN_CHUNKSIZE);
         
-        int unsent_bytes = get_unsent_bytes(csock->osfd);
+        int unsent_bytes = ipc_total_bytes_inflight(csock->local_iface.ip_addr);
         if (unsent_bytes < 0) {
             //dbgprintf("     ...failed to check socket send buffer: %s\n",
             //strerror(errno));
@@ -587,7 +606,7 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
                 if (timing_file) {
                     struct timeval now;
                     TIME(now);
-                    fprintf(timing_file, "%lu.%06lu  bw est %lu trickle size %zd   sockbuf has %d bytes\n",
+                    fprintf(timing_file, "%lu.%06lu  bw est %lu trickle size %zd   %d bytes in all buffers\n",
                             now.tv_sec, now.tv_usec, csock->bandwidth(), chunksize, unsent_bytes);
                 }
             }

@@ -51,34 +51,6 @@ pthread_mutex_t CMMSocketImpl::hashmaps_mutex = PTHREAD_MUTEX_INITIALIZER;
 // struct timeval CMMSocketImpl::total_inter_fg_time;
 // size_t CMMSocketImpl::fg_count;
 
-// XXX: no real reason to have this be a static member function
-// XXX: of CMMSocketImpl; it only references its arguments
-// XXX: and encapsulated global state, through the ipc_* functions.
-bool CMMSocketImpl::allow_bg_send(CSocketPtr csock, ssize_t& chunksize)
-{
-    struct timeval time_since_last_fg, now;
-    struct timeval iface_last_fg;
-    bool do_trickle = true;
-
-    // get last_fg value
-#ifdef MULTI_PROCESS_SUPPORT
-    iface_last_fg.tv_sec = ipc_last_fg_tv_sec(csock->local_iface.ip_addr);
-    iface_last_fg.tv_usec = 0;
-#else
-    iface_last_fg = csock->last_fg;
-#endif
-
-    TIME(now);
-
-    TIMEDIFF(iface_last_fg, now, time_since_last_fg);
-    if (time_since_last_fg.tv_sec > 5) {
-        chunksize = csock->bandwidth();
-    }
-    // TODO: check all socket buffers, check trickle size
-
-    return do_trickle;
-}
-
 // return true if the listener received is the zero-sentinel
 //  marking the end of the list
 bool CMMSocketImpl::recv_remote_listener(int bootstrap_sock)

@@ -139,9 +139,6 @@ class CMMSocketImpl : public CMMSocket {
     static VanillaListenerSet cmm_listeners;
     static NetInterfaceSet ifaces;
 
-    static bool allow_bg_send(boost::shared_ptr<CSocket> csock, 
-                              ssize_t& chunksize);
-
     RWLOCK_T my_lock;
 
     virtual void setup(struct net_interface iface, bool local);

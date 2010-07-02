@@ -107,6 +107,7 @@ CSocket::~CSocket()
     if (osfd > 0) {
         /* if it's a real open socket */
         assert(csock_sendr == NULL && csock_recvr == NULL);
+        ipc_remove_csocket(local_iface.ip_addr, osfd);
         close(osfd);
     }    
 }
