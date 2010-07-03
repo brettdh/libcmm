@@ -4,7 +4,7 @@ CXXFLAGS:=-Wall -Werror -I. -I.. -I../libancillary -m32 -g -DCMM_UNIT_TESTING -D
 LDFLAGS:=-L. -L..  -lcppunit -ldl -pthread -lrt -lglib-2.0 -lboost_thread
 
 EXECUTABLES=run_unit_tests run_lib_tests run_remote_tests run_thunk_tests run_trickle_tests \
-	    run_lib_tests_nb run_remote_tests_nb
+	    run_lib_tests_nb run_remote_tests_nb multi_app_test multi_app_test_helper
 
 .gitignore: Makefile
 	echo "$(EXECUTABLES)" | sed -e 's/\s+/ /' | tr ' ' '\n' > .gitignore
@@ -81,6 +81,15 @@ run_thunk_tests: run_all_tests.o StdioOutputter.o test_common.o $(THUNKTESTOBJS)
 TRICKLETESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o trickle_tests.o
 run_trickle_tests: run_all_tests.o StdioOutputter.o $(TRICKLETESTOBJS) test_common.o
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl -pthread
+
+multi_app_test_helper_main.o: multi_app_test_helper.cpp
+	g++ -c -o $@ $^ $(CXXFLAGS) -DMULTI_APP_TEST_EXECUTABLE
+
+multi_app_test_helper: multi_app_test_helper_main.o test_common.o
+	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -pthread
+
+multi_app_test: multi_app_test.o multi_app_test_helper.o test_common.o
+	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -pthread
 
 include ../deps.mk
 

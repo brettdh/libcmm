@@ -1,7 +1,11 @@
 #ifndef MULTI_APP_TEST_HELPER_H_INCL
 #define MULTI_APP_TEST_HELPER_H_INCL
 
+#include <sys/types.h>
 #include <libcmm.h>
+#include <vector>
+#include <map>
+#include <sys/time.h>
 
 struct packet_hdr {
     int seqno;
@@ -10,7 +14,7 @@ struct packet_hdr {
 
 #define MULTI_APP_TEST_PORT 4242
 
-int cmm_connect_to(mc_socket_t sock, const char *hostname, in_port_t port);
+int cmm_connect_to(mc_socket_t sock, const char *hostname, uint16_t port);
 
 class ThreadGroup;
 
@@ -47,6 +51,9 @@ struct ReceiverThread {
 
 typedef std::map<int, struct timeval> TimestampMap;
 typedef std::vector<std::pair<struct timeval, struct timeval> > TimeResultVector;
+
+
+#include <boost/thread.hpp>
 
 class ThreadGroup : public boost::thread_group {
   public:

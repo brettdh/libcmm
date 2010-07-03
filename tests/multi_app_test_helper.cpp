@@ -8,7 +8,15 @@ using std::vector;
 using std::pair;
 using std::make_pair;
 
-int cmm_connect_to(mc_socket_t sock, const char *hostname, in_port_t port)
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <libcmm_irob.h>
+#include "timeops.h"
+
+#include <boost/thread.hpp>
+
+int cmm_connect_to(mc_socket_t sock, const char *hostname, uint16_t port)
 {
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
@@ -33,7 +41,7 @@ int cmm_connect_to(mc_socket_t sock, const char *hostname, in_port_t port)
 
     socklen_t addrlen = sizeof(addr);
 
-    return cmm_connect(send_sock, (struct sockaddr*)&addr, addrlen);
+    return cmm_connect(sock, (struct sockaddr*)&addr, addrlen);
 }
 
 void 
@@ -63,7 +71,7 @@ SenderThread::operator()()
 
     while (timercmp(&now, &end_time, <)) {
         {
-            scoped_lock lock(group->mutex);
+            boost::lock_guard<boost::mutex> lock(group->mutex);
             hdr.seqno = htonl(group->seqno++);
         }
         
@@ -73,20 +81,21 @@ SenderThread::operator()()
 
         TIME(now);
         {
-            scoped_lock lock(group->mutex);
+            boost::lock_guard<boost::mutex> lock(group->mutex);
             map<int, struct timeval>& timestamps = 
                 foreground ? group->fg_timestamps : group->bg_timestamps;
             timestamps[ntohl(hdr.seqno)] = now;
         }
         int rc = cmm_writev_with_deps(sock, vecs, 2, num_deps, deps,
                                       labels, NULL, NULL, &last_irob);
-        if (rc != (sizeof(hdr) + chunksize)) {
+        if (rc != (int)(sizeof(hdr) + chunksize)) {
             fprintf(stderr, "Failed to send %s message %d\n",
                     foreground ? "foreground" : "background",
                     ntohl(hdr.seqno));
         }
         
-        nowake_nanosleep(&send_period);
+        struct timespec dur = {send_period.tv_sec, send_period.tv_usec * 1000};
+        nowake_nanosleep(&dur);
 
         TIME(now);
     }
@@ -97,7 +106,7 @@ void
 ReceiverThread::operator()()
 {
     struct packet_hdr response;
-    memset(response, 0, sizeof(response));
+    memset(&response, 0, sizeof(response));
     int rc = (int)sizeof(response);
     while (rc == (int)sizeof(response)) {
         rc = cmm_read(sock, &response, sizeof(response), NULL);
@@ -106,11 +115,12 @@ ReceiverThread::operator()()
         } else if (rc == (int)sizeof(response)) {
             int seqno = ntohl(response.seqno);
             size_t len = ntohl(response.len);
+            (void)len;
 
             struct timeval now, diff;
             TIME(now);
 
-            scoped_lock lock(group->mutex);
+            boost::lock_guard<boost::mutex> lock(group->mutex);
             struct timeval begin;
             if (group->fg_timestamps.count(seqno) > 0) {
                 begin = group->fg_timestamps[seqno];
@@ -150,8 +160,13 @@ void print_stats(const TimeResultVector& results)
         fprintf(stderr, "-");
     }
     fprintf(stderr, "\n");
-    //TODO: finish. print raw results and summary.
-    // maybe produce a graph too?
+    
+    fprintf(stderr, "Timestamp            Response time (sec)");
+    for (size_t i = 0; i < results.size(); ++i) {
+        fprintf(stderr, "%lu.%06lu          %lu.%06lu\n",
+                results[i].first.tv_sec, results[i].first.tv_usec,
+                results[i].second.tv_sec, results[i].second.tv_usec);
+    }
 }
 
 #ifdef MULTI_APP_TEST_EXECUTABLE
@@ -215,7 +230,7 @@ int main(int argc, char *argv[])
 
     // TODO: summarize stats: fg latency, bg throughput
     if (!group.fg_results.empty() && !group.bg_results.empty()) {
-        fprintf("WARNING: weirdness.  I should only have fg *or* "
+        fprintf(stderr, "WARNING: weirdness.  I should only have fg *or* "
                 "bg results, but I have both.\n");
     }
 
