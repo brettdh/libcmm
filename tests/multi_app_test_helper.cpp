@@ -44,6 +44,22 @@ int cmm_connect_to(mc_socket_t sock, const char *hostname, uint16_t port)
     return cmm_connect(sock, (struct sockaddr*)&addr, addrlen);
 }
 
+SenderThread::SenderThread(const char *cmdline_args[], char *prog)
+    : sock(-1), foreground(true), group(NULL)
+{
+    chunksize = get_int_from_string(first_sender_args[0], 
+                                    "chunksize", prog);
+    send_period.tv_sec = get_int_from_string(first_sender_args[1], 
+                                             "send_period", prog);
+    send_period.tv_usec = 0;
+    start_delay.tv_sec = get_int_from_string(first_sender_args[2],
+                                              "start_delay", prog);
+    start_delay.tv_usec = 0;
+    sending_duration.tv_sec = get_int_from_string(first_sender_args[3],
+                                                  "sending_duration", prog);
+    sending_duration.tv_usec = 0;
+}
+
 void 
 SenderThread::operator()()
 {
@@ -143,14 +159,22 @@ ReceiverThread::operator()()
 }
 
 #define USAGE_MSG \
-"usage: $prog <foreground|background> <chunksize> <-- bytes\
-              <send_period> <start_delay> <sending_duration> <-- seconds\
-              <vanilla|intnw> <hostname>\
- Starts a single sender and single receiver thread."
+"usage: %s <hostname> <vanilla|intnw>\n\
+              <foreground|background> <chunksize> <-- bytes\n\
+              <send_period> <start_delay> <sending_duration> <-- seconds\n\
+ Starts a single sender and single receiver thread.
+\n\
+ usage: %s <hostname> <vanilla|intnw>\n\
+              mix <fg_chunksize> <-- bytes\n\
+              <fg_send_period> <fg_start_delay> <fg_sending_duration>\n\
+              <bg_chunksize> <-- bytes\n\
+              <bg_send_period> <bg_start_delay> <bg_sending_duration> <-- seconds\n\
+ Starts two senders and a single receiver thread.\n\
+"
 
-void usage()
+void usage(char *prog)
 {
-    fprintf(stderr, USAGE_MSG);
+    fprintf(stderr, USAGE_MSG, prog, prog);
     exit(1);
 }
 
@@ -172,36 +196,61 @@ void print_stats(const TimeResultVector& results)
 #ifdef MULTI_APP_TEST_EXECUTABLE
 int main(int argc, char *argv[])
 {
-    // usage: $prog <foreground|background> <chunksize> <-- bytes
+    // usage: $prog <hostname <vanilla|intnw>
+    //              <foreground|background> <chunksize> <-- bytes
     //              <send_period> <start_delay> <sending_duration> <-- seconds
-    //              <vanilla|intnw> <hostname>
+    //              
     // Starts a single sender and single receiver thread.
-    if (argc != 7) usage();
-    bool foreground;
-    if (!strcmp(argv[1], "foreground")) {
-        foreground = true;
-    } else if (!strcmp(argv[1], "background")) {
-        foreground = false;
-    } else usage();
 
-    if (atoi(argv[2]) < 0 ||
-        atoi(argv[3]) < 0 ||
-        atoi(argv[4]) < 0 ||
-        atoi(argv[5]) < 0) {
-        fprintf(stderr, "Error: all numerical arguments must be positive integers\n");
-        usage();
-    }
-    size_t chunksize = atoi(argv[2]);
-    struct timeval send_period = { atoi(argv[3]), 0 };
-    struct timeval start_delay = { atoi(argv[4]), 0 };
-    struct timeval sending_duration = { atoi(argv[5]), 0 };
+    // usage: $prog <hostname> <vanilla|intnw>
+    //              mix <fg_chunksize> <-- bytes
+    //              <fg_send_period> <fg_start_delay> <fg_sending_duration> <-- seconds
+    //              <bg_chunksize> <-- bytes
+    //              <bg_send_period> <bg_start_delay> <bg_sending_duration> <-- seconds
+    //              
+    // Starts two senders and a single receiver thread.
+
+    const char *hostname_arg = argv[1];
+    const char *vanilla_intnw_arg = argv[2];
+    const char *mode_arg = argv[3];
+
+    if (argc != 7 && argc != 11) usage(argv[0]);
 
     bool intnw;
-    if (!strcmp(argv[6], "vanilla")) {
+    if (!strcmp(vanilla_intnw_arg, "vanilla")) {
         intnw = false;
-    } else if (!strcmp(argv[1], "intnw")) {
+    } else if (!strcmp(vanilla_intnw_arg, "intnw")) {
         intnw = true;
-    } else usage();
+    } else usage(argv[0]);
+
+    single_app_test_mode_t mode;
+    if (!strcmp(mode_arg, "foreground")) {
+        mode = ONE_SENDER_FOREGROUND;
+    } else if (!strcmp(mode_arg, "background")) {
+        mode = ONE_SENDER_BACKGROUND;
+    } else if (!strcmp(mode_arg, "mix")) {
+        mode = TWO_SENDERS;
+        if (argc != 11) usage(argv[0]);
+    } else usage(argv[0]);
+
+    const char **first_sender_args = &argv[4];
+    const char **second_sender_args = (mode == TWO_SENDERS) ? &argv[8] : NULL;
+
+    SenderThread first_sender(first_sender_args, argv[0]);
+    SenderThread second_sender(second_sender_args, argv[0]);
+
+    switch (mode) {
+    case ONE_SENDER_FOREGROUND:
+        first_sender.foreground = true;
+        break;
+    case ONE_SENDER_BACKGROUND:
+        first_sender.foreground = false;
+        break;
+    case TWO_SENDERS:
+        first_sender.foreground = true;
+        second_sender.foreground = false;
+        break;
+    }
 
     mc_socket_t sock;
     if (intnw) {
@@ -211,48 +260,42 @@ int main(int argc, char *argv[])
     }
     handle_error(sock < 0, intnw ? "cmm_socket" : "socket");
     
-    const char *hostname = argv[7];
-    int rc = cmm_connect_to(sock, hostname, MULTI_APP_TEST_PORT);
+    uint16_t port = intnw ? MULTI_APP_INTNW_TEST_PORT 
+        : MULTI_APP_VANILLA_TEST_PORT;
+    int rc = cmm_connect_to(sock, hostname_arg, port);
     handle_error(rc < 0, "cmm_connect");
 
-    SenderThread sender(sock, foreground, chunksize, 
-                        send_period, start_delay, sending_duration);
     ReceiverThread receiver(sock);
+    first_sender.sock = sock;
 
-    ThreadGroup group;
-    sender.group = &group;
-    receiver.group = &group;
-    group.create_thread(boost::ref(receiver));
-    group.create_thread(boost::ref(sender));
-
+    AgentData data;
+    boost::thread_group group;
+    first_sender.data = &data;
+    receiver.data = &data;
+    group.create_thread(receiver));
+    group.create_thread(first_sender);
+    if (mode == TWO_SENDERS) {
+        second_sender.data = &data;
+        second_sender.sock = sock;
+        group.create_thread(second_sender);
+    }
+    // wait for the run to complete
     group.join_all();
     close(sock);
 
-    // TODO: summarize stats: fg latency, bg throughput
-    if (!group.fg_results.empty() && !group.bg_results.empty()) {
-        fprintf(stderr, "WARNING: weirdness.  I should only have fg *or* "
-                "bg results, but I have both.\n");
-    }
-
-    if (!group.fg_results.empty()) {
-        fprintf(stderr, "Worker PID %d, %s%s sender results%s\n", getpid(), 
-                intnw ? "intnw" : "vanilla",
-                intnw ? "foreground" : "",
-                foreground ? "" : " (weird)");
-        for (int i = 0; i < 70; ++i) { 
-            fprintf(stderr, "-");
-        }
-        fprintf(stderr, "\n");
+    // summarize stats: fg latency, bg throughput
+    if (!data.fg_results.empty()) {
+        fprintf(stderr, "Worker PID %d, %s foreground sender results\n", 
+                getpid(), intnw ? "intnw" : "vanilla");
         
-        print_stats(group.fg_results);
+        print_stats(data.fg_results);
     }
-    if (!group.bg_results.empty()) {
-        fprintf(stderr, "Worker PID %d, %s%s sender results%s\n", getpid(), 
-                intnw ? "intnw" : "vanilla",
-                intnw ? "background" : "",
-                foreground ? " (weird)" : "");
 
-        print_stats(group.bg_results);
+    if (!data.bg_results.empty()) {
+        fprintf(stderr, "Worker PID %d, %s background sender results\n", 
+                getpid(), intnw ? "intnw" : "vanilla");
+
+        print_stats(data.bg_results);
     }
 
     return 0;

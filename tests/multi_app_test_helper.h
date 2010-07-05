@@ -12,38 +12,40 @@ struct packet_hdr {
     size_t len;
 };
 
-#define MULTI_APP_TEST_PORT 4242
+#define MULTI_APP_VANILLA_TEST_PORT 4242
+#define MULTI_APP_INTNW_TEST_PORT 4243
 
 int cmm_connect_to(mc_socket_t sock, const char *hostname, uint16_t port);
 
-class ThreadGroup;
+struct AgentData;
 
 struct SenderThread {
     mc_socket_t sock;
-    pthread_mutex_t *mutex;
     bool foreground;
     size_t chunksize;
     struct timeval send_period;
     struct timeval start_delay;
     struct timeval sending_duration;
 
-    ThreadGroup *group;
+    AgentData *data;
 
     void operator()(); // thread function
 
     SenderThread(mc_socket_t sock_, bool foreground_, size_t chunksize_,
-                 struct timeval send_period_, 
-                 struct timeval start_delay_, 
-                 struct timeval sending_duration_)
+                 int send_period_, int start_delay_, int sending_duration_)
         : sock(sock_), foreground(foreground_), chunksize(chunksize_), 
           send_period(send_period_), start_delay(start_delay_), 
           sending_duration(sending_duration_) {}
+
+    // initialize from command-line args
+    // Expected order: chunksize, send_period, start_delay, sending_duration
+    SenderThread(const char *cmdline_args[/*4*/], char *prog);
 };
 
 struct ReceiverThread {
     mc_socket_t sock;
 
-    ThreadGroup *group;
+    AgentData *data;
 
     void operator()(); // thread function
     ReceiverThread(mc_socket_t sock_) : sock(sock_) {}
@@ -55,8 +57,7 @@ typedef std::vector<std::pair<struct timeval, struct timeval> > TimeResultVector
 
 #include <boost/thread.hpp>
 
-class ThreadGroup : public boost::thread_group {
-  public:
+struct AgentData {
     TimestampMap fg_timestamps;
     TimestampMap bg_timestamps;
     TimeResultVector fg_results;
@@ -64,9 +65,15 @@ class ThreadGroup : public boost::thread_group {
     int seqno;
     boost::mutex mutex;
 
-    ThreadGroup() : seqno(0) {}
+    AgentData() : seqno(0) {}
 };
 
 void print_stats(const TimeResultVector& results);
+
+typedef enum {
+    ONE_SENDER_FOREGROUND,
+    ONE_SENDER_BACKGROUND,
+    TWO_SENDERS
+} single_app_test_mode_t;
 
 #endif

@@ -73,3 +73,46 @@ void assertEqWithin(const std::string& actual_str,
                          expr.str(), values.str(), message);
     CppUnit::Asserter::failIf(!(val <= window), msg, line);
 }
+
+int get_int_from_string(const char *str, const char *name, char *prog)
+{
+    errno = 0;
+    int val = strtol(str, NULL, 10);
+    if (errno != 0) {
+        dbgprintf_always("Error: %s argument must be an integer\n", name);
+        usage(prog);
+    }
+    return val;
+}
+
+int open_listening_socket(bool intnw, uint16_t port)
+{
+    listen_sock = socket(PF_INET, SOCK_STREAM, 0);
+    handle_error(listen_sock < 0, "socket");
+    
+    int on = 1;
+    int rc = setsockopt (listen_sock, SOL_SOCKET, SO_REUSEADDR,
+                         (char *) &on, sizeof(on));
+    if (rc < 0) {
+        fprintf(stderr, "Cannot reuse socket address\n");
+    }
+    
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_port = htons(port);
+    
+    socklen_t addrlen = sizeof(addr);
+    rc = bind(listen_sock, (struct sockaddr*)&addr, addrlen);
+    handle_error(rc < 0, "bind");
+    
+    if (intnw) {
+        rc = cmm_listen(listen_sock, 5);
+    } else {
+        rc = listen(listen_sock, 5);
+    }
+    handle_error(rc < 0, "cmm_listen");
+    
+    return listen_sock;
+}

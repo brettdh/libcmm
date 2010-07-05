@@ -20,5 +20,6 @@ void assertEqWithin(const std::string& actual_str,
                    message, expected, actual, alpha, CPPUNIT_SOURCELINE())
 
 void handle_error(bool condition, const char *msg);
+int get_int_from_string(const char *str, const char *name, char *prog);
 
 #endif
