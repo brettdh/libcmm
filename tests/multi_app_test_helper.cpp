@@ -44,20 +44,36 @@ int cmm_connect_to(mc_socket_t sock, const char *hostname, uint16_t port)
     return cmm_connect(sock, (struct sockaddr*)&addr, addrlen);
 }
 
-SenderThread::SenderThread(const char *cmdline_args[], char *prog)
-    : sock(-1), foreground(true), group(NULL)
+SenderThread::SenderThread(mc_socket_t sock_, bool foreground_, size_t chunksize_,
+                           int send_period_, int start_delay_, int sending_duration_)
+    : sock(sock_), foreground(foreground_), chunksize(chunksize_)
 {
-    chunksize = get_int_from_string(first_sender_args[0], 
-                                    "chunksize", prog);
-    send_period.tv_sec = get_int_from_string(first_sender_args[1], 
-                                             "send_period", prog);
+    send_period.tv_sec = send_period_;
     send_period.tv_usec = 0;
-    start_delay.tv_sec = get_int_from_string(first_sender_args[2],
-                                              "start_delay", prog);
+    start_delay.tv_sec = start_delay_;
     start_delay.tv_usec = 0;
-    sending_duration.tv_sec = get_int_from_string(first_sender_args[3],
-                                                  "sending_duration", prog);
+    sending_duration.tv_sec = sending_duration_;
     sending_duration.tv_usec = 0;
+}
+
+SenderThread::SenderThread(char *cmdline_args[], char *prog)
+    : sock(-1), foreground(true), data(NULL)
+{
+    try {
+        chunksize = get_int_from_string(cmdline_args[0], 
+                                        "chunksize");
+        send_period.tv_sec = get_int_from_string(cmdline_args[1], 
+                                                 "send_period");
+        send_period.tv_usec = 0;
+        start_delay.tv_sec = get_int_from_string(cmdline_args[2],
+                                                 "start_delay");
+        start_delay.tv_usec = 0;
+        sending_duration.tv_sec = get_int_from_string(cmdline_args[3],
+                                                      "sending_duration");
+        sending_duration.tv_usec = 0;
+    } catch (std::runtime_error& e) {
+        dbgprintf_always(e.what());
+    }
 }
 
 void 
@@ -87,8 +103,8 @@ SenderThread::operator()()
 
     while (timercmp(&now, &end_time, <)) {
         {
-            boost::lock_guard<boost::mutex> lock(group->mutex);
-            hdr.seqno = htonl(group->seqno++);
+            boost::lock_guard<boost::mutex> lock(data->mutex);
+            hdr.seqno = htonl(data->seqno++);
         }
         
         int num_deps = (last_irob == -1) ? 0 : 1;
@@ -97,9 +113,9 @@ SenderThread::operator()()
 
         TIME(now);
         {
-            boost::lock_guard<boost::mutex> lock(group->mutex);
+            boost::lock_guard<boost::mutex> lock(data->mutex);
             map<int, struct timeval>& timestamps = 
-                foreground ? group->fg_timestamps : group->bg_timestamps;
+                foreground ? data->fg_timestamps : data->bg_timestamps;
             timestamps[ntohl(hdr.seqno)] = now;
         }
         int rc = cmm_writev_with_deps(sock, vecs, 2, num_deps, deps,
@@ -136,46 +152,26 @@ ReceiverThread::operator()()
             struct timeval now, diff;
             TIME(now);
 
-            boost::lock_guard<boost::mutex> lock(group->mutex);
+            boost::lock_guard<boost::mutex> lock(data->mutex);
             struct timeval begin;
-            if (group->fg_timestamps.count(seqno) > 0) {
-                begin = group->fg_timestamps[seqno];
-                group->fg_timestamps.erase(seqno);
+            if (data->fg_timestamps.count(seqno) > 0) {
+                begin = data->fg_timestamps[seqno];
+                data->fg_timestamps.erase(seqno);
 
                 TIMEDIFF(begin, now, diff);
-                group->fg_results.push_back(make_pair(begin, diff));
-            } else if (group->bg_timestamps.count(seqno) > 0) {
-                begin = group->bg_timestamps[seqno];
-                group->bg_timestamps.erase(seqno);
+                data->fg_results.push_back(make_pair(begin, diff));
+            } else if (data->bg_timestamps.count(seqno) > 0) {
+                begin = data->bg_timestamps[seqno];
+                data->bg_timestamps.erase(seqno);
 
                 TIMEDIFF(begin, now, diff);
-                group->bg_results.push_back(make_pair(begin, diff));
+                data->bg_results.push_back(make_pair(begin, diff));
             } else {
                 fprintf(stderr, "Wha? unknown response seqno %d\n", seqno);
                 break;
             }
         }
     }
-}
-
-#define USAGE_MSG \
-"usage: %s <hostname> <vanilla|intnw>\n\
-              <foreground|background> <chunksize> <-- bytes\n\
-              <send_period> <start_delay> <sending_duration> <-- seconds\n\
- Starts a single sender and single receiver thread.
-\n\
- usage: %s <hostname> <vanilla|intnw>\n\
-              mix <fg_chunksize> <-- bytes\n\
-              <fg_send_period> <fg_start_delay> <fg_sending_duration>\n\
-              <bg_chunksize> <-- bytes\n\
-              <bg_send_period> <bg_start_delay> <bg_sending_duration> <-- seconds\n\
- Starts two senders and a single receiver thread.\n\
-"
-
-void usage(char *prog)
-{
-    fprintf(stderr, USAGE_MSG, prog, prog);
-    exit(1);
 }
 
 void print_stats(const TimeResultVector& results)
@@ -194,6 +190,27 @@ void print_stats(const TimeResultVector& results)
 }
 
 #ifdef MULTI_APP_TEST_EXECUTABLE
+#define USAGE_MSG \
+"usage: %s <hostname> <vanilla|intnw>\n\
+              <foreground|background> <chunksize> <-- bytes\n\
+              <send_period> <start_delay> <sending_duration> <-- seconds\n\
+ Starts a single sender and single receiver thread.\n\
+\n\
+ usage: %s <hostname> <vanilla|intnw>\n\
+              mix <fg_chunksize> <-- bytes\n\
+              <fg_send_period> <fg_start_delay> <fg_sending_duration>\n\
+              <bg_chunksize> <-- bytes\n\
+              <bg_send_period> <bg_start_delay> <bg_sending_duration> <-- seconds\n\
+ Starts two senders and a single receiver thread.\n\
+"
+
+void usage(char *prog)
+{
+    fprintf(stderr, USAGE_MSG, prog, prog);
+    exit(1);
+}
+
+
 int main(int argc, char *argv[])
 {
     // usage: $prog <hostname <vanilla|intnw>
@@ -233,8 +250,8 @@ int main(int argc, char *argv[])
         if (argc != 11) usage(argv[0]);
     } else usage(argv[0]);
 
-    const char **first_sender_args = &argv[4];
-    const char **second_sender_args = (mode == TWO_SENDERS) ? &argv[8] : NULL;
+    char **first_sender_args = &argv[4];
+    char **second_sender_args = (mode == TWO_SENDERS) ? &argv[8] : NULL;
 
     SenderThread first_sender(first_sender_args, argv[0]);
     SenderThread second_sender(second_sender_args, argv[0]);
@@ -272,7 +289,7 @@ int main(int argc, char *argv[])
     boost::thread_group group;
     first_sender.data = &data;
     receiver.data = &data;
-    group.create_thread(receiver));
+    group.create_thread(receiver);
     group.create_thread(first_sender);
     if (mode == TWO_SENDERS) {
         second_sender.data = &data;

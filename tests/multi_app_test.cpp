@@ -1,7 +1,52 @@
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/wait.h>
+#include <libcmm.h>
+#include <libcmm_irob.h>
+#include <assert.h>
+#include <stdexcept>
+#include "multi_app_test_helper.h"
 #include "test_common.h"
+#include "debug.h"
+#include <functional>
+using std::min; using std::max;
+
+int open_listening_socket(bool intnw, uint16_t port)
+{
+    int listen_sock = socket(PF_INET, SOCK_STREAM, 0);
+    handle_error(listen_sock < 0, "socket");
+    
+    int on = 1;
+    int rc = setsockopt (listen_sock, SOL_SOCKET, SO_REUSEADDR,
+                         (char *) &on, sizeof(on));
+    if (rc < 0) {
+        dbgprintf_always("Cannot reuse socket address\n");
+    }
+    
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_port = htons(port);
+    
+    socklen_t addrlen = sizeof(addr);
+    rc = bind(listen_sock, (struct sockaddr*)&addr, addrlen);
+    handle_error(rc < 0, "bind");
+    
+    if (intnw) {
+        rc = cmm_listen(listen_sock, 5);
+    } else {
+        rc = listen(listen_sock, 5);
+    }
+    handle_error(rc < 0, "cmm_listen");
+    
+    return listen_sock;
+}
 
 typedef enum {
     TEST_MODE_SINGLE_SOCKET,
@@ -21,8 +66,7 @@ class ServerWorkerThread {
         struct packet_hdr hdr;
         while (1) {
             u_long labels = 0;
-            int rc = cmm_recv(sock, &hdr, sizeof(hdr), &labels,
-                              MSG_WAITALL);
+            int rc = cmm_recv(sock, &hdr, sizeof(hdr), MSG_WAITALL, &labels);
             if (rc != sizeof(hdr)) {
                 break;
             }
@@ -54,7 +98,7 @@ class ServerWorkerThread {
         cmm_shutdown(sock, SHUT_RDWR);
         cmm_close(sock);
     }
-}
+};
 
 static void spawn_server_worker_thread(int listen_sock)
 {
@@ -95,17 +139,19 @@ static void run_server()
     }
 }
 
-#define fg_chunksize 128
-#define fg_send_period 2
-#define fg_start_delay 20
-#define fg_sending_duration 40
+#define STR_AND_INT(name, value) \
+    const int name = value;      \
+    const char *name##_str = #value;
 
-#define bg_chunksize 262144
-#define bg_send_period 0
-#define bg_start_delay 0
-#define bg_sending_duration 60
+STR_AND_INT(fg_chunksize, 128)
+STR_AND_INT(fg_send_period, 2)
+STR_AND_INT(fg_start_delay, 20)
+STR_AND_INT(fg_sending_duration, 40)
 
-#define STR(integer) #integer
+STR_AND_INT(bg_chunksize, 262144)
+STR_AND_INT(bg_send_period, 0)
+STR_AND_INT(bg_start_delay, 0)
+STR_AND_INT(bg_sending_duration, 60)
 
 // returns the socket created, or -1 for failure.
 static int connect_client_socket(char *hostname, bool intnw)
@@ -147,20 +193,20 @@ static void spawn_process(char *hostname, bool intnw,
         switch (mode) {
         case ONE_SENDER_FOREGROUND:
             rc = execl(helper_bin, hostname, intnw_str, "foreground",
-                       STR(fg_chunksize), STR(fg_send_period),
-                       STR(fg_start_delay), STR(fg_sending_duration));
+                       fg_chunksize_str, fg_send_period_str,
+                       fg_start_delay_str, fg_sending_duration_str, NULL);
             break;
         case ONE_SENDER_BACKGROUND:
             rc = execl(helper_bin, hostname, intnw_str, "background",
-                       STR(bg_chunksize), STR(bg_send_period),
-                       STR(bg_start_delay), STR(bg_sending_duration));
+                       bg_chunksize_str, bg_send_period_str,
+                       bg_start_delay_str, bg_sending_duration_str, NULL);
             break;
         case TWO_SENDERS:
             rc = execl(helper_bin, hostname, intnw_str, "mix",
-                       STR(bg_chunksize), STR(bg_send_period),
-                       STR(bg_start_delay), STR(bg_sending_duration),
-                       STR(bg_chunksize), STR(bg_send_period),
-                       STR(bg_start_delay), STR(bg_sending_duration));
+                       bg_chunksize_str, bg_send_period_str,
+                       bg_start_delay_str, bg_sending_duration_str,
+                       bg_chunksize_str, bg_send_period_str,
+                       bg_start_delay_str, bg_sending_duration_str, NULL);
             break;
         default:
             assert(0);
@@ -201,11 +247,11 @@ static void run_all_tests(char *hostname, test_mode_t mode,
             }
             
             boost::thread_group group;
-            group.add_thread(ReceiverThread(sock));
+            group.create_thread(ReceiverThread(sock));
             if (bg_sock != sock) {
-                bg_group.add_thread(ReceiverThread(bg_sock));
+                group.create_thread(ReceiverThread(bg_sock));
             }
-            group.add_thread(SenderThread(sock, true, fg_chunksize,
+            group.create_thread(SenderThread(sock, true, fg_chunksize,
                                           fg_send_period, fg_start_delay, fg_sending_duration));
 
             SenderThread bg_sender(bg_sock, false, bg_chunksize,
@@ -215,13 +261,13 @@ static void run_all_tests(char *hostname, test_mode_t mode,
             } else {
                 bg_sender.data = &data;
             }
-            group.add_thread(bg_sender);
-            
+            group.create_thread(bg_sender);
+            // wait for run to complete
             group.join_all();
             fprintf(stderr, "Sanity check results, FG sender:\n");
-            print_stats(sender.data.fg_results);
+            print_stats(data.fg_results);
             fprintf(stderr, "Sanity check results, BG sender:\n");
-            print_stats(bg_sender.data.bg_results);
+            print_stats(bg_sender.data->bg_results);
         } else {
             // XXX: These are not important.  Not working on them right now.
             fprintf(stderr, "NOT IMPLEMENTED\n");
@@ -319,40 +365,45 @@ int main(int argc, char *argv[])
     test_mode_t mode = TEST_MODE_INVALID;
     bool sanity_check = false;
 
-    while ((ch = getopt(argc, argv, "lh:smav:i:q")) != -1) {
-        switch (ch) {
-        case 'l':
-            receiver = true;
-            break;
-        case 'h':
-            hostname = optarg;
-            break;
-        case 's':
-            // single multi-socket.
-            check_mode_arg(mode, TEST_MODE_SINGLE_SOCKET, argv[0]);
-            break;
-        case 'm':
-            // single process, multiple multi-sockets.
-            check_mode_arg(mode, TEST_MODE_SINGLE_PROCESS, argv[0]);
-            break;
-        case 'a':
-            // multiple processes.
-            check_mode_arg(mode, TEST_MODE_MULTI_PROCESS, argv[0]);
-            break;
-        case 'v':
-            num_vanilla_agents = get_int_from_string(optarg, "-v", argv[0]);
-            break;
-        case 'i':
-            num_intnw_agents = get_int_from_string(optarg, "-i", argv[0]);            
-            break;
-        case 'q':
-            sanity_check = true;
-            break;
-        case '?':
-            usage(argv[0]);
-        default:
-            break;
+    try {
+        while ((ch = getopt(argc, argv, "lh:smav:i:q")) != -1) {
+            switch (ch) {
+            case 'l':
+                receiver = true;
+                break;
+            case 'h':
+                hostname = optarg;
+                break;
+            case 's':
+                // single multi-socket.
+                check_mode_arg(mode, TEST_MODE_SINGLE_SOCKET, argv[0]);
+                break;
+            case 'm':
+                // single process, multiple multi-sockets.
+                check_mode_arg(mode, TEST_MODE_SINGLE_PROCESS, argv[0]);
+                break;
+            case 'a':
+                // multiple processes.
+                check_mode_arg(mode, TEST_MODE_MULTI_PROCESS, argv[0]);
+                break;
+            case 'v':
+                num_vanilla_agents = get_int_from_string(optarg, "-v");
+                break;
+            case 'i':
+                num_intnw_agents = get_int_from_string(optarg, "-i");            
+                break;
+            case 'q':
+                sanity_check = true;
+                break;
+            case '?':
+                usage(argv[0]);
+            default:
+                break;
+            }
         }
+    } catch (std::runtime_error& e) {
+        fprintf(stderr, e.what());
+        usage(argv[0]);
     }
 
     if (receiver) {

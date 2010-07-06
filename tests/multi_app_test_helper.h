@@ -32,14 +32,11 @@ struct SenderThread {
     void operator()(); // thread function
 
     SenderThread(mc_socket_t sock_, bool foreground_, size_t chunksize_,
-                 int send_period_, int start_delay_, int sending_duration_)
-        : sock(sock_), foreground(foreground_), chunksize(chunksize_), 
-          send_period(send_period_), start_delay(start_delay_), 
-          sending_duration(sending_duration_) {}
-
+                 int send_period_, int start_delay_, int sending_duration_);
+    
     // initialize from command-line args
     // Expected order: chunksize, send_period, start_delay, sending_duration
-    SenderThread(const char *cmdline_args[/*4*/], char *prog);
+    SenderThread(char *cmdline_args[/*4*/], char *prog);
 };
 
 struct ReceiverThread {
