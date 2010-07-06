@@ -65,8 +65,8 @@ typedef std::map<struct in_addr, std::set<struct proc_sock_info>,
 
 // contains process-unique FDs for all CSocket FDs in all intnw apps,
 // separated by local interface
-static CSocketMap all_intnw_csockets;
-static boost::shared_mutex proc_local_lock;
+static CSocketMap *all_intnw_csockets;
+static boost::shared_mutex *proc_local_lock;
 
 struct fd_sharing_packet {
     struct in_addr ip_addr;
@@ -80,9 +80,13 @@ void add_or_remove_csocket(struct in_addr ip_addr,
                            pid_t pid, int remote_fd, int local_fd, 
                            bool remove_fd)
 {
-    boost::upgrade_lock<boost::shared_mutex> lock(proc_local_lock);
-    if (all_intnw_csockets.count(ip_addr) == 0) {
+    boost::upgrade_lock<boost::shared_mutex> lock(*proc_local_lock);
+    if (all_intnw_csockets->count(ip_addr) == 0) {
         // must have been removed by scout; ignore
+        dbgprintf("Cannot %s socket %d %s sockset; iface %s unknown\n",
+                  remove_fd ? "remove" : "add", local_fd, 
+                  remove_fd ? "from"   : "to",
+                  inet_ntoa(ip_addr));
         return;
     }
     
@@ -92,13 +96,13 @@ void add_or_remove_csocket(struct in_addr ip_addr,
         dbgprintf("removing (PID: %d remote_fd: %d)"
                   " info from iface %s\n", pid, remote_fd,
                   inet_ntoa(ip_addr));
-        all_intnw_csockets[ip_addr].erase(info);
+        (*all_intnw_csockets)[ip_addr].erase(info);
     } else {
         dbgprintf("adding (PID: %d remote_fd: %d local_fd: %d) "
                   "info to iface %s\n", 
                   pid, remote_fd, local_fd,
                   inet_ntoa(ip_addr));
-        all_intnw_csockets[ip_addr].insert(info);
+        (*all_intnw_csockets)[ip_addr].insert(info);
     }
 }
 
@@ -199,7 +203,7 @@ static int send_local_csocket_fd(struct in_addr ip_addr, pid_t target,
 
     dbgprintf("Sending socket fd %d to PID %d remove? %s\n",
               local_fd, target, remove_fd ? "yes" : "no");
-    boost::unique_lock<boost::shared_mutex> lock(proc_local_lock);
+    boost::unique_lock<boost::shared_mutex> lock(*proc_local_lock);
     int rc = sendto(fd_sharing_thread_data.sock, &packet, sizeof(packet), 0,
                     (struct sockaddr *)&addr, sizeof(addr));
     if (rc == sizeof(packet)) {
@@ -230,9 +234,9 @@ static void add_proc(pid_t pid)
 static void remove_proc(pid_t pid)
 {
     {
-        boost::unique_lock<boost::shared_mutex> local_lock(proc_local_lock);
-        for (CSocketMap::iterator it = all_intnw_csockets.begin(); 
-             it != all_intnw_csockets.end(); it++) {
+        boost::unique_lock<boost::shared_mutex> local_lock(*proc_local_lock);
+        for (CSocketMap::iterator it = all_intnw_csockets->begin(); 
+             it != all_intnw_csockets->end(); it++) {
             std::set<struct proc_sock_info>& s = it->second;
             for (std::set<struct proc_sock_info>::iterator victim = s.begin();
                  victim != s.end(); ) {
@@ -280,8 +284,23 @@ void ipc_shmem_init(bool create)
         std::less<int>(), *int_allocator
         ); // never constructs; scout is first
 
+    proc_local_lock = new boost::shared_mutex;
+    all_intnw_csockets = new CSocketMap;
     add_proc(getpid());
     fd_sharing_thread = new boost::thread(boost::ref(fd_sharing_thread_data));
+
+    // initialize the all_intnw_csockets map with the currently available
+    //  network interfaces that the scout has added to the fg_data_map
+    sharable_lock<named_upgradable_mutex> read_lock(*shmem_lock);
+    boost::unique_lock<boost::shared_mutex> local_lock(*proc_local_lock);
+    for (FGDataMap::iterator it = fg_data_map->begin(); 
+         it != fg_data_map->end(); it++) {
+        struct in_addr ip_addr = it->first;
+        if (all_intnw_csockets->count(ip_addr) == 0) {
+            // inserts empty set
+            (*all_intnw_csockets)[ip_addr] = CSocketMap::mapped_type();
+        }
+    }
 }
 
 void ipc_shmem_deinit()
@@ -291,7 +310,8 @@ void ipc_shmem_deinit()
     delete fd_sharing_thread;
     
     remove_proc(getpid());
-
+    delete all_intnw_csockets;
+    delete proc_local_lock;
     // scout takes care of deallocating shared memory objects when it exits
 
     // clean up process-local data structures
@@ -363,7 +383,7 @@ void ipc_increment_fg_senders(struct in_addr ip_addr)
 {
     FGDataPtr fg_data = map_lookup(ip_addr);
     if (fg_data) {
-        boost::upgrade_lock<boost::shared_mutex> lock(proc_local_lock);
+        boost::upgrade_lock<boost::shared_mutex> lock(*proc_local_lock);
         if (proc_local_sending_fg_map.count(ip_addr) == 0 ||
             proc_local_sending_fg_map[ip_addr] == false) {
             // only increment once per process (until decrement)
@@ -379,7 +399,7 @@ void ipc_decrement_fg_senders(struct in_addr ip_addr)
 {
     FGDataPtr fg_data = map_lookup(ip_addr);
     if (fg_data) {
-        boost::upgrade_lock<boost::shared_mutex> lock(proc_local_lock);
+        boost::upgrade_lock<boost::shared_mutex> lock(*proc_local_lock);
         if (proc_local_sending_fg_map.count(ip_addr) > 0 &&
             proc_local_sending_fg_map[ip_addr] == true) {
             // only decrement once per process (until increment)
@@ -396,7 +416,7 @@ void ipc_decrement_all_fg_senders()
 {
     std::vector<struct in_addr> ifaces;
     {
-        boost::shared_lock<boost::shared_mutex> lock(proc_local_lock);
+        boost::shared_lock<boost::shared_mutex> lock(*proc_local_lock);
         for (std::map<struct in_addr, bool>::iterator it 
                  = proc_local_sending_fg_map.begin();
              it != proc_local_sending_fg_map.end(); it++) {
@@ -426,19 +446,22 @@ bool ipc_add_iface(struct in_addr ip_addr)
         fg_data_map->insert(make_pair(ip_addr, new_data));
         writelock.unlock();
 
-        boost::unique_lock<boost::shared_mutex> local_lock(proc_local_lock);
-        if (all_intnw_csockets.count(ip_addr) == 0) {
+        boost::unique_lock<boost::shared_mutex> local_lock(*proc_local_lock);
+        if (all_intnw_csockets->count(ip_addr) == 0) {
             // inserts empty set
-            all_intnw_csockets[ip_addr] = CSocketMap::mapped_type();
+            (*all_intnw_csockets)[ip_addr] = CSocketMap::mapped_type();
         }
         /*
         if (proc_local_sending_fg_map.count(ip_addr) == 0) {
             proc_local_sending_fg_map[ip_addr] = false;
         }
         */
-
+        dbgprintf("Added iface %s for tracking socket buffers\n",
+                  inet_ntoa(ip_addr));
         return true;
     } else {
+        dbgprintf("iface %s already added for tracking socket buffers\n",
+                  inet_ntoa(ip_addr));
         return false;
     }
 }
@@ -452,10 +475,10 @@ bool ipc_remove_iface(struct in_addr ip_addr)
         fg_data_map->erase(ip_addr);
         writelock.unlock();
 
-        boost::unique_lock<boost::shared_mutex> local_lock(proc_local_lock);
-        if (all_intnw_csockets.count(ip_addr) > 0) {
+        boost::unique_lock<boost::shared_mutex> local_lock(*proc_local_lock);
+        if (all_intnw_csockets->count(ip_addr) > 0) {
             // clean up all local (dup'd) file descriptors
-            std::set<proc_sock_info>& sockinfo = all_intnw_csockets[ip_addr];
+            std::set<proc_sock_info>& sockinfo = (*all_intnw_csockets)[ip_addr];
             for (std::set<proc_sock_info>::iterator it = sockinfo.begin();
                  it != sockinfo.end(); it++) {
                 if (it->pid != getpid()) {
@@ -465,15 +488,20 @@ bool ipc_remove_iface(struct in_addr ip_addr)
                     close(it->local_fd);
                 }
             }
-            all_intnw_csockets.erase(ip_addr);
+            all_intnw_csockets->erase(ip_addr);
         }
         /*
         if (proc_local_sending_fg_map.count(ip_addr) > 0) {
             proc_local_sending_fg_map.erase(ip_addr);
         }
         */
+
+        dbgprintf("Removed iface %s from tracking socket buffers\n",
+                  inet_ntoa(ip_addr));
         return true;
     } else {
+        dbgprintf("iface %s already removed from tracking socket buffers\n",
+                  inet_ntoa(ip_addr));
         return false;
     }
 }
@@ -529,9 +557,11 @@ bool ipc_remove_csocket(struct in_addr ip_addr, int local_fd)
 size_t ipc_total_bytes_inflight(struct in_addr ip_addr)
 {
     size_t bytes = 0;
-    boost::shared_lock<boost::shared_mutex> lock(proc_local_lock);
+    size_t num_sockets = 0;
+    boost::shared_lock<boost::shared_mutex> lock(*proc_local_lock);
     if (map_lookup(ip_addr)) {
-        std::set<struct proc_sock_info>& sockinfo = all_intnw_csockets[ip_addr];
+        std::set<struct proc_sock_info>& sockinfo = (*all_intnw_csockets)[ip_addr];
+        num_sockets = sockinfo.size();
         for (std::set<struct proc_sock_info>::iterator it = sockinfo.begin();
              it != sockinfo.end(); it++) {
             int unsent_bytes = get_unsent_bytes(it->local_fd);
@@ -553,7 +583,9 @@ size_t ipc_total_bytes_inflight(struct in_addr ip_addr)
         dbgprintf("total_bytes_inflight: unknown iface %s ; returning 0\n",
                   inet_ntoa(ip_addr));
     }
-                
+
+    dbgprintf("total_bytes_inflight: counted %zu bytes in %zu sockets\n", 
+              bytes, num_sockets);
 
     return bytes;
 }

@@ -192,17 +192,17 @@ static void spawn_process(char *hostname, bool intnw,
     if (rc == 0) {
         switch (mode) {
         case ONE_SENDER_FOREGROUND:
-            rc = execl(helper_bin, hostname, intnw_str, "foreground",
-                       fg_chunksize_str, fg_send_period_str,
+            rc = execl(helper_bin, helper_bin, hostname, intnw_str, 
+                       "foreground", fg_chunksize_str, fg_send_period_str,
                        fg_start_delay_str, fg_sending_duration_str, NULL);
             break;
         case ONE_SENDER_BACKGROUND:
-            rc = execl(helper_bin, hostname, intnw_str, "background",
-                       bg_chunksize_str, bg_send_period_str,
+            rc = execl(helper_bin, helper_bin, hostname, intnw_str,
+                       "background", bg_chunksize_str, bg_send_period_str,
                        bg_start_delay_str, bg_sending_duration_str, NULL);
             break;
         case TWO_SENDERS:
-            rc = execl(helper_bin, hostname, intnw_str, "mix",
+            rc = execl(helper_bin, helper_bin, hostname, intnw_str, "mix",
                        bg_chunksize_str, bg_send_period_str,
                        bg_start_delay_str, bg_sending_duration_str,
                        bg_chunksize_str, bg_send_period_str,
@@ -222,91 +222,93 @@ static void spawn_process(char *hostname, bool intnw,
     }
 }
 
-static void run_all_tests(char *hostname, test_mode_t mode, 
-                          int num_vanilla_agents, int num_intnw_agents,
-                          bool sanity_check)
+// return the number of processes spawned.
+static int run_sanity_check(char *hostname, test_mode_t mode, bool intnw)
 {
     if (mode == TEST_MODE_SINGLE_SOCKET ||
         mode == TEST_MODE_SINGLE_PROCESS) {
-        if (sanity_check) {
-            AgentData data;
-            AgentData bg_data;
 
-            int bg_sock;
-            int sock = connect_client_socket(hostname, true);
-            if (sock < 0) {
-                exit(1);
-            }
-            if (mode == TEST_MODE_SINGLE_PROCESS) {
-                bg_sock = connect_client_socket(hostname, true);
-            } else {
-                bg_sock = sock;
-            }
-            if (bg_sock < 0) {
-                exit(1);
-            }
-            
-            boost::thread_group group;
-            group.create_thread(ReceiverThread(sock));
-            if (bg_sock != sock) {
-                group.create_thread(ReceiverThread(bg_sock));
-            }
-            group.create_thread(SenderThread(sock, true, fg_chunksize,
-                                          fg_send_period, fg_start_delay, fg_sending_duration));
+        AgentData data;
+        AgentData bg_data;
 
-            SenderThread bg_sender(bg_sock, false, bg_chunksize,
-                                   bg_send_period, bg_start_delay, bg_sending_duration);
-            if (bg_sock != sock) {
-                bg_sender.data = &bg_data;
-            } else {
-                bg_sender.data = &data;
-            }
-            group.create_thread(bg_sender);
-            // wait for run to complete
-            group.join_all();
-            fprintf(stderr, "Sanity check results, FG sender:\n");
-            print_stats(data.fg_results);
-            fprintf(stderr, "Sanity check results, BG sender:\n");
-            print_stats(bg_sender.data->bg_results);
-        } else {
-            // XXX: These are not important.  Not working on them right now.
-            fprintf(stderr, "NOT IMPLEMENTED\n");
+        int bg_sock;
+        int sock = connect_client_socket(hostname, intnw);
+        if (sock < 0) {
             exit(1);
-
-            if (mode == TEST_MODE_SINGLE_SOCKET) {
-                // bool intnw = (num_vanilla_agents == 0);
-                //assert(num_vanilla_agents == 0 ||
-                //       num_intnw_agents == 0);
-                // ...
-            } else {
-                assert(mode == TEST_MODE_SINGLE_PROCESS);
-                // ...
-            }
         }
+        if (mode == TEST_MODE_SINGLE_PROCESS) {
+            bg_sock = connect_client_socket(hostname, intnw);
+        } else {
+            bg_sock = sock;
+        }
+        if (bg_sock < 0) {
+            exit(1);
+        }
+            
+        boost::thread_group group;
+        group.create_thread(ReceiverThread(sock, &data));
+        if (bg_sock != sock) {
+            group.create_thread(ReceiverThread(bg_sock, &bg_data));
+        }
+        SenderThread sender(sock, true, fg_chunksize,
+                            fg_send_period, fg_start_delay, fg_sending_duration);
+        sender.data = &data;
+        group.create_thread(sender);
+
+        SenderThread bg_sender(bg_sock, false, bg_chunksize,
+                               bg_send_period, bg_start_delay, bg_sending_duration);
+        if (bg_sock != sock) {
+            bg_sender.data = &bg_data;
+        } else {
+            bg_sender.data = &data;
+        }
+        group.create_thread(bg_sender);
+        // wait for run to complete
+        group.join_all();
+        fprintf(stderr, "Sanity check results, FG sender:\n");
+        print_stats(data.fg_results);
+        fprintf(stderr, "Sanity check results, BG sender:\n");
+        print_stats(bg_sender.data->bg_results);
+        return 0;
+    } else {
+        spawn_process(hostname, intnw, ONE_SENDER_FOREGROUND);
+        spawn_process(hostname, intnw, ONE_SENDER_BACKGROUND);
+        return 2;
+    }
+}
+
+//return the number of processes spawned.
+static int run_all_tests(char *hostname, test_mode_t mode, 
+                          int num_vanilla_agents, int num_intnw_agents)
+{
+    if (mode == TEST_MODE_SINGLE_SOCKET ||
+        mode == TEST_MODE_SINGLE_PROCESS) {
+        // XXX: These are not important.  Not working on them right now.
+        fprintf(stderr, "NOT IMPLEMENTED\n");
+        exit(1);
+
+        if (mode == TEST_MODE_SINGLE_SOCKET) {
+            // bool intnw = (num_vanilla_agents == 0);
+            //assert(num_vanilla_agents == 0 ||
+            //       num_intnw_agents == 0);
+            // ...
+        } else {
+            assert(mode == TEST_MODE_SINGLE_PROCESS);
+            // ...
+        }
+        
+        return 0;
     } else {
         assert(mode == TEST_MODE_MULTI_PROCESS);
         int num_procs = 0;
-        if (sanity_check) {
-            spawn_process(hostname, true, ONE_SENDER_FOREGROUND);
-            spawn_process(hostname, true, ONE_SENDER_BACKGROUND);
-            num_procs = 2;
-        } else {
-            num_procs = num_vanilla_agents + num_intnw_agents;
-            for (int i = 0; i < num_vanilla_agents; ++i) {
-                spawn_process(hostname, false, TWO_SENDERS);
-            }
-            for (int i = 0; i < num_intnw_agents; ++i) {
-                spawn_process(hostname, true, TWO_SENDERS);
-            }
-            
-            for (int i = 0; i < num_procs; ++i) {
-                int rc = wait(NULL);
-                if (rc < 0) {
-                    perror("wait");
-                    exit(1);
-                }
-            }
+        num_procs = num_vanilla_agents + num_intnw_agents;
+        for (int i = 0; i < num_vanilla_agents; ++i) {
+            spawn_process(hostname, false, TWO_SENDERS);
         }
+        for (int i = 0; i < num_intnw_agents; ++i) {
+            spawn_process(hostname, true, TWO_SENDERS);
+        }
+        return num_procs;
     }
 }
 
@@ -333,9 +335,9 @@ Options:\n\
     -i <number of agents>\n\
          Spawn the specified number of intnw apps.\n\
 \n\
-    -q\n\
+    -q <vanilla|intnw>\n\
          Special flag; ignore -v and -i and instead sanity-check the \n\
-         interaction between FG and BG traffic, IntNW only.\n\
+         interaction between FG and BG traffic, vanilla or intnw.\n\
          The -s/-m/-a options are taken into account for this test.\n\
 "
 
@@ -364,9 +366,10 @@ int main(int argc, char *argv[])
     char *hostname = NULL;
     test_mode_t mode = TEST_MODE_INVALID;
     bool sanity_check = false;
+    bool sanity_check_intnw = false;
 
     try {
-        while ((ch = getopt(argc, argv, "lh:smav:i:q")) != -1) {
+        while ((ch = getopt(argc, argv, "lh:smav:i:q:")) != -1) {
             switch (ch) {
             case 'l':
                 receiver = true;
@@ -394,6 +397,14 @@ int main(int argc, char *argv[])
                 break;
             case 'q':
                 sanity_check = true;
+                if (!strcmp(optarg, "vanilla")) {
+                    sanity_check_intnw = false;
+                } else if (!strcmp(optarg, "intnw")) {
+                    sanity_check_intnw = true;
+                } else {
+                    fprintf(stderr, "Error: -q requires vanilla or intnw argument\n");
+                    usage(argv[0]);
+                }
                 break;
             case '?':
                 usage(argv[0]);
@@ -431,8 +442,21 @@ int main(int argc, char *argv[])
             usage(argv[0]);
         }
 
-        run_all_tests(hostname, mode, num_vanilla_agents, num_intnw_agents, 
-                      sanity_check);
+        int num_procs = 0;
+        if (sanity_check) {
+            num_procs = run_sanity_check(hostname, mode, sanity_check_intnw);
+        } else {
+            num_procs = run_all_tests(hostname, mode, 
+                                      num_vanilla_agents, num_intnw_agents);
+        }        
+        
+        for (int i = 0; i < num_procs; ++i) {
+            int rc = wait(NULL);
+            if (rc < 0) {
+                perror("wait");
+                exit(1);
+            }
+        }
     }
 
     return 0;

@@ -622,6 +622,8 @@ int main(int argc, char *argv[])
         usage(argv);
     }
 
+    signal(SIGPIPE, SIG_IGN);
+
     bool trace_replay = false;
     bool sampling = false;
     CDFSampler *up_time_samples = NULL;

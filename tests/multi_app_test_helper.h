@@ -34,9 +34,14 @@ struct SenderThread {
     SenderThread(mc_socket_t sock_, bool foreground_, size_t chunksize_,
                  int send_period_, int start_delay_, int sending_duration_);
     
+#ifdef MULTI_APP_TEST_EXECUTABLE
     // initialize from command-line args
     // Expected order: chunksize, send_period, start_delay, sending_duration
-    SenderThread(char *cmdline_args[/*4*/], char *prog);
+  SenderThread(char *cmdline_args[/*4*/], char *argv[]);
+#endif
+
+  private:
+    void waitForResponse(int seqno);
 };
 
 struct ReceiverThread {
@@ -45,7 +50,8 @@ struct ReceiverThread {
     AgentData *data;
 
     void operator()(); // thread function
-    ReceiverThread(mc_socket_t sock_) : sock(sock_) {}
+    ReceiverThread(mc_socket_t sock_, AgentData *data_=NULL) 
+        : sock(sock_), data(data_) {}
 };
 
 typedef std::map<int, struct timeval> TimestampMap;
@@ -61,6 +67,7 @@ struct AgentData {
     TimeResultVector bg_results;
     int seqno;
     boost::mutex mutex;
+    boost::condition_variable cond;
 
     AgentData() : seqno(0) {}
 };
