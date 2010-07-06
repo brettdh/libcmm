@@ -1338,21 +1338,29 @@ CMMSocketImpl::mc_accept(int listener_sock,
         return accept(listener_sock, addr, addrlen);
     }
 
-    int sock = accept(listener_sock, addr, addrlen);
+    struct sockaddr_in ip_sockaddr;
+    socklen_t len = sizeof(ip_sockaddr);
+    int sock = accept(listener_sock, (struct sockaddr *)&ip_sockaddr, &len);
     if (sock < 0) {
         return sock;
     }
     ac.release();
 
-    struct sockaddr_in *ip_sockaddr = (struct sockaddr_in *)addr;
     dbgprintf("mc_accept: Accepting connection from %s\n",
-              inet_ntoa(ip_sockaddr->sin_addr));
+              inet_ntoa(ip_sockaddr.sin_addr));
+    if (addr) {
+        memcpy(addr, &ip_sockaddr, len);
+    }
+    if (addrlen) {
+        *addrlen = len;
+    }
     
     mc_socket_t mc_sock = CMMSocketImpl::create(PF_INET, SOCK_STREAM, 0);
     CMMSocketPtr sk = CMMSocketImpl::lookup(mc_sock);
     CMMSocketImpl *sk_impl = dynamic_cast<CMMSocketImpl*>(get_pointer(sk));
     assert(sk_impl);
-    int rc = sk_impl->connection_bootstrap(addr, *addrlen, sock);
+    int rc = sk_impl->connection_bootstrap((struct sockaddr *)&ip_sockaddr,
+                                           len, sock);
     //close(sock);
         
     if (rc < 0) {
