@@ -356,7 +356,7 @@ int main(int argc, char *argv[])
         output = stderr;
     }
 
-    fprintf(output, "Results:\n");
+    //fprintf(output, "Results:\n");
     // summarize stats: fg latency, bg throughput
     if (!data.fg_results.empty()) {
         fprintf(output, "Worker PID %d, %s foreground sender results\n", 

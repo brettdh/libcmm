@@ -97,7 +97,8 @@ class ServerWorkerThread {
             if (bytes_recvd < len) break;
             
             fprintf(stderr, "Sending %s response %d on socket %d\n",
-                    (labels & CMM_LABEL_ONDEMAND) ? "FG" : "BG", 
+                    ((labels == 0) ? "unlabeled" :
+                     (labels & CMM_LABEL_ONDEMAND) ? "FG" : "BG"),
                     ntohl(hdr.seqno), sock);
             rc = cmm_write_with_deps(sock, &hdr, sizeof(hdr), 
                                      0, NULL, labels, NULL, NULL, NULL);
@@ -465,6 +466,7 @@ int main(int argc, char *argv[])
             usage(argv[0]);
         }
 
+        /*
         time_t t = time(NULL);
         struct tm *tmp = localtime(&t);
         if (tmp == NULL) {
@@ -489,6 +491,7 @@ int main(int argc, char *argv[])
             perror("chdir");
             exit(1);
         }
+        */
         int num_procs = 0;
         if (sanity_check) {
             num_procs = run_sanity_check(hostname, mode, sanity_check_intnw);
@@ -503,7 +506,7 @@ int main(int argc, char *argv[])
                 exit(1);
             }
         }
-        chdir("..");
+        //chdir("..");
     }
 
     return 0;
