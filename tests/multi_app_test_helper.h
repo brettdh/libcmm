@@ -74,7 +74,7 @@ struct AgentData {
 AgentData() : seqno(0), results_file(NULL) {}
 };
 
-void print_stats(const TimeResultVector& results, FILE *file);
+void print_stats(const TimeResultVector& results, size_t chunksize, FILE *file);
 
 typedef enum {
     ONE_SENDER_FOREGROUND,

@@ -74,7 +74,8 @@ class ServerWorkerThread {
             }
             fprintf(stderr, "Received %s request on socket %d; "
                     "seqno %d len %d\n",
-                    (labels & CMM_LABEL_ONDEMAND) ? "FG" : "BG",
+                    ((labels == 0) ? "unlabeled" :
+                     (labels & CMM_LABEL_ONDEMAND) ? "FG" : "BG"),
                     sock, ntohl(hdr.seqno), ntohl(hdr.len));
             fprintf(stderr, "About to receive %d bytes of data\n", 
                     ntohl(hdr.len));
@@ -288,9 +289,9 @@ static int run_sanity_check(char *hostname, test_mode_t mode, bool intnw)
             output = stderr;
         }
         fprintf(output, "Sanity check results, FG sender:\n");
-        print_stats(data.fg_results, output);
+        print_stats(data.fg_results, fg_chunksize, output);
         fprintf(output, "Sanity check results, BG sender:\n");
-        print_stats(bg_sender.data->bg_results, output);
+        print_stats(bg_sender.data->bg_results, bg_chunksize, output);
         return 0;
     } else {
         spawn_process(hostname, intnw, ONE_SENDER_FOREGROUND);

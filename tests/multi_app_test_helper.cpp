@@ -182,7 +182,8 @@ ReceiverThread::operator()()
     data->cond.notify_all();
 }
 
-void print_stats(const TimeResultVector& results, FILE *file=NULL)
+void print_stats(const TimeResultVector& results, size_t chunksize, 
+                 FILE *file=NULL)
 {
     if (!file) {
         file = stderr;
@@ -191,12 +192,15 @@ void print_stats(const TimeResultVector& results, FILE *file=NULL)
         fprintf(file, "-");
     }
     fprintf(file, "\n");
-    
-    fprintf(file, "Timestamp            Response time (sec)\n");
+    fprintf(file, "Chunksize: %zu\n", chunksize);
+    fprintf(file, "Timestamp            Response time (sec)     Throughput (bytes/sec)\n");
     for (size_t i = 0; i < results.size(); ++i) {
-        fprintf(file, "%lu.%06lu          %lu.%06lu\n",
+        suseconds_t usecs = convert_to_useconds(results[i].second);
+        double throughput = chunksize / (usecs / 1000000.0);
+        fprintf(file, "%lu.%06lu          %lu.%06lu               %f\n",
                 results[i].first.tv_sec, results[i].first.tv_usec,
-                results[i].second.tv_sec, results[i].second.tv_usec);
+                results[i].second.tv_sec, results[i].second.tv_usec,
+                throughput);
     }
 }
 
@@ -358,14 +362,18 @@ int main(int argc, char *argv[])
         fprintf(output, "Worker PID %d, %s foreground sender results\n", 
                 getpid(), intnw ? "intnw" : "vanilla");
         
-        print_stats(data.fg_results, output);
+        print_stats(data.fg_results, first_sender.chunksize, output);
     }
 
     if (!data.bg_results.empty()) {
         fprintf(output, "Worker PID %d, %s background sender results\n", 
                 getpid(), intnw ? "intnw" : "vanilla");
 
-        print_stats(data.bg_results, output);
+        print_stats(data.bg_results, 
+                    (mode == TWO_SENDERS 
+                     ? &second_sender 
+                     : &first_sender)->chunksize,
+                    output);
     }
 
     if (output != stderr) {
