@@ -74,7 +74,7 @@ if __name__ == '__main__':
     run_num = 0
     for run_dir in run_dirs:
         run_num += 1
-        results_file.write("Results for run %d" % run_num)
+        results_file.write("Results for run %d\n" % run_num)
         results_file.flush()
         os.chdir(run_dir)
         input_files = glob.glob('*')

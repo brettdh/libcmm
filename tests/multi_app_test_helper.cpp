@@ -359,14 +359,14 @@ int main(int argc, char *argv[])
     //fprintf(output, "Results:\n");
     // summarize stats: fg latency, bg throughput
     if (!data.fg_results.empty()) {
-        fprintf(output, "Worker PID %d, %s foreground sender results\n", 
+        fprintf(output, "Worker PID %d - %s foreground sender results\n", 
                 getpid(), intnw ? "intnw" : "vanilla");
         
         print_stats(data.fg_results, first_sender.chunksize, output);
     }
 
     if (!data.bg_results.empty()) {
-        fprintf(output, "Worker PID %d, %s background sender results\n", 
+        fprintf(output, "Worker PID %d - %s background sender results\n", 
                 getpid(), intnw ? "intnw" : "vanilla");
 
         print_stats(data.bg_results, 
