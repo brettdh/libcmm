@@ -100,6 +100,9 @@ SenderThread::operator()()
                 foreground ? data->fg_timestamps : data->bg_timestamps;
             timestamps[ntohl(hdr.seqno)] = now;
         }
+        fprintf(stderr, "[PID %d] Sending %s message %d\n",
+                getpid(), foreground ? "foreground" : "background",
+                ntohl(hdr.seqno));
         int rc = cmm_writev_with_deps(sock, vecs, 2, num_deps, deps,
                                       labels, NULL, NULL, &last_irob);
         if (rc != (int)(sizeof(hdr) + chunksize)) {
@@ -147,6 +150,8 @@ ReceiverThread::operator()()
             size_t len = ntohl(response.len);
             (void)len;
 
+            fprintf(stderr, "[PID %d] Received response %d\n", getpid(), seqno);
+            
             struct timeval now, diff;
             TIME(now);
 
@@ -177,16 +182,19 @@ ReceiverThread::operator()()
     data->cond.notify_all();
 }
 
-void print_stats(const TimeResultVector& results)
+void print_stats(const TimeResultVector& results, FILE *file=NULL)
 {
-    for (int i = 0; i < 70; ++i) { 
-        fprintf(stderr, "-");
+    if (!file) {
+        file = stderr;
     }
-    fprintf(stderr, "\n");
+    for (int i = 0; i < 70; ++i) { 
+        fprintf(file, "-");
+    }
+    fprintf(file, "\n");
     
-    fprintf(stderr, "Timestamp            Response time (sec)\n");
+    fprintf(file, "Timestamp            Response time (sec)\n");
     for (size_t i = 0; i < results.size(); ++i) {
-        fprintf(stderr, "%lu.%06lu          %lu.%06lu\n",
+        fprintf(file, "%lu.%06lu          %lu.%06lu\n",
                 results[i].first.tv_sec, results[i].first.tv_usec,
                 results[i].second.tv_sec, results[i].second.tv_usec);
     }
@@ -333,20 +341,35 @@ int main(int argc, char *argv[])
     // wait for the run to complete
     group.join_all();
     close(sock);
+    
+    char results_filename[51];
+    memset(results_filename, 0, sizeof(results_filename));
+    sprintf(results_filename, "./multi_app_test_helper_%d.txt", getpid());
+    FILE *output = fopen(results_filename, "w");
+    if (!output) {
+        perror("fopen");
+        fprintf(stderr, "printing results to stderr\n");
+        output = stderr;
+    }
 
+    fprintf(output, "Results:\n");
     // summarize stats: fg latency, bg throughput
     if (!data.fg_results.empty()) {
-        fprintf(stderr, "Worker PID %d, %s foreground sender results\n", 
+        fprintf(output, "Worker PID %d, %s foreground sender results\n", 
                 getpid(), intnw ? "intnw" : "vanilla");
         
-        print_stats(data.fg_results);
+        print_stats(data.fg_results, output);
     }
 
     if (!data.bg_results.empty()) {
-        fprintf(stderr, "Worker PID %d, %s background sender results\n", 
+        fprintf(output, "Worker PID %d, %s background sender results\n", 
                 getpid(), intnw ? "intnw" : "vanilla");
 
-        print_stats(data.bg_results);
+        print_stats(data.bg_results, output);
+    }
+
+    if (output != stderr) {
+        fclose(output);
     }
 
     return 0;

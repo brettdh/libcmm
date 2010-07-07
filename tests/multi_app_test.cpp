@@ -1,3 +1,5 @@
+#include <time.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -70,6 +72,12 @@ class ServerWorkerThread {
             if (rc != sizeof(hdr)) {
                 break;
             }
+            fprintf(stderr, "Received %s request on socket %d; "
+                    "seqno %d len %d\n",
+                    (labels & CMM_LABEL_ONDEMAND) ? "FG" : "BG",
+                    sock, ntohl(hdr.seqno), ntohl(hdr.len));
+            fprintf(stderr, "About to receive %d bytes of data\n", 
+                    ntohl(hdr.len));
             size_t bytes_recvd = 0;
             size_t len = ntohl(hdr.len);
             while (bytes_recvd < len) {
@@ -87,6 +95,9 @@ class ServerWorkerThread {
             }
             if (bytes_recvd < len) break;
             
+            fprintf(stderr, "Sending %s response %d on socket %d\n",
+                    (labels & CMM_LABEL_ONDEMAND) ? "FG" : "BG", 
+                    ntohl(hdr.seqno), sock);
             rc = cmm_write_with_deps(sock, &hdr, sizeof(hdr), 
                                      0, NULL, labels, NULL, NULL, NULL);
             if (rc != sizeof(hdr)) {
@@ -95,6 +106,7 @@ class ServerWorkerThread {
                 break;
             }
         }
+        fprintf(stderr, "Done with connection %d\n", sock);
         cmm_shutdown(sock, SHUT_RDWR);
         cmm_close(sock);
     }
@@ -108,6 +120,7 @@ static void spawn_server_worker_thread(int listen_sock)
         fprintf(stderr, "Failed to accept new connection\n");
         return;
     }
+    fprintf(stderr, "Accepted connection %d\n", sock);
     
     ServerWorkerThread thread_data(sock);
     boost::thread the_thread(thread_data);
@@ -128,8 +141,10 @@ static void run_server()
     while (1) {
         rc = cmm_select(maxfd + 1, &listeners, NULL, NULL, NULL);
         if (FD_ISSET(vanilla_listener, &listeners)) {
+            fprintf(stderr, "Got connection from vanilla client\n");
             spawn_server_worker_thread(vanilla_listener);
         } else if (FD_ISSET(intnw_listener, &listeners)) {
+            fprintf(stderr, "Got connection from intnw client\n");
             spawn_server_worker_thread(intnw_listener);
         }
 
@@ -182,7 +197,7 @@ static int connect_client_socket(char *hostname, bool intnw)
     return sock;
 }
 
-static const char *helper_bin = "./multi_app_test_helper";
+static const char *helper_bin = "/home/brettdh/src/libcmm/tests/multi_app_test_helper";
 
 static void spawn_process(char *hostname, bool intnw, 
                           single_app_test_mode_t mode)
@@ -265,10 +280,17 @@ static int run_sanity_check(char *hostname, test_mode_t mode, bool intnw)
         group.create_thread(bg_sender);
         // wait for run to complete
         group.join_all();
-        fprintf(stderr, "Sanity check results, FG sender:\n");
-        print_stats(data.fg_results);
-        fprintf(stderr, "Sanity check results, BG sender:\n");
-        print_stats(bg_sender.data->bg_results);
+
+        FILE *output = fopen("./single_process_sanity_check.txt", "w");
+        if (!output) {
+            perror("fopen");
+            fprintf(stderr, "printing results to stderr\n");
+            output = stderr;
+        }
+        fprintf(output, "Sanity check results, FG sender:\n");
+        print_stats(data.fg_results, output);
+        fprintf(output, "Sanity check results, BG sender:\n");
+        print_stats(bg_sender.data->bg_results, output);
         return 0;
     } else {
         spawn_process(hostname, intnw, ONE_SENDER_FOREGROUND);
@@ -442,6 +464,30 @@ int main(int argc, char *argv[])
             usage(argv[0]);
         }
 
+        time_t t = time(NULL);
+        struct tm *tmp = localtime(&t);
+        if (tmp == NULL) {
+            perror("localtime");
+            exit(1);
+        }
+        char dir_str[51];
+        memset(dir_str, 0, sizeof(dir_str));
+        if (strftime(dir_str, 50, 
+                     "./multi_app_test_result_%Y-%m-%d__%H_%M_%S", tmp) == 0) {
+            fprintf(stderr, "strftime failed!\n");
+            exit(1);
+        }
+        
+        if (mkdir(dir_str, 0777) < 0) {
+            perror("mkdir");
+            fprintf(stderr, "Couldn't create results directory %s\n",
+                    dir_str);
+            exit(1);
+        }
+        if (chdir(dir_str) < 0) {
+            perror("chdir");
+            exit(1);
+        }
         int num_procs = 0;
         if (sanity_check) {
             num_procs = run_sanity_check(hostname, mode, sanity_check_intnw);
@@ -451,12 +497,12 @@ int main(int argc, char *argv[])
         }        
         
         for (int i = 0; i < num_procs; ++i) {
-            int rc = wait(NULL);
-            if (rc < 0) {
+            if (wait(NULL) < 0) {
                 perror("wait");
                 exit(1);
             }
         }
+        chdir("..");
     }
 
     return 0;

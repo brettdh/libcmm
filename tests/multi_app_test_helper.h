@@ -69,10 +69,12 @@ struct AgentData {
     boost::mutex mutex;
     boost::condition_variable cond;
 
-    AgentData() : seqno(0) {}
+    FILE *results_file;
+
+AgentData() : seqno(0), results_file(NULL) {}
 };
 
-void print_stats(const TimeResultVector& results);
+void print_stats(const TimeResultVector& results, FILE *file);
 
 typedef enum {
     ONE_SENDER_FOREGROUND,
