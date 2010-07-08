@@ -178,6 +178,7 @@ struct FDSharingThread {
                                   packet.pid, packet.remote_fd, new_fd,
                                   packet.remove_fd);
         }
+        dbgprintf("FDSharingThread exiting.\n");
         close(sock);
     }
 };
@@ -330,9 +331,13 @@ void ipc_shmem_deinit()
     }
 }
 
-static FGDataPtr map_lookup(struct in_addr ip_addr)
+static FGDataPtr map_lookup(struct in_addr ip_addr, bool grab_lock = true)
 {
-    sharable_lock<named_upgradable_mutex> read_lock(*shmem_lock);
+    sharable_lock<named_upgradable_mutex> read_lock;
+    if (grab_lock) {
+        // should transfer ownership with assignment
+        read_lock = sharable_lock<named_upgradable_mutex>(*shmem_lock);
+    }
     if (fg_data_map->find(ip_addr) != fg_data_map->end()) {
         FGDataPtr fg_data(fg_data_map->at(ip_addr));
         return fg_data;
@@ -433,7 +438,7 @@ void ipc_decrement_all_fg_senders()
 bool ipc_add_iface(struct in_addr ip_addr)
 {
     upgradable_lock<named_upgradable_mutex> lock(*shmem_lock);
-    if (!map_lookup(ip_addr)) {
+    if (!map_lookup(ip_addr, false)) {
         FGDataPtr new_data = make_managed_shared_ptr(
             segment->construct<struct fg_iface_data>(anonymous_instance)(),
             *segment
@@ -469,7 +474,7 @@ bool ipc_add_iface(struct in_addr ip_addr)
 bool ipc_remove_iface(struct in_addr ip_addr)
 {
     upgradable_lock<named_upgradable_mutex> lock(*shmem_lock);
-    if (map_lookup(ip_addr)) {
+    if (map_lookup(ip_addr, false)) {
         // upgrade to exclusive
         scoped_lock<named_upgradable_mutex> writelock(move(lock));
         fg_data_map->erase(ip_addr);
@@ -514,7 +519,7 @@ bool send_csocket_to_all_pids(struct in_addr ip_addr, int local_fd,
 
     {
         sharable_lock<named_upgradable_mutex> lock(*shmem_lock);
-        if (map_lookup(ip_addr)) {
+        if (map_lookup(ip_addr, false)) {
             std::set<pid_t> target_procs(intnw_pids->begin(), intnw_pids->end());
             lock.unlock();
             

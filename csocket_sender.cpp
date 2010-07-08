@@ -983,8 +983,10 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     csock->stats.report_send_event(id, sizeof(hdr) + chunksize);
     csock->print_tcp_rto();
     int rc = writev(csock->osfd, vec, veccount);
+    dbgprintf("writev returned\n");
     delete [] vec;
     pthread_mutex_lock(&sk->scheduling_state_lock);
+    dbgprintf("re-acquired scheduling state lock after sending irob chunk\n");
 
 #ifdef CMM_TIMING
     {

@@ -19,7 +19,7 @@ def startScout(scout_log):
 
     return scout
 
-ma_log_filename = "./logs/multi_app_test.log"
+ma_log_filename = "./multi_app_test.log"
 
 if __name__ == '__main__':
     if (len(sys.argv) < 2):
@@ -27,13 +27,14 @@ if __name__ == '__main__':
         sys.exit(1)
 
     numruns = int(sys.argv[1])
-
-    ma_output = open(ma_log_filename, "a")
-    scout_log = open("./logs/scout.log", "a")
-
+    
     os.chdir('./results')
     os.mkdir('./drive_run_%d' % os.getpid())
     os.chdir('./drive_run_%d' % os.getpid())
+
+    ma_output = open(ma_log_filename, "a")
+    scout_log = open("./scout.log", "a")
+
     for i in xrange(numruns):
         scout = startScout(scout_log)
         if scout == None:
@@ -72,19 +73,22 @@ if __name__ == '__main__':
     run_dirs = glob.glob('run_*')
     run_dirs.sort()
     run_num = 0
+    ma_data = ""
     for run_dir in run_dirs:
         run_num += 1
-        results_file.write("Results for run %d\n" % run_num)
-        results_file.flush()
+        ma_data += ("Results for run %d\n" % run_num)
         os.chdir(run_dir)
-        input_files = glob.glob('*')
+        input_files = glob.glob('*.txt')
         input_files.sort()
+        print "Processing files: ", input_files
         for input_file in input_files:
-            ma_data = open(input_file).read()
-            awk = Popen(["awk", "-f", "../../../ma_process_results.awk"],
-                        stdin=PIPE, stdout=results_file)
-            awk.communicate(ma_data)
+            ma_data += open(input_file).read()
+
         os.chdir('..')
+
+    script = Popen(["python", "../../ma_process_results.py"],
+                   stdin=PIPE, stdout=results_file)
+    script.communicate(ma_data)
 
     os.chdir('..')
     print "Processed results; wrote summary into %s" % results_filename

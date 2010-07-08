@@ -96,6 +96,8 @@ class ServerWorkerThread {
             }
             if (bytes_recvd < len) break;
             
+            labels &= ~CMM_LABEL_LARGE;
+            labels |= CMM_LABEL_SMALL;
             fprintf(stderr, "Sending %s response %d on socket %d\n",
                     ((labels == 0) ? "unlabeled" :
                      (labels & CMM_LABEL_ONDEMAND) ? "FG" : "BG"),
@@ -289,9 +291,11 @@ static int run_sanity_check(char *hostname, test_mode_t mode, bool intnw)
             fprintf(stderr, "printing results to stderr\n");
             output = stderr;
         }
-        fprintf(output, "Sanity check results, FG sender:\n");
+        fprintf(output, "Worker PID %d - %s foreground sender results\n", 
+                getpid(), intnw ? "intnw" : "vanilla");
         print_stats(data.fg_results, fg_chunksize, output);
-        fprintf(output, "Sanity check results, BG sender:\n");
+        fprintf(output, "Worker PID %d - %s background sender results\n", 
+                getpid(), intnw ? "intnw" : "vanilla");
         print_stats(bg_sender.data->bg_results, bg_chunksize, output);
         return 0;
     } else {
