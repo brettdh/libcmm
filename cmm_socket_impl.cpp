@@ -484,8 +484,10 @@ CMMSocketImpl::~CMMSocketImpl()
 
     delete csock_map;
 
-    bootstrapper->join();
-    delete bootstrapper;
+    if (bootstrapper) {
+        bootstrapper->join();
+        delete bootstrapper;
+    }
 
     {
         // XXX: ugly.  maybe it can be made more like the bootstrapper.
