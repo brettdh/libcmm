@@ -168,6 +168,7 @@ STR_AND_INT(fg_start_delay, 20)
 STR_AND_INT(fg_sending_duration, 40)
 
 STR_AND_INT(bg_chunksize, 262144)
+STR_AND_INT(bg_pipeline_length, 4)
 STR_AND_INT(bg_send_period, 0)
 STR_AND_INT(bg_start_delay, 0)
 STR_AND_INT(bg_sending_duration, 60)
@@ -212,18 +213,19 @@ static void spawn_process(char *hostname, bool intnw,
         switch (mode) {
         case ONE_SENDER_FOREGROUND:
             rc = execl(helper_bin, helper_bin, hostname, intnw_str, 
-                       "foreground", fg_chunksize_str, fg_send_period_str,
+                       "foreground", fg_chunksize_str, "1", fg_send_period_str,
                        fg_start_delay_str, fg_sending_duration_str, NULL);
             break;
         case ONE_SENDER_BACKGROUND:
             rc = execl(helper_bin, helper_bin, hostname, intnw_str,
-                       "background", bg_chunksize_str, bg_send_period_str,
+                       "background", bg_chunksize_str, 
+                       bg_pipeline_length_str, bg_send_period_str,
                        bg_start_delay_str, bg_sending_duration_str, NULL);
             break;
         case TWO_SENDERS:
             rc = execl(helper_bin, helper_bin, hostname, intnw_str, "mix",
-                       bg_chunksize_str, bg_send_period_str,
-                       bg_start_delay_str, bg_sending_duration_str,
+                       fg_chunksize_str, fg_send_period_str,
+                       fg_start_delay_str, fg_sending_duration_str,
                        bg_chunksize_str, bg_send_period_str,
                        bg_start_delay_str, bg_sending_duration_str, NULL);
             break;
@@ -269,12 +271,12 @@ static int run_sanity_check(char *hostname, test_mode_t mode, bool intnw)
         if (bg_sock != sock) {
             group.create_thread(ReceiverThread(bg_sock, &bg_data));
         }
-        SenderThread sender(sock, true, fg_chunksize,
+        SenderThread sender(sock, true, fg_chunksize, 1,
                             fg_send_period, fg_start_delay, fg_sending_duration);
         sender.data = &data;
         group.create_thread(sender);
 
-        SenderThread bg_sender(bg_sock, false, bg_chunksize,
+        SenderThread bg_sender(bg_sock, false, bg_chunksize, bg_pipeline_length,
                                bg_send_period, bg_start_delay, bg_sending_duration);
         if (bg_sock != sock) {
             bg_sender.data = &bg_data;
@@ -297,6 +299,9 @@ static int run_sanity_check(char *hostname, test_mode_t mode, bool intnw)
         fprintf(output, "Worker PID %d - %s background sender results\n", 
                 getpid(), intnw ? "intnw" : "vanilla");
         print_stats(bg_sender.data->bg_results, bg_chunksize, output);
+        if (output != stderr) {
+            fclose(output);
+        }
         return 0;
     } else {
         spawn_process(hostname, intnw, ONE_SENDER_FOREGROUND);

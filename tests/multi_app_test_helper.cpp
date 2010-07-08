@@ -3,11 +3,12 @@
 #include "pthread_util.h"
 #include <map>
 #include <vector>
+#include <deque>
 using std::map;
 using std::vector;
 using std::pair;
 using std::make_pair;
-
+using std::deque;
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -45,8 +46,10 @@ int cmm_connect_to(mc_socket_t sock, const char *hostname, uint16_t port)
 }
 
 SenderThread::SenderThread(mc_socket_t sock_, bool foreground_, size_t chunksize_,
+                           size_t pipeline_len_,
                            int send_period_, int start_delay_, int sending_duration_)
-    : sock(sock_), foreground(foreground_), chunksize(chunksize_)
+    : sock(sock_), foreground(foreground_), chunksize(chunksize_), 
+      pipeline_len(pipeline_len_)
 {
     send_period.tv_sec = send_period_;
     send_period.tv_usec = 0;
@@ -83,6 +86,7 @@ SenderThread::operator()()
     TIME(now);
     timeradd(&now, &sending_duration, &end_time);
 
+    deque<int> sent_seqnos;
     while (timercmp(&now, &end_time, <)) {
         {
             boost::lock_guard<boost::mutex> lock(data->mutex);
@@ -111,7 +115,11 @@ SenderThread::operator()()
                     ntohl(hdr.seqno));
         }
 
-        waitForResponse(ntohl(hdr.seqno));
+        sent_seqnos.push_back(ntohl(hdr.seqno));
+        if (sent_seqnos.size() == pipeline_len) {
+            waitForResponse(sent_seqnos.front());
+            sent_seqnos.pop_front();
+        }
 
         struct timespec dur = {send_period.tv_sec, send_period.tv_usec * 1000};
         nowake_nanosleep(&dur);
@@ -214,13 +222,15 @@ SenderThread::SenderThread(char *cmdline_args[], char *argv[])
         if (cmdline_args) {
             chunksize = get_int_from_string(cmdline_args[0], 
                                             "chunksize");
-            send_period.tv_sec = get_int_from_string(cmdline_args[1], 
+            pipeline_len = get_int_from_string(cmdline_args[1], 
+                                               "pipeline_len");
+            send_period.tv_sec = get_int_from_string(cmdline_args[2], 
                                                      "send_period");
             send_period.tv_usec = 0;
-            start_delay.tv_sec = get_int_from_string(cmdline_args[2],
+            start_delay.tv_sec = get_int_from_string(cmdline_args[3],
                                                      "start_delay");
             start_delay.tv_usec = 0;
-            sending_duration.tv_sec = get_int_from_string(cmdline_args[3],
+            sending_duration.tv_sec = get_int_from_string(cmdline_args[4],
                                                           "sending_duration");
             sending_duration.tv_usec = 0;
         }
@@ -233,13 +243,16 @@ SenderThread::SenderThread(char *cmdline_args[], char *argv[])
 #define USAGE_MSG \
 "usage: %s <hostname> <vanilla|intnw>\n\
               <foreground|background> <chunksize> <-- bytes\n\
+              <pipeline_len> <-- chunks\n\
               <send_period> <start_delay> <sending_duration> <-- seconds\n\
  Starts a single sender and single receiver thread.\n\
 \n\
  usage: %s <hostname> <vanilla|intnw>\n\
               mix <fg_chunksize> <-- bytes\n\
+              <fg_pipeline_len> <-- chunks\n\
               <fg_send_period> <fg_start_delay> <fg_sending_duration>\n\
               <bg_chunksize> <-- bytes\n\
+              <bg_pipeline_len> <-- chunks\n\
               <bg_send_period> <bg_start_delay> <bg_sending_duration> <-- seconds\n\
  Starts two senders and a single receiver thread.\n\
 "
@@ -277,7 +290,7 @@ int main(int argc, char *argv[])
     const char *vanilla_intnw_arg = argv[2];
     const char *mode_arg = argv[3];
 
-    if (argc != 8 && argc != 12) usage(argv);
+    if (argc != 9 && argc != 14) usage(argv);
 
     bool intnw;
     if (!strcmp(vanilla_intnw_arg, "vanilla")) {
@@ -293,11 +306,11 @@ int main(int argc, char *argv[])
         mode = ONE_SENDER_BACKGROUND;
     } else if (!strcmp(mode_arg, "mix")) {
         mode = TWO_SENDERS;
-        if (argc != 12) usage(argv);
+        if (argc != 14) usage(argv);
     } else usage(argv);
 
     char **first_sender_args = &argv[4];
-    char **second_sender_args = (mode == TWO_SENDERS) ? &argv[8] : NULL;
+    char **second_sender_args = (mode == TWO_SENDERS) ? &argv[9] : NULL;
 
     SenderThread first_sender(first_sender_args, argv);
     SenderThread second_sender(second_sender_args, argv);

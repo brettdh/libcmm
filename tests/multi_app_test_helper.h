@@ -23,6 +23,7 @@ struct SenderThread {
     mc_socket_t sock;
     bool foreground;
     size_t chunksize;
+    size_t pipeline_len;
     struct timeval send_period;
     struct timeval start_delay;
     struct timeval sending_duration;
@@ -32,12 +33,13 @@ struct SenderThread {
     void operator()(); // thread function
 
     SenderThread(mc_socket_t sock_, bool foreground_, size_t chunksize_,
+                 size_t pipeline_len_,
                  int send_period_, int start_delay_, int sending_duration_);
     
 #ifdef MULTI_APP_TEST_EXECUTABLE
     // initialize from command-line args
-    // Expected order: chunksize, send_period, start_delay, sending_duration
-  SenderThread(char *cmdline_args[/*4*/], char *argv[]);
+    // Expected order: chunksize, pipeline_len, send_period, start_delay, sending_duration
+  SenderThread(char *cmdline_args[/*5*/], char *argv[]);
 #endif
 
   private:

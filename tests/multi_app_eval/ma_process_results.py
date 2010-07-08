@@ -53,7 +53,12 @@ class ExperimentData:
                 val = sum(self.response_times) / len(self.response_times)
             elif self.curSenderLabel == "background":
                 # calculate total throughput for this sender
-                val = (len(self.response_times) * self.chunksize) / sum(self.response_times)
+                #val = (len(self.response_times) * self.chunksize) / sum(self.response_times)
+                # since it's pipelined, I need to calculate over the entire duration,
+                #  not just the individual intervals, to avoid double-counting
+                #  and underreporting throughput by a factor of the pipeline length
+                duration = self.lastRequest + self.response_times[-1] - self.firstRequest
+                val = (len(self.response_times) * self.chunksize) / duration
             else:
                 raise Exception("NOT_REACHED")
 
@@ -66,6 +71,8 @@ class ExperimentData:
         self.curSenderPID = int(fields[2])
         self.curSenderType = fields[4]
         self.curSenderLabel = fields[5]
+        self.firstRequest = 0.0
+        self.lastRequest = 0.0
 
         if self.curSenderType not in ["vanilla", "intnw"]:
             raise Exception("Unknown sender type %s" % self.curSenderType)
@@ -79,8 +86,12 @@ class ExperimentData:
     #/[0-9]+\.[0-9+]+ +[0-9]+\.[0-9+]+ +[0-9]+\.[0-9+]+/ {
     def newDataPoint(self, line):
         fields = line.split()
+        timestamp = float(fields[0])
         response_time = float(fields[1])
         self.response_times.append(response_time)
+        if (self.firstRequest == 0.0):
+            self.firstRequest = timestamp
+        self.lastRequest = timestamp
 
     def figureString(self, label):
         if label == "foreground":
