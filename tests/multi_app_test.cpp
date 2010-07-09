@@ -224,9 +224,10 @@ static void spawn_process(char *hostname, bool intnw,
             break;
         case TWO_SENDERS:
             rc = execl(helper_bin, helper_bin, hostname, intnw_str, "mix",
-                       fg_chunksize_str, fg_send_period_str,
+                       fg_chunksize_str, "1", fg_send_period_str,
                        fg_start_delay_str, fg_sending_duration_str,
-                       bg_chunksize_str, bg_send_period_str,
+                       bg_chunksize_str, bg_send_period_str, 
+                       bg_pipeline_length_str, 
                        bg_start_delay_str, bg_sending_duration_str, NULL);
             break;
         default:

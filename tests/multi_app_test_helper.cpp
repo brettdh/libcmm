@@ -88,27 +88,28 @@ SenderThread::operator()()
 
     deque<int> sent_seqnos;
     while (timercmp(&now, &end_time, <)) {
+        int rc;
         {
+            // hold the lock while getting/incrementing the seqno,
+            //  inserting the timestamp, and writing to the socket
             boost::lock_guard<boost::mutex> lock(data->mutex);
             hdr.seqno = htonl(data->seqno++);
-        }
         
-        int num_deps = (last_irob == -1) ? 0 : 1;
-        irob_id_t *deps = (last_irob == -1) ? NULL : &last_irob;
-        u_long labels = foreground ? CMM_LABEL_ONDEMAND : CMM_LABEL_BACKGROUND;
+            int num_deps = (last_irob == -1) ? 0 : 1;
+            irob_id_t *deps = (last_irob == -1) ? NULL : &last_irob;
+            u_long labels = foreground ? CMM_LABEL_ONDEMAND : CMM_LABEL_BACKGROUND;
 
-        TIME(now);
-        {
-            boost::lock_guard<boost::mutex> lock(data->mutex);
+            TIME(now);
             map<int, struct timeval>& timestamps = 
                 foreground ? data->fg_timestamps : data->bg_timestamps;
             timestamps[ntohl(hdr.seqno)] = now;
-        }
-        fprintf(stderr, "[PID %d] Sending %s message %d\n",
-                getpid(), foreground ? "foreground" : "background",
-                ntohl(hdr.seqno));
-        int rc = cmm_writev_with_deps(sock, vecs, 2, num_deps, deps,
+
+            fprintf(stderr, "[PID %d] Sending %s message %d\n",
+                    getpid(), foreground ? "foreground" : "background",
+                    ntohl(hdr.seqno));
+            rc = cmm_writev_with_deps(sock, vecs, 2, num_deps, deps,
                                       labels, NULL, NULL, &last_irob);
+        }
         if (rc != (int)(sizeof(hdr) + chunksize)) {
             fprintf(stderr, "Failed to send %s message %d\n",
                     foreground ? "foreground" : "background",
