@@ -348,6 +348,7 @@ static FGDataPtr map_lookup(struct in_addr ip_addr, bool grab_lock = true)
 
 gint ipc_last_fg_tv_sec(struct in_addr ip_addr)
 {
+    TimeFunctionBody timer("SHMEM_TIMING: ipc_last_fg_tv_sec");
     FGDataPtr fg_data = map_lookup(ip_addr);
     if (fg_data) {
         return g_atomic_int_get(&fg_data->last_fg_tv_sec);
@@ -359,6 +360,7 @@ gint ipc_last_fg_tv_sec(struct in_addr ip_addr)
 /*
 gint ipc_fg_sender_count(struct in_addr ip_addr)
 {
+TimeFunctionBody timer("SHMEM_TIMING: ipc_fg_sender_count");
     FGDataPtr fg_data = map_lookup(ip_addr);
     if (fg_data) {
         return g_atomic_int_get(&fg_data->num_fg_senders);
@@ -370,6 +372,7 @@ gint ipc_fg_sender_count(struct in_addr ip_addr)
 
 void ipc_update_fg_timestamp(struct in_addr ip_addr)
 {
+    TimeFunctionBody timer("SHMEM_TIMING: ipc_update_fg_timestamp");
     struct timeval now;
     TIME(now);
     ipc_set_last_fg_tv_sec(ip_addr, now.tv_sec);
@@ -377,6 +380,7 @@ void ipc_update_fg_timestamp(struct in_addr ip_addr)
 
 void ipc_set_last_fg_tv_sec(struct in_addr ip_addr, gint secs)
 {
+    TimeFunctionBody timer("SHMEM_TIMING: ipc_set_last_fg_tv_sec");
     FGDataPtr fg_data = map_lookup(ip_addr);
     if (fg_data) {
         g_atomic_int_set(&fg_data->last_fg_tv_sec, secs);
@@ -402,6 +406,7 @@ void ipc_increment_fg_senders(struct in_addr ip_addr)
 
 void ipc_decrement_fg_senders(struct in_addr ip_addr)
 {
+TimeFunctionBody timer("SHMEM_TIMING: ipc_decrement_fg_senders");
     FGDataPtr fg_data = map_lookup(ip_addr);
     if (fg_data) {
         boost::upgrade_lock<boost::shared_mutex> lock(*proc_local_lock);
@@ -419,6 +424,7 @@ void ipc_decrement_fg_senders(struct in_addr ip_addr)
 // call when there are now no FG IROBs in flight
 void ipc_decrement_all_fg_senders()
 {
+TimeFunctionBody timer("SHMEM_TIMING: ipc_decrement_all_fg_senders");
     std::vector<struct in_addr> ifaces;
     {
         boost::shared_lock<boost::shared_mutex> lock(*proc_local_lock);
@@ -437,6 +443,7 @@ void ipc_decrement_all_fg_senders()
 
 bool ipc_add_iface(struct in_addr ip_addr)
 {
+    TimeFunctionBody timer("SHMEM_TIMING: ipc_add_iface");
     upgradable_lock<named_upgradable_mutex> lock(*shmem_lock);
     if (!map_lookup(ip_addr, false)) {
         FGDataPtr new_data = make_managed_shared_ptr(
@@ -473,6 +480,7 @@ bool ipc_add_iface(struct in_addr ip_addr)
 
 bool ipc_remove_iface(struct in_addr ip_addr)
 {
+    TimeFunctionBody timer("SHMEM_TIMING: ipc_remove_iface");
     upgradable_lock<named_upgradable_mutex> lock(*shmem_lock);
     if (map_lookup(ip_addr, false)) {
         // upgrade to exclusive
@@ -549,18 +557,21 @@ bool send_csocket_to_all_pids(struct in_addr ip_addr, int local_fd,
 
 bool ipc_add_csocket(struct in_addr ip_addr, int local_fd)
 {
+    TimeFunctionBody timer("SHMEM_TIMING: ipc_add_csocket");
     add_or_remove_csocket(ip_addr, getpid(), local_fd, local_fd, false);
     return send_csocket_to_all_pids(ip_addr, local_fd, false);
 }
 
 bool ipc_remove_csocket(struct in_addr ip_addr, int local_fd)
 {
+    TimeFunctionBody timer("SHMEM_TIMING: ipc_remove_csocket");
     add_or_remove_csocket(ip_addr, getpid(), local_fd, local_fd, true);
     return send_csocket_to_all_pids(ip_addr, local_fd, true);
 }
 
 size_t ipc_total_bytes_inflight(struct in_addr ip_addr)
 {
+    TimeFunctionBody timer("SHMEM_TIMING: ipc_total_bytes_inflight");
     size_t bytes = 0;
     size_t num_sockets = 0;
     boost::shared_lock<boost::shared_mutex> lock(*proc_local_lock);

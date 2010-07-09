@@ -8,6 +8,7 @@ import random
 def startScout(scout_log):
     print "Starting scout"
     scout_path = "/home/brettdh/src/libcmm/scout/"
+    #scout_path = "/home/brettdh/src/libcmm_single_process/scout/"
     scout_bin = scout_path + "conn_scout"
     scout = Popen([scout_bin, "replay", "eth1", "eth0"],
                   stderr=scout_log, stdout=scout_log)

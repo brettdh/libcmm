@@ -101,22 +101,22 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
                   osfd, window);
     }
 
-    window = 131072;
-     /* window = 2 * 1024 * 1024; */
-     rc = setsockopt(osfd, SOL_SOCKET, SO_SNDBUF, (char *) &window, 
-                     sizeof(window));
-     if(rc < 0) dbgprintf("failed to set SNDBUF: %s\n", strerror(errno));
-     rc = setsockopt(osfd, SOL_SOCKET, SO_RCVBUF, (char *) &window, 
-                     sizeof(window));
-     if(rc < 0) dbgprintf("failed to set SNDBUF: %s\n", strerror(errno));
+    // window = 131072;
+//      /* window = 2 * 1024 * 1024; */
+//      rc = setsockopt(osfd, SOL_SOCKET, SO_SNDBUF, (char *) &window, 
+//                      sizeof(window));
+//      if(rc < 0) dbgprintf("failed to set SNDBUF: %s\n", strerror(errno));
+//      rc = setsockopt(osfd, SOL_SOCKET, SO_RCVBUF, (char *) &window, 
+//                      sizeof(window));
+//      if(rc < 0) dbgprintf("failed to set SNDBUF: %s\n", strerror(errno));
 
-     rc = getsockopt(osfd, SOL_SOCKET, SO_SNDBUF, (char *)&window, &len);
-     if (rc < 0) {
-         dbgprintf("Couldn't get SNDBUF size: %s\n", strerror(errno));
-     } else {
-         dbgprintf("New csocket osfd %d - increased SNDBUF to %d\n",
-                   osfd, window);
-     }
+//      rc = getsockopt(osfd, SOL_SOCKET, SO_SNDBUF, (char *)&window, &len);
+//      if (rc < 0) {
+//          dbgprintf("Couldn't get SNDBUF size: %s\n", strerror(errno));
+//      } else {
+//          dbgprintf("New csocket osfd %d - increased SNDBUF to %d\n",
+//                    osfd, window);
+//      }
 }
 
 CSocket::~CSocket()
