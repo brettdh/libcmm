@@ -575,7 +575,8 @@ size_t ipc_total_bytes_inflight(struct in_addr ip_addr)
     size_t bytes = 0;
     size_t num_sockets = 0;
     boost::shared_lock<boost::shared_mutex> lock(*proc_local_lock);
-    if (map_lookup(ip_addr)) {
+    // XXX: wrong lock order?  It's a shared lock, so it might not matter...
+    if (map_lookup(ip_addr) && all_intnw_csockets->count(ip_addr) > 0) {
         std::set<struct proc_sock_info>& sockinfo = (*all_intnw_csockets)[ip_addr];
         num_sockets = sockinfo.size();
         for (std::set<struct proc_sock_info>::iterator it = sockinfo.begin();
