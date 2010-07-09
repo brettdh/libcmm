@@ -101,6 +101,30 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
                   osfd, window);
     }
 
+    /* HERE BE DRAGONS
+     *
+     * Messing with the socket buffer can screw with the striping discipline,
+     *  which is illustrated by the crowded hotspot scenario.
+     * Why I think this is the case:
+     *   When CSocket socket buffers are small enough, sender threads on both 
+     *    networks block on socket buffer space.  The socket buffers drain
+     *    at different rates, so BG traffic is naturally striped according to 
+     *    the networks' relative bandwidths.
+     *   When CSocket socket buffers are large enough, sender threads don't 
+     *    block on buffer space, but the buffers will still drain at about
+     *    the right rates, I think.
+     *   When CSocket socket buffers are in the middle, one sender will block
+     *    while the other does not.  The effect of this is that a fixed amount
+     *    of data gets sent onto the fast network, and then the sender thread
+     *    on the slower network shoves more data into its socket buffer,
+     *    tilting the striping ratio in the wrong direction.
+     *   The Right Way to fix this is to explicitly manage the striping ratios,
+     *    as I believe prior work has done, but leaving the socket buffer
+     *    sizes at the default 16K appears to have the desired effect,
+     *    within an acceptable range of overhead.
+     *   This should perhaps be more carefully verified, but the short-term
+     *    fix appears to work for our current purposes.
+     */
     // window = 131072;
 //      /* window = 2 * 1024 * 1024; */
 //      rc = setsockopt(osfd, SOL_SOCKET, SO_SNDBUF, (char *) &window, 
