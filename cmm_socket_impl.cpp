@@ -2234,8 +2234,30 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
     PthreadScopedLock lock(&scheduling_state_lock);
     PendingIROB *pirob = outgoing_irobs.find(id);
     if (!pirob) {
-        dbgprintf("Resend request received for non-existent IROB %ld\n", id);
-        throw CMMException();
+        if (outgoing_irobs.past_irob_exists(id)) {
+            dbgprintf("Post-ACK resend request received for IROB %ld; "
+                      "ignoring\n", id);
+            // I've already gotten the ACK for the IROB, so this 
+            //  resend request must have been sent just after the ACK.
+            //  That's a bug, but not a fatal one, so
+            // this is harmless, really; don't kill the thread.
+
+            // XXX: this is tickling a bug elsewhere, though; 
+            //  the replacement CSocket never finishes the 
+            //  New_Interface/Hello handshake.  Additionally, the 
+            //  listener thread somehow intercepts the Hello message.
+            // If I can track down why that happens, I'll be able to
+            //  squish the real bug, but this is a fine work-around for now.
+            // TODO: fix the real bug.  See the catch statement
+            //  in CSocketSender::Run(), and trace from there.
+            // It appears to have to do with both sides attempting
+            //  simultaneous connections.
+            return;
+        } else {
+            dbgprintf("Resend request received for non-existent IROB %ld\n", id);
+            throw CMMException();
+        }
+
     }
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
