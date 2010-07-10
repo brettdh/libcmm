@@ -687,13 +687,25 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
 
     irob_id_t *deps = NULL;
 
-    struct iovec vec[3];
+    struct iovec vec[6];
     vec[0].iov_base = &hdr;
     vec[0].iov_len = sizeof(hdr);
     vec[1].iov_base = NULL;
     vec[1].iov_len = 0;
+    
+    // these are for possibly sending the IROB_chunk and End_IROB 
+    //  messages too for small FG IROBs
     vec[2].iov_base = NULL;
     vec[2].iov_len = 0;
+    vec[3].iov_base = NULL;
+    vec[3].iov_len = 0;
+    vec[4].iov_base = NULL;
+    vec[4].iov_len = 0;
+    vec[5].iov_base = NULL;
+    vec[5].iov_len = 0;
+
+    struct iovec *vecs_to_send = vec;
+
     size_t count = 1;
     int numdeps = pirob->deps.size();
     if (numdeps > 0) {
@@ -713,8 +725,67 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     vec[count].iov_len = numdeps * sizeof(irob_id_t);
     count++;
     
+    // If the IROB is small enough that it wouldn't be
+    //  broken into chunks, send the IROB_chunk and End_IROB 
+    //  messages now.
+    // Just to be extra careful, only do this for FG IROBs.
+    struct CMMSocketControlHdr chunk_hdr;
+    struct CMMSocketControlHdr end_irob_hdr;
+    bool sending_all_irob_info = false;
+    if (psirob->is_complete() &&
+        psirob->expected_bytes() < 1500 &&
+        psirob->send_labels & CMM_LABEL_ONDEMAND &&
+        !psirob->announced) {
+        // XXX: this code is begging to be put in a function.
 
-    size_t bytes = vec[0].iov_len + vec[1].iov_len + vec[2].iov_len;
+        memset(&chunk_hdr, 0, sizeof(chunk_hdr));
+        memset(&end_irob_hdr, 0, sizeof(end_irob_hdr));
+        
+        chunk_hdr.type = htons(CMM_CONTROL_MSG_IROB_CHUNK);
+        chunk_hdr.send_labels = htonl(pirob->send_labels);
+        
+        ssize_t chunksize = psirob->expected_bytes();
+        u_long seqno = 0;
+        size_t offset = 0;
+        vector<struct iovec> irob_vecs = psirob->get_ready_bytes(chunksize, 
+                                                                 seqno,
+                                                                 offset);
+        if (chunksize > 0) {
+            chunk_hdr.op.irob_chunk.id = htonl(id);
+            chunk_hdr.op.irob_chunk.seqno = htonl(seqno);
+            chunk_hdr.op.irob_chunk.offset = htonl(offset);
+            chunk_hdr.op.irob_chunk.datalen = htonl(chunksize);
+            chunk_hdr.op.irob_chunk.data = NULL;
+            count++;
+
+            // begin_irob hdr, deps array, irob_chunk hdr, data, end_irob hdr
+            vecs_to_send = new struct iovec[2 + 1 + irob_vecs.size() + 1];
+            memcpy(vecs_to_send, vec, sizeof(struct iovec) * 2);
+            vecs_to_send[2].iov_base = &chunk_hdr;
+            vecs_to_send[2].iov_len = sizeof(chunk_hdr);
+            for (size_t i = 0; i < irob_vecs.size(); ++i) {
+                vecs_to_send[i + 3] = irob_vecs[i];
+            }
+            count += irob_vecs.size();
+
+            end_irob_hdr.type = htons(CMM_CONTROL_MSG_END_IROB);
+            end_irob_hdr.op.end_irob.id = htonl(data.id);
+            end_irob_hdr.op.end_irob.expected_bytes = htonl(psirob->expected_bytes());
+            end_irob_hdr.op.end_irob.expected_chunks = htonl(psirob->sent_chunks.size());
+            end_irob_hdr.send_labels = htonl(pirob->send_labels);
+            vecs_to_send[2 + 1 + irob_vecs.size()].iov_base = &end_irob_hdr;
+            vecs_to_send[2 + 1 + irob_vecs.size()].iov_len = sizeof(end_irob_hdr);
+            count++;
+            
+            sending_all_irob_info = true;
+        }
+    }
+
+    size_t bytes = 0;
+    for (size_t i = 0; i < count; ++i) {
+        bytes += vecs_to_send[i].iov_len;
+    }
+    //vec[0].iov_len + vec[1].iov_len + vec[2].iov_len;
 
     dbgprintf("About to send message: %s", hdr.describe().c_str());
     if (deps) {
@@ -728,10 +799,13 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     csock->stats.report_send_event(id, bytes);
     csock->print_tcp_rto();
-    int rc = writev(csock->osfd, vec, count);
+    int rc = writev(csock->osfd, vecs_to_send, count);
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
     delete [] deps;
+    if (sending_all_irob_info) {
+        delete [] vecs_to_send;
+    }
 
     if (rc != (ssize_t)bytes) {
         sk->irob_indexes.new_irobs.insert(data);
@@ -755,12 +829,23 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     if (psirob) {
         psirob->announced = true;
-        IROBSchedulingData new_chunk(id, true, data.send_labels);
-        if (pirob->is_anonymous()) {
-            csock->irob_indexes.new_chunks.insert(new_chunk);
-            //csock->irob_indexes.finished_irobs.insert(data);
-        } else if (pirob->chunks.size() > 0) {
-            csock->irob_indexes.new_chunks.insert(new_chunk);
+        if (sending_all_irob_info) {
+            if (psirob->is_complete() && psirob->all_chunks_sent()) {
+                sk->ack_timeouts.update(id, csock->retransmission_timeout());
+                
+                if (!psirob->end_announced) {
+                    psirob->end_announced = true;
+                    //csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
+                }
+            }
+        } else {
+            IROBSchedulingData new_chunk(id, true, data.send_labels);
+            if (pirob->is_anonymous()) {
+                csock->irob_indexes.new_chunks.insert(new_chunk);
+                //csock->irob_indexes.finished_irobs.insert(data);
+            } else if (pirob->chunks.size() > 0) {
+                csock->irob_indexes.new_chunks.insert(new_chunk);
+            }
         }
     }
 
