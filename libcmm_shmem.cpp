@@ -380,21 +380,21 @@ TimeFunctionBody timer("SHMEM_TIMING: ipc_fg_sender_count");
 }
 */
 
-void ipc_update_fg_timestamp(CSocketPtr csock) //struct in_addr ip_addr)
+void ipc_update_fg_timestamp(struct iface_pair ifaces) //struct in_addr ip_addr)
 {
     TimeFunctionBody timer("SHMEM_TIMING: ipc_update_fg_timestamp");
     struct timeval now;
     TIME(now);
-    ipc_set_last_fg_tv_sec(csock, now.tv_sec);
+    ipc_set_last_fg_tv_sec(ifaces, now.tv_sec);
 }
 
-void ipc_set_last_fg_tv_sec(CSocketPtr csock, //struct in_addr ip_addr, 
+void ipc_set_last_fg_tv_sec(struct iface_pair ifaces, //struct in_addr ip_addr, 
                             gint secs)
 {
     TimeFunctionBody timer("SHMEM_TIMING: ipc_set_last_fg_tv_sec");
 
-    struct iface_pair ifaces(csock->local_iface.ip_addr,
-                             csock->remote_iface.ip_addr);
+//     struct iface_pair ifaces(csock->local_iface.ip_addr,
+//                              csock->remote_iface.ip_addr);
     FGDataPtr fg_data = map_lookup(ifaces);
     if (fg_data) {
         g_atomic_int_set(&fg_data->last_fg_tv_sec, secs);

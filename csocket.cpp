@@ -510,7 +510,8 @@ CSocket::update_last_fg()
     //TIMEDIFF(last_fg, now, diff);
     //last_fg = now;
     TIME(last_fg);
-    ipc_update_fg_timestamp(CSocketPtr(this));
+    ipc_update_fg_timestamp(iface_pair(local_iface.ip_addr,
+                                       remote_iface.ip_addr));
 }
 
 struct net_interface

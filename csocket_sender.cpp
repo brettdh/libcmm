@@ -67,7 +67,8 @@ CSocketSender::Run()
         if (csock->matches(CMM_LABEL_ONDEMAND)) {
             csock->last_fg = sk->last_fg;
             int last_fg_secs = ipc_last_fg_tv_sec(csock);//->local_iface.ip_addr);
-            ipc_set_last_fg_tv_sec(csock, //->local_iface.ip_addr, 
+            ipc_set_last_fg_tv_sec(iface_pair(csock->local_iface.ip_addr,
+                                              csock->remote_iface.ip_addr), //->local_iface.ip_addr, 
                                    max((int)sk->last_fg.tv_sec,
                                        last_fg_secs));
         }
