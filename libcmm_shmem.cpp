@@ -80,8 +80,17 @@ void add_or_remove_csocket(struct iface_pair ifaces, //struct in_addr ip_addr,
                            pid_t pid, int remote_fd, int local_fd, 
                            bool remove_fd)
 {
+    bool dropped_lock = false;
     boost::upgrade_lock<boost::shared_mutex> lock(*proc_local_lock);
     if (all_intnw_csockets->count(ifaces) == 0) {
+        dbgprintf("add_or_remove_csocket: adding missing iface pair ");
+        ifaces.print();
+        dbgprintf_plain("\n");
+
+        lock.unlock();
+        dropped_lock = true;
+        ipc_add_iface_pair(ifaces);
+        /*
         // must have been removed by scout; ignore
         dbgprintf("Cannot %s socket %d %s sockset; iface pair ",
                   remove_fd ? "remove" : "add", local_fd, 
@@ -89,9 +98,17 @@ void add_or_remove_csocket(struct iface_pair ifaces, //struct in_addr ip_addr,
         ifaces.print();
         dbgprintf_plain(" unknown (perhaps a scout update removed it)\n");
         return;
+        */
     }
     
-    boost::unique_lock<boost::shared_mutex> writelock(boost::move(lock));
+    boost::unique_lock<boost::shared_mutex> writelock;
+    if (dropped_lock) {
+        // grab the lock anew
+        writelock = boost::unique_lock<boost::shared_mutex>(*proc_local_lock);
+    } else {
+        // upgrade from reader
+        writelock = boost::unique_lock<boost::shared_mutex>(boost::move(lock));
+    }
     proc_sock_info info(pid, remote_fd, local_fd);
     if (remove_fd) {
         dbgprintf("removing (PID: %d remote_fd: %d)"
