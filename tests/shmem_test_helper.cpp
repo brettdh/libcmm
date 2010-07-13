@@ -1,11 +1,11 @@
 #include "libcmm_shmem.h"
 #include "shmem_test_common.h"
+#include "test_common.h"
 #include "debug.h"
 #include <glib.h>
 #include <stdio.h>
 #include <sys/socket.h>
 #include <linux/un.h>
-#include "test_common.h"
 #include <sys/wait.h>
 
 void set_socket_buffers(int sock)
@@ -63,7 +63,7 @@ void child_process(in_port_t port)
 
     ipc_shmem_init(false);
     set_socket_buffers(sock);
-    ipc_add_csocket(shmem_iface1, sock);
+    ipc_add_csocket(csocket1, sock);
 
     char buf[TEST_SOCKET_BUFSIZE*2];
     memset(buf, 42, sizeof(buf));
@@ -81,7 +81,7 @@ void child_process(in_port_t port)
 
     fprintf(stderr, "[Sender helper %d] removing socket and exiting.\n",
             getpid());
-    ipc_remove_csocket(shmem_iface1, sock);
+    ipc_remove_csocket(csocket1, sock);
     close(sock);
 }
 
@@ -96,7 +96,7 @@ void parent_process(int listen_sock)
 
     ipc_shmem_init(false);
     set_socket_buffers(sock);
-    ipc_add_csocket(shmem_iface1, sock);
+    ipc_add_csocket(csocket1, sock);
 
     char buf[TEST_SOCKET_BUFSIZE*2];
     memset(buf, 0, sizeof(buf));
@@ -115,7 +115,7 @@ void parent_process(int listen_sock)
     fprintf(stderr, "[Receiver helper %d] removing socket and exiting.\n",
             getpid());
 
-    ipc_remove_csocket(shmem_iface1, sock);
+    ipc_remove_csocket(csocket1, sock);
     close(sock);
 }
 
@@ -163,6 +163,9 @@ void test_global_buffer_count()
 
 int main(int argc, char *argv[])
 {
+    csocket1.reset(new CSocket(iface1, iface2));
+    csocket2.reset(new CSocket(iface1, iface3));
+
     assert(argc >= 2);
     
     const char *cmd = argv[1];

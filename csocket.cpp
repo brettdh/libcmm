@@ -16,6 +16,13 @@
 #include "common.h"
 using std::max;
 
+#ifdef CMM_UNIT_TESTING
+CSocket::CSocket(struct net_interface local_iface_,
+                 struct net_interface remote_iface_)
+    : local_iface(local_iface_), remote_iface(remote_iface_)
+{
+}
+#else
 CSocketPtr
 CSocket::create(boost::weak_ptr<CMMSocketImpl> sk_,
                 struct net_interface local_iface_, 
@@ -27,6 +34,7 @@ CSocket::create(boost::weak_ptr<CMMSocketImpl> sk_,
     new_csock->self_ptr = new_csock;
     return new_csock;
 }
+
 
 CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
                  struct net_interface local_iface_, 
@@ -149,7 +157,8 @@ CSocket::~CSocket()
     if (osfd > 0) {
         /* if it's a real open socket */
         assert(csock_sendr == NULL && csock_recvr == NULL);
-        ipc_remove_csocket(local_iface.ip_addr, osfd);
+        ipc_remove_csocket(iface_pair(local_iface.ip_addr,
+                                      remote_iface.ip_addr), osfd);
         close(osfd);
     }    
 }
@@ -501,5 +510,16 @@ CSocket::update_last_fg()
     //TIMEDIFF(last_fg, now, diff);
     //last_fg = now;
     TIME(last_fg);
-    ipc_update_fg_timestamp(local_iface.ip_addr);
+    ipc_update_fg_timestamp(CSocketPtr(this));
 }
+
+struct net_interface
+CSocket::bottleneck_iface()
+{
+    if (local_iface.bandwidth_up > remote_iface.bandwidth_down) {
+        return remote_iface;
+    } else {
+        return local_iface;
+    }
+}
+#endif

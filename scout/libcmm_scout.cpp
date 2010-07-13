@@ -322,13 +322,6 @@ void notify_all_subscribers(const IfaceList& changed_ifaces,
     int rc;
     queue<pid_t> failed_procs;
  
-    for (size_t i = 0; i < changed_ifaces.size(); ++i) {
-        ipc_add_iface(changed_ifaces[i].ip_addr);
-    }
-    for (size_t i = 0; i < down_ifaces.size(); ++i) {
-        ipc_remove_iface(down_ifaces[i].ip_addr);
-    }
-   
     for (SubscriberProcHash::iterator it = subscriber_procs.begin();
          it != subscriber_procs.end(); it++) {
         rc = notify_subscriber(it->first, it->second.ipc_sock,
@@ -716,7 +709,6 @@ int main(int argc, char *argv[])
             dbgprintf_always("blah, couldn't get IP address for %s\n", ifnames[i]);
             exit(-1);
         }
-        ipc_add_iface(ifs[i].ip_addr);
         net_interfaces[ifs[i].ip_addr.s_addr] = ifs[i];
         printf("Got interface: %s, %s, %lu bytes/sec %lu ms\n", ifnames[i], 
                inet_ntoa(ifs[i].ip_addr), ifs[i].bandwidth_up, ifs[i].RTT);
@@ -730,7 +722,6 @@ int main(int argc, char *argv[])
         bg_iface = ifs[1];
 
         // will be added back first iteration
-        ipc_remove_iface(bg_iface.ip_addr);
         net_interfaces.erase(bg_iface.ip_addr.s_addr);
         bg_iface_list.push_back(bg_iface);
     }

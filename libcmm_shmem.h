@@ -9,6 +9,9 @@
 #include <boost/interprocess/smart_ptr/shared_ptr.hpp>
 #include <glib.h>
 
+#include "csocket.h"
+#include "debug.h"
+
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
@@ -23,8 +26,35 @@ typedef ManagedShmem::segment_manager MemMgr;
 typedef boost::interprocess::managed_shared_ptr<struct fg_iface_data,
                                                 ManagedShmem>::type FGDataPtr;
 
-typedef boost::interprocess::allocator<std::pair<struct in_addr, FGDataPtr>, 
+typedef boost::interprocess::allocator<std::pair<struct iface_pair, FGDataPtr>, 
                                        MemMgr> FGDataAllocator;
+
+struct iface_pair {
+    struct in_addr local_iface;
+    struct in_addr remote_iface;
+
+    iface_pair() {
+        memset(&local_iface, 0, sizeof(local_iface));
+        memset(&remote_iface, 0, sizeof(remote_iface));
+    }
+    iface_pair(struct in_addr local, struct in_addr remote)
+        : local_iface(local), remote_iface(remote) {}
+
+    bool operator<(const struct iface_pair& other) const {
+        return (local_iface.s_addr < other.local_iface.s_addr ||
+                (local_iface.s_addr == other.local_iface.s_addr &&
+                 remote_iface.s_addr < other.remote_iface.s_addr));
+    }
+    bool operator==(const struct iface_pair& other) const {
+        return (local_iface.s_addr == other.local_iface.s_addr &&
+                remote_iface.s_addr == other.remote_iface.s_addr);
+    }
+
+    void print() {
+        dbgprintf_plain("(%s", inet_ntoa(local_iface));
+        dbgprintf_plain(", %s)", inet_ntoa(remote_iface));
+    }
+};
 
 struct in_addr_less {
     bool operator()(const struct in_addr& addr1,
@@ -33,7 +63,7 @@ struct in_addr_less {
     }
 };
 
-typedef boost::interprocess::map<struct in_addr, FGDataPtr, in_addr_less,
+typedef boost::interprocess::map<struct iface_pair, FGDataPtr, std::less<struct iface_pair>,
                                  FGDataAllocator> FGDataMap;
 
 typedef boost::interprocess::allocator<int, MemMgr> IntAllocator;
@@ -48,21 +78,29 @@ typedef boost::interprocess::set<int, std::less<int>, IntAllocator> ShmemIntSet;
 void ipc_shmem_init(bool create);
 void ipc_shmem_deinit();
 
-gint ipc_last_fg_tv_sec(struct in_addr ip_addr);
+#ifndef BUILDING_SCOUT
+// the scout doesn't care about these functions, and it
+//  certainly knows nothing about CSockets.
+gint ipc_last_fg_tv_sec(CSocketPtr csock); //struct in_addr ip_addr);
 //gint ipc_fg_sender_count(struct in_addr ip_addr);
-void ipc_update_fg_timestamp(struct in_addr ip_addr);
-void ipc_set_last_fg_tv_sec(struct in_addr ip_addr, gint secs);
+void ipc_update_fg_timestamp(CSocketPtr csock);//struct in_addr ip_addr);
+void ipc_set_last_fg_tv_sec(CSocketPtr csock, //struct in_addr ip_addr,
+                            gint secs);
 //void ipc_increment_fg_senders(struct in_addr ip_addr);
 //void ipc_decrement_fg_senders(struct in_addr ip_addr);
 
 // call when there are now no FG IROBs in flight
 //void ipc_decrement_all_fg_senders();
-size_t ipc_total_bytes_inflight(struct in_addr ip_addr);
+size_t ipc_total_bytes_inflight(CSocketPtr csock);//struct in_addr ip_addr);
 
-bool ipc_add_iface(struct in_addr ip_addr);
-bool ipc_remove_iface(struct in_addr ip_addr);
-bool ipc_add_csocket(struct in_addr ip_addr, int local_fd);
-bool ipc_remove_csocket(struct in_addr ip_addr, int local_fd);
+bool ipc_add_csocket(CSocketPtr csock, //struct in_addr ip_addr,
+                     int local_fd);
+bool ipc_remove_csocket(struct iface_pair ifaces, //struct in_addr ip_addr, 
+                        int local_fd);
+#endif
+
+bool ipc_add_iface_pair(struct iface_pair ifaces);
+bool ipc_remove_iface_pair(struct iface_pair ifaces);
 
 #endif
 

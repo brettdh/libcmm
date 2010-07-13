@@ -80,9 +80,18 @@ bool CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
         dbgprintf("Done receiving remote interfaces\n");
         return true;
     } else {
-        PthreadScopedRWLock sock_lock(&my_lock, true);
-        remote_ifaces.erase(new_listener); // make sure the values update
-        remote_ifaces.insert(new_listener);
+        {
+            PthreadScopedRWLock sock_lock(&my_lock, true);
+            remote_ifaces.erase(new_listener); // make sure the values update
+            remote_ifaces.insert(new_listener);
+
+            // Add the new remote iface for use in anticipatory scheduling.
+            for (NetInterfaceSet::const_iterator it = local_ifaces.begin();
+                 it != local_ifaces.end(); it++) {
+                struct iface_pair ifaces(it->ip_addr, new_listener.ip_addr);
+                ipc_add_iface_pair(ifaces);
+            }
+        }
     }
     dbgprintf("Got new remote interface %s with labels %lu, "
               "bandwidth_down %lu bytes/sec bandwidth_up %lu bytes/sec RTT %lu ms\n",
@@ -1615,12 +1624,24 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
         }
 
         local_ifaces.insert(iface);
+
+        for (NetInterfaceSet::const_iterator it = remote_ifaces.begin();
+             it != remote_ifaces.end(); it++) {
+            struct iface_pair ifaces(iface.ip_addr, it->ip_addr);
+            ipc_add_iface_pair(ifaces);
+        }
     } else {
         if (remote_ifaces.count(iface) > 0) {
             // make sure labels update if needed
             remote_ifaces.erase(iface);
         }
         remote_ifaces.insert(iface);
+
+        for (NetInterfaceSet::const_iterator it = local_ifaces.begin();
+             it != local_ifaces.end(); it++) {
+            struct iface_pair ifaces(it->ip_addr, iface.ip_addr);
+            ipc_add_iface_pair(ifaces);
+        }
     }
 
     if (need_data_check) {
@@ -1663,12 +1684,22 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
 
     if (local) {
         local_ifaces.erase(iface);
+        for (NetInterfaceSet::const_iterator it = remote_ifaces.begin();
+             it != remote_ifaces.end(); it++) {
+            struct iface_pair ifaces(iface.ip_addr, it->ip_addr);
+            ipc_remove_iface_pair(ifaces);
+        }
 
         PthreadScopedLock lock(&scheduling_state_lock);
         down_local_ifaces.insert(iface);
         pthread_cond_broadcast(&scheduling_state_cv);
     } else {
         remote_ifaces.erase(iface);
+        for (NetInterfaceSet::const_iterator it = local_ifaces.begin();
+             it != local_ifaces.end(); it++) {
+            struct iface_pair ifaces(it->ip_addr, iface.ip_addr);
+            ipc_remove_iface_pair(ifaces);
+        }
     }
 
     PthreadScopedLock lock(&scheduling_state_lock);

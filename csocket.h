@@ -24,6 +24,9 @@ struct ResumeOperation;
 #include <boost/shared_ptr.hpp>
 #include <boost/weak_ptr.hpp>
 
+#include <arpa/inet.h>
+#include <netinet/in.h>
+
 class CSocket;
 typedef boost::shared_ptr<CSocket> CSocketPtr;
 
@@ -36,12 +39,18 @@ class CSocket {
     //CMMSocketReceiver *recvr;
     struct net_interface local_iface;
     struct net_interface remote_iface;
+#ifndef CMM_UNIT_TESTING
     NetStats stats;
 
     static CSocketPtr create(boost::weak_ptr<CMMSocketImpl> sk_, 
                              struct net_interface local_iface_,
                              struct net_interface remote_iface_,
                              int accepted_sock = -1);
+#endif
+#ifdef CMM_UNIT_TESTING
+    CSocket(struct net_interface local_iface_,
+            struct net_interface remote_iface_);
+#else
     ~CSocket();
     //void send(CMMSocketRequest req);
     //void remove(void);
@@ -77,6 +86,9 @@ class CSocket {
 
     long int tcp_rto();
     void print_tcp_rto();
+
+    struct net_interface bottleneck_iface();
+
   private:
     // only allow shared_ptr creation
     CSocket(boost::weak_ptr<CMMSocketImpl> sk_, 
@@ -116,6 +128,7 @@ class CSocket {
 
     // true when I'm sending app data, or begin/end irob msg
     bool busy;
+#endif // ifndef CMM_UNIT_TESTING
 };
 
 #endif

@@ -64,7 +64,9 @@ bool pop_item(ContainerType& container, ItemType& item)
         assert(rc == 0);                                        \
     } while (0)
 
+#ifndef handle_error
 #define handle_error(cond, str) do { if (cond) { perror(str); exit(-1); } } while (0)
+#endif
 
 inline void set_signal(int signo, void (*handler)(int))
 {

@@ -66,13 +66,14 @@ CSocketSender::Run()
 
         if (csock->matches(CMM_LABEL_ONDEMAND)) {
             csock->last_fg = sk->last_fg;
-            int last_fg_secs = ipc_last_fg_tv_sec(csock->local_iface.ip_addr);
-            ipc_set_last_fg_tv_sec(csock->local_iface.ip_addr, 
+            int last_fg_secs = ipc_last_fg_tv_sec(csock);//->local_iface.ip_addr);
+            ipc_set_last_fg_tv_sec(csock, //->local_iface.ip_addr, 
                                    max((int)sk->last_fg.tv_sec,
                                        last_fg_secs));
         }
 
-        ipc_add_csocket(csock->local_iface.ip_addr, csock->osfd);
+        ipc_add_csocket(csock, //->local_iface.ip_addr, 
+                        csock->osfd);
 
         PthreadScopedLock lock(&sk->scheduling_state_lock);
 
@@ -196,7 +197,7 @@ CSocketSender::Run()
             struct timespec rel_thunk_timeout = { 0, 11 * 1000 * 1000 };
             struct timespec thunk_timeout = abs_time(rel_thunk_timeout);
             //if (get_unsent_bytes(csock->osfd) > 0) {
-            if (ipc_total_bytes_inflight(csock->local_iface.ip_addr) > 0) {
+            if (ipc_total_bytes_inflight(csock) > 0) {//->local_iface.ip_addr) > 0) {
                 timeout = thunk_timeout;
             }
 
@@ -565,7 +566,7 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 
         // get last_fg value
 #ifdef MULTI_PROCESS_SUPPORT
-        iface_last_fg.tv_sec = ipc_last_fg_tv_sec(csock->local_iface.ip_addr);
+        iface_last_fg.tv_sec = ipc_last_fg_tv_sec(csock); //->local_iface.ip_addr);
         iface_last_fg.tv_usec = 0;
 #else
         iface_last_fg = csock->last_fg;
@@ -583,7 +584,7 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
         ssize_t MIN_CHUNKSIZE = 1500; // one Ethernet MTU
         chunksize = max(chunksize, MIN_CHUNKSIZE);
         
-        int unsent_bytes = ipc_total_bytes_inflight(csock->local_iface.ip_addr);
+        int unsent_bytes = ipc_total_bytes_inflight(csock);//->local_iface.ip_addr);
         if (unsent_bytes < 0) {
             //dbgprintf("     ...failed to check socket send buffer: %s\n",
             //strerror(errno));

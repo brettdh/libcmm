@@ -9,6 +9,7 @@
 #include "test_common.h"
 #include <map>
 using std::map;
+#include "../csocket.h"
 
 CPPUNIT_TEST_SUITE_REGISTRATION(ShmemTest);
 
@@ -23,14 +24,21 @@ static struct init_once {
     }
 } once;
 
+void ShmemTest::setUp()
+{
+    csocket1.reset(new CSocket(iface1, iface2));
+    csocket2.reset(new CSocket(iface1, iface3));
+}
+
 void 
 ShmemTest::testGlobalBufferCount()
 {
-    ipc_add_iface(shmem_iface1);
+    ipc_add_iface_pair(iface_pair(csocket1->local_iface.ip_addr,
+                                  csocket1->remote_iface.ip_addr));
 
     int count = 5;
 
-    size_t bytes = ipc_total_bytes_inflight(shmem_iface1);
+    size_t bytes = ipc_total_bytes_inflight(csocket1);
     CPPUNIT_ASSERT_MESSAGE("No sockets, no bytes", bytes == 0);
 
     printf("Forking children processes...");
@@ -46,14 +54,14 @@ ShmemTest::testGlobalBufferCount()
         }
     }
 
-    bytes = ipc_total_bytes_inflight(shmem_iface1);
+    bytes = ipc_total_bytes_inflight(csocket1);
     CPPUNIT_ASSERT_MESSAGE("Newly created sockets should have empty buffers",
                            bytes == 0);
     printf("Waiting 8 seconds for socket buffers to fill...\n");
     struct timespec dur = {8, 0};
     nowake_nanosleep(&dur);
     printf("Checking global socket buffer count...\n");
-    bytes = ipc_total_bytes_inflight(shmem_iface1);
+    bytes = ipc_total_bytes_inflight(csocket1);
     printf("Total bytes for %d senders: %zu\n", count, bytes);
     CPPUNIT_ASSERT_MESSAGE("Full buffers should add to byte count",
                            bytes > 0);
@@ -65,30 +73,39 @@ ShmemTest::testGlobalBufferCount()
         CPPUNIT_ASSERT_EQUAL(0, status);
     }
     
-    ipc_remove_iface(shmem_iface1);
+    ipc_remove_iface_pair(iface_pair(csocket1->local_iface.ip_addr,
+                                     csocket1->remote_iface.ip_addr));
 }
 
 void
 ShmemTest::testMap()
 {
-    ipc_add_iface(shmem_iface1);
-    CPPUNIT_ASSERT_EQUAL(0, ipc_last_fg_tv_sec(shmem_iface1));
-    ipc_update_fg_timestamp(shmem_iface1);
-    CPPUNIT_ASSERT(ipc_last_fg_tv_sec(shmem_iface1) > 0);
+    ipc_add_iface_pair(iface_pair(csocket1->local_iface.ip_addr,
+                                  csocket1->remote_iface.ip_addr));
+    CPPUNIT_ASSERT_EQUAL(0, ipc_last_fg_tv_sec(csocket1));
+    ipc_update_fg_timestamp(csocket1);
+    CPPUNIT_ASSERT(ipc_last_fg_tv_sec(csocket1) > 0);
 
-    ipc_add_iface(shmem_iface2);
-    CPPUNIT_ASSERT_EQUAL(0, ipc_last_fg_tv_sec(shmem_iface2));
-    ipc_update_fg_timestamp(shmem_iface2);
-    CPPUNIT_ASSERT(ipc_last_fg_tv_sec(shmem_iface2) > 0);
+    ipc_add_iface_pair(iface_pair(csocket2->local_iface.ip_addr,
+                                  csocket2->remote_iface.ip_addr));
+    CPPUNIT_ASSERT_EQUAL(0, ipc_last_fg_tv_sec(csocket2));
+    ipc_update_fg_timestamp(csocket2);
+    CPPUNIT_ASSERT(ipc_last_fg_tv_sec(csocket2) > 0);
 
-    ipc_remove_iface(shmem_iface1);
-    ipc_add_iface(shmem_iface1);
-    CPPUNIT_ASSERT_EQUAL(0, ipc_last_fg_tv_sec(shmem_iface1));
+    ipc_remove_iface_pair(iface_pair(csocket1->local_iface.ip_addr,
+                                     csocket1->remote_iface.ip_addr));
+    ipc_add_iface_pair(iface_pair(csocket1->local_iface.ip_addr,
+                                  csocket1->remote_iface.ip_addr));
+    CPPUNIT_ASSERT_EQUAL(0, ipc_last_fg_tv_sec(csocket1));
 
-    ipc_remove_iface(shmem_iface2);
-    ipc_add_iface(shmem_iface2);
-    CPPUNIT_ASSERT_EQUAL(0, ipc_last_fg_tv_sec(shmem_iface1));
+    ipc_remove_iface_pair(iface_pair(csocket2->local_iface.ip_addr,
+                                     csocket2->remote_iface.ip_addr));
+    ipc_add_iface_pair(iface_pair(csocket1->local_iface.ip_addr,
+                                  csocket1->remote_iface.ip_addr));
+    CPPUNIT_ASSERT_EQUAL(0, ipc_last_fg_tv_sec(csocket1));
 
-    ipc_remove_iface(shmem_iface1);
-    ipc_remove_iface(shmem_iface2);
+    ipc_remove_iface_pair(iface_pair(csocket1->local_iface.ip_addr,
+                                     csocket1->remote_iface.ip_addr));
+    ipc_remove_iface_pair(iface_pair(csocket2->local_iface.ip_addr,
+                                     csocket2->remote_iface.ip_addr));
 }

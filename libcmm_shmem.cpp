@@ -60,8 +60,8 @@ struct proc_sock_info {
     proc_sock_info(pid_t pid_, int remote_fd_, int local_fd_)
         : pid(pid_), remote_fd(remote_fd_), local_fd(local_fd_) {}
 };
-typedef std::map<struct in_addr, std::set<struct proc_sock_info>, 
-                 in_addr_less> CSocketMap;
+typedef std::map<struct iface_pair, // local/remote iface pair
+                 std::set<struct proc_sock_info> > CSocketMap;
 
 // contains process-unique FDs for all CSocket FDs in all intnw apps,
 // separated by local interface
@@ -69,24 +69,25 @@ static CSocketMap *all_intnw_csockets;
 static boost::shared_mutex *proc_local_lock;
 
 struct fd_sharing_packet {
-    struct in_addr ip_addr;
+    struct iface_pair ifaces;//struct in_addr ip_addr;
     pid_t pid;
     int remote_fd;
     char remove_fd; // 1 iff recipient should remove this remote_fd.
 };
 
 
-void add_or_remove_csocket(struct in_addr ip_addr, 
+void add_or_remove_csocket(struct iface_pair ifaces, //struct in_addr ip_addr, 
                            pid_t pid, int remote_fd, int local_fd, 
                            bool remove_fd)
 {
     boost::upgrade_lock<boost::shared_mutex> lock(*proc_local_lock);
-    if (all_intnw_csockets->count(ip_addr) == 0) {
+    if (all_intnw_csockets->count(ifaces) == 0) {
         // must have been removed by scout; ignore
-        dbgprintf("Cannot %s socket %d %s sockset; iface %s unknown\n",
+        dbgprintf("Cannot %s socket %d %s sockset; iface pair ",
                   remove_fd ? "remove" : "add", local_fd, 
-                  remove_fd ? "from"   : "to",
-                  inet_ntoa(ip_addr));
+                  remove_fd ? "from"   : "to");
+        ifaces.print();
+        dbgprintf_plain(" unknown (perhaps a scout update removed it)\n");
         return;
     }
     
@@ -94,15 +95,17 @@ void add_or_remove_csocket(struct in_addr ip_addr,
     proc_sock_info info(pid, remote_fd, local_fd);
     if (remove_fd) {
         dbgprintf("removing (PID: %d remote_fd: %d)"
-                  " info from iface %s\n", pid, remote_fd,
-                  inet_ntoa(ip_addr));
-        (*all_intnw_csockets)[ip_addr].erase(info);
+                  " info from iface pair", pid, remote_fd);
+        ifaces.print();
+        dbgprintf_plain("\n");
+        (*all_intnw_csockets)[ifaces].erase(info);
     } else {
         dbgprintf("adding (PID: %d remote_fd: %d local_fd: %d) "
-                  "info to iface %s\n", 
-                  pid, remote_fd, local_fd,
-                  inet_ntoa(ip_addr));
-        (*all_intnw_csockets)[ip_addr].insert(info);
+                  "info to iface pair ", 
+                  pid, remote_fd, local_fd);
+        ifaces.print();
+        dbgprintf_plain("\n");
+        (*all_intnw_csockets)[ifaces].insert(info);
     }
 }
 
@@ -169,12 +172,14 @@ struct FDSharingThread {
             }
 
             dbgprintf("Received shared socket from PID %d: "
-                      "iface %s remote_fd %d local_fd %d remove? %s\n",
-                      packet.pid, inet_ntoa(packet.ip_addr), 
+                      "iface pair ",
+                      packet.pid);
+            packet.ifaces.print();
+            dbgprintf_plain(" remote_fd %d local_fd %d remove? %s\n",
                       packet.remote_fd, new_fd, 
                       packet.remove_fd ? "yes" : "no");
 
-            add_or_remove_csocket(packet.ip_addr, 
+            add_or_remove_csocket(packet.ifaces, 
                                   packet.pid, packet.remote_fd, new_fd,
                                   packet.remove_fd);
         }
@@ -186,11 +191,12 @@ struct FDSharingThread {
 static FDSharingThread fd_sharing_thread_data;
 static boost::thread *fd_sharing_thread;
 
-static int send_local_csocket_fd(struct in_addr ip_addr, pid_t target, 
+static int send_local_csocket_fd(struct iface_pair ifaces, //struct in_addr ip_addr, 
+                                 pid_t target, 
                                  int local_fd, bool remove_fd)
 {
     struct fd_sharing_packet packet;
-    packet.ip_addr = ip_addr;
+    packet.ifaces = ifaces;
     packet.pid = getpid();
     packet.remote_fd = local_fd;
     packet.remove_fd = remove_fd ? 1 : 0;
@@ -277,7 +283,7 @@ void ipc_shmem_init(bool create)
 
     fg_map_allocator = new FGDataAllocator(segment->get_segment_manager());
     fg_data_map = segment->find_or_construct<FGDataMap>(INTNW_SHMEM_MAP_NAME)(
-        in_addr_less(), *fg_map_allocator
+        std::less<struct iface_pair>(), *fg_map_allocator
         ); // never constructs; scout is first
     
     int_allocator = new IntAllocator(segment->get_segment_manager());
@@ -296,10 +302,11 @@ void ipc_shmem_init(bool create)
     boost::unique_lock<boost::shared_mutex> local_lock(*proc_local_lock);
     for (FGDataMap::iterator it = fg_data_map->begin(); 
          it != fg_data_map->end(); it++) {
-        struct in_addr ip_addr = it->first;
-        if (all_intnw_csockets->count(ip_addr) == 0) {
+        //struct in_addr ip_addr = it->first;
+        struct iface_pair ifaces = it->first;
+        if (all_intnw_csockets->count(ifaces) == 0) {
             // inserts empty set
-            (*all_intnw_csockets)[ip_addr] = CSocketMap::mapped_type();
+            (*all_intnw_csockets)[ifaces] = CSocketMap::mapped_type();
         }
     }
 }
@@ -331,25 +338,28 @@ void ipc_shmem_deinit()
     }
 }
 
-static FGDataPtr map_lookup(struct in_addr ip_addr, bool grab_lock = true)
+static FGDataPtr map_lookup(struct iface_pair ifaces, bool grab_lock = true)
 {
     sharable_lock<named_upgradable_mutex> read_lock;
     if (grab_lock) {
         // should transfer ownership with assignment
         read_lock = sharable_lock<named_upgradable_mutex>(*shmem_lock);
     }
-    if (fg_data_map->find(ip_addr) != fg_data_map->end()) {
-        FGDataPtr fg_data(fg_data_map->at(ip_addr));
+    if (fg_data_map->find(ifaces) != fg_data_map->end()) {
+        FGDataPtr fg_data(fg_data_map->at(ifaces));
         return fg_data;
     }
 
     return FGDataPtr();
 }
 
-gint ipc_last_fg_tv_sec(struct in_addr ip_addr)
+#ifndef BUILDING_SCOUT
+gint ipc_last_fg_tv_sec(CSocketPtr csock)//struct in_addr ip_addr)
 {
     TimeFunctionBody timer("SHMEM_TIMING: ipc_last_fg_tv_sec");
-    FGDataPtr fg_data = map_lookup(ip_addr);
+    struct iface_pair ifaces(csock->local_iface.ip_addr,
+                             csock->remote_iface.ip_addr);
+    FGDataPtr fg_data = map_lookup(ifaces);
     if (fg_data) {
         return g_atomic_int_get(&fg_data->last_fg_tv_sec);
     } else {
@@ -370,22 +380,27 @@ TimeFunctionBody timer("SHMEM_TIMING: ipc_fg_sender_count");
 }
 */
 
-void ipc_update_fg_timestamp(struct in_addr ip_addr)
+void ipc_update_fg_timestamp(CSocketPtr csock) //struct in_addr ip_addr)
 {
     TimeFunctionBody timer("SHMEM_TIMING: ipc_update_fg_timestamp");
     struct timeval now;
     TIME(now);
-    ipc_set_last_fg_tv_sec(ip_addr, now.tv_sec);
+    ipc_set_last_fg_tv_sec(csock, now.tv_sec);
 }
 
-void ipc_set_last_fg_tv_sec(struct in_addr ip_addr, gint secs)
+void ipc_set_last_fg_tv_sec(CSocketPtr csock, //struct in_addr ip_addr, 
+                            gint secs)
 {
     TimeFunctionBody timer("SHMEM_TIMING: ipc_set_last_fg_tv_sec");
-    FGDataPtr fg_data = map_lookup(ip_addr);
+
+    struct iface_pair ifaces(csock->local_iface.ip_addr,
+                             csock->remote_iface.ip_addr);
+    FGDataPtr fg_data = map_lookup(ifaces);
     if (fg_data) {
         g_atomic_int_set(&fg_data->last_fg_tv_sec, secs);
     }
 }
+#endif // BUILDING_SCOUT
 
 /*
 void ipc_increment_fg_senders(struct in_addr ip_addr)
@@ -441,11 +456,11 @@ TimeFunctionBody timer("SHMEM_TIMING: ipc_decrement_all_fg_senders");
 }
 */
 
-bool ipc_add_iface(struct in_addr ip_addr)
+bool ipc_add_iface_pair(struct iface_pair ifaces)
 {
     TimeFunctionBody timer("SHMEM_TIMING: ipc_add_iface");
     upgradable_lock<named_upgradable_mutex> lock(*shmem_lock);
-    if (!map_lookup(ip_addr, false)) {
+    if (!map_lookup(ifaces, false)) {
         FGDataPtr new_data = make_managed_shared_ptr(
             segment->construct<struct fg_iface_data>(anonymous_instance)(),
             *segment
@@ -455,43 +470,45 @@ bool ipc_add_iface(struct in_addr ip_addr)
 
         // upgrade to exclusive
         scoped_lock<named_upgradable_mutex> writelock(move(lock));
-        fg_data_map->insert(make_pair(ip_addr, new_data));
+        fg_data_map->insert(make_pair(ifaces, new_data));
         writelock.unlock();
 
         boost::unique_lock<boost::shared_mutex> local_lock(*proc_local_lock);
-        if (all_intnw_csockets->count(ip_addr) == 0) {
+        if (all_intnw_csockets->count(ifaces) == 0) {
             // inserts empty set
-            (*all_intnw_csockets)[ip_addr] = CSocketMap::mapped_type();
+            (*all_intnw_csockets)[ifaces] = CSocketMap::mapped_type();
         }
         /*
-        if (proc_local_sending_fg_map.count(ip_addr) == 0) {
-            proc_local_sending_fg_map[ip_addr] = false;
+        if (proc_local_sending_fg_map.count(ifaces) == 0) {
+            proc_local_sending_fg_map[ifaces] = false;
         }
         */
-        dbgprintf("Added iface %s for tracking socket buffers\n",
-                  inet_ntoa(ip_addr));
+        dbgprintf("Added iface pair ");
+        ifaces.print();
+        dbgprintf_plain(" for tracking socket buffers\n");
         return true;
     } else {
-        dbgprintf("iface %s already added for tracking socket buffers\n",
-                  inet_ntoa(ip_addr));
+        dbgprintf("iface ");
+        ifaces.print();
+        dbgprintf_plain(" already added for tracking socket buffers\n");
         return false;
     }
 }
 
-bool ipc_remove_iface(struct in_addr ip_addr)
+bool ipc_remove_iface_pair(struct iface_pair ifaces)
 {
     TimeFunctionBody timer("SHMEM_TIMING: ipc_remove_iface");
     upgradable_lock<named_upgradable_mutex> lock(*shmem_lock);
-    if (map_lookup(ip_addr, false)) {
+    if (map_lookup(ifaces, false)) {
         // upgrade to exclusive
         scoped_lock<named_upgradable_mutex> writelock(move(lock));
-        fg_data_map->erase(ip_addr);
+        fg_data_map->erase(ifaces);
         writelock.unlock();
 
         boost::unique_lock<boost::shared_mutex> local_lock(*proc_local_lock);
-        if (all_intnw_csockets->count(ip_addr) > 0) {
+        if (all_intnw_csockets->count(ifaces) > 0) {
             // clean up all local (dup'd) file descriptors
-            std::set<proc_sock_info>& sockinfo = (*all_intnw_csockets)[ip_addr];
+            std::set<proc_sock_info>& sockinfo = (*all_intnw_csockets)[ifaces];
             for (std::set<proc_sock_info>::iterator it = sockinfo.begin();
                  it != sockinfo.end(); it++) {
                 if (it->pid != getpid()) {
@@ -501,33 +518,43 @@ bool ipc_remove_iface(struct in_addr ip_addr)
                     close(it->local_fd);
                 }
             }
-            all_intnw_csockets->erase(ip_addr);
+            all_intnw_csockets->erase(ifaces);
         }
         /*
-        if (proc_local_sending_fg_map.count(ip_addr) > 0) {
-            proc_local_sending_fg_map.erase(ip_addr);
+        if (proc_local_sending_fg_map.count(ifaces) > 0) {
+            proc_local_sending_fg_map.erase(ifaces);
         }
         */
 
-        dbgprintf("Removed iface %s from tracking socket buffers\n",
-                  inet_ntoa(ip_addr));
+        dbgprintf("Removed iface pair ");
+        ifaces.print();
+        dbgprintf_plain("from tracking socket buffers\n");
         return true;
     } else {
-        dbgprintf("iface %s already removed from tracking socket buffers\n",
-                  inet_ntoa(ip_addr));
+        dbgprintf("iface pair");
+        ifaces.print();
+        dbgprintf_plain(" already removed from tracking socket buffers\n");
         return false;
     }
 }
 
-bool send_csocket_to_all_pids(struct in_addr ip_addr, int local_fd, 
+bool send_csocket_to_all_pids(struct iface_pair ifaces, int local_fd, 
                               bool remove_fd)
 {
     std::vector<pid_t> failed_procs;
-    bool rc;
+    bool ret;
 
     {
         sharable_lock<named_upgradable_mutex> lock(*shmem_lock);
-        if (map_lookup(ip_addr, false)) {
+        if (map_lookup(ifaces, false)) {
+#if 0
+            // ignore this comment; this seems to be causing problems.
+
+            //I don't actually care if it's in the lookup table; 
+            // I'll only call this once per CSocket destruction,
+            // and I need to send the update, even if the iface
+            // pair has been removed by a scout update.
+#endif
             std::set<pid_t> target_procs(intnw_pids->begin(), intnw_pids->end());
             lock.unlock();
             
@@ -537,47 +564,61 @@ bool send_csocket_to_all_pids(struct in_addr ip_addr, int local_fd,
                  it != target_procs.end(); it++) {
                 pid_t pid = *it;
                 if (pid != getpid()) {
-                    int rc = send_local_csocket_fd(ip_addr, pid, local_fd, 
+                    int rc = send_local_csocket_fd(ifaces, pid, local_fd, 
                                                    remove_fd);
                     if (rc != 0) {
                         failed_procs.push_back(pid);
                     }
                 }
             }
-            rc = true;
+            ret = true;
         } else {
-            rc = false;
+            ret = false;
         }
     }
     for (size_t i = 0; i < failed_procs.size(); ++i) {
         remove_proc(failed_procs[i]);
     }
-    return rc;
+    return ret;
 }
 
-bool ipc_add_csocket(struct in_addr ip_addr, int local_fd)
+#ifndef BUILDING_SCOUT
+bool ipc_add_csocket(CSocketPtr csock, //struct in_addr ip_addr,
+                     int local_fd)
 {
     TimeFunctionBody timer("SHMEM_TIMING: ipc_add_csocket");
-    add_or_remove_csocket(ip_addr, getpid(), local_fd, local_fd, false);
-    return send_csocket_to_all_pids(ip_addr, local_fd, false);
+    struct iface_pair ifaces(csock->local_iface.ip_addr,
+                             csock->remote_iface.ip_addr);
+    add_or_remove_csocket(ifaces, getpid(), local_fd, local_fd, false);
+    return send_csocket_to_all_pids(ifaces, local_fd, false);
 }
 
-bool ipc_remove_csocket(struct in_addr ip_addr, int local_fd)
+bool ipc_remove_csocket(struct iface_pair ifaces, // struct in_addr ip_addr,
+                        int local_fd)
 {
     TimeFunctionBody timer("SHMEM_TIMING: ipc_remove_csocket");
-    add_or_remove_csocket(ip_addr, getpid(), local_fd, local_fd, true);
-    return send_csocket_to_all_pids(ip_addr, local_fd, true);
+    // struct iface_pair ifaces(csock->local_iface.ip_addr,
+//                              csock->remote_iface.ip_addr);
+    add_or_remove_csocket(ifaces, getpid(), local_fd, local_fd, true);
+    return send_csocket_to_all_pids(ifaces, local_fd, true);
 }
 
-size_t ipc_total_bytes_inflight(struct in_addr ip_addr)
+size_t ipc_total_bytes_inflight(CSocketPtr csock)//struct in_addr ip_addr)
 {
     TimeFunctionBody timer("SHMEM_TIMING: ipc_total_bytes_inflight");
+
+    // for anticipatory scheduling, group the socket byte counting by
+    //  the local/remote iface pair.
+    //struct in_addr ip_addr = csock->bottleneck_iface().ip_addr;
+    struct iface_pair ifaces(csock->local_iface.ip_addr,
+                             csock->remote_iface.ip_addr);
+
     size_t bytes = 0;
     size_t num_sockets = 0;
     boost::shared_lock<boost::shared_mutex> lock(*proc_local_lock);
     // XXX: wrong lock order?  It's a shared lock, so it might not matter...
-    if (map_lookup(ip_addr) && all_intnw_csockets->count(ip_addr) > 0) {
-        std::set<struct proc_sock_info>& sockinfo = (*all_intnw_csockets)[ip_addr];
+    if (map_lookup(ifaces) && all_intnw_csockets->count(ifaces) > 0) {
+        std::set<struct proc_sock_info>& sockinfo = (*all_intnw_csockets)[ifaces];
         num_sockets = sockinfo.size();
         for (std::set<struct proc_sock_info>::iterator it = sockinfo.begin();
              it != sockinfo.end(); it++) {
@@ -593,12 +634,14 @@ size_t ipc_total_bytes_inflight(struct in_addr ip_addr)
         }
 
         if (sockinfo.empty()) {
-            dbgprintf("iface %s has no connected sockets\n",
-                      inet_ntoa(ip_addr));
+            dbgprintf("iface pair ");
+            ifaces.print();
+            dbgprintf_plain(" has no connected sockets\n");
         }
     } else {
-        dbgprintf("total_bytes_inflight: unknown iface %s ; returning 0\n",
-                  inet_ntoa(ip_addr));
+        dbgprintf("total_bytes_inflight: unknown iface pair ");
+        ifaces.print();
+        dbgprintf_plain("; returning 0\n");
     }
 
     dbgprintf("total_bytes_inflight: counted %zu bytes in %zu sockets\n", 
@@ -606,5 +649,6 @@ size_t ipc_total_bytes_inflight(struct in_addr ip_addr)
 
     return bytes;
 }
+#endif // BUILDING_SCOUT
 
 #endif
