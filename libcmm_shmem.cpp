@@ -546,10 +546,8 @@ bool send_csocket_to_all_pids(struct iface_pair ifaces, int local_fd,
 
     {
         sharable_lock<named_upgradable_mutex> lock(*shmem_lock);
-        if (map_lookup(ifaces, false)) {
+        if (true) {//map_lookup(ifaces, false)) {
 #if 0
-            // ignore this comment; this seems to be causing problems.
-
             //I don't actually care if it's in the lookup table; 
             // I'll only call this once per CSocket destruction,
             // and I need to send the update, even if the iface
