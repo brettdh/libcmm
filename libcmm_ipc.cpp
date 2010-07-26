@@ -11,9 +11,7 @@
 #include <set>
 using std::set;
 
-#ifdef MULTI_PROCESS_SUPPORT
 #include "libcmm_shmem.h"
-#endif
 
 
 #define CMM_SELECT_SIGNAL 42 /* I am assured this is okay in Linux. */
@@ -96,9 +94,7 @@ bool scout_ipc_inited(void)
 
 int scout_ipc_init()
 {
-#ifdef MULTI_PROCESS_SUPPORT
     ipc_shmem_init(false);
-#endif
 
     struct cmm_msg msg;
     memset(&msg, 0, sizeof(msg));
@@ -164,9 +160,7 @@ void scout_ipc_deinit(void)
         pthread_kill(ipc_thread_id, CMM_SELECT_SIGNAL);
     }
 
-#ifdef MULTI_PROCESS_SUPPORT
     ipc_shmem_deinit();
-#endif
 }
 
 extern void process_interface_update(struct net_interface iface, bool down);

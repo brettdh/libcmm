@@ -591,17 +591,10 @@ Java_edu_umich_intnw_ConnScoutService_updateNetwork(JNIEnv *env,
         net_interfaces[iface.ip_addr.s_addr] = iface;
     }
 }
-#else
-#ifdef MULTI_PROCESS_SUPPORT
-#include <boost/interprocess/managed_shared_memory.hpp>
-using boost::interprocess::shared_memory_object;
-using boost::interprocess::managed_shared_memory;
-using boost::interprocess::create_only;
-#endif
+#else /* !BUILDING_SCOUT_SHLIB */
 
 int main(int argc, char *argv[])
 {
-#ifdef MULTI_PROCESS_SUPPORT
     // ensure shared memory gets cleaned up when I exit
     struct shmem_remover {
         ~shmem_remover() { ipc_shmem_deinit(); }
@@ -609,7 +602,6 @@ int main(int argc, char *argv[])
     (void)remover; // suppress "unused variable" warning
 
     ipc_shmem_init(true);
-#endif
 
     if (argc < 4) {
         usage(argv);

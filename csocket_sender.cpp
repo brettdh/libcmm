@@ -566,12 +566,8 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
         struct timeval iface_last_fg;
 
         // get last_fg value
-#ifdef MULTI_PROCESS_SUPPORT
         iface_last_fg.tv_sec = ipc_last_fg_tv_sec(csock); //->local_iface.ip_addr);
         iface_last_fg.tv_usec = 0;
-#else
-        iface_last_fg = csock->last_fg;
-#endif
         
         TIME(now);
         

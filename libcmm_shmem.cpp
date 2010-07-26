@@ -2,7 +2,11 @@
 #include "timeops.h"
 #include "common.h"
 
-#ifdef MULTI_PROCESS_SUPPORT
+#ifdef ANDROID
+/* TODO: use Android's /dev/ashmem and IBinder interfaces
+ *       to do the shared memory stuff. 
+ */
+#else
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/sync/named_upgradable_mutex.hpp>
 #include <boost/interprocess/sync/sharable_lock.hpp>
@@ -74,7 +78,6 @@ struct fd_sharing_packet {
     int remote_fd;
     char remove_fd; // 1 iff recipient should remove this remote_fd.
 };
-
 
 void add_or_remove_csocket(struct iface_pair ifaces, //struct in_addr ip_addr, 
                            pid_t pid, int remote_fd, int local_fd, 
@@ -276,9 +279,15 @@ static void remove_proc(pid_t pid)
     scoped_lock<named_upgradable_mutex> lock(*shmem_lock);
     intnw_pids->erase(pid);
 }
+#endif /* !ANDROID */
 
 void ipc_shmem_init(bool create)
 {
+#ifdef ANDROID
+    /* TODO: use Android's /dev/ashmem and IBinder interfaces
+     *       to do the shared memory stuff. 
+     */
+#else
     // only one process should pass true here (for intnw, the scout)
     creator = create;
 
@@ -326,10 +335,16 @@ void ipc_shmem_init(bool create)
             (*all_intnw_csockets)[ifaces] = CSocketMap::mapped_type();
         }
     }
+#endif /* !ANDROID */
 }
 
 void ipc_shmem_deinit()
 {
+#ifdef ANDROID
+    /* TODO: use Android's /dev/ashmem and IBinder interfaces
+     *       to do the shared memory stuff. 
+     */
+#else
     shutdown(fd_sharing_thread_data.sock, SHUT_RDWR);
     fd_sharing_thread->join();
     delete fd_sharing_thread;
@@ -353,8 +368,14 @@ void ipc_shmem_deinit()
         shared_memory_object::remove(INTNW_SHMEM_NAME);
         named_upgradable_mutex::remove(INTNW_SHMEM_MUTEX_NAME);
     }
+#endif /* !ANDROID */
 }
 
+#ifdef ANDROID
+/* TODO: use Android's /dev/ashmem and IBinder interfaces
+ *       to do the shared memory stuff. 
+ */
+#else
 static FGDataPtr map_lookup(struct iface_pair ifaces, bool grab_lock = true)
 {
     sharable_lock<named_upgradable_mutex> read_lock;
@@ -369,10 +390,18 @@ static FGDataPtr map_lookup(struct iface_pair ifaces, bool grab_lock = true)
 
     return FGDataPtr();
 }
+#endif /* !ANDROID */
 
 #ifndef BUILDING_SCOUT
 gint ipc_last_fg_tv_sec(CSocketPtr csock)//struct in_addr ip_addr)
 {
+#ifdef ANDROID
+    /* TODO: use Android's /dev/ashmem and IBinder interfaces
+     *       to do the shared memory stuff. 
+     */
+    // for now, just mimic the old behavior.
+    return csock->get_last_fg().tv_sec;
+#else
     TimeFunctionBody timer("SHMEM_TIMING: ipc_last_fg_tv_sec");
     struct iface_pair ifaces(csock->local_iface.ip_addr,
                              csock->remote_iface.ip_addr);
@@ -382,6 +411,7 @@ gint ipc_last_fg_tv_sec(CSocketPtr csock)//struct in_addr ip_addr)
     } else {
         return 0;
     }
+#endif /* !ANDROID */
 }
 
 /*
@@ -399,15 +429,26 @@ TimeFunctionBody timer("SHMEM_TIMING: ipc_fg_sender_count");
 
 void ipc_update_fg_timestamp(struct iface_pair ifaces) //struct in_addr ip_addr)
 {
+#ifdef ANDROID
+    /* TODO: use Android's /dev/ashmem and IBinder interfaces
+     *       to do the shared memory stuff. 
+     */
+#else
     TimeFunctionBody timer("SHMEM_TIMING: ipc_update_fg_timestamp");
     struct timeval now;
     TIME(now);
     ipc_set_last_fg_tv_sec(ifaces, now.tv_sec);
+#endif
 }
 
 void ipc_set_last_fg_tv_sec(struct iface_pair ifaces, //struct in_addr ip_addr, 
                             gint secs)
 {
+#ifdef ANDROID
+    /* TODO: use Android's /dev/ashmem and IBinder interfaces
+     *       to do the shared memory stuff. 
+     */
+#else
     TimeFunctionBody timer("SHMEM_TIMING: ipc_set_last_fg_tv_sec");
 
 //     struct iface_pair ifaces(csock->local_iface.ip_addr,
@@ -416,6 +457,7 @@ void ipc_set_last_fg_tv_sec(struct iface_pair ifaces, //struct in_addr ip_addr,
     if (fg_data) {
         g_atomic_int_set(&fg_data->last_fg_tv_sec, secs);
     }
+#endif
 }
 #endif // BUILDING_SCOUT
 
@@ -475,6 +517,12 @@ TimeFunctionBody timer("SHMEM_TIMING: ipc_decrement_all_fg_senders");
 
 bool ipc_add_iface_pair(struct iface_pair ifaces)
 {
+#ifdef ANDROID
+    /* TODO: use Android's /dev/ashmem and IBinder interfaces
+     *       to do the shared memory stuff. 
+     */
+    return true;
+#else
     TimeFunctionBody timer("SHMEM_TIMING: ipc_add_iface");
     upgradable_lock<named_upgradable_mutex> lock(*shmem_lock);
     if (!map_lookup(ifaces, false)) {
@@ -510,10 +558,17 @@ bool ipc_add_iface_pair(struct iface_pair ifaces)
         dbgprintf_plain(" already added for tracking socket buffers\n");
         return false;
     }
+#endif
 }
 
 bool ipc_remove_iface_pair(struct iface_pair ifaces)
 {
+#ifdef ANDROID
+    /* TODO: use Android's /dev/ashmem and IBinder interfaces
+     *       to do the shared memory stuff. 
+     */
+    return true;
+#else
     TimeFunctionBody timer("SHMEM_TIMING: ipc_remove_iface");
     upgradable_lock<named_upgradable_mutex> lock(*shmem_lock);
     if (map_lookup(ifaces, false)) {
@@ -553,8 +608,14 @@ bool ipc_remove_iface_pair(struct iface_pair ifaces)
         dbgprintf_plain(" already removed from tracking socket buffers\n");
         return false;
     }
+#endif
 }
 
+#ifdef ANDROID
+/* TODO: use Android's /dev/ashmem and IBinder interfaces
+ *       to do the shared memory stuff. 
+ */
+#else
 bool send_csocket_to_all_pids(struct iface_pair ifaces, int local_fd, 
                               bool remove_fd)
 {
@@ -564,12 +625,10 @@ bool send_csocket_to_all_pids(struct iface_pair ifaces, int local_fd,
     {
         sharable_lock<named_upgradable_mutex> lock(*shmem_lock);
         if (true) {//map_lookup(ifaces, false)) {
-#if 0
             //I don't actually care if it's in the lookup table; 
             // I'll only call this once per CSocket destruction,
             // and I need to send the update, even if the iface
             // pair has been removed by a scout update.
-#endif
             std::set<pid_t> target_procs(intnw_pids->begin(), intnw_pids->end());
             lock.unlock();
             
@@ -596,30 +655,52 @@ bool send_csocket_to_all_pids(struct iface_pair ifaces, int local_fd,
     }
     return ret;
 }
+#endif /* !ANDROID */
 
 #ifndef BUILDING_SCOUT
 bool ipc_add_csocket(CSocketPtr csock, //struct in_addr ip_addr,
                      int local_fd)
 {
+#ifdef ANDROID
+    /* TODO: use Android's /dev/ashmem and IBinder interfaces
+     *       to do the shared memory stuff. 
+     */
+     
+    return true;
+#else
     TimeFunctionBody timer("SHMEM_TIMING: ipc_add_csocket");
     struct iface_pair ifaces(csock->local_iface.ip_addr,
                              csock->remote_iface.ip_addr);
     add_or_remove_csocket(ifaces, getpid(), local_fd, local_fd, false);
     return send_csocket_to_all_pids(ifaces, local_fd, false);
+#endif
 }
 
 bool ipc_remove_csocket(struct iface_pair ifaces, // struct in_addr ip_addr,
                         int local_fd)
 {
+#ifdef ANDROID
+    /* TODO: use Android's /dev/ashmem and IBinder interfaces
+     *       to do the shared memory stuff. 
+     */
+    return true;
+#else
     TimeFunctionBody timer("SHMEM_TIMING: ipc_remove_csocket");
     // struct iface_pair ifaces(csock->local_iface.ip_addr,
 //                              csock->remote_iface.ip_addr);
     add_or_remove_csocket(ifaces, getpid(), local_fd, local_fd, true);
     return send_csocket_to_all_pids(ifaces, local_fd, true);
+#endif
 }
 
 size_t ipc_total_bytes_inflight(CSocketPtr csock)//struct in_addr ip_addr)
 {
+#ifdef ANDROID
+    /* TODO: use Android's /dev/ashmem and IBinder interfaces
+     *       to do the shared memory stuff. 
+     */
+    return get_unsent_bytes(csock->osfd);
+#else
     TimeFunctionBody timer("SHMEM_TIMING: ipc_total_bytes_inflight");
 
     // for anticipatory scheduling, group the socket byte counting by
@@ -663,7 +744,6 @@ size_t ipc_total_bytes_inflight(CSocketPtr csock)//struct in_addr ip_addr)
               bytes, num_sockets);
 
     return bytes;
+#endif /* !ANDROID */
 }
 #endif // BUILDING_SCOUT
-
-#endif

@@ -1,20 +1,33 @@
 #ifndef LIBCMM_SHMEM_H_INCL
 #define LIBCMM_SHMEM_H_INCL
 
-#ifdef MULTI_PROCESS_SUPPORT
+#ifdef ANDROID
+/* TODO: use Android's /dev/ashmem and IBinder interfaces
+ *       to do the shared memory stuff. 
+ */
+#else
 #include <boost/interprocess/containers/set.hpp>
 #include <boost/interprocess/containers/map.hpp>
 #include <boost/interprocess/allocators/allocator.hpp>
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/smart_ptr/shared_ptr.hpp>
 #include <glib.h>
+#endif
 
-#include "csocket.h"
+#ifndef gint
+typedef int gint;
+#endif
+
 #include "debug.h"
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
+#ifdef ANDROID
+/* TODO: use Android's /dev/ashmem and IBinder interfaces
+ *       to do the shared memory stuff. 
+ */
+#else
 struct fg_iface_data {
     volatile gint last_fg_tv_sec; // last fg data on this iface, in epoch-seconds
     //volatile gint num_fg_senders; // number of processes with unACK'd FG data.
@@ -28,6 +41,7 @@ typedef boost::interprocess::managed_shared_ptr<struct fg_iface_data,
 
 typedef boost::interprocess::allocator<std::pair<struct iface_pair, FGDataPtr>, 
                                        MemMgr> FGDataAllocator;
+#endif /* !ANDROID */
 
 struct iface_pair {
     struct in_addr local_iface;
@@ -63,6 +77,11 @@ struct in_addr_less {
     }
 };
 
+#ifdef ANDROID
+/* TODO: use Android's /dev/ashmem and IBinder interfaces
+ *       to do the shared memory stuff. 
+ */
+#else
 typedef boost::interprocess::map<struct iface_pair, FGDataPtr, std::less<struct iface_pair>,
                                  FGDataAllocator> FGDataMap;
 
@@ -74,11 +93,13 @@ typedef boost::interprocess::set<int, std::less<int>, IntAllocator> ShmemIntSet;
 #define INTNW_SHMEM_MAP_NAME "IntNWLocalIfaceMap"
 #define INTNW_SHMEM_MUTEX_NAME "IntNWSharedMutex"
 #define INTNW_SHMEM_PID_SET_NAME "IntNWPIDSet"
+#endif /* !ANDROID */
 
 void ipc_shmem_init(bool create);
 void ipc_shmem_deinit();
 
 #ifndef BUILDING_SCOUT
+#include "csocket.h"
 // the scout doesn't care about these functions, and it
 //  certainly knows nothing about CSockets.
 gint ipc_last_fg_tv_sec(CSocketPtr csock); //struct in_addr ip_addr);
@@ -101,7 +122,5 @@ bool ipc_remove_csocket(struct iface_pair ifaces, //struct in_addr ip_addr,
 
 bool ipc_add_iface_pair(struct iface_pair ifaces);
 bool ipc_remove_iface_pair(struct iface_pair ifaces);
-
-#endif
 
 #endif

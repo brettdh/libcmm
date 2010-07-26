@@ -21,6 +21,7 @@ LOCAL_SRC_FILES := \
 	cmm_socket_passthrough.cpp \
 	cmm_thread.cpp \
 	cmm_timing.cpp \
+	common.cpp \
 	csocket.cpp \
 	csocket_mapping.cpp \
 	csocket_receiver.cpp \
@@ -31,6 +32,7 @@ LOCAL_SRC_FILES := \
 	libcmm.cpp \
 	libcmm_ipc.cpp \
 	libcmm_irob.cpp \
+	libcmm_shmem.cpp \
 	net_interface.cpp \
 	net_stats.cpp \
 	pending_irob.cpp \
@@ -40,6 +42,7 @@ LOCAL_SRC_FILES := \
 	timeops.cpp
 
 LOCAL_STATIC_LIBRARIES := android_libs/libboost_thread
+LOCAL_STATIC_LIBRARIES += libancillary
 LOCAL_PRELINK_MODULE := false
 include $(BUILD_SHARED_LIBRARY)
 
@@ -72,6 +75,7 @@ LOCAL_MODULE := vanilla_test_sender
 LOCAL_SRC_FILES := libcmm_test_sender.cpp timeops.cpp debug.cpp
 LOCAL_CFLAGS += -DNOMULTISOCK
 LOCAL_STATIC_LIBRARIES := android_libs/libboost_thread
+LOCAL_STATIC_LIBRARIES += libancillary
 include $(BUILD_EXECUTABLE)
 
 # vanilla_test_receiver: vanilla_test_receiver.o timeops.o

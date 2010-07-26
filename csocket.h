@@ -86,6 +86,8 @@ class CSocket {
 
     long int tcp_rto();
     void print_tcp_rto();
+    
+    struct timeval get_last_fg();
 
     struct net_interface bottleneck_iface();
 

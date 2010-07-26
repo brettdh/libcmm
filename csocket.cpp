@@ -479,6 +479,12 @@ CSocket::print_tcp_rto()
 #endif
 }
 
+struct timeval
+CSocket::get_last_fg()
+{
+    return last_fg;
+}
+
 //#define useconds(tv) ((tv).tv_sec*1000000 + (tv).tv_usec)
 
 ssize_t
