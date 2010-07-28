@@ -34,4 +34,8 @@ public class ConnScout extends Activity
             stopService(new Intent(ConnScout.this, ConnScoutService.class));
         }
     };
+    
+    public void displayUpdate(String ipAddr, boolean down) {
+        
+    }
 }

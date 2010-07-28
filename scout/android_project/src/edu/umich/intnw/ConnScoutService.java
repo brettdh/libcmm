@@ -6,11 +6,17 @@ import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.net.ConnectivityManager;
 import android.os.IBinder;
 import edu.umich.intnw.ServiceCompat;
 
+import edu.umich.intnw.ConnectivityListener;
+
 public class ConnScoutService extends ServiceCompat
 {
+    private ConnectivityListener mListener;
+
     @Override
     public void onCreate() {
         //mNM = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
@@ -19,7 +25,17 @@ public class ConnScoutService extends ServiceCompat
         if (rc < 0) {
             stopSelf();
         } else {
-            // TODO: start up network monitoring thread
+            //updateHistory = 
+            //    Collections.synchronizedList(new LinkedList<NetUpdate>());
+            
+            // TODO: start up network monitoring
+            mListener = new ConnectivityListener(this);
+            
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
+            registerReceiver(mListener, filter);
+            
+            
             showNotification();
         }
     }
@@ -32,6 +48,7 @@ public class ConnScoutService extends ServiceCompat
         
     @Override
     public void onDestroy() {
+        unregisterReceiver(mListener);
         stopScoutIPC();
         //mNM.cancel(R.string.service_started);
         Toast.makeText(this, R.string.service_stopped, 
@@ -44,6 +61,30 @@ public class ConnScoutService extends ServiceCompat
     public native void updateNetwork(String ip_addr,
                                      int bw_down, int bw_up, int rtt,
                                      boolean down);
+               
+    // public class NetUpdate implements Parcelable {
+    //     public Date timestamp;
+    //     public String ipAddr;
+    //     public boolean down;
+    // };
+    // private List<NetUpdate> updateHistory;
+    // public List<NetUpdate> getUpdateHistory() {
+    //     return updateHistory;
+    // }
+    // 
+    // public static final String BROADCAST_ACTION = 
+    //     "edu.umich.intnw.NetworkUpdateEvent";
+    // 
+    // public void logUpdate(String ip_addr, boolean down) {
+    //     NetUpdate update = new NetUpdate();
+    //     update.timestamp = new Date();
+    //     update.ipAddr = ip_addr;
+    //     update.down = down;
+    //     updateHistory.addLast(update);
+    //     
+    //     Intent updateNotification = new Intent(BROADCAST_ACTION);
+    //     sendBroadcast(updateNotification);
+    // }
 
     static {
         System.loadLibrary("conn_scout");

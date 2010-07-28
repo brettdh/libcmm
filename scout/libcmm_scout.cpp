@@ -583,13 +583,19 @@ Java_edu_umich_intnw_ConnScoutService_updateNetwork(JNIEnv *env,
         env->ReleaseStringUTFChars(ip_addr, str);
         return;
     }
-    env->ReleaseStringUTFChars(ip_addr, str);
     
+    pthread_mutex_lock(&ifaces_lock);
     if (down) {
+        LOG("updateNetwork: bringing down iface %s\n", str);
         net_interfaces.erase(iface.ip_addr.s_addr);
     } else {
+        LOG("updateNetwork: updating iface %s bw_down %d bw_up %d rtt %d\n",
+            str, bw_down, bw_up, rtt);
         net_interfaces[iface.ip_addr.s_addr] = iface;
     }
+    pthread_mutex_unlock(&ifaces_lock);
+    
+    env->ReleaseStringUTFChars(ip_addr, str);
 }
 #else /* !BUILDING_SCOUT_SHLIB */
 
