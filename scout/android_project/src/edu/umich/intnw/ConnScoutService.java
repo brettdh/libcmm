@@ -9,12 +9,22 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.os.IBinder;
-import edu.umich.intnw.ServiceCompat;
+import android.os.Binder;
+import android.os.Parcelable;
+import android.os.Parcel;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.LinkedList;
+import java.util.Date;
+
+import edu.umich.intnw.ServiceCompat;
 import edu.umich.intnw.ConnectivityListener;
 
 public class ConnScoutService extends ServiceCompat
 {
+    private static String TAG = ConnScoutService.class.getName();
+    
     private ConnectivityListener mListener;
 
     @Override
@@ -25,8 +35,8 @@ public class ConnScoutService extends ServiceCompat
         if (rc < 0) {
             stopSelf();
         } else {
-            //updateHistory = 
-            //    Collections.synchronizedList(new LinkedList<NetUpdate>());
+            updateHistory = 
+                Collections.synchronizedList(new LinkedList<NetUpdate>());
             
             // TODO: start up network monitoring
             mListener = new ConnectivityListener(this);
@@ -40,10 +50,18 @@ public class ConnScoutService extends ServiceCompat
         }
     }
 
+    public class LocalBinder extends Binder {
+        public ConnScoutService getService() {
+            return ConnScoutService.this;
+        }
+    };
+
+    private final Binder binder=new LocalBinder();
     @Override
     public IBinder onBind(Intent intent) {
         // do clients need to talk to this service at this level?
-        return null;
+        // Yes; the ConnScout Activity does.
+        return binder;
     }
         
     @Override
@@ -62,29 +80,27 @@ public class ConnScoutService extends ServiceCompat
                                      int bw_down, int bw_up, int rtt,
                                      boolean down);
                
-    // public class NetUpdate implements Parcelable {
-    //     public Date timestamp;
-    //     public String ipAddr;
-    //     public boolean down;
-    // };
-    // private List<NetUpdate> updateHistory;
-    // public List<NetUpdate> getUpdateHistory() {
-    //     return updateHistory;
-    // }
-    // 
-    // public static final String BROADCAST_ACTION = 
-    //     "edu.umich.intnw.NetworkUpdateEvent";
-    // 
-    // public void logUpdate(String ip_addr, boolean down) {
-    //     NetUpdate update = new NetUpdate();
-    //     update.timestamp = new Date();
-    //     update.ipAddr = ip_addr;
-    //     update.down = down;
-    //     updateHistory.addLast(update);
-    //     
-    //     Intent updateNotification = new Intent(BROADCAST_ACTION);
-    //     sendBroadcast(updateNotification);
-    // }
+    private List<NetUpdate> updateHistory;
+    public List<NetUpdate> getUpdateHistory() {
+        return updateHistory;
+    }
+    
+    public static final String BROADCAST_ACTION = 
+        "edu.umich.intnw.NetworkUpdateEvent";
+    public static final String BROADCAST_EXTRA = 
+        "edu.umich.intnw.NetworkUpdateExtra";
+    
+    public void logUpdate(String ip_addr, boolean down) {
+        NetUpdate update = new NetUpdate();
+        update.timestamp = new Date();
+        update.ipAddr = ip_addr;
+        update.down = down;
+        updateHistory.add(update);
+        
+        Intent updateNotification = new Intent(BROADCAST_ACTION);
+        updateNotification.putExtra(BROADCAST_EXTRA, update);
+        sendBroadcast(updateNotification);
+    }
 
     static {
         System.loadLibrary("conn_scout");
@@ -99,9 +115,10 @@ public class ConnScoutService extends ServiceCompat
             = new Notification(android.R.drawable.sym_def_app_icon, 
                                text, System.currentTimeMillis());
 
+        Intent appIntent = new Intent(this, ConnScout.class);
         // The PendingIntent to launch our activity if the user selects this notification
         PendingIntent contentIntent = PendingIntent.getActivity(
-            this, 0, new Intent(this, ConnScout.class), 0
+            this, 0, appIntent, 0
         );
 
         // Set the info for the views that show in the notification panel.
