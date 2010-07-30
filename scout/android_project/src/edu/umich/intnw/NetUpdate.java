@@ -6,6 +6,8 @@ import java.util.Date;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 
+import edu.umich.intnw.Utilities;
+
 public final class NetUpdate implements Parcelable {
     public Date timestamp;
     public String ipAddr;
@@ -50,15 +52,8 @@ public final class NetUpdate implements Parcelable {
     
     public String toString() {
         StringBuilder str = new StringBuilder();
-        Calendar cal = new GregorianCalendar();
-        cal.setTime(timestamp);
-        str.append("[")
-           .append(cal.get(Calendar.HOUR_OF_DAY))
-           .append(":")
-           .append(cal.get(Calendar.MINUTE))
-           .append(":")
-           .append(cal.get(Calendar.SECOND))
-           .append("] ")
+        str.append(Utilities.formatTimestamp(timestamp))
+           .append(" ")
            .append(ipAddr)
            .append(" ")
            .append(down ? "down" : "up");

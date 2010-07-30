@@ -19,8 +19,10 @@ import android.os.Binder;
 import android.util.Log;
 
 import java.util.List;
+import java.util.Date;
 
 import edu.umich.intnw.NetUpdate;
+import edu.umich.intnw.Utilities;
 
 public class ConnScout extends Activity
 {
@@ -77,8 +79,12 @@ public class ConnScout extends Activity
                 }
             });
         }
-        registerReceiver(mReceiver, 
-                         new IntentFilter(ConnScoutService.BROADCAST_ACTION));
+        
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(ConnScoutService.BROADCAST_ACTION);
+        filter.addAction(ConnScoutService.BROADCAST_START);
+        filter.addAction(ConnScoutService.BROADCAST_STOP);
+        registerReceiver(mReceiver, filter);
     }
     
     @Override
@@ -106,21 +112,37 @@ public class ConnScout extends Activity
         }
     };
     
-    public void displayUpdate(NetUpdate update) {
-        final String str = update.toString() + "\n";
+    private void appendToStatusField(final String str) {
         statusFieldScroll.post(new Runnable() {
             public void run() {
                 statusField.append(str);
+                statusFieldScroll.fullScroll(ScrollView.FOCUS_DOWN);
             }
         });
     }
     
+    public void displayUpdate(NetUpdate update) {
+        final String str = update.toString() + "\n";
+        appendToStatusField(str);
+    }
+    
     private BroadcastReceiver mReceiver = new BroadcastReceiver() {
         public void onReceive(Context context, Intent intent) {
-            Bundle extras = intent.getExtras();
-            NetUpdate update = 
-                (NetUpdate) extras.get(ConnScoutService.BROADCAST_EXTRA);
-            displayUpdate(update);
+            String action = intent.getAction();
+            if (action.equals(ConnScoutService.BROADCAST_ACTION)) {
+                Bundle extras = intent.getExtras();
+                NetUpdate update = 
+                    (NetUpdate) extras.get(ConnScoutService.BROADCAST_EXTRA);
+                displayUpdate(update);
+            } else if (action.equals(ConnScoutService.BROADCAST_START)) {
+                appendToStatusField(Utilities.formatTimestamp(new Date()) +
+                                    " Scout started\n");
+            } else if (action.equals(ConnScoutService.BROADCAST_STOP)) {
+                appendToStatusField(Utilities.formatTimestamp(new Date()) +
+                                    " Scout stopped\n");
+            } else {
+                // ignore; unknown
+            }
         }
     };
     

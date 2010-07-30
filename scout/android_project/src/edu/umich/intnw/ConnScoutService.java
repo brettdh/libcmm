@@ -47,6 +47,8 @@ public class ConnScoutService extends ServiceCompat
             
             
             showNotification();
+
+            sendBroadcast(new Intent(BROADCAST_START));
         }
     }
 
@@ -66,6 +68,8 @@ public class ConnScoutService extends ServiceCompat
         
     @Override
     public void onDestroy() {
+        sendBroadcast(new Intent(BROADCAST_STOP));
+        
         unregisterReceiver(mListener);
         stopScoutIPC();
         //mNM.cancel(R.string.service_started);
@@ -87,6 +91,10 @@ public class ConnScoutService extends ServiceCompat
     
     public static final String BROADCAST_ACTION = 
         "edu.umich.intnw.NetworkUpdateEvent";
+    public static final String BROADCAST_START = 
+        "edu.umich.intnw.ScoutStartEvent";
+    public static final String BROADCAST_STOP = 
+        "edu.umich.intnw.ScoutStopEvent";
     public static final String BROADCAST_EXTRA = 
         "edu.umich.intnw.NetworkUpdateExtra";
     
