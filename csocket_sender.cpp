@@ -102,7 +102,8 @@ CSocketSender::Run()
                         goodbye();
                     }
                     
-                    if (!sk->remote_shutdown) {
+                    if (!sk->remote_shutdown &&
+                        csock->csock_recvr != NULL) {
                         struct timespec rel_timeout_ts = {
                             120, 0 // 2-minute shutdown timeout
                         };
@@ -123,6 +124,9 @@ CSocketSender::Run()
                             shutdown(csock->osfd, SHUT_RD); // tell reader to exit
                         }
                     }
+                    // at this point, either we've received the remote end's
+                    //  GOODBYE message, or we know we won't receive it
+                    //  on this CSocket, so we're done.
                     return;
                 }
             }
