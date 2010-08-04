@@ -2,6 +2,20 @@ package edu.umich.intnw;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.TextView;
+import android.widget.AbsListView;
+import android.widget.ExpandableListView;
+import android.view.View.OnClickListener;
+import android.widget.Button;
+import android.view.Gravity;
+import android.widget.BaseExpandableListAdapter;
+
+import java.util.Map;
+import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
 
 public class AndroidTestHarness extends Activity
 {
@@ -11,11 +25,25 @@ public class AndroidTestHarness extends Activity
     {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
+        
+        ExpandableListView list = 
+            (ExpandableListView) findViewById(R.id.test_list);
+        list.setAdapter(mAdapter);
+        
+        Button startTests = (Button) findViewById(R.id.start_tests);
+        startTests.setOnClickListener(mStartTestsListener);
     }
     
-    // TODO: button and onClick hander for runTests
+    static {
+        System.loadLibrary("run_remote_tests");
+    }
     
-    // TODO: implement. 
+    OnClickListener mStartTestsListener = new OnClickListener() {
+        public void onClick(View v) {
+            runTests();
+        }
+    };
+    
     public native void runTests();
     
     public void addTest(String testName) {
@@ -32,27 +60,27 @@ public class AndroidTestHarness extends Activity
     
     public TestListenerAdapter mAdapter = new TestListenerAdapter();
     
+    enum TestStatus {
+        RUNNING, SUCCESS, FAILURE
+    };
     public class TestListenerAdapter extends BaseExpandableListAdapter {
-        private enum TestStatus {
-            RUNNING, SUCCESS, FAILURE
-        }
         private class TestResult {
             public TestStatus status;
             public String name;
             public String message;
             
             public TestResult(String name_) {
-                status = RUNNING;
+                status = TestStatus.RUNNING;
                 name = name_;
                 message = new String();
             }
             
             public void markSuccess() {
-                status = SUCCESS;
+                status = TestStatus.SUCCESS;
             }
             
             public void markFailure(String msg) {
-                status = FAILURE;
+                status = TestStatus.FAILURE;
                 message = msg;
             }
             
@@ -62,26 +90,26 @@ public class AndroidTestHarness extends Activity
             }
         }
         
-        private Map<String, int> testIDs = new Map<String, int>();
+        private Map<String, Integer> testIDs = new HashMap<String, Integer>();
         private List<TestResult> testResults = new ArrayList<TestResult>();
         
         // my interface
         
         public void addTest(String testName) {
-            testIDs[testName] = testResults.length;
-            testResults.append(new TestResult(testName));
+            testIDs.put(testName, testResults.size());
+            testResults.add(new TestResult(testName));
             notifyDataSetChanged();
         }
         
         public void testSuccess(String testName) {
-            int id = testIDs[testName];
-            testResults[id].markSuccess();
+            int id = testIDs.get(testName);
+            testResults.get(id).markSuccess();
             notifyDataSetChanged();
         }
         
         public void testFailure(String testName, String failureMessage) {
-            int id = testIDs[testName];
-            testResults[id].markFailure(failureMessage);
+            int id = testIDs.get(testName);
+            testResults.get(id).markFailure(failureMessage);
             notifyDataSetChanged();
         }
         
@@ -89,7 +117,7 @@ public class AndroidTestHarness extends Activity
         
         public Object getChild(int groupPosition, int childPosition) {
             // only one child for testResults.
-            return testResults[groupPosition].message;
+            return testResults.get(groupPosition).message;
         }
 
         public long getChildId(int groupPosition, int childPosition) {
@@ -99,7 +127,7 @@ public class AndroidTestHarness extends Activity
         public int getChildrenCount(int groupPosition) {
             // only one child for testResults.
             TestResult result = (TestResult) getGroup(groupPosition);
-            return (result.status == FAILURE) ? 1 : 0;
+            return (result.status == TestStatus.FAILURE) ? 1 : 0;
         }
 
         public TextView getGenericView() {
@@ -107,7 +135,7 @@ public class AndroidTestHarness extends Activity
             AbsListView.LayoutParams lp = new AbsListView.LayoutParams(
                     ViewGroup.LayoutParams.FILL_PARENT, 64);
 
-            TextView textView = new TextView(ExpandableList1.this);
+            TextView textView = new TextView(AndroidTestHarness.this);
             textView.setLayoutParams(lp);
             // Center the text vertically
             textView.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
@@ -126,11 +154,11 @@ public class AndroidTestHarness extends Activity
         }
 
         public Object getGroup(int groupPosition) {
-            return testResults[groupPosition];
+            return testResults.get(groupPosition);
         }
 
         public int getGroupCount() {
-            return testResults.length;
+            return testResults.size();
         }
 
         public long getGroupId(int groupPosition) {
