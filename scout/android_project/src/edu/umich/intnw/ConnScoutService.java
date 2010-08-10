@@ -1,4 +1,4 @@
-package edu.umich.intnw;
+package edu.umich.intnw.scout;
 
 import android.app.Service;
 import android.widget.Toast;
@@ -18,8 +18,8 @@ import java.util.List;
 import java.util.LinkedList;
 import java.util.Date;
 
-import edu.umich.intnw.ServiceCompat;
-import edu.umich.intnw.ConnectivityListener;
+import edu.umich.intnw.scout.ServiceCompat;
+import edu.umich.intnw.scout.ConnectivityListener;
 
 public class ConnScoutService extends ServiceCompat
 {
@@ -90,13 +90,13 @@ public class ConnScoutService extends ServiceCompat
     }
     
     public static final String BROADCAST_ACTION = 
-        "edu.umich.intnw.NetworkUpdateEvent";
+        "edu.umich.intnw.scout.NetworkUpdateEvent";
     public static final String BROADCAST_START = 
-        "edu.umich.intnw.ScoutStartEvent";
+        "edu.umich.intnw.scout.ScoutStartEvent";
     public static final String BROADCAST_STOP = 
-        "edu.umich.intnw.ScoutStopEvent";
+        "edu.umich.intnw.scout.ScoutStopEvent";
     public static final String BROADCAST_EXTRA = 
-        "edu.umich.intnw.NetworkUpdateExtra";
+        "edu.umich.intnw.scout.NetworkUpdateExtra";
     
     public void logUpdate(String ip_addr, boolean down) {
         NetUpdate update = new NetUpdate();

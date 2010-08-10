@@ -1,4 +1,4 @@
-package edu.umich.intnw;
+package edu.umich.intnw.scout;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -17,7 +17,7 @@ import java.util.Enumeration;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 
-import edu.umich.intnw.ConnScoutService;
+import edu.umich.intnw.scout.ConnScoutService;
 
 public class ConnectivityListener extends BroadcastReceiver {
     private static String TAG = ConnectivityListener.class.getName();

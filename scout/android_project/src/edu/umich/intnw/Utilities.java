@@ -1,4 +1,4 @@
-package edu.umich.intnw;
+package edu.umich.intnw.scout;
 
 import java.util.Date;
 import java.util.Calendar;

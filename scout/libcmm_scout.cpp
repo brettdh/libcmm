@@ -529,8 +529,8 @@ static void emulate_slice(struct trace_slice slice, struct timeval end,
 #ifdef BUILDING_SCOUT_SHLIB
 extern "C"
 jint 
-Java_edu_umich_intnw_ConnScoutService_startScoutIPC(JNIEnv *env, 
-                                                    jobject thiz)
+Java_edu_umich_intnw_scout_ConnScoutService_startScoutIPC(JNIEnv *env, 
+                                                          jobject thiz)
 {
     if (!running) {
         //set_signal(SIGINT, handle_term);
@@ -548,8 +548,8 @@ Java_edu_umich_intnw_ConnScoutService_startScoutIPC(JNIEnv *env,
 
 extern "C"
 void 
-Java_edu_umich_intnw_ConnScoutService_stopScoutIPC(JNIEnv *env, 
-                                                   jobject thiz)
+Java_edu_umich_intnw_scout_ConnScoutService_stopScoutIPC(JNIEnv *env, 
+                                                         jobject thiz)
 {
     LOG("Scout attempting to quit gracefully...\n");
     running = false;
@@ -559,13 +559,13 @@ Java_edu_umich_intnw_ConnScoutService_stopScoutIPC(JNIEnv *env,
 
 extern "C"
 void 
-Java_edu_umich_intnw_ConnScoutService_updateNetwork(JNIEnv *env, 
-                                                    jobject thiz,
-                                                    jstring ip_addr, 
-                                                    jint bw_down, 
-                                                    jint bw_up, 
-                                                    jint rtt,
-                                                    jboolean down)
+Java_edu_umich_intnw_scout_ConnScoutService_updateNetwork(JNIEnv *env, 
+                                                          jobject thiz,
+                                                          jstring ip_addr, 
+                                                          jint bw_down, 
+                                                          jint bw_up, 
+                                                          jint rtt,
+                                                          jboolean down)
 {
     struct net_interface iface;
     iface.bandwidth_down = (u_long)bw_down;

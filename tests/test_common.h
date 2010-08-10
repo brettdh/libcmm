@@ -25,4 +25,9 @@ void assertEqWithin(const std::string& actual_str,
                  message, expected, actual, alpha, CPPUNIT_SOURCELINE())
 
 
+#ifdef ANDROID
+void LOG(const char *fmt, ...)
+    __attribute__((format(printf, 1, 2)));
+#endif
+
 #endif

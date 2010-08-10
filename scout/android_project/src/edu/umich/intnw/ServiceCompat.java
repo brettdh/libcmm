@@ -1,4 +1,4 @@
-package edu.umich.intnw;
+package edu.umich.intnw.scout;
 
 import android.app.Service;
 import android.app.Notification;

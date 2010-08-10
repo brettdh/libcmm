@@ -1,4 +1,4 @@
-package edu.umich.intnw;
+package edu.umich.intnw.scout;
 
 import android.app.Activity;
 import android.os.Bundle;
@@ -21,8 +21,8 @@ import android.util.Log;
 import java.util.List;
 import java.util.Date;
 
-import edu.umich.intnw.NetUpdate;
-import edu.umich.intnw.Utilities;
+import edu.umich.intnw.scout.NetUpdate;
+import edu.umich.intnw.scout.Utilities;
 
 public class ConnScout extends Activity
 {

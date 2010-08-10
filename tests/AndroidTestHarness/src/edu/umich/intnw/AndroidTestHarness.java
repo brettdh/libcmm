@@ -1,4 +1,4 @@
-package edu.umich.intnw;
+package edu.umich.intnw.androidtestharness;
 
 import android.app.Activity;
 import android.os.Bundle;
@@ -9,8 +9,10 @@ import android.widget.AbsListView;
 import android.widget.ExpandableListView;
 import android.view.View.OnClickListener;
 import android.widget.Button;
+import android.widget.Toast;
 import android.view.Gravity;
 import android.widget.BaseExpandableListAdapter;
+import android.util.Log;
 
 import java.util.Map;
 import java.util.HashMap;
@@ -19,6 +21,10 @@ import java.util.ArrayList;
 
 public class AndroidTestHarness extends Activity
 {
+    private static String TAG = AndroidTestHarness.class.getName();
+    private Button mBtnStartTests;
+    private ExpandableListView mTestList;
+    
     /** Called when the activity is first created. */
     @Override
     public void onCreate(Bundle savedInstanceState)
@@ -26,12 +32,13 @@ public class AndroidTestHarness extends Activity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
         
-        ExpandableListView list = 
-            (ExpandableListView) findViewById(R.id.test_list);
-        list.setAdapter(mAdapter);
+        Log.d(TAG, "Starting up android test harness");
+
+        mTestList = (ExpandableListView) findViewById(R.id.test_list);
+        mTestList.setAdapter(mAdapter);
         
-        Button startTests = (Button) findViewById(R.id.start_tests);
-        startTests.setOnClickListener(mStartTestsListener);
+        mBtnStartTests = (Button) findViewById(R.id.start_tests);
+        mBtnStartTests.setOnClickListener(mStartTestsListener);
     }
     
     static {
@@ -40,7 +47,29 @@ public class AndroidTestHarness extends Activity
     
     OnClickListener mStartTestsListener = new OnClickListener() {
         public void onClick(View v) {
-            runTests();
+            mAdapter.reset();
+            
+            new Thread(new Runnable() {
+                public void run() {
+                    mBtnStartTests.post(new Runnable() {
+                        public void run() {
+                            mBtnStartTests.setEnabled(false);
+                            Toast.makeText(AndroidTestHarness.this,
+                                           "Started running tests.", 
+                                           Toast.LENGTH_SHORT).show();                        }
+                    });
+                    runTests();
+
+                    mBtnStartTests.post(new Runnable() {
+                        public void run() {
+                            Toast.makeText(AndroidTestHarness.this,
+                                           "Tests complete.", 
+                                           Toast.LENGTH_SHORT).show();
+                            mBtnStartTests.setEnabled(true);
+                        }
+                    });
+                }
+            }).start();
         }
     };
     
@@ -95,22 +124,45 @@ public class AndroidTestHarness extends Activity
         
         // my interface
         
-        public void addTest(String testName) {
-            testIDs.put(testName, testResults.size());
-            testResults.add(new TestResult(testName));
-            notifyDataSetChanged();
+        public void addTest(final String testName) {
+            mTestList.post(new Runnable() {
+                public void run() {
+                    testIDs.put(testName, testResults.size());
+                    testResults.add(new TestResult(testName));
+                    notifyDataSetChanged();
+                }
+            });
         }
         
-        public void testSuccess(String testName) {
-            int id = testIDs.get(testName);
-            testResults.get(id).markSuccess();
-            notifyDataSetChanged();
+        public void testSuccess(final String testName) {
+            mTestList.post(new Runnable() {
+                public void run() {
+                    int id = testIDs.get(testName);
+                    testResults.get(id).markSuccess();
+                    notifyDataSetChanged();
+                }
+            });
         }
         
-        public void testFailure(String testName, String failureMessage) {
-            int id = testIDs.get(testName);
-            testResults.get(id).markFailure(failureMessage);
-            notifyDataSetChanged();
+        public void testFailure(final String testName, 
+                                final String failureMessage) {
+            mTestList.post(new Runnable() {
+                public void run() {
+                    int id = testIDs.get(testName);
+                    testResults.get(id).markFailure(failureMessage);
+                    notifyDataSetChanged();
+                }
+            });
+        }
+        
+        public void reset() {
+            mTestList.post(new Runnable() {
+                public void run() {
+                    testIDs.clear();
+                    testResults.clear();
+                    notifyDataSetChanged();
+                }
+            });
         }
         
         // Adapter support functions

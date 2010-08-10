@@ -1,4 +1,4 @@
-package edu.umich.intnw;
+package edu.umich.intnw.scout;
 
 import android.os.Parcelable;
 import android.os.Parcel;
@@ -6,7 +6,7 @@ import java.util.Date;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 
-import edu.umich.intnw.Utilities;
+import edu.umich.intnw.scout.Utilities;
 
 public final class NetUpdate implements Parcelable {
     public Date timestamp;

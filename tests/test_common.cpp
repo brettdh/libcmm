@@ -18,6 +18,20 @@
 #include <cmath>
 using std::fabs;
 
+#ifdef ANDROID
+#include <android/log.h>
+void LOG(const char *fmt, ...)
+{
+    return;
+    va_list ap;
+    va_start(ap, fmt);
+    __android_log_vprint(ANDROID_LOG_INFO, "AndroidTestHarness", fmt, ap);
+    va_end(ap);
+}
+#else
+#define LOG dbgprintf_always
+#endif
+
 void nowake_nanosleep(const struct timespec *duration)
 {
     struct timespec time_left;
@@ -34,14 +48,17 @@ void nowake_nanosleep(const struct timespec *duration)
 void print_on_error(bool err, const char *str)
 {
     if (err) {
+        int e = errno;
         perror(str);
+        LOG("fatal error: %s: %s\n", str, strerror(e));
     }
 }
 
 void handle_error(bool condition, const char *msg)
 {
     if (condition) {
-        perror(msg);
+        int e = errno;
+        LOG("Exiting on fatal error: %s: %s\n", msg, strerror(e));
         exit(EXIT_FAILURE);
     }
 }

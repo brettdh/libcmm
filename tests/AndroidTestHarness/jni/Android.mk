@@ -31,6 +31,6 @@ LOCAL_CFLAGS := $(common_CFLAGS)
 LOCAL_LDLIBS := -L$(LOCAL_PATH)/../../../android_libs \
 		-L/Users/brettdh/src/android-source/out/target/product/generic/obj/lib \
 		-Wl,-rpath-link=/Users/brettdh/src/android-source/out/target/product/generic/obj/lib \
- 	        -lcmm -lssl -lcrypto -lcppunit -lboost_thread
+ 	        -lcmm -lssl -lcrypto -lcppunit -lboost_thread -llog
 
 include $(BUILD_SHARED_LIBRARY)
