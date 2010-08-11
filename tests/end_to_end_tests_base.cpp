@@ -135,7 +135,8 @@ EndToEndTestsBase::startSender()
         struct hostent *he = gethostbyname(hostname);
         if (!he) {
             herror("gethostbyname");
-            exit(EXIT_FAILURE);
+            //exit(EXIT_FAILURE);
+            abort_test("gethostbyname failed");
         }
         
         memcpy(&addr.sin_addr, he->h_addr, he->h_length);

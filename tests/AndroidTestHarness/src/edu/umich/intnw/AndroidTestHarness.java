@@ -185,14 +185,15 @@ public class AndroidTestHarness extends Activity
         public TextView getGenericView() {
             // Layout parameters for the ExpandableListView
             AbsListView.LayoutParams lp = new AbsListView.LayoutParams(
-                    ViewGroup.LayoutParams.FILL_PARENT, 64);
+                    ViewGroup.LayoutParams.FILL_PARENT, 
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
 
             TextView textView = new TextView(AndroidTestHarness.this);
             textView.setLayoutParams(lp);
             // Center the text vertically
             textView.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
             // Set the text starting position
-            textView.setPadding(36, 0, 0, 0);
+            textView.setPadding(36, 18, 18, 18);
             return textView;
         }
 
@@ -222,13 +223,11 @@ public class AndroidTestHarness extends Activity
             TextView textView = getGenericView();
             TestResult result = (TestResult) getGroup(groupPosition);
             textView.setText(result.toString());
-            /* TODO: 
-                if (result.status == SUCCESS) {}
-                    textView.setBackgroundColor(green);
-                } else if (result.status == FAILURE) {
-                    textView.setBackgroundColor(red);
-                }
-             */
+            if (result.status == TestStatus.SUCCESS) {
+                textView.setBackgroundColor(0xff004400);
+            } else if (result.status == TestStatus.FAILURE) {
+                textView.setBackgroundColor(0xff440000);
+            }
             return textView;
         }
         

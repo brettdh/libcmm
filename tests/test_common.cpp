@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <libcmm.h>
 #include <stdexcept>
+using std::runtime_error;
 
 #include <cppunit/Message.h>
 #include <cppunit/Asserter.h>
@@ -59,8 +60,17 @@ void handle_error(bool condition, const char *msg)
     if (condition) {
         int e = errno;
         LOG("Exiting on fatal error: %s: %s\n", msg, strerror(e));
-        exit(EXIT_FAILURE);
+        std::ostringstream s;
+        s << msg << ": " << strerror(e);
+        throw runtime_error(s.str());
+        //exit(EXIT_FAILURE);
     }
+}
+
+void abort_test(const char *msg)
+{
+    LOG("Exiting on fatal error: %s\n", msg);
+    throw runtime_error(msg);
 }
 
 void assertEqWithin(const std::string& actual_str, 

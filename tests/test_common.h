@@ -10,6 +10,7 @@ void handle_error(bool condition, const char *msg);
 
 void nowake_nanosleep(const struct timespec *duration);
 void print_on_error(bool err, const char *str);
+void abort_test(const char *msg);
 int get_int_from_string(const char *str, const char *name);
 
 #include <cppunit/SourceLine.h>

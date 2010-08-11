@@ -4,9 +4,17 @@
 #include <cppunit/Test.h>
 #include <cppunit/TestFailure.h>
 #include <cppunit/TestResult.h>
+#include <cppunit/Exception.h>
+#include <cppunit/SourceLine.h>
 
 #include <unistd.h>
 #include <jni.h>
+#include <stdexcept>
+#include <string>
+#include <sstream>
+using std::string;
+using std::exception;
+using std::endl;
 
 using CppUnit::TestFactoryRegistry;
 using CppUnit::TestListener;
@@ -35,10 +43,10 @@ static void DEBUG(const char *fmt, ...)
 class AndroidTestListener : public TestListener {
     JNIEnv *jenv;
     jobject jobj;
-    bool lastTestFailed;
+    TestFailure *lastFailure;
   public:
     AndroidTestListener(JNIEnv *jenv_, jobject jobj_) 
-        : jenv(jenv_), jobj(jobj_), lastTestFailed(false) {
+        : jenv(jenv_), jobj(jobj_), lastFailure(NULL) {
         DEBUG("Created test listener\n");
     }
     
@@ -48,24 +56,35 @@ class AndroidTestListener : public TestListener {
     
     virtual void startTest(Test *test) {
         DEBUG("Starting new test\n");
-        lastTestFailed = false;
         upcall("addTest", "(Ljava/lang/String;)V", test->getName().c_str());
     }
     
     virtual void addFailure(const TestFailure &failure) {
-        lastTestFailed = true;
+        lastFailure = failure.clone();
     }
     
     virtual void endTest(Test *test) {
-        if (lastTestFailed) {
+        if (lastFailure) {
             DEBUG("Current test failed\n");
+            std::ostringstream s;
+            s << lastFailure->sourceLine().fileName() << ":"
+              << lastFailure->sourceLine().lineNumber() << endl
+              << lastFailure->thrownException()->what();
             upcall("testFailure", "(Ljava/lang/String;Ljava/lang/String;)V",
-                   test->getName().c_str(), "oops!");
+                   test->getName().c_str(), s.str().c_str());
+            delete lastFailure;
+            lastFailure = NULL;
         } else {
             DEBUG("Current test passed\n");
             upcall("testSuccess", "(Ljava/lang/String;)V", 
                    test->getName().c_str());
         }
+    }
+    
+    void addFailureMessage(const string& testName, const string& msg) {
+        upcall("addTest", "(Ljava/lang/String;)V", testName.c_str());
+        upcall("testFailure", "(Ljava/lang/String;Ljava/lang/String;)V",
+               testName.c_str(), msg.c_str());
     }
     
     virtual void startSuite(Test *suite) {}
@@ -103,14 +122,15 @@ class AndroidTestListener : public TestListener {
 
 JNIEXPORT void JNICALL 
 Java_edu_umich_intnw_androidtestharness_AndroidTestHarness_runTests(
-    JNIEnv *jenv, jobject obj)
+    JNIEnv *jenv, jobject jobj)
 {
     // XXX: if I want to run any other set of tests, I can't use the registry.
     // ...unless I make a separate .apk for each test harness.
+    AndroidTestListener listener(jenv, jobj);
     try {
         TestFactoryRegistry& registry = TestFactoryRegistry::getRegistry();
         TestResult result;
-        result.addListener(new AndroidTestListener(jenv, obj));
+        result.addListener(&listener);
         
         TestRunner runner;
         runner.addTest(registry.makeTest());
@@ -118,6 +138,8 @@ Java_edu_umich_intnw_androidtestharness_AndroidTestHarness_runTests(
         runner.run(result);
     } catch (int e) {
         DEBUG("Running tests failed!\n");
+    } catch (exception &e) {
+        listener.addFailureMessage("Failed to start tests", e.what());
     }
 }
 
