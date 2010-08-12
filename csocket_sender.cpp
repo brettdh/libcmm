@@ -142,10 +142,8 @@ CSocketSender::Run()
                 }
             }
 
-            if (schedule_work(csock->irob_indexes)) {
-                continue;
-            }
-            if (schedule_work(sk->irob_indexes)) {
+            if (schedule_work(csock->irob_indexes) ||
+                schedule_work(sk->irob_indexes)) {
                 continue;
             }
 
@@ -183,7 +181,10 @@ CSocketSender::Run()
             if (dropped_lock) {
                 // I dropped the lock, so I should re-check the 
                 // IROB scheduling indexes.
-                continue;
+                if (schedule_work(csock->irob_indexes) ||
+                    schedule_work(sk->irob_indexes)) {
+                    continue;
+                }
             }
             
             struct timespec timeout = {-1, 0};
