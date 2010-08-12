@@ -29,8 +29,6 @@ void LOG(const char *fmt, ...)
     __android_log_vprint(ANDROID_LOG_INFO, "AndroidTestHarness", fmt, ap);
     va_end(ap);
 }
-#else
-#define LOG dbgprintf_always
 #endif
 
 void nowake_nanosleep(const struct timespec *duration)

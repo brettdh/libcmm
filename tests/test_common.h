@@ -29,6 +29,9 @@ void assertEqWithin(const std::string& actual_str,
 #ifdef ANDROID
 void LOG(const char *fmt, ...)
     __attribute__((format(printf, 1, 2)));
+#else
+#include "debug.h"
+#define LOG dbgprintf_always
 #endif
 
 #endif

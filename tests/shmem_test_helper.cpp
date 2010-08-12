@@ -81,7 +81,10 @@ void child_process(in_port_t port)
 
     fprintf(stderr, "[Sender helper %d] removing socket and exiting.\n",
             getpid());
-    ipc_remove_csocket(csocket1, sock);
+    //ipc_remove_csocket(csocket1, sock);
+    ipc_remove_csocket(iface_pair(csocket1->local_iface.ip_addr,
+                                  csocket1->remote_iface.ip_addr), sock);
+
     close(sock);
 }
 
@@ -115,7 +118,10 @@ void parent_process(int listen_sock)
     fprintf(stderr, "[Receiver helper %d] removing socket and exiting.\n",
             getpid());
 
-    ipc_remove_csocket(csocket1, sock);
+    //ipc_remove_csocket(csocket1, sock);
+    ipc_remove_csocket(iface_pair(csocket1->local_iface.ip_addr,
+                                  csocket1->remote_iface.ip_addr), sock);
+
     close(sock);
 }
 

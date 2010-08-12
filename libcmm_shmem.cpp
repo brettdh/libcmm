@@ -216,6 +216,7 @@ static int send_local_csocket_fd(struct iface_pair ifaces, //struct in_addr ip_a
                                  int local_fd, bool remove_fd)
 {
     struct fd_sharing_packet packet;
+    memset(&packet, 0, sizeof(packet));
     packet.ifaces = ifaces;
     packet.pid = getpid();
     packet.remote_fd = local_fd;

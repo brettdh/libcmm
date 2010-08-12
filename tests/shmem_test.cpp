@@ -83,13 +83,15 @@ ShmemTest::testMap()
     ipc_add_iface_pair(iface_pair(csocket1->local_iface.ip_addr,
                                   csocket1->remote_iface.ip_addr));
     CPPUNIT_ASSERT_EQUAL(0, ipc_last_fg_tv_sec(csocket1));
-    ipc_update_fg_timestamp(csocket1);
+    ipc_update_fg_timestamp(iface_pair(csocket1->local_iface.ip_addr,
+                                       csocket1->remote_iface.ip_addr));
     CPPUNIT_ASSERT(ipc_last_fg_tv_sec(csocket1) > 0);
 
     ipc_add_iface_pair(iface_pair(csocket2->local_iface.ip_addr,
                                   csocket2->remote_iface.ip_addr));
     CPPUNIT_ASSERT_EQUAL(0, ipc_last_fg_tv_sec(csocket2));
-    ipc_update_fg_timestamp(csocket2);
+    ipc_update_fg_timestamp(iface_pair(csocket2->local_iface.ip_addr,
+                                       csocket2->remote_iface.ip_addr));
     CPPUNIT_ASSERT(ipc_last_fg_tv_sec(csocket2) > 0);
 
     ipc_remove_iface_pair(iface_pair(csocket1->local_iface.ip_addr,
