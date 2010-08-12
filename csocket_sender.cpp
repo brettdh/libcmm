@@ -149,10 +149,12 @@ CSocketSender::Run()
                 continue;
             }
 
+            bool dropped_lock = false;
             if (!csock->is_busy()) {
                 pthread_mutex_unlock(&sk->scheduling_state_lock);
                 fire_thunks();
                 pthread_mutex_lock(&sk->scheduling_state_lock);
+                dropped_lock = true;
             }
 
             // resend End_IROB messages for all unACK'd IROBs whose
@@ -175,6 +177,12 @@ CSocketSender::Run()
             if (!unacked_irobs.empty()) {
                 // loop back around and check whether I should 
                 //  resend some of those End_IROB messages
+                continue;
+            }
+            
+            if (dropped_lock) {
+                // I dropped the lock, so I should re-check the 
+                // IROB scheduling indexes.
                 continue;
             }
             
