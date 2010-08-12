@@ -17,7 +17,7 @@ common_C_INCLUDES := \
 		external/bdh_apps/cppunit/include \
                 external/bdh_apps/libcmm \
                 external/openssl/include)
-common_CFLAGS:=-DANDROID -DCMM_UNIT_TESTING -DCMM_DEBUG -g -O0
+common_CFLAGS:=-DANDROID -DNDK_BUILD -DCMM_UNIT_TESTING -DCMM_DEBUG -g -O0
 
 LOCAL_MODULE := run_remote_tests
 LOCAL_SRC_FILES := \

@@ -38,7 +38,7 @@ EndToEndTestsBase::setupReceiver()
     int rc = setsockopt (listen_sock, SOL_SOCKET, SO_REUSEADDR,
                          (char *) &on, sizeof(on));
     if (rc < 0) {
-        LOG("Cannot reuse socket address\n");
+        DEBUG_LOG("Cannot reuse socket address\n");
     }
     
     struct sockaddr_in addr;
@@ -53,7 +53,7 @@ EndToEndTestsBase::setupReceiver()
     
     rc = cmm_listen(listen_sock, 5);
     handle_error(rc < 0, "cmm_listen");
-    LOG("Receiver is listening...\n");
+    DEBUG_LOG("Receiver is listening...\n");
 }
 
 void 
@@ -62,7 +62,7 @@ EndToEndTestsBase::setUp()
     //int rc = -1;
     // rc = system("ps aux | grep -v grep | grep conn_scout > /dev/null");
     // if (rc != 0) {
-    //     LOG("conn_scout is not running; please start it first.\n");
+    //     DEBUG_LOG("conn_scout is not running; please start it first.\n");
     //     exit(EXIT_FAILURE);
     // }
 
@@ -80,7 +80,7 @@ EndToEndTestsBase::setUp()
     } else {
         waitForReceiver();
 
-        LOG("Starting sender\n");
+        DEBUG_LOG("Starting sender\n");
         startSender();
     }
 }
@@ -107,7 +107,7 @@ EndToEndTestsBase::startReceiver()
                            (struct sockaddr *)&addr,
                            &addrlen);
     handle_error(read_sock < 0, "cmm_accept");
-    LOG("Receiver accepted connection %d\n", read_sock);
+    DEBUG_LOG("Receiver accepted connection %d\n", read_sock);
 }
 
 void
@@ -128,10 +128,10 @@ EndToEndTestsBase::startSender()
     addr.sin_family = AF_INET;
 
     if (!strcmp(hostname, "localhost")) {
-        LOG("Using INADDR_LOOPBACK\n");
+        DEBUG_LOG("Using INADDR_LOOPBACK\n");
         addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     } else {
-        LOG("Looking up %s\n", hostname);
+        DEBUG_LOG("Looking up %s\n", hostname);
         struct hostent *he = gethostbyname(hostname);
         if (!he) {
             herror("gethostbyname");
@@ -140,18 +140,18 @@ EndToEndTestsBase::startSender()
         }
         
         memcpy(&addr.sin_addr, he->h_addr, he->h_length);
-        LOG("Resolved %s to %s\n", 
+        DEBUG_LOG("Resolved %s to %s\n", 
                 hostname, inet_ntoa(addr.sin_addr));
     }
     addr.sin_port = htons(TEST_PORT);
 
     socklen_t addrlen = sizeof(addr);
 
-    LOG("Sender is connecting...\n");
+    DEBUG_LOG("Sender is connecting...\n");
     int rc = cmm_connect(send_sock, (struct sockaddr*)&addr, addrlen);
     handle_error(rc < 0, "cmm_connect");
 
-    LOG("Sender is connected.\n");
+    DEBUG_LOG("Sender is connected.\n");
 }
 
 void
@@ -164,7 +164,7 @@ EndToEndTestsBase::receiveAndChecksum()
                                  (int)sizeof(bytes), rc);
     
     bytes = ntohl(bytes);
-    LOG("Receiving %d random bytes and digest\n", bytes);
+    DEBUG_LOG("Receiving %d random bytes and digest\n", bytes);
     
     unsigned char *buf = new unsigned char[bytes];
     rc = cmm_recv(read_sock, buf, bytes, 
@@ -187,12 +187,12 @@ EndToEndTestsBase::receiveAndChecksum()
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiver: checking that digests match", 
                                  0, rc);
     
-    LOG("Received %d bytes, digest matches.\n", bytes);
+    DEBUG_LOG("Received %d bytes, digest matches.\n", bytes);
     char c = 0;
     rc = cmm_write(read_sock, &c, 1, 0, NULL, NULL);
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Sent 1 byte", 1, rc);
 
-    LOG("Receiver finished.\n");
+    DEBUG_LOG("Receiver finished.\n");
 }
 
 void
@@ -231,24 +231,24 @@ EndToEndTestsBase::testRandomBytesReceivedCorrectly()
         int rand_fd = open("/dev/urandom", O_RDONLY);
         CPPUNIT_ASSERT_MESSAGE("Opening /dev/urandom", rand_fd != -1);
         
-        //LOG("Reading %d bytes from /dev/urandom\n", bytes);
+        //DEBUG_LOG("Reading %d bytes from /dev/urandom\n", bytes);
         int rc = read(rand_fd, buf, bytes);
         if (rc != bytes) {
-            LOG("Failed to read random bytes! rc=%d, errno=%d\n",
+            DEBUG_LOG("Failed to read random bytes! rc=%d, errno=%d\n",
                     rc, errno);
         }
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Reading bytes from /dev/urandom",
                                      bytes, rc);
         close(rand_fd);
         
-        LOG("Sending %d random bytes and digest\n", bytes);
+        DEBUG_LOG("Sending %d random bytes and digest\n", bytes);
         sendMessageSize(bytes);
         rc = cmm_send(send_sock, buf, bytes, 0, 0, NULL, NULL);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending message", bytes, rc);
         
         sendChecksum(buf, bytes);
 
-        LOG("Sender finished.\n");
+        DEBUG_LOG("Sender finished.\n");
     }
 }
 
@@ -266,7 +266,7 @@ EndToEndTestsBase::testNoInterleaving()
             irob_ids[i] = -1;
         }
 
-        LOG("Sending %d integers in byte-sized chunks, "
+        DEBUG_LOG("Sending %d integers in byte-sized chunks, "
                "in separate IROBs\n", numints);
         sendMessageSize(sizeof(int)*numints);
         for (int i = 0; i < (int)sizeof(int); ++i) {
@@ -287,7 +287,7 @@ EndToEndTestsBase::testNoInterleaving()
             }
         }
         sendChecksum((unsigned char*)ints, sizeof(int)*numints);
-        LOG("Sender finished.\n");
+        DEBUG_LOG("Sender finished.\n");
     }
 }
 
@@ -308,7 +308,7 @@ EndToEndTestsBase::testPartialRecv()
         char buf[blocksize];
         memset(buf, 0, blocksize);
 
-        LOG("Attempting to receive %d bytes "
+        DEBUG_LOG("Attempting to receive %d bytes "
                 "with a stuttering sender\n", msglen);
 
         int bytes_recvd = 0;
@@ -328,7 +328,7 @@ EndToEndTestsBase::testPartialRecv()
             CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending response integer",
                                          (int)sizeof(resp), rc);
         }
-        LOG("Received %d bytes successfully.\n",
+        DEBUG_LOG("Received %d bytes successfully.\n",
                 bytes_recvd);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Received all bytes",
                                      msglen, bytes_recvd);        
@@ -375,11 +375,11 @@ EndToEndTestsBase::testCMMPoll()
         fd.events = POLLIN;
         fd.revents = 0;
 
-        LOG("Receiver: polling for 3 seconds\n");
+        DEBUG_LOG("Receiver: polling for 3 seconds\n");
         int rc = cmm_poll(&fd, 1, 3000);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("First poll times out",
                                      0, rc);
-        LOG("Receiver: polling for 3 seconds\n");
+        DEBUG_LOG("Receiver: polling for 3 seconds\n");
         rc = cmm_poll(&fd, 1, -1);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Second poll returns 1",
                                      1, rc);
@@ -392,9 +392,9 @@ EndToEndTestsBase::testCMMPoll()
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Received byte is correct",
                                      ANSWER, c);
     } else {
-        LOG("Sender: waiting 5 seconds\n");
+        DEBUG_LOG("Sender: waiting 5 seconds\n");
         sleep(5);
-        LOG("Sender: sending one byte\n");
+        DEBUG_LOG("Sender: sending one byte\n");
         char c = ANSWER;
         int rc = cmm_send(send_sock, &c, 1, 0, 0, NULL, NULL);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending one byte succeeds",
@@ -408,11 +408,11 @@ static bool is_sorted(const int nums[], size_t n)
 {
     for (size_t i = 0; i < n - 1; ++i) {
         if (nums[i] > nums[i+1]) {
-            LOG("Not sorted! [ ");
+            DEBUG_LOG("Not sorted! [ ");
             for (size_t j = 0; j < n; ++j) {
-                LOG("%d ", nums[j]);
+                DEBUG_LOG("%d ", nums[j]);
             }
-            LOG("]\n");
+            DEBUG_LOG("]\n");
             return false;
         }
     }
@@ -427,20 +427,20 @@ EndToEndTestsBase::receiverAssertIntsSorted(int nums[], size_t n)
     CPPUNIT_ASSERT_EQUAL_MESSAGE("Receiving integers",
                                  (int)(n*sizeof(int)), rc);
     
-    LOG("Received 10 integers, checking sorting\n");
+    DEBUG_LOG("Received 10 integers, checking sorting\n");
     for (size_t i = 0; i < n; ++i) {
         nums[i] = ntohl(nums[i]);
     }
     CPPUNIT_ASSERT_MESSAGE("Integers are sorted least-to-greatest",
                            is_sorted(nums, n));
 
-    LOG("Received integers in correct order.\n");
+    DEBUG_LOG("Received integers in correct order.\n");
 }
 
 void
 EndToEndTestsBase::testHalfShutdown()
 {
-    LOG("Testing half-shutdown socket\n");
+    DEBUG_LOG("Testing half-shutdown socket\n");
     if (isReceiver()) {
         for (int i = 0; i < 2; ++i) {
             int num = -1;
@@ -449,20 +449,20 @@ EndToEndTestsBase::testHalfShutdown()
                                          (int)sizeof(int), rc);
             CPPUNIT_ASSERT_EQUAL_MESSAGE("Integer is correct",
                                          i, (int)ntohl(num));
-            LOG("Receiver: received %d\n", (int)ntohl(num));
+            DEBUG_LOG("Receiver: received %d\n", (int)ntohl(num));
 
             sleep(1);
 
-            LOG("Receiver: sending %d\n", i);
+            DEBUG_LOG("Receiver: sending %d\n", i);
             rc = cmm_write(read_sock, &num, sizeof(num), 
                                0, NULL, NULL);
             CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending integer",
                                          (int)sizeof(int), rc);
         }
-        LOG("Receiver done.\n");
+        DEBUG_LOG("Receiver done.\n");
     } else {
         for (int i = 0; i < 2; ++i) {
-            LOG("Sender: sending %d\n", i);
+            DEBUG_LOG("Sender: sending %d\n", i);
             int num = htonl(i);
             int rc = cmm_write(send_sock, &num, sizeof(num), 
                                0, NULL, NULL);
@@ -470,7 +470,7 @@ EndToEndTestsBase::testHalfShutdown()
                                          (int)sizeof(int), rc);            
             
             if (i == 1) {
-                LOG("Sender: shutting down with SHUT_WR\n");
+                DEBUG_LOG("Sender: shutting down with SHUT_WR\n");
                 rc = cmm_shutdown(send_sock, SHUT_WR);
                 CPPUNIT_ASSERT_EQUAL_MESSAGE("Shutdown succedds",
                                              0, rc);
@@ -481,8 +481,8 @@ EndToEndTestsBase::testHalfShutdown()
                                          (int)sizeof(int), rc);
             CPPUNIT_ASSERT_EQUAL_MESSAGE("Integer is correct",
                                          i, (int)ntohl(num));
-            LOG("Sender: received %d\n", (int)ntohl(num));
+            DEBUG_LOG("Sender: received %d\n", (int)ntohl(num));
         }
-        LOG("Sender done.\n");
+        DEBUG_LOG("Sender done.\n");
     }
 }

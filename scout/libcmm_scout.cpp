@@ -33,7 +33,7 @@ using std::queue; using std::deque;
 #ifdef BUILDING_SCOUT_SHLIB
 #include <jni.h>
 #include <android/log.h>
-static void LOG(const char *fmt, ...)
+static void DEBUG_LOG(const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
@@ -48,7 +48,7 @@ static void LOG(const char *fmt, ...)
 
 static void LOG_PERROR(const char *str)
 {
-    LOG("%s: %s\n", str, strerror(errno));
+    DEBUG_LOG("%s: %s\n", str, strerror(errno));
 }
 
 #include <memory>
@@ -118,7 +118,7 @@ void * IPC_Listener(void *)
     scout_control_ipc_sock = socket(PF_UNIX, SOCK_STREAM, 0);
     if (scout_control_ipc_sock < 0) {
         LOG_PERROR("socket");
-        LOG("Failed to open IPC socket\n");
+        DEBUG_LOG("Failed to open IPC socket\n");
         raise(SIGINT); /* easy way to bail out */
     }
 
@@ -131,18 +131,18 @@ void * IPC_Listener(void *)
               sizeof(addr));
     if (rc < 0) {
         LOG_PERROR("bind");
-        LOG("Failed to bind IPC socket\n");
+        DEBUG_LOG("Failed to bind IPC socket\n");
         raise(SIGINT);
     }
     rc = listen(scout_control_ipc_sock, 10);
     if (rc < 0) {
         LOG_PERROR("listen");
-        LOG("Failed to listen on IPC socket\n");
+        DEBUG_LOG("Failed to listen on IPC socket\n");
         raise(SIGINT);
     }
 
     //struct timeval timeout = {1, 0}; /* 1-second timeout */
-    LOG("IPC thread up and listening.\n");
+    DEBUG_LOG("IPC thread up and listening.\n");
 
     fd_set active_fds;
     FD_ZERO(&active_fds);
@@ -162,7 +162,7 @@ void * IPC_Listener(void *)
                 continue;
             } else {
                 LOG_PERROR("select");
-                LOG("Failed to select on IPC socket\n");
+                DEBUG_LOG("Failed to select on IPC socket\n");
 #ifndef BUILDING_SCOUT_SHLIB
                 // if in JNI shared lib, I'm the only native thread,
                 //  so I'll just exit.
@@ -184,10 +184,10 @@ void * IPC_Listener(void *)
             if (ipc_sock < 0) {
                 int e = errno;
                 LOG_PERROR("accept");
-                LOG("Failed accepting new IPC socket\n");
+                DEBUG_LOG("Failed accepting new IPC socket\n");
                 ready_fds--;
                 if (e == EINVAL) {
-                    LOG("IPC socket shut down; thread exiting\n");
+                    DEBUG_LOG("IPC socket shut down; thread exiting\n");
                     break;
                 }
             } else {
@@ -196,14 +196,14 @@ void * IPC_Listener(void *)
                     if (rc < 0) {
                         LOG_PERROR("read");
                     }
-                    LOG("Failed to receive subscribe message\n");
+                    DEBUG_LOG("Failed to receive subscribe message\n");
                     close(ipc_sock);
                 } else {
                     SubscriberProcHash::accessor ac;
                     if (subscriber_procs.find(ac, msg.data.pid)) {
-                        LOG("Duplicate subscribe request received "
+                        DEBUG_LOG("Duplicate subscribe request received "
                             "from process %d\n", msg.data.pid);
-                        LOG("Reopening socket\n");
+                        DEBUG_LOG("Reopening socket\n");
                         close(ac->second.ipc_sock);
                     } else {
                         subscriber_procs.insert(ac, ipc_sock);
@@ -216,7 +216,7 @@ void * IPC_Listener(void *)
                         subscriber_procs.erase(ac);
                     } else {
                         ac->second.ipc_sock = ipc_sock;
-                        LOG("Process %d subscribed\n", 
+                        DEBUG_LOG("Process %d subscribed\n", 
                                 msg.data.pid);
                         if (ipc_sock > maxfd) {
                             maxfd = ipc_sock;
@@ -243,12 +243,12 @@ void * IPC_Listener(void *)
                     rc = read(s, &msg, sizeof(msg));
                     if (rc != sizeof(msg)) {
                         if (rc < 0) {
-                            LOG("read: %s\n", strerror(errno));
+                            DEBUG_LOG("read: %s\n", strerror(errno));
                         }
-                        LOG("Hmm... process %d must have died\n",
+                        DEBUG_LOG("Hmm... process %d must have died\n",
                                 ac->second.pid);
                     } else {
-                        LOG("Process %d unsubscribed\n", msg.data.pid);
+                        DEBUG_LOG("Process %d unsubscribed\n", msg.data.pid);
                     }
                     remove_subscriber(ac);
                     FD_CLR(s, &active_fds);
@@ -282,9 +282,9 @@ int notify_subscriber_of_event(pid_t pid, int ipc_sock,
         if (rc < 0) {
             LOG_PERROR("write");
         }
-        LOG("Failed to notify subscriber proc %d\n", pid);
+        DEBUG_LOG("Failed to notify subscriber proc %d\n", pid);
     } else {
-        LOG("Sent notification to process %d\n", pid);
+        DEBUG_LOG("Sent notification to process %d\n", pid);
     }
     return rc;
 }
@@ -540,7 +540,7 @@ Java_edu_umich_intnw_scout_ConnScoutService_startScoutIPC(JNIEnv *env,
         int rc = pthread_create(&tid, NULL, IPC_Listener, NULL);
         if (rc != 0) {
             LOG_PERROR("pthread_create");
-            LOG("Couldn't create IPCListener thread, exiting\n");
+            DEBUG_LOG("Couldn't create IPCListener thread, exiting\n");
             return rc;
         }
     }
@@ -551,7 +551,7 @@ void
 Java_edu_umich_intnw_scout_ConnScoutService_stopScoutIPC(JNIEnv *env, 
                                                          jobject thiz)
 {
-    LOG("Scout attempting to quit gracefully...\n");
+    DEBUG_LOG("Scout attempting to quit gracefully...\n");
     running = false;
     shutdown(scout_control_ipc_sock, SHUT_RDWR);
     // IPC thread will then exit.
@@ -573,23 +573,23 @@ Java_edu_umich_intnw_scout_ConnScoutService_updateNetwork(JNIEnv *env,
     iface.RTT = (u_long)rtt;
     const char *str = env->GetStringUTFChars(ip_addr, NULL);
     if (str == NULL) {
-        LOG("Got null IP address string in updateNetwork!\n");
+        DEBUG_LOG("Got null IP address string in updateNetwork!\n");
         return;
     }
 
     int rc = inet_aton(str, &iface.ip_addr);
     if (rc != 1) {
-        LOG("Invalid IP address string: %s\n", str);
+        DEBUG_LOG("Invalid IP address string: %s\n", str);
         env->ReleaseStringUTFChars(ip_addr, str);
         return;
     }
     
     pthread_mutex_lock(&ifaces_lock);
     if (down) {
-        LOG("updateNetwork: bringing down iface %s\n", str);
+        DEBUG_LOG("updateNetwork: bringing down iface %s\n", str);
         net_interfaces.erase(iface.ip_addr.s_addr);
     } else {
-        LOG("updateNetwork: updating iface %s bw_down %d bw_up %d rtt %d\n",
+        DEBUG_LOG("updateNetwork: updating iface %s bw_down %d bw_up %d rtt %d\n",
             str, bw_down, bw_up, rtt);
         net_interfaces[iface.ip_addr.s_addr] = iface;
     }

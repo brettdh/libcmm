@@ -20,8 +20,12 @@ using std::runtime_error;
 using std::fabs;
 
 #ifdef ANDROID
-#include <android/log.h>
-void LOG(const char *fmt, ...)
+#  ifdef NDK_BUILD
+#  include <android/log.h>
+#  else
+#  include <cutils/log.h>
+#  endif
+void DEBUG_LOG(const char *fmt, ...)
 {
     return;
     va_list ap;
@@ -49,7 +53,7 @@ void print_on_error(bool err, const char *str)
     if (err) {
         int e = errno;
         perror(str);
-        LOG("fatal error: %s: %s\n", str, strerror(e));
+        DEBUG_LOG("fatal error: %s: %s\n", str, strerror(e));
     }
 }
 
@@ -57,7 +61,7 @@ void handle_error(bool condition, const char *msg)
 {
     if (condition) {
         int e = errno;
-        LOG("Exiting on fatal error: %s: %s\n", msg, strerror(e));
+        DEBUG_LOG("Exiting on fatal error: %s: %s\n", msg, strerror(e));
         std::ostringstream s;
         s << msg << ": " << strerror(e);
         throw runtime_error(s.str());
@@ -67,7 +71,7 @@ void handle_error(bool condition, const char *msg)
 
 void abort_test(const char *msg)
 {
-    LOG("Exiting on fatal error: %s\n", msg);
+    DEBUG_LOG("Exiting on fatal error: %s\n", msg);
     throw runtime_error(msg);
 }
 
