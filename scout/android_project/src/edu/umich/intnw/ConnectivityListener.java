@@ -34,10 +34,14 @@ public class ConnectivityListener extends BroadcastReceiver {
     }
     
     private static String intToIp(int i) {
-        return ((i >>  0 ) & 0xFF) + "." +
-               ((i >>  8 ) & 0xFF) + "." +
-               ((i >> 16 ) & 0xFF) + "." +
-               ((i >> 24 ) & 0xFF);
+        InetAddress ip = intToInetAddress(i);
+        Log.d(TAG, "intToIp: equivalent InetAddress: " + ip.getHostAddress());
+        String ret = ((i >>  0 ) & 0xFF) + "." +
+                     ((i >>  8 ) & 0xFF) + "." +
+                     ((i >> 16 ) & 0xFF) + "." +
+                     ((i >> 24 ) & 0xFF);
+        Log.d(TAG, "intToIP: result: " + ret);
+        return ret;
     }
     private static InetAddress intToInetAddress(int n) {
         byte[] ret = new byte[4];
@@ -48,7 +52,8 @@ public class ConnectivityListener extends BroadcastReceiver {
         
         Log.d(TAG, "intToInetAddress: bytes:");
         for (int i = 0; i < ret.length; i++) {
-            Log.d(TAG, "        addr[" + i + "] = " + ret[i]);
+            // print unsigned values
+            Log.d(TAG, "        addr[" + i + "] = " + (ret[i] & 0xff));
         }
         InetAddress addr = null;
         try {
@@ -67,9 +72,10 @@ public class ConnectivityListener extends BroadcastReceiver {
         Log.d(TAG, "inetAddressToInt: address: " + addr.getHostAddress());
         Log.d(TAG, "inetAddressToInt: bytes:");
         for (int i = 0; i<addrBytes.length; i++) {
-            Log.d(TAG, "        addr[" + i + "] = " + addrBytes[i]);
+            // print unsigned value
+            Log.d(TAG, "        addr[" + i + "] = " + (addrBytes[i] & 0xff));
             int shift = 8 * i; // 0, 8, 16, 24
-            ret += (addrBytes[i] << shift);
+            ret = ret | ((addrBytes[i] & 0xff) << shift);
         }
         return ret;
     }
