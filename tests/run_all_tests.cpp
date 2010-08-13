@@ -2,6 +2,10 @@
 #include <cppunit/ui/text/TestRunner.h>
 #include "StdioOutputter.h"
 #include <unistd.h>
+#include <iostream>
+#include <stdexcept>
+using std::cout; using std::endl;
+using std::exception;
 
 using CppUnit::TestFactoryRegistry;
 
@@ -35,6 +39,10 @@ int main(int argc, char *argv[])
         }
     }
     
-    run_all_tests();
+    try {
+        run_all_tests();
+    } catch (exception& e) {
+        cout << e.what() << endl;
+    }
     return 0;
 }
