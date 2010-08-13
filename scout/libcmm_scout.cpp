@@ -43,7 +43,7 @@ static void DEBUG_LOG(const char *fmt, ...)
 #else
 #include "cdf_sampler.h"
 
-#define LOG dbgprintf_always
+#define DEBUG_LOG dbgprintf_always
 #endif
 
 static void LOG_PERROR(const char *str)
