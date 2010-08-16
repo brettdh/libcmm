@@ -207,7 +207,7 @@ public class ConnectivityListener extends BroadcastReceiver {
             String ipAddr = intToIp(getIpAddr(networkInfo));
             mScoutService.updateNetwork(ipAddr, 1250000, 1250000, 1, 
                                         !networkInfo.isConnected());
-            mScoutService.logUpdate(ipAddr, !networkInfo.isConnected());
+            mScoutService.logUpdate(ipAddr, networkInfo);
             
         } catch (NetworkStatusException e) {
             // ignore; already logged

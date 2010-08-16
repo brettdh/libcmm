@@ -2,16 +2,16 @@ package edu.umich.intnw.scout;
 
 import android.os.Parcelable;
 import android.os.Parcel;
+import android.net.NetworkInfo;
 import java.util.Date;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
-
 import edu.umich.intnw.scout.Utilities;
 
 public final class NetUpdate implements Parcelable {
     public Date timestamp;
     public String ipAddr;
-    public boolean down;
+    public NetworkInfo info;
     
     public static final Parcelable.Creator<NetUpdate> CREATOR = 
         new Parcelable.Creator<NetUpdate>() {
@@ -31,10 +31,7 @@ public final class NetUpdate implements Parcelable {
         dest.writeLong(timestamp.getTime());
         dest.writeString(ipAddr);
         
-        // why is there no writeBoolean?
-        boolean[] oneBool = new boolean[1];
-        oneBool[0] = down;
-        dest.writeBooleanArray(oneBool);
+        dest.writeParcelable(info, flags);
     }
     
     public NetUpdate() {}
@@ -45,9 +42,7 @@ public final class NetUpdate implements Parcelable {
     public void readFromParcel(Parcel in) {
         timestamp = new Date(in.readLong());
         ipAddr = in.readString();
-        boolean[] oneBool = new boolean[1];
-        in.readBooleanArray(oneBool);
-        down = oneBool[0];
+        info = in.readParcelable(NetworkInfo.class.getClassLoader());
     }
     
     public String toString() {
@@ -56,7 +51,7 @@ public final class NetUpdate implements Parcelable {
            .append(" ")
            .append(ipAddr)
            .append(" ")
-           .append(down ? "down" : "up");
+           .append(info.isConnected() ? "up" : "down");
         return str.toString();
     }
 };

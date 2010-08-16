@@ -10,6 +10,7 @@ import android.widget.ExpandableListView;
 import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.Toast;
+import android.widget.EditText;
 import android.view.Gravity;
 import android.widget.BaseExpandableListAdapter;
 import android.util.Log;
@@ -24,6 +25,7 @@ public class AndroidTestHarness extends Activity
     private static String TAG = AndroidTestHarness.class.getName();
     private Button mBtnStartTests;
     private ExpandableListView mTestList;
+    private EditText mTxtHostname;
     
     /** Called when the activity is first created. */
     @Override
@@ -39,6 +41,8 @@ public class AndroidTestHarness extends Activity
         
         mBtnStartTests = (Button) findViewById(R.id.start_tests);
         mBtnStartTests.setOnClickListener(mStartTestsListener);
+        
+        mTxtHostname = (EditText) findViewById(R.id.hostname);
     }
     
     static {
@@ -54,11 +58,12 @@ public class AndroidTestHarness extends Activity
                     mBtnStartTests.post(new Runnable() {
                         public void run() {
                             mBtnStartTests.setEnabled(false);
+                            mTxtHostname.setEnabled(false);
                             Toast.makeText(AndroidTestHarness.this,
                                            "Started running tests.", 
                                            Toast.LENGTH_SHORT).show();                        }
                     });
-                    runTests();
+                    runTests(mTxtHostname.getText().toString());
 
                     mBtnStartTests.post(new Runnable() {
                         public void run() {
@@ -66,6 +71,7 @@ public class AndroidTestHarness extends Activity
                                            "Tests complete.", 
                                            Toast.LENGTH_SHORT).show();
                             mBtnStartTests.setEnabled(true);
+                            mTxtHostname.setEnabled(true);
                         }
                     });
                 }
@@ -73,7 +79,7 @@ public class AndroidTestHarness extends Activity
         }
     };
     
-    public native void runTests();
+    public native void runTests(String hostname);
     
     public void addTest(String testName) {
         mAdapter.addTest(testName);

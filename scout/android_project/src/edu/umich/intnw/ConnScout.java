@@ -11,6 +11,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.net.ConnectivityManager;
 
 import android.content.ServiceConnection;
 import android.content.ComponentName;
@@ -27,7 +28,10 @@ import edu.umich.intnw.scout.Utilities;
 public class ConnScout extends Activity
 {
     private static String TAG = ConnScout.class.getName();
-    
+
+    private View rootView;
+    private TextView mobileAddr;
+    private TextView wifiAddr;
     private ScrollView statusFieldScroll;
     private TextView statusField;
     /** Called when the activity is first created. */
@@ -37,10 +41,15 @@ public class ConnScout extends Activity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
         
+        rootView = (View) findViewById(R.id.root_view);
+        
         Button startScout = (Button) findViewById(R.id.start_scout);
         Button stopScout = (Button) findViewById(R.id.stop_scout);
         startScout.setOnClickListener(mStartScoutListener);
         stopScout.setOnClickListener(mStopScoutListener);
+        
+        mobileAddr = (TextView) findViewById(R.id.mobile_addr);
+        wifiAddr = (TextView) findViewById(R.id.wifi_addr);
         
         statusFieldScroll = 
             (ScrollView) findViewById(R.id.status_field_scroll);
@@ -112,7 +121,7 @@ public class ConnScout extends Activity
         }
     };
     
-    private void appendToStatusField(final String str) {
+    public void appendToStatusField(final String str) {
         statusFieldScroll.post(new Runnable() {
             public void run() {
                 statusField.append(str);
@@ -121,9 +130,32 @@ public class ConnScout extends Activity
         });
     }
     
-    public void displayUpdate(NetUpdate update) {
-        final String str = update.toString() + "\n";
-        appendToStatusField(str);
+    public void displayUpdate(final NetUpdate update) {
+        rootView.post(new Runnable() {
+            public void run() {
+                final String addr;
+                if (update.info.isConnected()) {
+                    addr = update.ipAddr;
+                } else {
+                    addr = new String("(unavailable)");
+                }
+                
+                if (update.info.getType() == ConnectivityManager.TYPE_MOBILE) {
+                    mobileAddr.setText(addr);
+                } else {
+                    wifiAddr.setText(addr);
+                }
+            }
+        });
+    }
+    
+    public void initFields() {
+        rootView.post(new Runnable() {
+            public void run() {
+                mobileAddr.setText("");
+                wifiAddr.setText("");
+            }
+        });
     }
     
     private BroadcastReceiver mReceiver = new BroadcastReceiver() {
@@ -134,7 +166,9 @@ public class ConnScout extends Activity
                 NetUpdate update = 
                     (NetUpdate) extras.get(ConnScoutService.BROADCAST_EXTRA);
                 displayUpdate(update);
+                appendToStatusField(update.toString() + "\n");
             } else if (action.equals(ConnScoutService.BROADCAST_START)) {
+                initFields();
                 appendToStatusField(Utilities.formatTimestamp(new Date()) +
                                     " Scout started\n");
             } else if (action.equals(ConnScoutService.BROADCAST_STOP)) {

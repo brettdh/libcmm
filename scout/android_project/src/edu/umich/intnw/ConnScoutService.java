@@ -8,6 +8,7 @@ import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.IBinder;
 import android.os.Binder;
 import android.os.Parcelable;
@@ -98,11 +99,11 @@ public class ConnScoutService extends ServiceCompat
     public static final String BROADCAST_EXTRA = 
         "edu.umich.intnw.scout.NetworkUpdateExtra";
     
-    public void logUpdate(String ip_addr, boolean down) {
+    public void logUpdate(String ip_addr, NetworkInfo info) {
         NetUpdate update = new NetUpdate();
         update.timestamp = new Date();
         update.ipAddr = ip_addr;
-        update.down = down;
+        update.info = info;
         updateHistory.add(update);
         
         Intent updateNotification = new Intent(BROADCAST_ACTION);

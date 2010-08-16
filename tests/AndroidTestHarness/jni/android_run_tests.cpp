@@ -31,9 +31,8 @@ extern "C" {
 #endif    
 
 #include <android/log.h>
-static void DEBUG(const char *fmt, ...)
+static void DEBUG_LOG(const char *fmt, ...)
 {
-    return;
     va_list ap;
     va_start(ap, fmt);
     __android_log_vprint(ANDROID_LOG_INFO, "AndroidTestHarness", fmt, ap);
@@ -47,15 +46,15 @@ class AndroidTestListener : public TestListener {
   public:
     AndroidTestListener(JNIEnv *jenv_, jobject jobj_) 
         : jenv(jenv_), jobj(jobj_), lastFailure(NULL) {
-        DEBUG("Created test listener\n");
+        //DEBUG_LOG("Created test listener\n");
     }
     
     virtual ~AndroidTestListener() {
-        DEBUG("Destroyed test listener\n");
+        //DEBUG_LOG("Destroyed test listener\n");
     }
     
     virtual void startTest(Test *test) {
-        DEBUG("Starting new test\n");
+        //DEBUG_LOG("Starting new test\n");
         upcall("addTest", "(Ljava/lang/String;)V", test->getName().c_str());
     }
     
@@ -65,7 +64,7 @@ class AndroidTestListener : public TestListener {
     
     virtual void endTest(Test *test) {
         if (lastFailure) {
-            DEBUG("Current test failed\n");
+            //DEBUG_LOG("Current test failed\n");
             std::ostringstream s;
             s << lastFailure->sourceLine().fileName() << ":"
               << lastFailure->sourceLine().lineNumber() << endl
@@ -75,7 +74,7 @@ class AndroidTestListener : public TestListener {
             delete lastFailure;
             lastFailure = NULL;
         } else {
-            DEBUG("Current test passed\n");
+            //DEBUG_LOG("Current test passed\n");
             upcall("testSuccess", "(Ljava/lang/String;)V", 
                    test->getName().c_str());
         }
@@ -101,12 +100,12 @@ class AndroidTestListener : public TestListener {
         }
 
         if (!jenv) {
-            DEBUG("ERROR: jenv is NULL!\n");
+            DEBUG_LOG("ERROR: jenv is NULL!\n");
             throw -1;
         } else {
-            DEBUG("DEBUG: jenv:%p jobj: %p method: %s mid: %p\n",
-                  jenv, jobj, methodName, mid); 
-            DEBUG("DEBUG: testName: %s message: %s\n", testName, message);
+            // DEBUG_LOG("DEBUG: jenv:%p jobj: %p method: %s mid: %p\n",
+            //                   jenv, jobj, methodName, mid); 
+            //             DEBUG_LOG("DEBUG: testName: %s message: %s\n", testName, message);
         }
         
         jstring testName_jstr = jenv->NewStringUTF(testName);
@@ -122,8 +121,16 @@ class AndroidTestListener : public TestListener {
 
 JNIEXPORT void JNICALL 
 Java_edu_umich_intnw_androidtestharness_AndroidTestHarness_runTests(
-    JNIEnv *jenv, jobject jobj)
+    JNIEnv *jenv, jobject jobj, jstring hostname)
 {
+    const char *str = jenv->GetStringUTFChars(hostname, NULL);
+    if (str == NULL) {
+        DEBUG_LOG("Got null IP address string in updateNetwork!\n");
+    } else {
+        DEBUG_LOG("Connecting to %s to run tests\n", str);
+        g_hostname = (char *)str;
+    }
+    
     // XXX: if I want to run any other set of tests, I can't use the registry.
     // ...unless I make a separate .apk for each test harness.
     AndroidTestListener listener(jenv, jobj);
@@ -137,9 +144,14 @@ Java_edu_umich_intnw_androidtestharness_AndroidTestHarness_runTests(
         
         runner.run(result);
     } catch (int e) {
-        DEBUG("Running tests failed!\n");
+        DEBUG_LOG("Running tests failed!\n");
     } catch (exception &e) {
         listener.addFailureMessage("Failed to start tests", e.what());
+    }
+    
+    if (str) {
+        jenv->ReleaseStringUTFChars(hostname, str);
+        g_hostname = NULL;
     }
 }
 
