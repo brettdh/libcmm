@@ -100,10 +100,16 @@ public class ConnScoutService extends ServiceCompat
         "edu.umich.intnw.scout.NetworkUpdateExtra";
     
     public void logUpdate(String ip_addr, NetworkInfo info) {
+        logUpdate(ip_addr, info.getType(), info.isConnected());
+    }
+    
+    public void logUpdate(String ip_addr, int type, boolean connected) {
         NetUpdate update = new NetUpdate();
         update.timestamp = new Date();
         update.ipAddr = ip_addr;
-        update.info = info;
+        //update.info = info;
+        update.type = type;
+        update.connected = connected;
         updateHistory.add(update);
         
         Intent updateNotification = new Intent(BROADCAST_ACTION);

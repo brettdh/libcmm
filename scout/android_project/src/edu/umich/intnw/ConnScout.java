@@ -55,6 +55,8 @@ public class ConnScout extends Activity
             (ScrollView) findViewById(R.id.status_field_scroll);
         statusField = (TextView) findViewById(R.id.status_field);
         
+        initFields();
+        
         Log.d(TAG, "Created ConnScout Activity" + this.toString());
         bindService(new Intent(this, ConnScoutService.class),
                     onService, 0);
@@ -73,11 +75,18 @@ public class ConnScout extends Activity
         super.onResume();
         
         if (appService != null) {
+            NetUpdate lastCellularUpdate = null;
+            NetUpdate lastWifiUpdate = null;
             List<NetUpdate> updateHistory = appService.getUpdateHistory();
             StringBuilder str = new StringBuilder();
             for (NetUpdate update : updateHistory) {
                 str.append(update.toString())
                    .append("\n");
+                if (update.type == ConnectivityManager.TYPE_WIFI) {
+                    lastWifiUpdate = update;
+                } else {
+                    lastCellularUpdate = update;
+                }
             }
             
             final String allText = str.toString();
@@ -87,6 +96,9 @@ public class ConnScout extends Activity
                     statusFieldScroll.fullScroll(ScrollView.FOCUS_DOWN);
                 }
             });
+            
+            displayUpdate(lastCellularUpdate);
+            displayUpdate(lastWifiUpdate);
         }
         
         IntentFilter filter = new IntentFilter();
@@ -131,19 +143,23 @@ public class ConnScout extends Activity
     }
     
     public void displayUpdate(final NetUpdate update) {
+        if (update == null) {
+            return;
+        }
+        
         rootView.post(new Runnable() {
             public void run() {
                 final String addr;
-                if (update.info.isConnected()) {
+                if (update.connected) {
                     addr = update.ipAddr;
                 } else {
                     addr = new String("(unavailable)");
                 }
                 
-                if (update.info.getType() == ConnectivityManager.TYPE_MOBILE) {
-                    mobileAddr.setText(addr);
-                } else {
+                if (update.type == ConnectivityManager.TYPE_WIFI) {
                     wifiAddr.setText(addr);
+                } else {
+                    mobileAddr.setText(addr);
                 }
             }
         });
@@ -152,8 +168,8 @@ public class ConnScout extends Activity
     public void initFields() {
         rootView.post(new Runnable() {
             public void run() {
-                mobileAddr.setText("");
-                wifiAddr.setText("");
+                mobileAddr.setText("(unavailable)");
+                wifiAddr.setText("(unavailable)");
             }
         });
     }
@@ -168,7 +184,6 @@ public class ConnScout extends Activity
                 displayUpdate(update);
                 appendToStatusField(update.toString() + "\n");
             } else if (action.equals(ConnScoutService.BROADCAST_START)) {
-                initFields();
                 appendToStatusField(Utilities.formatTimestamp(new Date()) +
                                     " Scout started\n");
             } else if (action.equals(ConnScoutService.BROADCAST_STOP)) {

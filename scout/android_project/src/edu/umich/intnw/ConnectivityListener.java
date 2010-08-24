@@ -16,6 +16,8 @@ import java.net.InetAddress;
 import java.util.Enumeration;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.Map;
+import java.util.HashMap;
 
 import edu.umich.intnw.scout.ConnScoutService;
 
@@ -26,11 +28,44 @@ public class ConnectivityListener extends BroadcastReceiver {
     // XXX: may have more than one WiFi IP eventually.
     private int wifiIpAddr;
     private int cellularIpAddr;
+    private Map<Integer, Integer> ifaces = new HashMap<Integer, Integer>();
     
     public ConnectivityListener(ConnScoutService service) {
         mScoutService = service;
-        wifiIpAddr = 0;
-        cellularIpAddr = 0;
+        
+        int wifiIpAddr = 0;
+        int cellularIpAddr = 0;
+        
+        WifiManager wifi = 
+            (WifiManager) mScoutService.getSystemService(Context.WIFI_SERVICE);
+        WifiInfo wifiInfo = wifi.getConnectionInfo();
+        if (wifiInfo != null) {
+            wifiIpAddr = wifiInfo.getIpAddress();
+        }
+        
+        try {
+            NetworkInterface cellularIface = getCellularIface(wifiInfo);
+            if (cellularIface != null) {
+                InetAddress addr = getIfaceIpAddr(cellularIface);
+                if (addr != null) {
+                    cellularIpAddr = inetAddressToInt(addr);
+                }
+            }
+        } catch (SocketException e) {
+            Log.e(TAG, "failed to get cellular IP address: " + e.toString());
+        }
+            
+        ifaces.put(ConnectivityManager.TYPE_WIFI, wifiIpAddr);
+        ifaces.put(ConnectivityManager.TYPE_MOBILE, cellularIpAddr);
+        
+        for (int type : ifaces.keySet()) {
+            int ipAddr = ifaces.get(type);
+            if (ipAddr != 0) {
+                String ip = intToIp(ipAddr);
+                mScoutService.updateNetwork(ip, 1250000, 1250000, 1, true);
+                mScoutService.logUpdate(ip, type, true);
+            }
+        }
     }
     
     private static String intToIp(int i) {
@@ -129,7 +164,7 @@ public class ConnectivityListener extends BroadcastReceiver {
         if (networkInfo.getType() == ConnectivityManager.TYPE_WIFI) {
             if (networkInfo.isConnected()) {
                 if (wifiInfo != null) {
-                    wifiIpAddr = wifiInfo.getIpAddress();
+                    int wifiIpAddr = wifiInfo.getIpAddress();
                     // InetAddress addr = intToInetAddress(wifiIpAddr);
                     // Log.d(TAG, "getIpAddr: returning wifi IP " +
                     //       addr.getHostAddress());
@@ -148,15 +183,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                     throw new NetworkStatusException();
                 }
             } else {
-                if (wifiIpAddr == 0) {
-                    Log.e(TAG, "Weird... got wifi disconnect intent but" +
-                          "I haven't seen a wifi connection intent");
-                    throw new NetworkStatusException();
-                } else {
-                    int ret = wifiIpAddr;
-                    wifiIpAddr = 0;
-                    return ret;
-                }
+                return ifaces.get(networkInfo.getType());
             }
         } else { // cellular (TYPE_MOBILE)
             // first, find the IP address of the cellular interface
@@ -168,9 +195,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                     throw new NetworkStatusException();
                 }
                 
-                cellularIpAddr = 
-                    inetAddressToInt(getIfaceIpAddr(cellular_iface));
-                return cellularIpAddr;
+                return inetAddressToInt(getIfaceIpAddr(cellular_iface));
             } else {
                 if (cellular_iface != null) {
                     Log.e(TAG, "Weird... got cellular disconnect intent " +
@@ -178,15 +203,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                     throw new NetworkStatusException();
                 }
                 
-                if (cellularIpAddr == 0) {
-                    Log.e(TAG, "Weird... got cellular disconnect intent but" +
-                          "I haven't seen a cellular connection intent");
-                    throw new NetworkStatusException();
-                } else {
-                    int ret = cellularIpAddr;
-                    cellularIpAddr = 0;
-                    return ret;
-                }
+                return ifaces.get(networkInfo.getType());
             }
         }
     }
@@ -204,7 +221,24 @@ public class ConnectivityListener extends BroadcastReceiver {
         NetworkInfo networkInfo = 
             (NetworkInfo) extras.get(ConnectivityManager.EXTRA_NETWORK_INFO);
         try {
-            String ipAddr = intToIp(getIpAddr(networkInfo));
+            int curAddr = getIpAddr(networkInfo);
+            String ipAddr = intToIp(curAddr);
+            int prevAddr = ifaces.get(networkInfo.getType());
+            if (prevAddr != 0 && prevAddr != curAddr) {
+                // put down the old network's IP addr
+                mScoutService.updateNetwork(intToIp(prevAddr), 0, 0, 0, true);
+            }
+            
+            if (networkInfo.isConnected()) {
+                ifaces.put(networkInfo.getType(), curAddr);
+                // TODO: switch out old default gateway for mine, with
+                //  "g1custom" table
+            } else {
+                ifaces.put(networkInfo.getType(), 0);
+                // TODO: remove my custom default gateway
+            }
+            
+            // TODO: real network measurements here
             mScoutService.updateNetwork(ipAddr, 1250000, 1250000, 1, 
                                         !networkInfo.isConnected());
             mScoutService.logUpdate(ipAddr, networkInfo);
