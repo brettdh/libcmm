@@ -18,6 +18,10 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.Map;
 import java.util.HashMap;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
+import java.io.IOException;
 
 import edu.umich.intnw.scout.ConnScoutService;
 
@@ -58,6 +62,11 @@ public class ConnectivityListener extends BroadcastReceiver {
         ifaces.put(ConnectivityManager.TYPE_WIFI, wifiIpAddr);
         ifaces.put(ConnectivityManager.TYPE_MOBILE, cellularIpAddr);
         
+        if (wifiIpAddr != 0) {
+            String ipAddr = intToIp(wifiIpAddr);
+            setCustomGateway(ipAddr);
+        }
+        
         for (int type : ifaces.keySet()) {
             int ipAddr = ifaces.get(type);
             if (ipAddr != 0) {
@@ -65,6 +74,14 @@ public class ConnectivityListener extends BroadcastReceiver {
                 mScoutService.updateNetwork(ip, 1250000, 1250000, 1, true);
                 mScoutService.logUpdate(ip, type, true);
             }
+        }
+    }
+    
+    public void cleanup() {
+        int wifiIp = ifaces.get(ConnectivityManager.TYPE_WIFI);
+        if (wifiIp != 0) {
+            String ipAddr = intToIp(wifiIp);
+            removeCustomGateway(ipAddr, true);
         }
     }
     
@@ -208,6 +225,160 @@ public class ConnectivityListener extends BroadcastReceiver {
         }
     }
     
+    /**
+     * Returns a String with the IP address of the WiFi gateway,
+     *  or null if there is none or it couldn't be found.
+     */
+    private String getWifiGateway(String tableName) {
+        String cmds[] = "ip route show dev tiwlan0 table (table)".split(" ");
+        cmds[6] = tableName;
+        
+        String gateway = null;
+        
+        try {
+            Process p = runShellCommand(cmds);
+            InputStream in = p.getInputStream();
+            InputStreamReader inRdr = new InputStreamReader(in);
+            BufferedReader reader = new BufferedReader(inRdr, 1024);
+            
+            String line = null;
+            while ( (line = reader.readLine()) != null) {
+                Log.d(TAG, "Getting gateway: " + line);
+                if (line.contains("default via ")) {
+                    // Format: "default via <ip>"
+                    String tokens[] = line.split(" ");
+                    gateway = tokens[2];
+                    break;
+                }
+            }
+            int rc = p.waitFor();
+            if (rc != 0) {
+                Log.e(TAG, "Failed to get wifi gateway in table " + tableName);
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Error reading from subprocess: " + e.toString());
+        } catch (InterruptedException e) {
+            Log.e(TAG, "Error waiting for subprocess: " + e.toString());
+        }
+        return gateway;
+    }
+    
+    private Process runShellCommand(String[] cmds) throws IOException {
+        StringBuffer buf = new StringBuffer("Running shell command: ");
+        for (String cmd : cmds) {
+            buf.append(cmd).append(" ");
+        }
+        Log.d(TAG, buf.toString());
+        return Runtime.getRuntime().exec(cmds);
+    }
+    
+    private void logProcessOutput(Process p) throws IOException {
+        InputStream in = p.getInputStream();
+        InputStreamReader rdr = new InputStreamReader(in);
+        BufferedReader reader = new BufferedReader(rdr, 1024);
+        String line = null;
+        while ( (line = reader.readLine()) != null) {
+            Log.e(TAG, "   " + line);
+        }
+    }
+    
+    private void modifyWifiGateway(String op, String gateway, String table) {
+        String cmds[] = new String[8];
+        cmds[0] = "ip";
+        cmds[1] = "route";
+        cmds[2] = op;
+        cmds[3] = "default";
+        cmds[4] = "via";
+        cmds[5] = gateway; 
+        cmds[6] = "table";
+        cmds[7] = table;
+        try {
+            Process p = runShellCommand(cmds);
+            int rc = p.waitFor();
+            if (rc != 0) {
+                Log.e(TAG, "Failed to " + op + " custom gateway:");
+                logProcessOutput(p);
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Error reading from subprocess: " + e.toString());
+        } catch (InterruptedException e) {
+            Log.e(TAG, "Error waiting for subprocess: " + e.toString());
+        }
+    }
+    
+    private void modifyWifiRoutingRules(String op, String ipAddr) {
+        String cmds[] = new String[7];
+        cmds[0] = "ip";
+        cmds[1] = "rule";
+        cmds[2] = op;
+        cmds[3] = "from";
+        cmds[4] = ipAddr;
+        cmds[5] = "table";
+        cmds[6] = "g1custom";
+        
+        Process p = null;
+        try {
+            p = runShellCommand(cmds);
+            int rc = p.waitFor();
+            if (rc != 0) {
+                Log.e(TAG, "Failed to " + op + " routing rules:");
+                logProcessOutput(p);
+            }
+            
+            // bidirectional routing rule
+            cmds[3] = "to";
+            p = runShellCommand(cmds);
+            rc = p.waitFor();
+            if (rc != 0) {
+                Log.e(TAG, "Failed to " + op + " routing rules:");
+                logProcessOutput(p);
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Error reading from subprocess: " + e.toString());
+        } catch (InterruptedException e) {
+            Log.e(TAG, "Error waiting for subprocess: " + e.toString());
+        }
+    }
+    
+    private void setCustomGateway(String ipAddr) {
+        /*
+        Steps:
+        1) Get already-configured gateway address
+        2) Remove system-added gateway
+        3) Add new gateway in routing table 'g1custom'
+        4) Add routing rules for g1custom table
+        */
+        Log.d(TAG, "Setting up gateway and routing rules for " + ipAddr);
+        String gateway = getWifiGateway("main");
+        if (gateway != null) {
+            modifyWifiGateway("del", gateway, "main");
+            modifyWifiGateway("add", gateway, "g1custom");
+            modifyWifiRoutingRules("add", ipAddr);
+        } else {
+            Log.e(TAG, "Couldn't find gateway for tiwlan0 in main table");
+        }
+    }
+    
+    private void removeCustomGateway(String ipAddr, boolean restoreOld) {
+        /*
+        Steps:
+        1) Get already-configured gateway address
+        2) Remove my custom gateway (it's probably gone already)
+        3) Remove routing rules for g1custom table
+        */
+        Log.d(TAG, "Removing custom routing setup for " + ipAddr);
+        String gateway = getWifiGateway("g1custom");
+        if (gateway != null) {
+            modifyWifiGateway("del", gateway, "g1custom");
+            if (restoreOld) {
+                modifyWifiGateway("append", gateway, "main");
+            }
+            modifyWifiRoutingRules("del", ipAddr);
+        } else {
+            Log.e(TAG, "Couldn't find gateway for tiwlan0 in g1custom table");
+        }
+    }
+    
     @Override
     public void onReceive(Context context, Intent intent) {
         Log.d(TAG, "Got event");
@@ -233,9 +404,17 @@ public class ConnectivityListener extends BroadcastReceiver {
                 ifaces.put(networkInfo.getType(), curAddr);
                 // TODO: switch out old default gateway for mine, with
                 //  "g1custom" table
+                if (networkInfo.getType() ==
+                    ConnectivityManager.TYPE_WIFI) {
+                    setCustomGateway(ipAddr);
+                }
             } else {
                 ifaces.put(networkInfo.getType(), 0);
                 // TODO: remove my custom default gateway
+                if (networkInfo.getType() ==
+                    ConnectivityManager.TYPE_WIFI) {
+                    removeCustomGateway(ipAddr, false);
+                }
             }
             
             // TODO: real network measurements here

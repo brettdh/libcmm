@@ -40,3 +40,41 @@ Also of interest:
    It appears that the server (cmm_accept()-er) doesn't attempt
    to make connections, but I'm not sure that it never will,
    and if it does, they will fail for lack of route.
+
+
+Building native iproute2 tools...
+
+  Don't forget to put these headers back!!
+  1) bionic/libc/kernel/common/linux/rtnetlink.h
+  2) frameworks/base/../utils.h
+  Done.
+  
+  WTF: kernel headers inside bionic/libc/kernel/... don't match those inside
+       kernel/include ???
+      Missing #defines related to CAN (Controller Area Network)
+      
+  WTF answered: see bionic/libc/kernel/README.txt
+     The Right Way to handle this is to go through the originals, patch them,
+      and then run the script described in this README.
+  
+  Good news: the native, non-busybox version of ip route is able to display
+     the entries in the custom routing table, giving me more confidence that
+     they're actually there.  e.g. "ip route show table g1custom"
+  Another mystery "solved": Android must internally be doing the equivalent of
+     "ip route append" after the WiFi comes back up.  Doing this rather than
+     "ip route add" allows me to add two default gateways at once.
+     I think I still have to do the policy routing stuff, though.
+     Haven't verified this.
+
+Should be easy now to make the scout fix up the routing tables.
+Pick up here next time.  Also need to figure out if the cellular NAT
+is giving me problems.  Currently, I haven't been able to connect to
+the external-facing IP address, but maybe that's some firewall issue at
+the cell tower.
+
+DONE! (9/29/2010)  The scout now does the routing table fixups.
+Had to make the 'ip' command setuid.  If I were to steal
+the Android platform code that modifies the routing tables (in order to make
+this all less brittle), then the ConnScoutService would need root.
+Next: make a test app that has two buttons: "SendFG" and "SendBG".  
+Easy-to-understand multi-network test.

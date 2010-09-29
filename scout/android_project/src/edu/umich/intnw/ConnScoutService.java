@@ -39,7 +39,6 @@ public class ConnScoutService extends ServiceCompat
             updateHistory = 
                 Collections.synchronizedList(new LinkedList<NetUpdate>());
             
-            // TODO: start up network monitoring
             mListener = new ConnectivityListener(this);
             
             IntentFilter filter = new IntentFilter();
@@ -71,6 +70,7 @@ public class ConnScoutService extends ServiceCompat
     public void onDestroy() {
         sendBroadcast(new Intent(BROADCAST_STOP));
         
+        mListener.cleanup();
         unregisterReceiver(mListener);
         stopScoutIPC();
         //mNM.cancel(R.string.service_started);
