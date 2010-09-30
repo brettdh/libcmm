@@ -116,6 +116,14 @@ public class ConnScoutService extends ServiceCompat
         updateNotification.putExtra(BROADCAST_EXTRA, update);
         sendBroadcast(updateNotification);
     }
+    
+    public void logUpdate(NetUpdate network) {
+        //TODO: prepare broadcast intent with net info, stats
+    }
+    
+    public void measureNetworks() {
+        mListener.measureNetworks();
+    }
 
     static {
         System.loadLibrary("conn_scout");

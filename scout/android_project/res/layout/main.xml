@@ -7,7 +7,7 @@
     >
 <TableLayout
     android:layout_width="fill_parent"
-    android:layout_height="fill_parent"
+    android:layout_height="wrap_content"
     >
 <TableRow
     android:layout_width="fill_parent"
@@ -26,21 +26,39 @@
         android:layout_height="wrap_content"
         android:text="Stop scout"
         />
+    <Button
+        android:id="@+id/measure"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Measure"
+        android:enabled="false"
+        />
 </TableRow>
+</TableLayout>
+<TableLayout
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    >
 <TableRow
     android:layout_width="fill_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     >
 <TextView
-    android:layout_width="wrap_content"
+    android:layout_width="40dp"
     android:layout_height="wrap_content"
     android:text="3G: "
     />
 <TextView
     android:id="@+id/mobile_addr"
+    android:layout_width="125dp"
+    android:layout_height="wrap_content"
+    />
+<TextView
+    android:id="@+id/mobile_stats"
     android:layout_width="fill_parent"
     android:layout_height="wrap_content"
+    android:text="(no stats yet)"
     />
 </TableRow>
 <TableRow
@@ -49,14 +67,20 @@
     android:orientation="horizontal"
     >
 <TextView
-    android:layout_width="wrap_content"
+    android:layout_width="40dp"
     android:layout_height="wrap_content"
     android:text="WiFi: "
     />
 <TextView
     android:id="@+id/wifi_addr"
+    android:layout_width="125dp"
+    android:layout_height="wrap_content"
+    />
+<TextView
+    android:id="@+id/wifi_stats"
     android:layout_width="fill_parent"
     android:layout_height="wrap_content"
+    android:text="(no stats yet)"
     />
 </TableRow>
 <ScrollView 

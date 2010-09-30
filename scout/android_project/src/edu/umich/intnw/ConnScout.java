@@ -7,6 +7,7 @@ import android.view.View;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Button;
+import android.widget.Toast;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.BroadcastReceiver;
@@ -32,8 +33,13 @@ public class ConnScout extends Activity
     private View rootView;
     private TextView mobileAddr;
     private TextView wifiAddr;
+    private TextView mobileStats;
+    private TextView wifiStats;
     private ScrollView statusFieldScroll;
     private TextView statusField;
+    private Button startScout;
+    private Button stopScout;
+    private Button measureButton;
     /** Called when the activity is first created. */
     @Override
     public void onCreate(Bundle savedInstanceState)
@@ -43,13 +49,17 @@ public class ConnScout extends Activity
         
         rootView = (View) findViewById(R.id.root_view);
         
-        Button startScout = (Button) findViewById(R.id.start_scout);
-        Button stopScout = (Button) findViewById(R.id.stop_scout);
+        startScout = (Button) findViewById(R.id.start_scout);
+        stopScout = (Button) findViewById(R.id.stop_scout);
+        measureButton = (Button) findViewById(R.id.measure);
         startScout.setOnClickListener(mStartScoutListener);
         stopScout.setOnClickListener(mStopScoutListener);
+        measureButton.setOnClickListener(mMeasureListener);
         
         mobileAddr = (TextView) findViewById(R.id.mobile_addr);
         wifiAddr = (TextView) findViewById(R.id.wifi_addr);
+        mobileStats = (TextView) findViewById(R.id.mobile_stats);
+        wifiStats = (TextView) findViewById(R.id.wifi_stats);
         
         statusFieldScroll = 
             (ScrollView) findViewById(R.id.status_field_scroll);
@@ -60,6 +70,10 @@ public class ConnScout extends Activity
         Log.d(TAG, "Created ConnScout Activity" + this.toString());
         bindService(new Intent(this, ConnScoutService.class),
                     onService, 0);
+                    
+        startScout.setEnabled(appService == null);
+        stopScout.setEnabled(appService != null);
+        measureButton.setEnabled(appService != null);
     }
     
     @Override
@@ -133,6 +147,20 @@ public class ConnScout extends Activity
         }
     };
     
+    OnClickListener mMeasureListener = new OnClickListener() {
+        public void onClick(View v) {
+            if (appService != null) {
+                Toast.makeText(ConnScout.this, "Measuring networks (not really)", 
+                               Toast.LENGTH_SHORT).show();
+                appService.measureNetworks();
+            } else {
+                Toast.makeText(ConnScout.this, 
+                               "No scout service (shouldn't happen)", 
+                               Toast.LENGTH_SHORT).show();
+            }
+        }
+    };
+    
     public void appendToStatusField(final String str) {
         statusFieldScroll.post(new Runnable() {
             public void run() {
@@ -158,8 +186,14 @@ public class ConnScout extends Activity
                 
                 if (update.type == ConnectivityManager.TYPE_WIFI) {
                     wifiAddr.setText(addr);
+                    if (update.hasStats()) {
+                        wifiStats.setText(update.statsString());
+                    }
                 } else {
                     mobileAddr.setText(addr);
+                    if (update.hasStats()) {
+                        mobileStats.setText(update.statsString());
+                    }
                 }
             }
         });
@@ -186,9 +220,15 @@ public class ConnScout extends Activity
             } else if (action.equals(ConnScoutService.BROADCAST_START)) {
                 appendToStatusField(Utilities.formatTimestamp(new Date()) +
                                     " Scout started\n");
+                startScout.setEnabled(false);
+                stopScout.setEnabled(true);
+                measureButton.setEnabled(true);
             } else if (action.equals(ConnScoutService.BROADCAST_STOP)) {
                 appendToStatusField(Utilities.formatTimestamp(new Date()) +
                                     " Scout stopped\n");
+                startScout.setEnabled(true);
+                stopScout.setEnabled(false);
+                measureButton.setEnabled(false);
             } else {
                 // ignore; unknown
             }

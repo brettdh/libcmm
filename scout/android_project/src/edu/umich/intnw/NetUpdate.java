@@ -13,6 +13,9 @@ public final class NetUpdate implements Parcelable {
     public String ipAddr;
     public int type;
     public boolean connected;
+    public int bw_down_Bps;
+    public int bw_up_Bps;
+    public int rtt_ms;
     
     public static final Parcelable.Creator<NetUpdate> CREATOR = 
         new Parcelable.Creator<NetUpdate>() {
@@ -33,6 +36,9 @@ public final class NetUpdate implements Parcelable {
         dest.writeString(ipAddr);
         dest.writeInt(type);
         dest.writeInt(connected ? 1 : 0);
+        dest.writeInt(bw_down_Bps);
+        dest.writeInt(bw_up_Bps);
+        dest.writeInt(rtt_ms);
     }
     
     public NetUpdate() {}
@@ -45,6 +51,9 @@ public final class NetUpdate implements Parcelable {
         ipAddr = in.readString();
         type = in.readInt();
         connected = (in.readInt() == 1);
+        bw_down_Bps = in.readInt();
+        bw_up_Bps = in.readInt();
+        rtt_ms = in.readInt();
     }
     
     public String toString() {
@@ -54,6 +63,31 @@ public final class NetUpdate implements Parcelable {
            .append(ipAddr)
            .append(" ")
            .append(connected ? "up" : "down");
+        if (hasStats()) {
+            str.append(statsString());
+        }
+        return str.toString();
+    }
+    
+    public boolean hasStats() {
+        if (!connected) {
+            return false;
+        } else if (bw_down_Bps == 0 && bw_up_Bps == 0 && rtt_ms == 0) {
+            return false;
+        } else {
+            return true;
+        }
+    }
+    
+    public String statsString() {
+        StringBuilder str = new StringBuilder();
+        str.append(", ")
+           .append(bw_down_Bps)
+           .append(" down, ")
+           .append(bw_up_Bps)
+           .append(" up, ")
+           .append(rtt_ms)
+           .append(" rtt");
         return str.toString();
     }
 };
