@@ -8,6 +8,7 @@ import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.IBinder;
 import android.os.Binder;
 import android.os.Parcelable;
@@ -38,7 +39,6 @@ public class ConnScoutService extends ServiceCompat
             updateHistory = 
                 Collections.synchronizedList(new LinkedList<NetUpdate>());
             
-            // TODO: start up network monitoring
             mListener = new ConnectivityListener(this);
             
             IntentFilter filter = new IntentFilter();
@@ -70,6 +70,7 @@ public class ConnScoutService extends ServiceCompat
     public void onDestroy() {
         sendBroadcast(new Intent(BROADCAST_STOP));
         
+        mListener.cleanup();
         unregisterReceiver(mListener);
         stopScoutIPC();
         //mNM.cancel(R.string.service_started);
@@ -98,16 +99,30 @@ public class ConnScoutService extends ServiceCompat
     public static final String BROADCAST_EXTRA = 
         "edu.umich.intnw.scout.NetworkUpdateExtra";
     
-    public void logUpdate(String ip_addr, boolean down) {
+    public void logUpdate(String ip_addr, NetworkInfo info) {
+        logUpdate(ip_addr, info.getType(), info.isConnected());
+    }
+    
+    public void logUpdate(String ip_addr, int type, boolean connected) {
         NetUpdate update = new NetUpdate();
         update.timestamp = new Date();
         update.ipAddr = ip_addr;
-        update.down = down;
+        //update.info = info;
+        update.type = type;
+        update.connected = connected;
         updateHistory.add(update);
         
         Intent updateNotification = new Intent(BROADCAST_ACTION);
         updateNotification.putExtra(BROADCAST_EXTRA, update);
         sendBroadcast(updateNotification);
+    }
+    
+    public void logUpdate(NetUpdate network) {
+        //TODO: prepare broadcast intent with net info, stats
+    }
+    
+    public void measureNetworks() {
+        mListener.measureNetworks();
     }
 
     static {

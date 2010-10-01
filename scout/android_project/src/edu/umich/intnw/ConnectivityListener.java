@@ -16,6 +16,12 @@ import java.net.InetAddress;
 import java.util.Enumeration;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.Map;
+import java.util.HashMap;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
+import java.io.IOException;
 
 import edu.umich.intnw.scout.ConnScoutService;
 
@@ -24,13 +30,62 @@ public class ConnectivityListener extends BroadcastReceiver {
     
     private ConnScoutService mScoutService;
     // XXX: may have more than one WiFi IP eventually.
-    private int wifiIpAddr;
-    private int cellularIpAddr;
+    private Map<Integer, NetUpdate> ifaces = new HashMap<Integer, NetUpdate>();
+    // TODO: store a NetUpdate object as the value in this map
     
     public ConnectivityListener(ConnScoutService service) {
         mScoutService = service;
-        wifiIpAddr = 0;
-        cellularIpAddr = 0;
+        
+        NetUpdate wifiNetwork = null;
+        NetUpdate cellularNetwork = null;
+        
+        WifiManager wifi = 
+            (WifiManager) mScoutService.getSystemService(Context.WIFI_SERVICE);
+        WifiInfo wifiInfo = wifi.getConnectionInfo();
+        if (wifiInfo != null) {
+            wifiNetwork = new NetUpdate();
+            wifiNetwork.ipAddr = intToIp(wifiInfo.getIpAddress());
+            wifiNetwork.connected = true;
+        }
+        
+        try {
+            NetworkInterface cellularIface = getCellularIface(wifiInfo);
+            if (cellularIface != null) {
+                InetAddress addr = getIfaceIpAddr(cellularIface);
+                if (addr != null) {
+                    cellularNetwork = new NetUpdate();
+                    cellularNetwork.ipAddr = addr.getHostAddress();
+                    cellularNetwork.connected = true;
+                }
+            }
+        } catch (SocketException e) {
+            Log.e(TAG, "failed to get cellular IP address: " + e.toString());
+        }
+            
+        ifaces.put(ConnectivityManager.TYPE_WIFI, wifiNetwork);
+        ifaces.put(ConnectivityManager.TYPE_MOBILE, cellularNetwork);
+        
+        if (wifiNetwork != null) {
+            setCustomGateway(wifiNetwork.ipAddr);
+        }
+        
+        for (int type : ifaces.keySet()) {
+            NetUpdate network = ifaces.get(type);
+            if (network != null) {
+                mScoutService.updateNetwork(network.ipAddr, 
+                                            network.bw_down_Bps,
+                                            network.bw_up_Bps, 
+                                            network.rtt_ms, true);
+                mScoutService.logUpdate(network.ipAddr, type, true);
+            }
+        }
+    }
+    
+    public void cleanup() {
+        NetUpdate wifi = ifaces.get(ConnectivityManager.TYPE_WIFI);
+        if (wifi != null) {
+            removeCustomGateway(wifi.ipAddr, true);
+        }
     }
     
     private static String intToIp(int i) {
@@ -66,11 +121,10 @@ public class ConnectivityListener extends BroadcastReceiver {
         return addr;
     }
     
-    private static int inetAddressToInt(InetAddress addr) {
+    private static int ipBytesToInt(byte[] addrBytes) {
+        assert addrBytes.length == 4;
         int ret = 0;
-        byte [] addrBytes = addr.getAddress();
-        Log.d(TAG, "inetAddressToInt: address: " + addr.getHostAddress());
-        Log.d(TAG, "inetAddressToInt: bytes:");
+        Log.d(TAG, "ipBytesToInt: bytes:");
         for (int i = 0; i<addrBytes.length; i++) {
             // print unsigned value
             Log.d(TAG, "        addr[" + i + "] = " + (addrBytes[i] & 0xff));
@@ -78,6 +132,23 @@ public class ConnectivityListener extends BroadcastReceiver {
             ret = ret | ((addrBytes[i] & 0xff) << shift);
         }
         return ret;
+    }
+    
+    private static int ipStringToInt(String ipAddr) {
+        Log.d(TAG, "ipStringToInt: address: " + ipAddr);
+        String[] blocks = ipAddr.split(".");
+        assert blocks.length == 4;
+        byte[] addrBytes = new byte[4];
+        for (int i = 0; i < blocks.length; i++) {
+            addrBytes[i] = Byte.parseByte(blocks[i]);
+        }
+        return ipBytesToInt(addrBytes);
+    }
+    
+    private static int inetAddressToInt(InetAddress addr) {
+        byte [] addrBytes = addr.getAddress();
+        Log.d(TAG, "inetAddressToInt: address: " + addr.getHostAddress());
+        return ipBytesToInt(addrBytes);
     }
     
     private static NetworkInterface getCellularIface(WifiInfo wifiInfo) 
@@ -111,8 +182,6 @@ public class ConnectivityListener extends BroadcastReceiver {
     
     /** getIpAddr
      * only call once per delivered intent.
-     * side effect: stores (or unstores) the IP address
-     *   that it returns.
      * assumption 1: intents will arrive as connect-disconnect pairs,
      *   with no connect-connect or disconnect-disconnect pairs.
      * assumption 2: when a connect intent arrives, the NetworkInterface
@@ -129,7 +198,7 @@ public class ConnectivityListener extends BroadcastReceiver {
         if (networkInfo.getType() == ConnectivityManager.TYPE_WIFI) {
             if (networkInfo.isConnected()) {
                 if (wifiInfo != null) {
-                    wifiIpAddr = wifiInfo.getIpAddress();
+                    int wifiIpAddr = wifiInfo.getIpAddress();
                     // InetAddress addr = intToInetAddress(wifiIpAddr);
                     // Log.d(TAG, "getIpAddr: returning wifi IP " +
                     //       addr.getHostAddress());
@@ -143,20 +212,18 @@ public class ConnectivityListener extends BroadcastReceiver {
                     
                     return wifiIpAddr;
                 } else {
-                    Log.e(TAG, "Weird... got wifi connection intent but" +
+                    Log.e(TAG, "Weird... got wifi connection intent but " +
                           "WifiManager doesn't have connection info");
                     throw new NetworkStatusException();
                 }
             } else {
-                if (wifiIpAddr == 0) {
-                    Log.e(TAG, "Weird... got wifi disconnect intent but" +
-                          "I haven't seen a wifi connection intent");
+                NetUpdate wifiNet = ifaces.get(networkInfo.getType());
+                if (wifiNet == null) {
+                    Log.e(TAG, "Weird... got wifi disconnection intent but " +
+                          "I don't have the wifi net info");
                     throw new NetworkStatusException();
-                } else {
-                    int ret = wifiIpAddr;
-                    wifiIpAddr = 0;
-                    return ret;
                 }
+                return ipStringToInt(wifiNet.ipAddr);
             }
         } else { // cellular (TYPE_MOBILE)
             // first, find the IP address of the cellular interface
@@ -168,9 +235,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                     throw new NetworkStatusException();
                 }
                 
-                cellularIpAddr = 
-                    inetAddressToInt(getIfaceIpAddr(cellular_iface));
-                return cellularIpAddr;
+                return inetAddressToInt(getIfaceIpAddr(cellular_iface));
             } else {
                 if (cellular_iface != null) {
                     Log.e(TAG, "Weird... got cellular disconnect intent " +
@@ -178,16 +243,180 @@ public class ConnectivityListener extends BroadcastReceiver {
                     throw new NetworkStatusException();
                 }
                 
-                if (cellularIpAddr == 0) {
-                    Log.e(TAG, "Weird... got cellular disconnect intent but" +
-                          "I haven't seen a cellular connection intent");
+                NetUpdate cellular = ifaces.get(networkInfo.getType());
+                if (cellular == null) {
+                    Log.e(TAG, "Weird... got cellular disconnection intent but " +
+                          "I don't have the wifi net info");
                     throw new NetworkStatusException();
-                } else {
-                    int ret = cellularIpAddr;
-                    cellularIpAddr = 0;
-                    return ret;
+                }
+                return ipStringToInt(cellular.ipAddr);
+            }
+        }
+    }
+    
+    /**
+     * Returns a String with the IP address of the WiFi gateway,
+     *  or null if there is none or it couldn't be found.
+     */
+    private String getWifiGateway(String tableName) {
+        String cmds[] = "ip route show dev tiwlan0 table (table)".split(" ");
+        cmds[6] = tableName;
+        
+        String gateway = null;
+        
+        try {
+            Process p = runShellCommand(cmds);
+            InputStream in = p.getInputStream();
+            InputStreamReader inRdr = new InputStreamReader(in);
+            BufferedReader reader = new BufferedReader(inRdr, 1024);
+            
+            String line = null;
+            while ( (line = reader.readLine()) != null) {
+                Log.d(TAG, "Getting gateway: " + line);
+                if (line.contains("default via ")) {
+                    // Format: "default via <ip>"
+                    String tokens[] = line.split(" ");
+                    gateway = tokens[2];
+                    break;
                 }
             }
+            int rc = p.waitFor();
+            if (rc != 0) {
+                Log.e(TAG, "Failed to get wifi gateway in table " + tableName);
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Error reading from subprocess: " + e.toString());
+        } catch (InterruptedException e) {
+            Log.e(TAG, "Error waiting for subprocess: " + e.toString());
+        }
+        return gateway;
+    }
+    
+    private Process runShellCommand(String[] cmds) throws IOException {
+        StringBuffer buf = new StringBuffer("Running shell command: ");
+        for (String cmd : cmds) {
+            buf.append(cmd).append(" ");
+        }
+        Log.d(TAG, buf.toString());
+        return Runtime.getRuntime().exec(cmds);
+    }
+    
+    private void logProcessOutput(Process p) throws IOException {
+        InputStream in = p.getInputStream();
+        InputStreamReader rdr = new InputStreamReader(in);
+        BufferedReader reader = new BufferedReader(rdr, 1024);
+        String line = null;
+        while ( (line = reader.readLine()) != null) {
+            Log.e(TAG, "   " + line);
+        }
+    }
+    
+    private void modifyWifiGateway(String op, String gateway, String table) {
+        String cmds[] = new String[8];
+        cmds[0] = "ip";
+        cmds[1] = "route";
+        cmds[2] = op;
+        cmds[3] = "default";
+        cmds[4] = "via";
+        cmds[5] = gateway; 
+        cmds[6] = "table";
+        cmds[7] = table;
+        try {
+            Process p = runShellCommand(cmds);
+            int rc = p.waitFor();
+            if (rc != 0) {
+                Log.e(TAG, "Failed to " + op + " custom gateway:");
+                logProcessOutput(p);
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Error reading from subprocess: " + e.toString());
+        } catch (InterruptedException e) {
+            Log.e(TAG, "Error waiting for subprocess: " + e.toString());
+        }
+    }
+    
+    private void modifyWifiRoutingRules(String op, String ipAddr) {
+        String cmds[] = new String[7];
+        cmds[0] = "ip";
+        cmds[1] = "rule";
+        cmds[2] = op;
+        cmds[3] = "from";
+        cmds[4] = ipAddr;
+        cmds[5] = "table";
+        cmds[6] = "g1custom";
+        
+        Process p = null;
+        try {
+            p = runShellCommand(cmds);
+            int rc = p.waitFor();
+            if (rc != 0) {
+                Log.e(TAG, "Failed to " + op + " routing rules:");
+                logProcessOutput(p);
+            }
+            
+            // bidirectional routing rule
+            cmds[3] = "to";
+            p = runShellCommand(cmds);
+            rc = p.waitFor();
+            if (rc != 0) {
+                Log.e(TAG, "Failed to " + op + " routing rules:");
+                logProcessOutput(p);
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Error reading from subprocess: " + e.toString());
+        } catch (InterruptedException e) {
+            Log.e(TAG, "Error waiting for subprocess: " + e.toString());
+        }
+    }
+    
+    private void setCustomGateway(String ipAddr) {
+        /*
+        Steps:
+        1) Get already-configured gateway address
+        2) Remove system-added gateway
+        3) Add new gateway in routing table 'g1custom'
+        4) Add routing rules for g1custom table
+        */
+        Log.d(TAG, "Setting up gateway and routing rules for " + ipAddr);
+        String gateway = getWifiGateway("main");
+        if (gateway != null) {
+            modifyWifiGateway("del", gateway, "main");
+            modifyWifiGateway("add", gateway, "g1custom");
+            modifyWifiRoutingRules("add", ipAddr);
+        } else {
+            Log.e(TAG, "Couldn't find gateway for tiwlan0 in main table");
+        }
+    }
+    
+    private void removeCustomGateway(String ipAddr, boolean restoreOld) {
+        /*
+        Steps:
+        1) Get already-configured gateway address
+        2) Remove my custom gateway (it's probably gone already)
+        3) Remove routing rules for g1custom table
+        */
+        Log.d(TAG, "Removing custom routing setup for " + ipAddr);
+        String gateway = getWifiGateway("g1custom");
+        if (gateway != null) {
+            modifyWifiGateway("del", gateway, "g1custom");
+            if (restoreOld) {
+                modifyWifiGateway("append", gateway, "main");
+            }
+            modifyWifiRoutingRules("del", ipAddr);
+        } else {
+            Log.e(TAG, "Couldn't find gateway for tiwlan0 in g1custom table");
+        }
+    }
+    
+    public void measureNetworks() {
+        //TODO: actually measure the networks.
+        //start a thread that does the below:
+        for (int netType : ifaces.keySet()) {
+            NetUpdate network = ifaces.get(netType);
+            //collect measurements
+            //broadcast result to ConnScoutService
+            //mScoutService.updateNetwork(...);
+            //mScoutService.logUpdate(network);
         }
     }
     
@@ -204,10 +433,59 @@ public class ConnectivityListener extends BroadcastReceiver {
         NetworkInfo networkInfo = 
             (NetworkInfo) extras.get(ConnectivityManager.EXTRA_NETWORK_INFO);
         try {
-            String ipAddr = intToIp(getIpAddr(networkInfo));
-            mScoutService.updateNetwork(ipAddr, 1250000, 1250000, 1, 
+            int bw_down_Bps = 0;
+            int bw_up_Bps = 0;
+            int rtt_ms = 0;
+            
+            int curAddr = getIpAddr(networkInfo);
+            String ipAddr = intToIp(curAddr);
+            
+            NetUpdate prevNet = ifaces.get(networkInfo.getType());
+            if (prevNet != null && !prevNet.ipAddr.equals(ipAddr)) {
+                // put down the old network's IP addr
+                mScoutService.updateNetwork(prevNet.ipAddr, 0, 0, 0, true);
+            }
+            
+            if (networkInfo.isConnected()) {
+                NetUpdate network = prevNet;
+                if (network == null) {
+                    network = new NetUpdate();
+                }
+                if (prevNet != null && prevNet.ipAddr.equals(ipAddr)) {
+                    // preserve existing stats
+                } else {
+                    // optimistic fake estimate while we wait for 
+                    //  real measurements
+                    network.bw_down_Bps = 1250000;
+                    network.bw_up_Bps = 1250000;
+                    network.rtt_ms = 1;
+                }
+                bw_down_Bps = network.bw_down_Bps;
+                bw_up_Bps = network.bw_up_Bps;
+                rtt_ms = network.rtt_ms;
+                
+                network.ipAddr = ipAddr;
+                ifaces.put(networkInfo.getType(), network);
+                // TODO: switch out old default gateway for mine, with
+                //  "g1custom" table
+                if (networkInfo.getType() ==
+                    ConnectivityManager.TYPE_WIFI) {
+                    setCustomGateway(ipAddr);
+                }
+            } else {
+                ifaces.put(networkInfo.getType(), null);
+                // TODO: remove my custom default gateway
+                if (networkInfo.getType() ==
+                    ConnectivityManager.TYPE_WIFI) {
+                    removeCustomGateway(ipAddr, false);
+                }
+            }
+            
+            // TODO: real network measurements here
+            mScoutService.updateNetwork(ipAddr, 
+                                        bw_down_Bps, bw_up_Bps, rtt_ms,
                                         !networkInfo.isConnected());
-            mScoutService.logUpdate(ipAddr, !networkInfo.isConnected());
+            mScoutService.logUpdate(ipAddr, networkInfo);
             
         } catch (NetworkStatusException e) {
             // ignore; already logged
