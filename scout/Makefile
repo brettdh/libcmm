@@ -18,6 +18,9 @@ conn_scout: libcmm_scout.o ../cdf_sampler.o ../debug.o ../common.o \
 	    ../libancillary/libancillary.a
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
+virgil_server: virgil_server.c
+	gcc -o $@ $^ -g -Wall -Werror -pthread
+
 .bininstall: conn_scout
 	install conn_scout /usr/local/bin/
 	-touch .bininstall
