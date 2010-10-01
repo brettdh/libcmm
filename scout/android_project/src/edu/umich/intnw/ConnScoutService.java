@@ -118,7 +118,9 @@ public class ConnScoutService extends ServiceCompat
     }
     
     public void logUpdate(NetUpdate network) {
-        //TODO: prepare broadcast intent with net info, stats
+        Intent updateNotification = new Intent(BROADCAST_ACTION);
+        updateNotification.putExtra(BROADCAST_EXTRA, network);
+        sendBroadcast(updateNotification);
     }
     
     public void measureNetworks() {
