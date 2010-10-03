@@ -14,6 +14,7 @@ import android.net.wifi.WifiInfo;
 import java.net.NetworkInterface;
 import java.net.InetAddress;
 import java.util.Enumeration;
+import java.util.Date;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.Map;
@@ -31,7 +32,6 @@ public class ConnectivityListener extends BroadcastReceiver {
     private ConnScoutService mScoutService;
     // XXX: may have more than one WiFi IP eventually.
     private Map<Integer, NetUpdate> ifaces = new HashMap<Integer, NetUpdate>();
-    // TODO: store a NetUpdate object as the value in this map
     
     public ConnectivityListener(ConnScoutService service) {
         mScoutService = service;
@@ -43,8 +43,8 @@ public class ConnectivityListener extends BroadcastReceiver {
             (WifiManager) mScoutService.getSystemService(Context.WIFI_SERVICE);
         WifiInfo wifiInfo = wifi.getConnectionInfo();
         if (wifiInfo != null) {
-            wifiNetwork = new NetUpdate();
-            wifiNetwork.ipAddr = intToIp(wifiInfo.getIpAddress());
+            wifiNetwork = new NetUpdate(intToIp(wifiInfo.getIpAddress()));
+            wifiNetwork.type = ConnectivityManager.TYPE_WIFI;
             wifiNetwork.connected = true;
         }
         
@@ -53,8 +53,8 @@ public class ConnectivityListener extends BroadcastReceiver {
             if (cellularIface != null) {
                 InetAddress addr = getIfaceIpAddr(cellularIface);
                 if (addr != null) {
-                    cellularNetwork = new NetUpdate();
-                    cellularNetwork.ipAddr = addr.getHostAddress();
+                    cellularNetwork = new NetUpdate(addr.getHostAddress());
+                    cellularNetwork.type = ConnectivityManager.TYPE_MOBILE;
                     cellularNetwork.connected = true;
                 }
             }
@@ -139,7 +139,7 @@ public class ConnectivityListener extends BroadcastReceiver {
         String[] blocks = ipAddr.split(".");
         assert blocks.length == 4;
         byte[] addrBytes = new byte[4];
-        for (int i = 0; i < blocks.length; i++) {
+        for (int i = 0; i < 4; i++) {
             addrBytes[i] = Byte.parseByte(blocks[i]);
         }
         return ipBytesToInt(addrBytes);
@@ -408,15 +408,66 @@ public class ConnectivityListener extends BroadcastReceiver {
         }
     }
     
+    private class MeasurementThread extends Thread {
+        private ConnectivityListener mListener;
+        private Map<Integer, NetUpdate> networks;
+        
+        public MeasurementThread(ConnectivityListener listener, 
+                                 Map<Integer, NetUpdate> nets) {
+            mListener = listener;
+            networks = nets;
+        }
+        
+        public void run() {
+            for (int netType : networks.keySet()) {
+                NetUpdate network = networks.get(netType);
+                //collect measurements
+                NetworkTest test = new NetworkTest(network.ipAddr);
+                try {
+                    test.runTests();
+                    
+                    //broadcast result to listener
+                    synchronized(ifaces) {
+                        NetUpdate storedNet = ifaces.get(netType);
+                        storedNet.timestamp = new Date();
+                        storedNet.bw_down_Bps = test.bw_down_Bps;
+                        storedNet.bw_up_Bps = test.bw_up_Bps;
+                        storedNet.rtt_ms = test.rtt_ms;
+                    }
+                    
+                    mListener.mScoutService.updateNetwork(network.ipAddr,
+                                                          network.bw_down_Bps,
+                                                          network.bw_up_Bps,
+                                                          network.rtt_ms,
+                                                          true);
+                    mListener.mScoutService.logUpdate(network);
+                } catch (NetworkTest.NetworkTestException e) {
+                    Log.d(TAG, "Network measurement failed: " + e.toString());
+                    ConnScoutService srv = mListener.mScoutService;
+                    srv.reportMeasurementFailure(netType, network.ipAddr);
+                }
+            }
+            mListener.measurementThread = null;
+            mListener.mScoutService.measurementDone(null);
+        }
+    }
+    
+    private Thread measurementThread = null;
+    
     public void measureNetworks() {
         //TODO: actually measure the networks.
         //start a thread that does the below:
-        for (int netType : ifaces.keySet()) {
-            NetUpdate network = ifaces.get(netType);
-            //collect measurements
-            //broadcast result to ConnScoutService
-            //mScoutService.updateNetwork(...);
-            //mScoutService.logUpdate(network);
+        if (measurementThread == null) {
+            final Map<Integer, NetUpdate> networks
+                = new HashMap<Integer, NetUpdate>();
+            synchronized(ifaces) {
+                for (int type : ifaces.keySet()) {
+                    networks.put(type, (NetUpdate) ifaces.get(type).clone());
+                }
+            }
+            
+            measurementThread = new MeasurementThread(this, networks);
+            measurementThread.start();
         }
     }
     
@@ -449,7 +500,9 @@ public class ConnectivityListener extends BroadcastReceiver {
             if (networkInfo.isConnected()) {
                 NetUpdate network = prevNet;
                 if (network == null) {
-                    network = new NetUpdate();
+                    network = new NetUpdate(ipAddr);
+                    network.type = networkInfo.getType();
+                    network.connected = true;
                 }
                 if (prevNet != null && prevNet.ipAddr.equals(ipAddr)) {
                     // preserve existing stats
@@ -466,15 +519,12 @@ public class ConnectivityListener extends BroadcastReceiver {
                 
                 network.ipAddr = ipAddr;
                 ifaces.put(networkInfo.getType(), network);
-                // TODO: switch out old default gateway for mine, with
-                //  "g1custom" table
                 if (networkInfo.getType() ==
                     ConnectivityManager.TYPE_WIFI) {
                     setCustomGateway(ipAddr);
                 }
             } else {
                 ifaces.put(networkInfo.getType(), null);
-                // TODO: remove my custom default gateway
                 if (networkInfo.getType() ==
                     ConnectivityManager.TYPE_WIFI) {
                     removeCustomGateway(ipAddr, false);

@@ -8,7 +8,7 @@ import java.util.Calendar;
 import java.util.GregorianCalendar;
 import edu.umich.intnw.scout.Utilities;
 
-public final class NetUpdate implements Parcelable {
+public final class NetUpdate implements Parcelable, Cloneable {
     public Date timestamp;
     public String ipAddr;
     public int type;
@@ -16,6 +16,28 @@ public final class NetUpdate implements Parcelable {
     public int bw_down_Bps;
     public int bw_up_Bps;
     public int rtt_ms;
+    
+    public NetUpdate(String ip) {
+        timestamp = new Date();
+        ipAddr = new String(ip);
+    }
+    
+    public Object clone() {
+        try {
+            NetUpdate newUpdate = (NetUpdate) super.clone();
+            if (timestamp != null) {
+                newUpdate.timestamp = (Date) timestamp.clone();
+            }
+            if (ipAddr != null) {
+                newUpdate.ipAddr = new String(ipAddr);
+            }
+            return newUpdate;
+        } catch (CloneNotSupportedException e) {
+            // shouldn't ever happen
+            assert false;
+            return null;
+        }
+    }
     
     public static final Parcelable.Creator<NetUpdate> CREATOR = 
         new Parcelable.Creator<NetUpdate>() {

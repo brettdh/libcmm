@@ -119,6 +119,7 @@ public class ConnScout extends Activity
         filter.addAction(ConnScoutService.BROADCAST_ACTION);
         filter.addAction(ConnScoutService.BROADCAST_START);
         filter.addAction(ConnScoutService.BROADCAST_STOP);
+        filter.addAction(ConnScoutService.BROADCAST_MEASUREMENT_DONE);
         registerReceiver(mReceiver, filter);
     }
     
@@ -150,8 +151,8 @@ public class ConnScout extends Activity
     OnClickListener mMeasureListener = new OnClickListener() {
         public void onClick(View v) {
             if (appService != null) {
-                Toast.makeText(ConnScout.this, "Measuring networks (not really)", 
-                               Toast.LENGTH_SHORT).show();
+                ((Button) v).setText("Measuring...");
+                v.setEnabled(false);
                 appService.measureNetworks();
             } else {
                 Toast.makeText(ConnScout.this, 
@@ -229,6 +230,18 @@ public class ConnScout extends Activity
                 startScout.setEnabled(true);
                 stopScout.setEnabled(false);
                 measureButton.setEnabled(false);
+            } else if (action.equals(ConnScoutService.BROADCAST_MEASUREMENT_DONE)) {
+                measureButton.setText("Measure");
+                measureButton.setEnabled(true);
+                Bundle extras = intent.getExtras();
+                if (extras != null) {
+                    String msg = 
+                        (String) extras.get(ConnScoutService.BROADCAST_EXTRA);
+                    if (msg != null) {
+                        Toast.makeText(ConnScout.this, msg,
+                                       Toast.LENGTH_SHORT).show();
+                    }
+                }
             } else {
                 // ignore; unknown
             }

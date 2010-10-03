@@ -98,16 +98,15 @@ public class ConnScoutService extends ServiceCompat
         "edu.umich.intnw.scout.ScoutStopEvent";
     public static final String BROADCAST_EXTRA = 
         "edu.umich.intnw.scout.NetworkUpdateExtra";
+    public static final String BROADCAST_MEASUREMENT_DONE = 
+        "edu.umich.intnw.scout.MeasurementDone";
     
     public void logUpdate(String ip_addr, NetworkInfo info) {
         logUpdate(ip_addr, info.getType(), info.isConnected());
     }
     
     public void logUpdate(String ip_addr, int type, boolean connected) {
-        NetUpdate update = new NetUpdate();
-        update.timestamp = new Date();
-        update.ipAddr = ip_addr;
-        //update.info = info;
+        NetUpdate update = new NetUpdate(ip_addr);
         update.type = type;
         update.connected = connected;
         updateHistory.add(update);
@@ -125,6 +124,26 @@ public class ConnScoutService extends ServiceCompat
     
     public void measureNetworks() {
         mListener.measureNetworks();
+    }
+    
+    public void reportMeasurementFailure(int type, String ipAddr) {
+        StringBuilder msg = new StringBuilder();
+        msg.append("Measurement for ");
+        if (type == ConnectivityManager.TYPE_WIFI) {
+            msg.append("wifi");
+        } else {
+            msg.append("cellular");
+        }
+        msg.append(" network ").append(ipAddr).append(" failed.");
+        measurementDone(msg.toString());
+    }
+    
+    public void measurementDone(String msg) {
+        Intent notification = new Intent(BROADCAST_MEASUREMENT_DONE);
+        if (msg != null) {
+            notification.putExtra(BROADCAST_EXTRA, msg);
+        }
+        sendBroadcast(notification);
     }
 
     static {
