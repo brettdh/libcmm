@@ -78,3 +78,11 @@ the Android platform code that modifies the routing tables (in order to make
 this all less brittle), then the ConnScoutService would need root.
 Next: make a test app that has two buttons: "SendFG" and "SendBG".  
 Easy-to-understand multi-network test.
+
+10/7/2010
+Might need to take another look at the bit in services.jar that defaults
+connections to WiFi when it's available; I think I may have changed the 
+default for non-IntNW apps to cellular.
+Also, enable "immediately destroy activities" in dev tools->devel settings
+in order to test out why the ConnScout activity isn't getting the 
+ConnScoutService instance when it starts up after being destroyed.

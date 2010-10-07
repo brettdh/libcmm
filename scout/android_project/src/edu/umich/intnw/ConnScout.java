@@ -68,8 +68,14 @@ public class ConnScout extends Activity
         initFields();
         
         Log.d(TAG, "Created ConnScout Activity" + this.toString());
-        bindService(new Intent(this, ConnScoutService.class),
-                    onService, 0);
+        Intent bindIntent = new Intent(this, ConnScoutService.class);
+        boolean serviceConnected = bindService(bindIntent, onService, 0);
+        if (!serviceConnected) {
+            Log.e(TAG, "Failed to bind to ConnScoutService!");
+            if (appService != null) {
+                Log.e(TAG, "And it's running, too!");
+            }
+        }
                     
         startScout.setEnabled(appService == null);
         stopScout.setEnabled(appService != null);
@@ -88,6 +94,17 @@ public class ConnScout extends Activity
     public void onResume(){
         super.onResume();
         
+        restoreDisplay();
+        
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(ConnScoutService.BROADCAST_ACTION);
+        filter.addAction(ConnScoutService.BROADCAST_START);
+        filter.addAction(ConnScoutService.BROADCAST_STOP);
+        filter.addAction(ConnScoutService.BROADCAST_MEASUREMENT_DONE);
+        registerReceiver(mReceiver, filter);
+    }
+    
+    private void restoreDisplay() {
         if (appService != null) {
             NetUpdate lastCellularUpdate = null;
             NetUpdate lastWifiUpdate = null;
@@ -114,13 +131,6 @@ public class ConnScout extends Activity
             displayUpdate(lastCellularUpdate);
             displayUpdate(lastWifiUpdate);
         }
-        
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(ConnScoutService.BROADCAST_ACTION);
-        filter.addAction(ConnScoutService.BROADCAST_START);
-        filter.addAction(ConnScoutService.BROADCAST_STOP);
-        filter.addAction(ConnScoutService.BROADCAST_MEASUREMENT_DONE);
-        registerReceiver(mReceiver, filter);
     }
     
     @Override
@@ -252,11 +262,13 @@ public class ConnScout extends Activity
     private ServiceConnection onService=new ServiceConnection() {
         public void onServiceConnected(ComponentName className,
                                        IBinder rawBinder) {
+            Log.d(TAG, "ConnScoutService connected");
             appService = 
                 ((ConnScoutService.LocalBinder)rawBinder).getService();
         }
 
         public void onServiceDisconnected(ComponentName className) {
+            Log.d(TAG, "ConnScoutService disconnected");
             appService = null;
         }
     };
