@@ -44,6 +44,27 @@
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     >
+    <TextView
+        android:layout_width="40dp"
+        android:layout_height="wrap_content"
+        android:text="type"
+        />
+    <TextView
+        android:layout_width="125dp"
+        android:layout_height="wrap_content"
+        android:text="IP"
+        />
+    <TextView
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:text="DL / UL / RTT"
+        />
+</TableRow>
+<TableRow
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    >
 <TextView
     android:layout_width="40dp"
     android:layout_height="wrap_content"

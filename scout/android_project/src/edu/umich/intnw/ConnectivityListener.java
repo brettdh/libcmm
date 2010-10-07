@@ -15,6 +15,7 @@ import java.net.NetworkInterface;
 import java.net.InetAddress;
 import java.util.Enumeration;
 import java.util.Date;
+import java.util.Collections;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.Map;
@@ -31,7 +32,8 @@ public class ConnectivityListener extends BroadcastReceiver {
     
     private ConnScoutService mScoutService;
     // XXX: may have more than one WiFi IP eventually.
-    private Map<Integer, NetUpdate> ifaces = new HashMap<Integer, NetUpdate>();
+    private Map<Integer, NetUpdate> ifaces = 
+        Collections.synchronizedMap(new HashMap<Integer, NetUpdate>());
     
     public ConnectivityListener(ConnScoutService service) {
         mScoutService = service;
@@ -408,6 +410,11 @@ public class ConnectivityListener extends BroadcastReceiver {
         }
     }
     
+    public static final String NETWORK_MEASUREMENT_RESULT = 
+        "edu.umich.intnw.scout.NetworkMeasurementResult";
+    private static final String NETWORK_STATS_EXTRA = 
+        "edu.umich.intnw.scout.NetworkStatsExtra";
+    
     private class MeasurementThread extends Thread {
         private ConnectivityListener mListener;
         private Map<Integer, NetUpdate> networks;
@@ -427,20 +434,14 @@ public class ConnectivityListener extends BroadcastReceiver {
                     test.runTests();
                     
                     //broadcast result to listener
-                    synchronized(ifaces) {
-                        NetUpdate storedNet = ifaces.get(netType);
-                        storedNet.timestamp = new Date();
-                        storedNet.bw_down_Bps = test.bw_down_Bps;
-                        storedNet.bw_up_Bps = test.bw_up_Bps;
-                        storedNet.rtt_ms = test.rtt_ms;
-                    }
+                    network.timestamp = new Date();
+                    network.bw_down_Bps = test.bw_down_Bps;
+                    network.bw_up_Bps = test.bw_up_Bps;
+                    network.rtt_ms = test.rtt_ms;
                     
-                    mListener.mScoutService.updateNetwork(network.ipAddr,
-                                                          network.bw_down_Bps,
-                                                          network.bw_up_Bps,
-                                                          network.rtt_ms,
-                                                          true);
-                    mListener.mScoutService.logUpdate(network);
+                    Intent intent = new Intent(NETWORK_MEASUREMENT_RESULT);
+                    intent.putExtra(NETWORK_STATS_EXTRA, network);
+                    mListener.mScoutService.sendBroadcast(intent);
                 } catch (NetworkTest.NetworkTestException e) {
                     Log.d(TAG, "Network measurement failed: " + e.toString());
                     ConnScoutService srv = mListener.mScoutService;
@@ -455,15 +456,12 @@ public class ConnectivityListener extends BroadcastReceiver {
     private Thread measurementThread = null;
     
     public void measureNetworks() {
-        //TODO: actually measure the networks.
-        //start a thread that does the below:
         if (measurementThread == null) {
             final Map<Integer, NetUpdate> networks
                 = new HashMap<Integer, NetUpdate>();
-            synchronized(ifaces) {
-                for (int type : ifaces.keySet()) {
-                    networks.put(type, (NetUpdate) ifaces.get(type).clone());
-                }
+            for (int type : ifaces.keySet()) {
+                NetUpdate network = ifaces.get(type);
+                networks.put(type, (NetUpdate) network.clone());
             }
             
             measurementThread = new MeasurementThread(this, networks);
@@ -481,66 +479,89 @@ public class ConnectivityListener extends BroadcastReceiver {
             Log.d(TAG, key + "=>" + extras.get(key));
         }
         
-        NetworkInfo networkInfo = 
-            (NetworkInfo) extras.get(ConnectivityManager.EXTRA_NETWORK_INFO);
-        try {
-            int bw_down_Bps = 0;
-            int bw_up_Bps = 0;
-            int rtt_ms = 0;
-            
-            int curAddr = getIpAddr(networkInfo);
-            String ipAddr = intToIp(curAddr);
-            
-            NetUpdate prevNet = ifaces.get(networkInfo.getType());
-            if (prevNet != null && !prevNet.ipAddr.equals(ipAddr)) {
-                // put down the old network's IP addr
-                mScoutService.updateNetwork(prevNet.ipAddr, 0, 0, 0, true);
-            }
-            
-            if (networkInfo.isConnected()) {
-                NetUpdate network = prevNet;
-                if (network == null) {
-                    network = new NetUpdate(ipAddr);
-                    network.type = networkInfo.getType();
-                    network.connected = true;
-                }
-                if (prevNet != null && prevNet.ipAddr.equals(ipAddr)) {
-                    // preserve existing stats
-                } else {
-                    // optimistic fake estimate while we wait for 
-                    //  real measurements
-                    network.bw_down_Bps = 1250000;
-                    network.bw_up_Bps = 1250000;
-                    network.rtt_ms = 1;
-                }
-                bw_down_Bps = network.bw_down_Bps;
-                bw_up_Bps = network.bw_up_Bps;
-                rtt_ms = network.rtt_ms;
+        String action = intent.getAction();
+        if (action.equals(ConnectivityManager.CONNECTIVITY_ACTION)) {
+            NetworkInfo networkInfo = 
+                (NetworkInfo) extras.get(ConnectivityManager.EXTRA_NETWORK_INFO);
+            try {
+                int bw_down_Bps = 0;
+                int bw_up_Bps = 0;
+                int rtt_ms = 0;
                 
-                network.ipAddr = ipAddr;
-                ifaces.put(networkInfo.getType(), network);
-                if (networkInfo.getType() ==
-                    ConnectivityManager.TYPE_WIFI) {
-                    setCustomGateway(ipAddr);
+                int curAddr = getIpAddr(networkInfo);
+                String ipAddr = intToIp(curAddr);
+                
+                NetUpdate prevNet = ifaces.get(networkInfo.getType());
+                if (prevNet != null && !prevNet.ipAddr.equals(ipAddr)) {
+                    // put down the old network's IP addr
+                    mScoutService.updateNetwork(prevNet.ipAddr, 0, 0, 0, true);
                 }
-            } else {
-                ifaces.put(networkInfo.getType(), null);
-                if (networkInfo.getType() ==
-                    ConnectivityManager.TYPE_WIFI) {
-                    removeCustomGateway(ipAddr, false);
+                
+                if (networkInfo.isConnected()) {
+                    NetUpdate network = prevNet;
+                    if (network == null) {
+                        network = new NetUpdate(ipAddr);
+                        network.type = networkInfo.getType();
+                        network.connected = true;
+                    }
+                    if (prevNet != null && prevNet.ipAddr.equals(ipAddr)) {
+                        // preserve existing stats
+                    } else {
+                        // optimistic fake estimate while we wait for 
+                        //  real measurements
+                        network.bw_down_Bps = 1250000;
+                        network.bw_up_Bps = 1250000;
+                        network.rtt_ms = 1;
+                    }
+                    bw_down_Bps = network.bw_down_Bps;
+                    bw_up_Bps = network.bw_up_Bps;
+                    rtt_ms = network.rtt_ms;
+                    
+                    network.ipAddr = ipAddr;
+                    ifaces.put(networkInfo.getType(), network);
+                    if (networkInfo.getType() ==
+                        ConnectivityManager.TYPE_WIFI) {
+                        setCustomGateway(ipAddr);
+                    }
+                } else {
+                    ifaces.put(networkInfo.getType(), null);
+                    if (networkInfo.getType() ==
+                        ConnectivityManager.TYPE_WIFI) {
+                        removeCustomGateway(ipAddr, false);
+                    }
                 }
+                
+                // TODO: real network measurements here
+                mScoutService.updateNetwork(ipAddr, 
+                                            bw_down_Bps, bw_up_Bps, rtt_ms,
+                                            !networkInfo.isConnected());
+                mScoutService.logUpdate(ipAddr, networkInfo);
+                
+            } catch (NetworkStatusException e) {
+                // ignore; already logged
+            } catch (SocketException e) {
+                Log.e(TAG, "failed to get IP address: " + e.toString());
             }
+        } else if (action.equals(NETWORK_MEASUREMENT_RESULT)) {
+            NetUpdate network = (NetUpdate) extras.get(NETWORK_STATS_EXTRA);
+            Log.d(TAG, "Got network measurement result for " + network.ipAddr);
             
-            // TODO: real network measurements here
-            mScoutService.updateNetwork(ipAddr, 
-                                        bw_down_Bps, bw_up_Bps, rtt_ms,
-                                        !networkInfo.isConnected());
-            mScoutService.logUpdate(ipAddr, networkInfo);
-            
-        } catch (NetworkStatusException e) {
-            // ignore; already logged
-        } catch (SocketException e) {
-            Log.e(TAG, "failed to get IP address: " + e.toString());
+            NetUpdate targetNet = ifaces.get(network.type);
+            if (targetNet != null) {
+                Log.d(TAG, "  Result: " + network.statsString());
+                targetNet.bw_down_Bps = network.bw_down_Bps;
+                targetNet.bw_up_Bps = network.bw_up_Bps;
+                targetNet.rtt_ms = network.rtt_ms;
+                
+                mScoutService.updateNetwork(network.ipAddr, 
+                                            network.bw_down_Bps,
+                                            network.bw_up_Bps,
+                                            network.rtt_ms,
+                                            false);
+                mScoutService.logUpdate(network);
+            }
+        } else {
+            // unknown action; ignore (shouldn't happen)
         }
     }
 };

@@ -43,6 +43,7 @@ public class ConnScoutService extends ServiceCompat
             
             IntentFilter filter = new IntentFilter();
             filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
+            filter.addAction(ConnectivityListener.NETWORK_MEASUREMENT_RESULT);
             registerReceiver(mListener, filter);
             
             
@@ -117,6 +118,8 @@ public class ConnScoutService extends ServiceCompat
     }
     
     public void logUpdate(NetUpdate network) {
+        updateHistory.add(network);
+        
         Intent updateNotification = new Intent(BROADCAST_ACTION);
         updateNotification.putExtra(BROADCAST_EXTRA, network);
         sendBroadcast(updateNotification);

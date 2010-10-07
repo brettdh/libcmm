@@ -86,7 +86,7 @@ public final class NetUpdate implements Parcelable, Cloneable {
            .append(" ")
            .append(connected ? "up" : "down");
         if (hasStats()) {
-            str.append(statsString());
+            str.append(", ").append(statsString());
         }
         return str.toString();
     }
@@ -103,13 +103,11 @@ public final class NetUpdate implements Parcelable, Cloneable {
     
     public String statsString() {
         StringBuilder str = new StringBuilder();
-        str.append(", ")
-           .append(bw_down_Bps)
-           .append(" down, ")
+        str.append(bw_down_Bps)
+           .append(" / ")
            .append(bw_up_Bps)
-           .append(" up, ")
-           .append(rtt_ms)
-           .append(" rtt");
+           .append(" / ")
+           .append(rtt_ms);
         return str.toString();
     }
 };

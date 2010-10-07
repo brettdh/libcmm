@@ -18,7 +18,7 @@ public class NetworkTest {
     final private static short BW_UP_PORT = 4322;
     final private static short RTT_PORT = 4323;
 
-    final private static int timeoutSecs = 1;
+    final private static int timeoutSecs = 2;
     //final private static long timeoutNanosecs = timeoutSecs*1000*1000*1000;
     
     public String localAddr;
@@ -100,6 +100,7 @@ public class NetworkTest {
             
             bw_down_Bps = (int)((double)data/secondsDiff(startTime, endTime));
         } catch (IOException e) {
+            e.printStackTrace();
             throw new NetworkTestException("Download test failed: " + e.getMessage());
         }
     }
@@ -132,6 +133,7 @@ public class NetworkTest {
             
             bw_up_Bps = (int)((double)data / secondsDiff(startTime, endTime));
         } catch (IOException e) {
+            e.printStackTrace();
             throw new NetworkTestException("Upload test failed: " + e.getMessage());
         }
     }
@@ -181,6 +183,7 @@ public class NetworkTest {
             rtt_ms = (int)(secondsDiff(startTime, endTime)*1000 
                            / (double)tries);
         } catch (IOException e) {
+            e.printStackTrace();
             throw new NetworkTestException("RTT test failed: " + e.getMessage());
         }
     }
