@@ -28,17 +28,27 @@ public class ConnScoutService extends ServiceCompat
     
     private ConnectivityListener mListener;
 
+    private boolean running = false;
+    public boolean isRunning() {
+        return running;
+    }
+    
     @Override
     public void onCreate() {
-        //mNM = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
         super.onCreate();
+        updateHistory = 
+            Collections.synchronizedList(new LinkedList<NetUpdate>());
+    }
+    
+    @Override
+    public void onStart(Intent intent, int startId) {
+        //mNM = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+        super.onStart(intent, startId);
+
         int rc = startScoutIPC();
         if (rc < 0) {
             stopSelf();
         } else {
-            updateHistory = 
-                Collections.synchronizedList(new LinkedList<NetUpdate>());
-            
             mListener = new ConnectivityListener(this);
             
             IntentFilter filter = new IntentFilter();
@@ -46,7 +56,7 @@ public class ConnScoutService extends ServiceCompat
             filter.addAction(ConnectivityListener.NETWORK_MEASUREMENT_RESULT);
             registerReceiver(mListener, filter);
             
-            
+            running = true;
             showNotification();
 
             sendBroadcast(new Intent(BROADCAST_START));
@@ -69,15 +79,19 @@ public class ConnScoutService extends ServiceCompat
         
     @Override
     public void onDestroy() {
-        sendBroadcast(new Intent(BROADCAST_STOP));
+        if (running) {
+            running = false;
+            sendBroadcast(new Intent(BROADCAST_STOP));
+            
+            mListener.cleanup();
+            unregisterReceiver(mListener);
+
+            stopScoutIPC();
         
-        mListener.cleanup();
-        unregisterReceiver(mListener);
-        stopScoutIPC();
-        //mNM.cancel(R.string.service_started);
-        Toast.makeText(this, R.string.service_stopped, 
-                       Toast.LENGTH_SHORT).show();
-        stopForegroundCompat(R.string.service_started);
+            Toast.makeText(this, R.string.service_stopped, 
+                           Toast.LENGTH_SHORT).show();
+            stopForegroundCompat(R.string.service_started);
+        }
     }
     
     public native int startScoutIPC();

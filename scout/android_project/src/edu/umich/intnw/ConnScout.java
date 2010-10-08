@@ -69,7 +69,8 @@ public class ConnScout extends Activity
         
         Log.d(TAG, "Created ConnScout Activity" + this.toString());
         Intent bindIntent = new Intent(this, ConnScoutService.class);
-        boolean serviceConnected = bindService(bindIntent, onService, 0);
+        boolean serviceConnected = bindService(bindIntent, onService, 
+                                               BIND_AUTO_CREATE);
         if (!serviceConnected) {
             Log.e(TAG, "Failed to bind to ConnScoutService!");
             if (appService != null) {
@@ -77,9 +78,10 @@ public class ConnScout extends Activity
             }
         }
                     
-        startScout.setEnabled(appService == null);
-        stopScout.setEnabled(appService != null);
-        measureButton.setEnabled(appService != null);
+
+        startScout.setEnabled(false);
+        stopScout.setEnabled(false);
+        measureButton.setEnabled(false);
     }
     
     @Override
@@ -87,7 +89,9 @@ public class ConnScout extends Activity
         super.onDestroy();
         
         Log.d(TAG, "Destroyed ConnScout Activity" + this.toString());
-        unbindService(onService);
+        if (appService != null) {
+            unbindService(onService);
+        }
     }
     
     @Override
@@ -106,6 +110,14 @@ public class ConnScout extends Activity
     
     private void restoreDisplay() {
         if (appService != null) {
+            rootView.post(new Runnable() {
+               public void run() {
+                   startScout.setEnabled(!appService.isRunning());
+                   stopScout.setEnabled(appService.isRunning());
+                   measureButton.setEnabled(appService.isRunning());
+               } 
+            });
+            
             NetUpdate lastCellularUpdate = null;
             NetUpdate lastWifiUpdate = null;
             List<NetUpdate> updateHistory = appService.getUpdateHistory();
@@ -265,6 +277,8 @@ public class ConnScout extends Activity
             Log.d(TAG, "ConnScoutService connected");
             appService = 
                 ((ConnScoutService.LocalBinder)rawBinder).getService();
+            
+            restoreDisplay();
         }
 
         public void onServiceDisconnected(ComponentName className) {
