@@ -89,3 +89,9 @@ ConnScoutService instance when it starts up after being destroyed.
 
 10/8/2010
 Fixed the 10/7/2010 scout bug.  Sweet.
+My simple-sender app is deadlocking, though, on the first BG packet.
+Blocks forever in CMMThread::start, waiting for CMMThread::starter_mutex.
+I wonder if that thread dies while holding starter_mutex?  That'd be the first
+place to look, anyway.  It doesn't seem to be running at the point of 
+deadlock, but I don't know yet when or why it died.  Turn on verbose
+debug output for libcmm and see what's happening.
