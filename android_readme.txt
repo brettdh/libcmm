@@ -95,3 +95,6 @@ I wonder if that thread dies while holding starter_mutex?  That'd be the first
 place to look, anyway.  It doesn't seem to be running at the point of 
 deadlock, but I don't know yet when or why it died.  Turn on verbose
 debug output for libcmm and see what's happening.
+Addendum: the scout service seems to be dying occasionally.  it definitely
+dies if it sees no output from an 'ip route/rule' command, but i'm not sure
+yet when that happens.  Regardless, it should handle that gracefully.
