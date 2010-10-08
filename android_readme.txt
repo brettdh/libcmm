@@ -86,3 +86,6 @@ default for non-IntNW apps to cellular.
 Also, enable "immediately destroy activities" in dev tools->devel settings
 in order to test out why the ConnScout activity isn't getting the 
 ConnScoutService instance when it starts up after being destroyed.
+
+10/8/2010
+Fixed the 10/7/2010 scout bug.  Sweet.
