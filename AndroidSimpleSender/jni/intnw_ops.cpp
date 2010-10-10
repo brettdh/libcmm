@@ -130,6 +130,8 @@ int srv_connect(const char *hostname, short port)
         } else {
             DEBUG_LOG("connect: %s\n", strerror(errno));
             DEBUG_LOG("Connection failed\n");
+            cmm_close(shared_sock);
+            shared_sock = -1;
         }
     } else {
         DEBUG_LOG("Connected\n");

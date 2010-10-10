@@ -142,6 +142,7 @@ public class ConnectivityListener extends BroadcastReceiver {
         assert blocks.length == 4;
         byte[] addrBytes = new byte[4];
         for (int i = 0; i < 4; i++) {
+            Log.d(TAG, "        str[" + i + "] = \"" + blocks[i] + "\"");
             addrBytes[i] = Byte.parseByte(blocks[i]);
         }
         return ipBytesToInt(addrBytes);

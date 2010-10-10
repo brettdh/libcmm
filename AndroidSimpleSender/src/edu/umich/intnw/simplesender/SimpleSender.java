@@ -6,6 +6,7 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.TextView;
 import android.widget.Button;
+import android.widget.Toast;
 
 public class SimpleSender extends Activity
 {
@@ -33,13 +34,7 @@ public class SimpleSender extends Activity
         Button sendBGButton = (Button) findViewById(R.id.send_bg);
         connectButton.setOnClickListener(new OnClickListener() {
             public void onClick(View v) {
-                connect("141.212.110.132", (short)4242);
-                replyThread = new Thread(new Runnable() {
-                    public void run() {
-                        runReplyThread();
-                    }
-                });
-                replyThread.start();
+                doConnect();
             }
         });
         disconnectButton.setOnClickListener(new OnClickListener() {
@@ -59,6 +54,22 @@ public class SimpleSender extends Activity
                 bg_seqno++;
             }
         });
+    }
+    
+    private void doConnect() {
+        try {
+            connect("141.212.110.132", (short)4242);
+        
+            replyThread = new Thread(new Runnable() {
+                public void run() {
+                    runReplyThread();
+                }
+            });
+            replyThread.start();
+        } catch (Exception e) {
+            Toast.makeText(this, e.getMessage(), 
+                           Toast.LENGTH_SHORT).show();
+        }
     }
     
     static {

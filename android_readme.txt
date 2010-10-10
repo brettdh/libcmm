@@ -98,3 +98,9 @@ debug output for libcmm and see what's happening.
 Addendum: the scout service seems to be dying occasionally.  it definitely
 dies if it sees no output from an 'ip route/rule' command, but i'm not sure
 yet when that happens.  Regardless, it should handle that gracefully.
+
+10/9/2010
+Check that; the exception in the scout seems to be when it parses the
+cellular IP after the cellular network gets a disconnect intent (happens
+right before it gets a connect intent; I'm not sure why that happens,
+but I need to handle it).
