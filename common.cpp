@@ -25,7 +25,7 @@ int get_unsent_bytes(int sock)
 
     // subtract the "in-flight" bytes.
     int unsent_bytes = bytes_in_send_buffer - info.tcpi_unacked;
-    dbgprintf("socket %d: %d bytes in sndbuf and %d bytes unacked = %d bytes unsent?\n",
-              sock, bytes_in_send_buffer, info.tcpi_unacked, unsent_bytes);
+    /*dbgprintf("socket %d: %d bytes in sndbuf and %d bytes unacked = %d bytes unsent?\n",
+                sock, bytes_in_send_buffer, info.tcpi_unacked, unsent_bytes);*/
     return unsent_bytes;
 }

@@ -201,17 +201,19 @@ ListenerThread::Run()
             continue;
         }
             
-        remote_iface.ip_addr =hdr.op.new_interface.ip_addr;
+        //remote_iface.ip_addr = remote_addr.sin_addr; 
+        remote_iface.ip_addr = hdr.op.new_interface.ip_addr; // internal if NAT'd
+        //remote_iface.external_ip_addr = remote_addr.sin_addr;
         remote_iface.labels = ntohl(hdr.op.new_interface.labels);
         remote_iface.bandwidth_down = ntohl(hdr.op.new_interface.bandwidth_down);
         remote_iface.bandwidth_up = ntohl(hdr.op.new_interface.bandwidth_up);
         remote_iface.RTT = ntohl(hdr.op.new_interface.RTT);
             
-        struct sockaddr_in true_remote_addr;
-        memcpy(&true_remote_addr.sin_addr, &hdr.op.new_interface.ip_addr, 
+        struct sockaddr_in internal_remote_addr;
+        memcpy(&internal_remote_addr.sin_addr, &hdr.op.new_interface.ip_addr, 
                sizeof(struct in_addr));
         dbgprintf("Adding connection %d from %s bw_down %lu bw_up %lu RTT %lu ",
-                  sock, inet_ntoa(true_remote_addr.sin_addr),
+                  sock, inet_ntoa(internal_remote_addr.sin_addr),
                   remote_iface.bandwidth_down, remote_iface.bandwidth_up, remote_iface.RTT);
         dbgprintf_plain("(peername %s)\n",
                         inet_ntoa(remote_addr.sin_addr));

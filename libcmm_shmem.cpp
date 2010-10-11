@@ -702,7 +702,7 @@ size_t ipc_total_bytes_inflight(CSocketPtr csock)//struct in_addr ip_addr)
      */
     return get_unsent_bytes(csock->osfd);
 #else
-    TimeFunctionBody timer("SHMEM_TIMING: ipc_total_bytes_inflight");
+    //TimeFunctionBody timer("SHMEM_TIMING: ipc_total_bytes_inflight");
 
     // for anticipatory scheduling, group the socket byte counting by
     //  the local/remote iface pair.
@@ -724,25 +724,25 @@ size_t ipc_total_bytes_inflight(CSocketPtr csock)//struct in_addr ip_addr)
                 dbgprintf("Error checking buffer usage for socket %d\n",
                           it->local_fd);
             } else {
-                dbgprintf("Socket %d has %zu bytes in buffer\n",
-                          it->local_fd, unsent_bytes);
+                /*dbgprintf("Socket %d has %zu bytes in buffer\n",
+                 *          it->local_fd, unsent_bytes);*/
                 bytes += unsent_bytes;
             }
         }
 
         if (sockinfo.empty()) {
-            dbgprintf("iface pair ");
-            ifaces.print();
-            dbgprintf_plain(" has no connected sockets\n");
+            //dbgprintf("iface pair ");
+            //ifaces.print();
+            //dbgprintf_plain(" has no connected sockets\n");
         }
     } else {
-        dbgprintf("total_bytes_inflight: unknown iface pair ");
-        ifaces.print();
-        dbgprintf_plain("; returning 0\n");
+        //dbgprintf("total_bytes_inflight: unknown iface pair ");
+        //ifaces.print();
+        //dbgprintf_plain("; returning 0\n");
     }
 
-    dbgprintf("total_bytes_inflight: counted %zu bytes in %zu sockets\n", 
-              bytes, num_sockets);
+    /*dbgprintf("total_bytes_inflight: counted %zu bytes in %zu sockets\n", 
+     *          bytes, num_sockets);*/
 
     return bytes;
 #endif /* !ANDROID */

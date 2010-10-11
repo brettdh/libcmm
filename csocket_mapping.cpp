@@ -556,6 +556,11 @@ CSockMapping::make_new_csocket(struct net_interface local_iface,
 #endif
         }
 
+        // TODO: if this multisocket was created by cmm_accept,
+        //  it shouldn't be attempting new connections;
+        //  let the cmm_connect()-ing side do that.
+        
+
         csock = CSocket::create(sk, local_iface, remote_iface,
                                 accepted_sock);
         /* cleanup if constructor throws */

@@ -7,6 +7,7 @@
 
 struct net_interface {
     struct in_addr ip_addr; /* contents in network byte order as usual */
+    //struct in_addr external_ip_addr; /* not really used yet; for NAT coping */
     u_long labels; /* host byte order */
 
     // wizard-of-oz network stats.  in reality these depend on both
