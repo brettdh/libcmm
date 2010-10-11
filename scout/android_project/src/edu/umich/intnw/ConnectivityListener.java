@@ -44,7 +44,7 @@ public class ConnectivityListener extends BroadcastReceiver {
         WifiManager wifi = 
             (WifiManager) mScoutService.getSystemService(Context.WIFI_SERVICE);
         WifiInfo wifiInfo = wifi.getConnectionInfo();
-        if (wifiInfo != null) {
+        if (wifiInfo != null && wifiInfo.getIpAddress() != 0) {
             wifiNetwork = new NetUpdate(intToIp(wifiInfo.getIpAddress()));
             wifiNetwork.type = ConnectivityManager.TYPE_WIFI;
             wifiNetwork.connected = true;
@@ -462,7 +462,9 @@ public class ConnectivityListener extends BroadcastReceiver {
                 = new HashMap<Integer, NetUpdate>();
             for (int type : ifaces.keySet()) {
                 NetUpdate network = ifaces.get(type);
-                networks.put(type, (NetUpdate) network.clone());
+                if (network != null) {
+                    networks.put(type, (NetUpdate) network.clone());
+                }
             }
             
             measurementThread = new MeasurementThread(this, networks);
