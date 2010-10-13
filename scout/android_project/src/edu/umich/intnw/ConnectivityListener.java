@@ -191,7 +191,7 @@ public class ConnectivityListener extends BroadcastReceiver {
      *   for the relevant network will exist. (need to verify)
      * if either is violated, a NetworkStatusException will be thrown.
      */
-    private int getIpAddr(NetworkInfo networkInfo)
+    private String getIpAddr(NetworkInfo networkInfo)
         throws NetworkStatusException, SocketException {
         // XXX: may have more than one WiFi IP eventually.
         WifiManager wifi = 
@@ -213,7 +213,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                     // Log.d(TAG, "getIpAddr: wifi iface IP is " +
                     //       debugAddr.getHostAddress());
                     
-                    return wifiIpAddr;
+                    return intToIp(wifiIpAddr);
                 } else {
                     Log.e(TAG, "Weird... got wifi connection intent but " +
                           "WifiManager doesn't have connection info");
@@ -226,7 +226,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                           "I don't have the wifi net info");
                     throw new NetworkStatusException();
                 }
-                return ipStringToInt(wifiNet.ipAddr);
+                return wifiNet.ipAddr;
             }
         } else { // cellular (TYPE_MOBILE)
             // first, find the IP address of the cellular interface
@@ -238,7 +238,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                     throw new NetworkStatusException();
                 }
                 
-                return inetAddressToInt(getIfaceIpAddr(cellular_iface));
+                return getIfaceIpAddr(cellular_iface).getHostAddress();
             } else {
                 if (cellular_iface != null) {
                     Log.e(TAG, "Weird... got cellular disconnect intent " +
@@ -252,7 +252,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                           "I don't have the wifi net info");
                     throw new NetworkStatusException();
                 }
-                return ipStringToInt(cellular.ipAddr);
+                return cellular.ipAddr;
             }
         }
     }
@@ -456,6 +456,10 @@ public class ConnectivityListener extends BroadcastReceiver {
     
     private Thread measurementThread = null;
     
+    public boolean measurementInProgress() {
+        return measurementThread != null;
+    }
+    
     public void measureNetworks() {
         if (measurementThread == null) {
             final Map<Integer, NetUpdate> networks
@@ -491,8 +495,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                 int bw_up_Bps = 0;
                 int rtt_ms = 0;
                 
-                int curAddr = getIpAddr(networkInfo);
-                String ipAddr = intToIp(curAddr);
+                String ipAddr = getIpAddr(networkInfo);
                 
                 NetUpdate prevNet = ifaces.get(networkInfo.getType());
                 if (prevNet != null && !prevNet.ipAddr.equals(ipAddr)) {
