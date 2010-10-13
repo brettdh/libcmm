@@ -117,3 +117,12 @@ and they concurrently modify the same NetUpdate object?  That doesn't appear
 to be happening, though.  Need to track down where the object is modified;
 I probably pass the string around a lot, and I need to be careful about 
 whether it's by reference or by copy.
+
+
+10/13/2010
+Removed the call to ipStringToInt; since I don't care about the int 
+representation anymore.  I convert the wifi int IP address to a string
+and then deal in strings from that point forward.
+If there was really a bug here, I didn't fix it; we'll see.
+Extra weirdness: jdb showed a string like "a.b.c.d" but the result of
+split(".") was {""}.  Meh.  Moving on to bigger fish for now.
