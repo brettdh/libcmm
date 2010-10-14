@@ -8,7 +8,10 @@
 struct net_interface {
     struct in_addr ip_addr; /* contents in network byte order as usual */
     //struct in_addr external_ip_addr; /* not really used yet; for NAT coping */
-    u_long labels; /* host byte order */
+    u_long labels; /* XXX: deprecated. always zero. Remove this eventually.
+                    * A network interface doesn't have labels; messages do.
+                    * The interface is picked for a particularly-labeled
+                    * message based on its bandwidth and latency. */
 
     // wizard-of-oz network stats.  in reality these depend on both
     //  endpoints and will probably be measured per-CSocket

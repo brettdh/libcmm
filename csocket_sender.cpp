@@ -1035,7 +1035,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
         total_bytes += sizeof(ack_hdr);
         memset(&ack_hdr, 0, sizeof(ack_hdr));
         ack_hdr.type = htons(CMM_CONTROL_MSG_ACK);
-        ack_hdr.send_labels = htonl(csock->local_iface.labels);
+        ack_hdr.send_labels = 0;
         ack_hdr.op.ack.id = htonl(waiting_ack_irob);
 
     }
@@ -1196,7 +1196,7 @@ CSocketSender::new_interface(struct net_interface iface)
     memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
     hdr.op.new_interface.ip_addr = iface.ip_addr;
-    hdr.op.new_interface.labels = htonl(iface.labels);
+    hdr.op.new_interface.labels = 0;
     hdr.op.new_interface.bandwidth_down = htonl(iface.bandwidth_down);
     hdr.op.new_interface.bandwidth_up = htonl(iface.bandwidth_up);
     hdr.op.new_interface.RTT = htonl(iface.RTT);
@@ -1263,7 +1263,7 @@ CSocketSender::send_acks(const IROBSchedulingData& data,
     struct CMMSocketControlHdr hdr;
     memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_ACK);
-    hdr.send_labels = htonl(csock->local_iface.labels);
+    hdr.send_labels = 0;
     hdr.op.ack.id = htonl(data.id);
 
     struct timeval now, srv_time;
@@ -1340,7 +1340,7 @@ CSocketSender::goodbye()
     struct CMMSocketControlHdr hdr;
     memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_GOODBYE);
-    hdr.send_labels = htonl(csock->local_iface.labels);
+    hdr.send_labels = 0;
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
@@ -1402,7 +1402,7 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
     hdrs[0].op.resend_request.seqno = 0;
     //hdrs[0].op.resend_request.offset = 0;
     //hdrs[0].op.resend_request.len = 0;
-    hdrs[0].send_labels = htonl(csock->local_iface.labels);
+    hdrs[0].send_labels = 0;
     if ((req_type & CMM_RESEND_REQUEST_END) && prirob) {
         hdrs[0].op.resend_request.next_chunk = htonl(prirob->next_chunk_seqno());
     }
@@ -1418,7 +1418,7 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
         hdrs[i].op.resend_request.seqno = htonl(missing_chunks[i].seqno);
         //hdrs[i].op.resend_request.offset = htonl(missing_chunks[i].offset);
         //hdrs[i].op.resend_request.len = htonl(missing_chunks[i].datalen);
-        hdrs[i].send_labels = htonl(csock->local_iface.labels);
+        hdrs[i].send_labels = 0;
     }
 
     size_t bytes = sizeof(hdrs[0]) * hdrcount;

@@ -515,9 +515,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                     } else {
                         // optimistic fake estimate while we wait for 
                         //  real measurements
-                        network.bw_down_Bps = 1250000;
-                        network.bw_up_Bps = 1250000;
-                        network.rtt_ms = 1;
+                        network.setNoStats();
                     }
                     bw_down_Bps = network.bw_down_Bps;
                     bw_up_Bps = network.bw_up_Bps;
