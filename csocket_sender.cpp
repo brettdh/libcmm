@@ -264,6 +264,8 @@ CSocketSender::Run()
             sk->irob_indexes.add(csock->irob_indexes);
             if (sk->csock_map->empty()) {
                 // no more connections; kill the multisocket
+                dbgprintf("Multisocket %d has no more csockets and I'm the accepting side; "
+                          "shutting down\n", sk->sock);
                 sk->shutting_down = true;
                 sk->remote_shutdown = true;
                 sk->goodbye_sent = true;
