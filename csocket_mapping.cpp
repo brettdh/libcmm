@@ -114,9 +114,13 @@ CSockMapping::setup(struct net_interface iface, bool local,
                                  matches[i]->remote_iface);
     }
 
-    if (!make_connection) {
+    CMMSocketImplPtr skp(sk);
+    if (!make_connection || skp->accepting_side) {
         // bootstrapping in progress or failed; don't try to 
         // start up a new connection
+        // also skip this step if we're the accepting side;
+        //  only the connecting side will make new connections.
+        //  This avoids NAT difficulties.
         return;
     }
 
@@ -124,7 +128,6 @@ CSockMapping::setup(struct net_interface iface, bool local,
     //  That way, it will be available for striping, even if I haven't 
     //  asked for labels that create CSockets on all networks.
     NetInterfaceSet::iterator it, end;
-    CMMSocketImplPtr skp(sk);
     if (local) { // try this out to avoid some of the contention.
         it = skp->remote_ifaces.begin();
         end = skp->remote_ifaces.end();

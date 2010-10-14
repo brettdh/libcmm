@@ -55,14 +55,15 @@ CSocketSender::Run()
     try {
         int rc = csock->phys_connect();
         if (rc < 0) {
-            if (csock->oserr == ECONNREFUSED ||
-                csock->oserr == EHOSTUNREACH) {
+            if (csock->oserr == ECONNREFUSED) {
                 // if there's no remote listener, we won't be able to make
                 //  any more connections, period.  So kill the multisocket.
                 throw CMMFatalError("Remote listener is gone");
             }
 
-            throw CMMControlException("Failed to connect new CSocket");
+            // TODO: force the scout to check if this network is really there,
+            //  since I couldn't connect over it
+            throw std::runtime_error("Failed to connect new CSocket");
         }
 
         if (csock->matches(CMM_LABEL_ONDEMAND)) {
@@ -256,6 +257,21 @@ CSocketSender::Run()
     } catch (CMMControlException& e) {
         //pthread_mutex_unlock(&sk->scheduling_state_lock); // no longer held here
         sk->csock_map->remove_csock(csock);
+        if (sk->accepting_side) {
+            // don't try to make a new connection; 
+            //  the connecting side will do it
+            PthreadScopedLock lock(&sk->scheduling_state_lock);
+            sk->irob_indexes.add(csock->irob_indexes);
+            if (sk->csock_map->empty()) {
+                // no more connections; kill the multisocket
+                sk->shutting_down = true;
+                sk->remote_shutdown = true;
+                sk->goodbye_sent = true;
+                shutdown(sk->select_pipe[1], SHUT_RDWR);
+            }
+            pthread_cond_broadcast(&sk->scheduling_state_cv);
+            throw;
+        }
         CSocketPtr replacement = sk->csock_map->new_csock_with_labels(0);
         /*
         while (replacement && replacement->wait_until_connected() < 0) {
