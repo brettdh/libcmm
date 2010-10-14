@@ -584,16 +584,23 @@ Java_edu_umich_intnw_scout_ConnScoutService_updateNetwork(JNIEnv *env,
         return;
     }
     
+    IfaceList changed_ifaces;
+    IfaceList empty_list;
+    
     pthread_mutex_lock(&ifaces_lock);
     if (down) {
         DEBUG_LOG("updateNetwork: bringing down iface %s\n", str);
         net_interfaces.erase(iface.ip_addr.s_addr);
+        changed_ifaces.push_back(iface);
     } else {
         DEBUG_LOG("updateNetwork: updating iface %s bw_down %d bw_up %d rtt %d\n",
             str, bw_down, bw_up, rtt);
         net_interfaces[iface.ip_addr.s_addr] = iface;
+        changed_ifaces.push_back(iface);
     }
     pthread_mutex_unlock(&ifaces_lock);
+    notify_all_subscribers(down ? empty_list : changed_ifaces,
+                           down ? changed_ifaces : empty_list);
     
     env->ReleaseStringUTFChars(ip_addr, str);
 }

@@ -143,6 +143,10 @@ public class ConnScoutService extends ServiceCompat
         mListener.measureNetworks();
     }
     
+    public boolean measurementInProgress() {
+        return mListener != null && mListener.measurementInProgress();
+    }
+    
     public void reportMeasurementFailure(int type, String ipAddr) {
         StringBuilder msg = new StringBuilder();
         msg.append("Measurement for ");

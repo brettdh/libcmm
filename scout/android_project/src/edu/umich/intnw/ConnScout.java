@@ -111,11 +111,20 @@ public class ConnScout extends Activity
     private void restoreDisplay() {
         if (appService != null) {
             rootView.post(new Runnable() {
-               public void run() {
-                   startScout.setEnabled(!appService.isRunning());
-                   stopScout.setEnabled(appService.isRunning());
-                   measureButton.setEnabled(appService.isRunning());
-               } 
+                public void run() {
+                    startScout.setEnabled(!appService.isRunning());
+                    stopScout.setEnabled(appService.isRunning());
+                    measureButton.setEnabled(appService.isRunning());
+                    if (appService.isRunning()) {
+                        if (appService.measurementInProgress()) {
+                            measureButton.setText("Measuring...");
+                            measureButton.setEnabled(false);
+                        } else {
+                            measureButton.setText("Measure");
+                            measureButton.setEnabled(true);
+                        }
+                    }
+                }
             });
             
             NetUpdate lastCellularUpdate = null;

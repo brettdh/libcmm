@@ -17,9 +17,20 @@ public final class NetUpdate implements Parcelable, Cloneable {
     public int bw_up_Bps;
     public int rtt_ms;
     
+    private final static int BW_DOWN_NO_STATS = 1250000;
+    private final static int BW_UP_NO_STATS = 1250000;
+    private final static int RTT_NO_STATS = 1;
+    
     public NetUpdate(String ip) {
         timestamp = new Date();
         ipAddr = new String(ip);
+        setNoStats();
+    }
+    
+    public void setNoStats() {
+        bw_down_Bps = BW_DOWN_NO_STATS;
+        bw_up_Bps = BW_UP_NO_STATS;
+        rtt_ms = RTT_NO_STATS;
     }
     
     public Object clone() {
@@ -95,6 +106,10 @@ public final class NetUpdate implements Parcelable, Cloneable {
         if (!connected) {
             return false;
         } else if (bw_down_Bps == 0 && bw_up_Bps == 0 && rtt_ms == 0) {
+            return false;
+        } else if (bw_down_Bps == BW_DOWN_NO_STATS && 
+                   bw_up_Bps == BW_UP_NO_STATS && 
+                   rtt_ms == RTT_NO_STATS) {
             return false;
         } else {
             return true;

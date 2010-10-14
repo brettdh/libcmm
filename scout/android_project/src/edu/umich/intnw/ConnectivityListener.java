@@ -44,7 +44,7 @@ public class ConnectivityListener extends BroadcastReceiver {
         WifiManager wifi = 
             (WifiManager) mScoutService.getSystemService(Context.WIFI_SERVICE);
         WifiInfo wifiInfo = wifi.getConnectionInfo();
-        if (wifiInfo != null) {
+        if (wifiInfo != null && wifiInfo.getIpAddress() != 0) {
             wifiNetwork = new NetUpdate(intToIp(wifiInfo.getIpAddress()));
             wifiNetwork.type = ConnectivityManager.TYPE_WIFI;
             wifiNetwork.connected = true;
@@ -191,7 +191,7 @@ public class ConnectivityListener extends BroadcastReceiver {
      *   for the relevant network will exist. (need to verify)
      * if either is violated, a NetworkStatusException will be thrown.
      */
-    private int getIpAddr(NetworkInfo networkInfo)
+    private String getIpAddr(NetworkInfo networkInfo)
         throws NetworkStatusException, SocketException {
         // XXX: may have more than one WiFi IP eventually.
         WifiManager wifi = 
@@ -213,7 +213,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                     // Log.d(TAG, "getIpAddr: wifi iface IP is " +
                     //       debugAddr.getHostAddress());
                     
-                    return wifiIpAddr;
+                    return intToIp(wifiIpAddr);
                 } else {
                     Log.e(TAG, "Weird... got wifi connection intent but " +
                           "WifiManager doesn't have connection info");
@@ -226,7 +226,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                           "I don't have the wifi net info");
                     throw new NetworkStatusException();
                 }
-                return ipStringToInt(wifiNet.ipAddr);
+                return wifiNet.ipAddr;
             }
         } else { // cellular (TYPE_MOBILE)
             // first, find the IP address of the cellular interface
@@ -238,7 +238,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                     throw new NetworkStatusException();
                 }
                 
-                return inetAddressToInt(getIfaceIpAddr(cellular_iface));
+                return getIfaceIpAddr(cellular_iface).getHostAddress();
             } else {
                 if (cellular_iface != null) {
                     Log.e(TAG, "Weird... got cellular disconnect intent " +
@@ -252,7 +252,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                           "I don't have the wifi net info");
                     throw new NetworkStatusException();
                 }
-                return ipStringToInt(cellular.ipAddr);
+                return cellular.ipAddr;
             }
         }
     }
@@ -456,13 +456,19 @@ public class ConnectivityListener extends BroadcastReceiver {
     
     private Thread measurementThread = null;
     
+    public boolean measurementInProgress() {
+        return measurementThread != null;
+    }
+    
     public void measureNetworks() {
         if (measurementThread == null) {
             final Map<Integer, NetUpdate> networks
                 = new HashMap<Integer, NetUpdate>();
             for (int type : ifaces.keySet()) {
                 NetUpdate network = ifaces.get(type);
-                networks.put(type, (NetUpdate) network.clone());
+                if (network != null) {
+                    networks.put(type, (NetUpdate) network.clone());
+                }
             }
             
             measurementThread = new MeasurementThread(this, networks);
@@ -489,8 +495,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                 int bw_up_Bps = 0;
                 int rtt_ms = 0;
                 
-                int curAddr = getIpAddr(networkInfo);
-                String ipAddr = intToIp(curAddr);
+                String ipAddr = getIpAddr(networkInfo);
                 
                 NetUpdate prevNet = ifaces.get(networkInfo.getType());
                 if (prevNet != null && !prevNet.ipAddr.equals(ipAddr)) {
@@ -510,9 +515,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                     } else {
                         // optimistic fake estimate while we wait for 
                         //  real measurements
-                        network.bw_down_Bps = 1250000;
-                        network.bw_up_Bps = 1250000;
-                        network.rtt_ms = 1;
+                        network.setNoStats();
                     }
                     bw_down_Bps = network.bw_down_Bps;
                     bw_up_Bps = network.bw_up_Bps;

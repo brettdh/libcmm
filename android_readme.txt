@@ -104,3 +104,25 @@ Check that; the exception in the scout seems to be when it parses the
 cellular IP after the cellular network gets a disconnect intent (happens
 right before it gets a connect intent; I'm not sure why that happens,
 but I need to handle it).
+
+10/11/2010
+Triggered the scout bug again.  Somehow, the following happens:
+  Log.d(TAG, ipStringToInt: address: " + ipAddr);
+  => 26.48.64.122
+  String blocks[] = ipAddr.split(".");
+  => blocks.length == 1; blocks[0] = ""
+Is that string getting modified in another thread somehow?
+Possibility: I get a broadcast intent while I'm processing another one
+and they concurrently modify the same NetUpdate object?  That doesn't appear
+to be happening, though.  Need to track down where the object is modified;
+I probably pass the string around a lot, and I need to be careful about 
+whether it's by reference or by copy.
+
+
+10/13/2010
+Removed the call to ipStringToInt; since I don't care about the int 
+representation anymore.  I convert the wifi int IP address to a string
+and then deal in strings from that point forward.
+If there was really a bug here, I didn't fix it; we'll see.
+Extra weirdness: jdb showed a string like "a.b.c.d" but the result of
+split(".") was {""}.  Meh.  Moving on to bigger fish for now.
