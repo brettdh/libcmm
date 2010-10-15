@@ -258,10 +258,11 @@ public class ConnectivityListener extends BroadcastReceiver {
     }
     
     /**
-     * Returns a String with the IP address of the WiFi gateway,
-     *  or null if there is none or it couldn't be found.
+     * Returns field (fieldNum) from the line of the routing output 
+     *  that matches regex, or null if there is none.
      */
-    private String getWifiGateway(String tableName) {
+    private String getWifiRoutingEntry(String tableName, String regex, 
+                                       int fieldNum) {
         String cmds[] = "ip route show dev tiwlan0 table (table)".split(" ");
         cmds[6] = tableName;
         
@@ -275,17 +276,16 @@ public class ConnectivityListener extends BroadcastReceiver {
             
             String line = null;
             while ( (line = reader.readLine()) != null) {
-                Log.d(TAG, "Getting gateway: " + line);
-                if (line.contains("default via ")) {
-                    // Format: "default via <ip>"
+                Log.d(TAG, "Getting routing table entry: " + line);
+                if (line.matches(regex)) {
                     String tokens[] = line.split(" ");
-                    gateway = tokens[2];
+                    gateway = tokens[fieldNum];
                     break;
                 }
             }
             int rc = p.waitFor();
             if (rc != 0) {
-                Log.e(TAG, "Failed to get wifi gateway in table " + tableName);
+                Log.e(TAG, "Failed to get wifi entry in table " + tableName);
             }
         } catch (IOException e) {
             Log.e(TAG, "Error reading from subprocess: " + e.toString());
@@ -293,6 +293,25 @@ public class ConnectivityListener extends BroadcastReceiver {
             Log.e(TAG, "Error waiting for subprocess: " + e.toString());
         }
         return gateway;
+    }
+    
+    /**
+     * Returns a String with the IP address of the WiFi gateway,
+     *  or null if there is none or it couldn't be found.
+     */
+    private String getWifiGateway(String tableName) {
+        // format: default via <ip>
+        return getWifiRoutingEntry(tableName, ".*default via.*", 2);
+    }
+    
+    /**
+     * Returns a String with the IP address of the WiFi network route,
+     *  or null if there is none or it couldn't be found.
+     */
+    private String getWifiNetwork(String tableName) {
+        // Match xxx.yyy.zzz.www/vv (IP network block)
+        final String regex = ".*[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+/[0-9]+.*";
+        return getWifiRoutingEntry(tableName, regex, 0);
     }
     
     private Process runShellCommand(String[] cmds) throws IOException {
@@ -329,6 +348,31 @@ public class ConnectivityListener extends BroadcastReceiver {
             int rc = p.waitFor();
             if (rc != 0) {
                 Log.e(TAG, "Failed to " + op + " custom gateway:");
+                logProcessOutput(p);
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Error reading from subprocess: " + e.toString());
+        } catch (InterruptedException e) {
+            Log.e(TAG, "Error waiting for subprocess: " + e.toString());
+        }
+    }
+    
+    private void modifyWifiNetwork(String op, String network, String table) {
+        String cmds[] = new String[8];
+        cmds[0] = "ip";
+        cmds[1] = "route";
+        cmds[2] = op;
+        cmds[3] = network;
+        cmds[4] = "dev";
+        cmds[5] = "tiwlan0"; 
+        cmds[6] = "table";
+        cmds[7] = table;
+        
+        try {
+            Process p = runShellCommand(cmds);
+            int rc = p.waitFor();
+            if (rc != 0) {
+                Log.e(TAG, "Failed to " + op + " wifi network:");
                 logProcessOutput(p);
             }
         } catch (IOException e) {
@@ -389,6 +433,14 @@ public class ConnectivityListener extends BroadcastReceiver {
         } else {
             Log.e(TAG, "Couldn't find gateway for tiwlan0 in main table");
         }
+        
+        String wifiNet = getWifiNetwork("main");
+        if (wifiNet != null) {
+            modifyWifiNetwork("del", wifiNet, "main");
+            modifyWifiNetwork("add", wifiNet, "g1custom");
+        } else {
+            Log.e(TAG, "Couldn't find network for tiwlan0 in main table");
+        }
     }
     
     private void removeCustomGateway(String ipAddr, boolean restoreOld) {
@@ -399,6 +451,16 @@ public class ConnectivityListener extends BroadcastReceiver {
         3) Remove routing rules for g1custom table
         */
         Log.d(TAG, "Removing custom routing setup for " + ipAddr);
+        String wifiNet = getWifiNetwork("g1custom");
+        if (wifiNet != null) {
+            modifyWifiNetwork("del", wifiNet, "g1custom");
+            if (restoreOld) {
+                modifyWifiNetwork("add", wifiNet, "main");
+            }
+        } else {
+            Log.e(TAG, "Couldn't find network for tiwlan0 in g1custom table");
+        }
+        
         String gateway = getWifiGateway("g1custom");
         if (gateway != null) {
             modifyWifiGateway("del", gateway, "g1custom");

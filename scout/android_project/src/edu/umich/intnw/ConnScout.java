@@ -262,8 +262,10 @@ public class ConnScout extends Activity
                 stopScout.setEnabled(false);
                 measureButton.setEnabled(false);
             } else if (action.equals(ConnScoutService.BROADCAST_MEASUREMENT_DONE)) {
-                measureButton.setText("Measure");
-                measureButton.setEnabled(true);
+                if (appService != null && !appService.measurementInProgress()) {
+                    measureButton.setText("Measure");
+                    measureButton.setEnabled(true);
+                }
                 Bundle extras = intent.getExtras();
                 if (extras != null) {
                     String msg = 

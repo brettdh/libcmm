@@ -19,6 +19,7 @@ public class NetworkTest {
     final private static short RTT_PORT = 4323;
 
     final private static int timeoutSecs = 2;
+    final private static int connectTimeoutSecs = 10;
     //final private static long timeoutNanosecs = timeoutSecs*1000*1000*1000;
     
     public String localAddr;
@@ -50,7 +51,8 @@ public class NetworkTest {
         sock.setSendBufferSize(1); // can't set it to zero; booo
         sock.bind(new InetSocketAddress(InetAddress.getByName(localAddr), 0));
         sock.setSoTimeout(timeoutSecs * 1000);
-        sock.connect(new InetSocketAddress(InetAddress.getByName(remoteAddr), port));
+        sock.connect(new InetSocketAddress(InetAddress.getByName(remoteAddr), port),
+                     connectTimeoutSecs * 1000);
         return sock;
     }
     
