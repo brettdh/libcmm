@@ -18,6 +18,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.LinkedList;
 import java.util.Date;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import edu.umich.intnw.scout.ServiceCompat;
 import edu.umich.intnw.scout.ConnectivityListener;
@@ -27,6 +29,8 @@ public class ConnScoutService extends ServiceCompat
     private static String TAG = ConnScoutService.class.getName();
     
     private ConnectivityListener mListener;
+    private Timer mTimer;
+    private TimerTask mTask;
 
     private boolean running = false;
     public boolean isRunning() {
@@ -60,6 +64,15 @@ public class ConnScoutService extends ServiceCompat
             showNotification();
 
             sendBroadcast(new Intent(BROADCAST_START));
+            
+            mTimer = new Timer();
+            mTask = new TimerTask() {
+                public void run() {
+                    measureNetworks();
+                }
+            };
+            // re-measure the networks every minute or so
+            mTimer.schedule(mTask, 0, 60 * 1000);
         }
     }
 
@@ -81,6 +94,7 @@ public class ConnScoutService extends ServiceCompat
     public void onDestroy() {
         if (running) {
             running = false;
+            mTimer.cancel();
             sendBroadcast(new Intent(BROADCAST_STOP));
             
             mListener.cleanup();
