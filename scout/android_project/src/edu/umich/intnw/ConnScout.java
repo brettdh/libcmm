@@ -104,6 +104,7 @@ public class ConnScout extends Activity
         filter.addAction(ConnScoutService.BROADCAST_ACTION);
         filter.addAction(ConnScoutService.BROADCAST_START);
         filter.addAction(ConnScoutService.BROADCAST_STOP);
+        filter.addAction(ConnScoutService.BROADCAST_MEASUREMENT_STARTED);
         filter.addAction(ConnScoutService.BROADCAST_MEASUREMENT_DONE);
         registerReceiver(mReceiver, filter);
     }
@@ -261,6 +262,11 @@ public class ConnScout extends Activity
                 startScout.setEnabled(true);
                 stopScout.setEnabled(false);
                 measureButton.setEnabled(false);
+            } else if (action.equals(ConnScoutService.BROADCAST_MEASUREMENT_STARTED)) {
+                if (appService != null && appService.measurementInProgress()) {
+                    measureButton.setText("Measuring...");
+                    measureButton.setEnabled(false);
+                }
             } else if (action.equals(ConnScoutService.BROADCAST_MEASUREMENT_DONE)) {
                 if (appService != null && !appService.measurementInProgress()) {
                     measureButton.setText("Measure");

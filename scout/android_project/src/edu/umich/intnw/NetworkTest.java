@@ -151,16 +151,17 @@ public class NetworkTest {
         
         byte[] recvBuf = new byte[buf.length];
 
+        Date startTime = new Date();
+        Date lastResponseTime = null;
+        Date endTime = new Date(startTime.getTime() + timeoutSecs * 1000);
+        int tries = 0;
         try {
             Socket sock = setupSocket(RTT_PORT);
             //long startTime = System.nanoTime();
             //long endTime = startTime + timeoutNanosecs;
-            Date startTime = new Date();
-            Date endTime = new Date(startTime.getTime() + timeoutSecs * 1000);
             
             InputStream in = sock.getInputStream();
             OutputStream out = sock.getOutputStream();
-            int tries = 0;
             while (true) {
                 if ((new Date()).getTime() > endTime.getTime()) {
                     break;
@@ -173,6 +174,7 @@ public class NetworkTest {
                     throw new IOException();
                 }
                 tries++;
+                lastResponseTime = new Date();
             }
             
             endTime = new Date();
@@ -182,12 +184,17 @@ public class NetworkTest {
                 // shouldn't happen; socket op should have thrown
                 throw new NetworkTestException("RTT test failed; no responses");
             }
-            rtt_ms = (int)(secondsDiff(startTime, endTime)*1000 
-                           / (double)tries);
         } catch (IOException e) {
-            e.printStackTrace();
-            throw new NetworkTestException("RTT test failed: " + e.getMessage());
+            if (tries == 0) {
+                e.printStackTrace();
+                throw new NetworkTestException("RTT test failed: " + e.getMessage());
+            } else {
+                // check the RTT based on any responses we've gotten back
+                endTime = lastResponseTime;
+            }
         }
+        rtt_ms = (int)(secondsDiff(startTime, endTime)*1000 
+                       / (double)tries);
     }
     
     public void runTests() throws NetworkTestException {

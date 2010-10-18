@@ -511,7 +511,9 @@ public class ConnectivityListener extends BroadcastReceiver {
                     srv.reportMeasurementFailure(netType, network.ipAddr);
                 }
             }
-            mListener.measurementThread = null;
+            synchronized (mListener) {
+                mListener.measurementThread = null;
+            }
             mListener.mScoutService.measurementDone(null);
         }
     }
@@ -519,22 +521,26 @@ public class ConnectivityListener extends BroadcastReceiver {
     private Thread measurementThread = null;
     
     public boolean measurementInProgress() {
-        return measurementThread != null;
+        synchronized (this) {
+            return measurementThread != null;
+        }
     }
     
     public void measureNetworks() {
-        if (measurementThread == null) {
-            final Map<Integer, NetUpdate> networks
-                = new HashMap<Integer, NetUpdate>();
-            for (int type : ifaces.keySet()) {
-                NetUpdate network = ifaces.get(type);
-                if (network != null) {
-                    networks.put(type, (NetUpdate) network.clone());
+        synchronized (this) {
+            if (measurementThread == null) {
+                final Map<Integer, NetUpdate> networks
+                    = new HashMap<Integer, NetUpdate>();
+                for (int type : ifaces.keySet()) {
+                    NetUpdate network = ifaces.get(type);
+                    if (network != null) {
+                        networks.put(type, (NetUpdate) network.clone());
+                    }
                 }
+                
+                measurementThread = new MeasurementThread(this, networks);
+                measurementThread.start();
             }
-            
-            measurementThread = new MeasurementThread(this, networks);
-            measurementThread.start();
         }
     }
     

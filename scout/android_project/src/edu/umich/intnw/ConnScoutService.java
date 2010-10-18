@@ -95,6 +95,7 @@ public class ConnScoutService extends ServiceCompat
         if (running) {
             running = false;
             mTimer.cancel();
+            
             sendBroadcast(new Intent(BROADCAST_STOP));
             
             mListener.cleanup();
@@ -127,6 +128,8 @@ public class ConnScoutService extends ServiceCompat
         "edu.umich.intnw.scout.ScoutStopEvent";
     public static final String BROADCAST_EXTRA = 
         "edu.umich.intnw.scout.NetworkUpdateExtra";
+    public static final String BROADCAST_MEASUREMENT_STARTED = 
+        "edu.umich.intnw.scout.MeasurementStarted";
     public static final String BROADCAST_MEASUREMENT_DONE = 
         "edu.umich.intnw.scout.MeasurementDone";
     
@@ -155,6 +158,9 @@ public class ConnScoutService extends ServiceCompat
     
     public void measureNetworks() {
         mListener.measureNetworks();
+        
+        Intent startNotification = new Intent(BROADCAST_MEASUREMENT_STARTED);
+        sendBroadcast(startNotification);
     }
     
     public boolean measurementInProgress() {
