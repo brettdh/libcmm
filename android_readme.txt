@@ -126,3 +126,8 @@ and then deal in strings from that point forward.
 If there was really a bug here, I didn't fix it; we'll see.
 Extra weirdness: jdb showed a string like "a.b.c.d" but the result of
 split(".") was {""}.  Meh.  Moving on to bigger fish for now.
+
+10/19/2010
+Made the change to services.jar to make sure the preferred network
+(WiFi by default) is always "active" when it's connected.  More importantly,
+make sure I still get up/down broadcasts for the "non-active" network.
