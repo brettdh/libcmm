@@ -71,8 +71,8 @@ public class ConnScoutService extends ServiceCompat
                     measureNetworks();
                 }
             };
-            // re-measure the networks every minute or so
-            mTimer.schedule(mTask, 0, 60 * 1000);
+            // re-measure the networks every 5 minutes or so
+            mTimer.schedule(mTask, 0, 300 * 1000);
         }
     }
 
