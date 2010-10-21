@@ -131,3 +131,22 @@ split(".") was {""}.  Meh.  Moving on to bigger fish for now.
 Made the change to services.jar to make sure the preferred network
 (WiFi by default) is always "active" when it's connected.  More importantly,
 make sure I still get up/down broadcasts for the "non-active" network.
+
+10/20/2010
+Android port is basically working.
+Major pieces that remain:
+  - Virgil-style tweaks to the network measurement stuff
+    - Measure known WiFi networks less
+    - Measure cellular network less frequently
+    
+  - Breadcrumbs-style network prediction
+    - Store Markov model on phone
+    - Train with some trace data (probably need to gather fresh, or maybe
+        Timur has some I can use)
+    - Update on-line with network measurements, GPS
+    - Prediction querying API
+    
+  - Java wrapper for Intentional Networking API
+    - Multisocket class
+    - OutputStream replacement with API additions (labels, IROBs, thunks)
+    - More wrappers as needed
