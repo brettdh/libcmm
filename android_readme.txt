@@ -136,8 +136,9 @@ make sure I still get up/down broadcasts for the "non-active" network.
 Android port is basically working.
 Major pieces that remain:
   - Virgil-style tweaks to the network measurement stuff
+    - Keep database of previously measured WiFi APs
     - Measure known WiFi networks less
-    - Measure cellular network less frequently
+    - Measure cellular network less frequently (more power-hungry)
     
   - Breadcrumbs-style network prediction
     - Store Markov model on phone
@@ -150,3 +151,11 @@ Major pieces that remain:
     - Multisocket class
     - OutputStream replacement with API additions (labels, IROBs, thunks)
     - More wrappers as needed
+
+  - Callable/Future API implementation
+    - On its face, this seems like the most straightforward part
+    - The "when-to-send-prefetch" decision is the tricky/interesting bit
+
+  - PowerTutor power model
+    - Find necessary hooks into Android system state
+    - Build/borrow model and query API
