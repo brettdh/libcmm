@@ -139,6 +139,10 @@ Major pieces that remain:
     - Keep database of previously measured WiFi APs
     - Measure known WiFi networks less
     - Measure cellular network less frequently (more power-hungry)
+    - Simple optimization: measure different networks simultaneously
+      - Probably no effect on power consumption, but faster
+      - Just as accurate if wireless hop is the bottleneck
+        - Is that true for e.g. CAEN wireless?
     
   - Breadcrumbs-style network prediction
     - Store Markov model on phone
@@ -146,6 +150,10 @@ Major pieces that remain:
         Timur has some I can use)
     - Update on-line with network measurements, GPS
     - Prediction querying API
+    - Consideration: in the DARPA domain, mobility probably won't be 
+        well-characterized by a Markov model.  However, it might be
+        known ahead of time, and we might be able to ask people nearby
+        about the wireless conditions.
     
   - Java wrapper for Intentional Networking API
     - Multisocket class
