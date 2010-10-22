@@ -134,6 +134,8 @@ make sure I still get up/down broadcasts for the "non-active" network.
 
 10/20/2010
 Android port is basically working.
+More targeted mobile test?
+
 Major pieces that remain:
   - Virgil-style tweaks to the network measurement stuff
     - Keep database of previously measured WiFi APs
@@ -142,6 +144,9 @@ Major pieces that remain:
     - Simple optimization: measure different networks simultaneously
       - Probably no effect on power consumption, but faster
       - Just as accurate if wireless hop is the bottleneck
+        - More precisely, the pipe to the reference server needs to be
+          fatter than the 3G and wifi pipes combined in order to provide
+          accurate measurements.
         - Is that true for e.g. CAEN wireless?
     
   - Breadcrumbs-style network prediction
