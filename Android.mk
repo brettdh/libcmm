@@ -43,6 +43,7 @@ LOCAL_SRC_FILES := \
 
 LOCAL_STATIC_LIBRARIES := android_libs/libboost_thread
 LOCAL_STATIC_LIBRARIES += libancillary
+LOCAL_SHARED_LIBRARIES := liblog
 LOCAL_PRELINK_MODULE := false
 include $(BUILD_SHARED_LIBRARY)
 
@@ -53,7 +54,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE := cmm_test_sender
 LOCAL_SRC_FILES := libcmm_test_sender.cpp debug.cpp
-LOCAL_SHARED_LIBRARIES := libcmm
+LOCAL_SHARED_LIBRARIES := libcmm liblog
 include $(BUILD_EXECUTABLE)
 
 # cmm_test_receiver: libcmm_test_receiver.o libcmm.so 
@@ -63,7 +64,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE := cmm_test_receiver
 LOCAL_SRC_FILES := libcmm_test_receiver.cpp debug.cpp
-LOCAL_SHARED_LIBRARIES := libcmm
+LOCAL_SHARED_LIBRARIES := libcmm liblog
 include $(BUILD_EXECUTABLE)
 
 # vanilla_test_sender: vanilla_test_sender.o timeops.o
@@ -76,6 +77,7 @@ LOCAL_SRC_FILES := libcmm_test_sender.cpp timeops.cpp debug.cpp
 LOCAL_CFLAGS += -DNOMULTISOCK
 LOCAL_STATIC_LIBRARIES := android_libs/libboost_thread
 LOCAL_STATIC_LIBRARIES += libancillary
+LOCAL_SHARED_LIBRARIES := liblog
 include $(BUILD_EXECUTABLE)
 
 # vanilla_test_receiver: vanilla_test_receiver.o timeops.o
@@ -85,6 +87,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE := vanilla_test_receiver
 LOCAL_SRC_FILES := libcmm_test_receiver.cpp timeops.cpp debug.cpp
+LOCAL_SHARED_LIBRARIES := liblog
 LOCAL_CFLAGS += -DNOMULTISOCK
 include $(BUILD_EXECUTABLE)
 
@@ -95,7 +98,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE := cmm_throughput_test
 LOCAL_SRC_FILES := libcmm_throughput_test.cpp debug.cpp
-LOCAL_SHARED_LIBRARIES := libcmm
+LOCAL_SHARED_LIBRARIES := libcmm liblog
 include $(BUILD_EXECUTABLE)
 
 # vanilla_throughput_test: vanilla_throughput_test.o timeops.o
@@ -106,6 +109,7 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE := vanilla_throughput_test
 LOCAL_SRC_FILES := libcmm_throughput_test.cpp timeops.cpp debug.cpp
 LOCAL_CFLAGS += -DNOMULTISOCK
+LOCAL_SHARED_LIBRARIES := liblog
 include $(BUILD_EXECUTABLE)
 
 # conn_scout: libcmm_scout.o cdf_sampler.o debug.o cmm_thread.o timeops.o

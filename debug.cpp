@@ -12,6 +12,10 @@
 using std::ostringstream; using std::string; 
 using std::setw; using std::setfill;
 
+#ifdef ANDROID
+#include <cutils/logd.h>
+#endif
+
 pthread_key_t thread_name_key;
 static pthread_once_t key_once = PTHREAD_ONCE_INIT;
 
@@ -77,13 +81,11 @@ static void vdbgprintf(bool plain, const char *fmt, va_list ap)
     fmtstr += fmt;
     
 #ifdef ANDROID
-    int rc = vprintf(fmtstr.c_str(), ap);
+    //int rc = vprintf(fmtstr.c_str(), ap);
+    __android_log_vprint(ANDROID_LOG_INFO, "libcmm", fmtstr.c_str(), ap);
 #else
-    int rc = vfprintf(stderr, fmtstr.c_str(), ap);
+    vfprintf(stderr, fmtstr.c_str(), ap);
 #endif
-    if (rc <= 0) {
-        rc = std::printf("vfprintf error: %s\n", strerror(errno));
-    }
 }
 
 void dbgprintf_always(const char *fmt, ...)
