@@ -118,11 +118,11 @@ Post-Mobisys TODO items
 
 * Figure out a way to make our traffic reordering/prioritizing/trickling
    work for applications with multiple multisockets?  Higher priority if 
-   we think our applications will benefit.
+   we think our applications will benefit. (DONE)
 
 * Get a live network test working with active measurements.
   (Once this works, we can run the active measurements also while doing
-   the trace-based evaluation.)
+   the trace-based evaluation.)  (DONE, for android; kinda dumb.)
 
 * Consider adding irob_cancel and irob_change_label to the API.
 
@@ -140,3 +140,21 @@ It-would-be-nice TODOs:
 * Test & debug cleanup code for scout<=>process IPC.
   * It might make more sense to use a UNIX socket for this.
     (DONE)
+
+----------------
+11/5/2010
+
+* Test cmm_shutdown more; figure out why this doesn't cause thread 1 to exit:
+
+  thread1() {
+      cmm_read(sock, ...);
+  }
+
+  thread2() {
+      cmm_shutdown(sock, SHUT_RDWR);
+  }
+
+  The reason appears to be that cmm_read and the like wait for
+   sk->remote_shutdown to be true (receiving the goodbye from the other end).
+   Instead, a socket that has been locally shut down for reading should 
+   immediately make cmm_read return, possibly with zero bytes.
