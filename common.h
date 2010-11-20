@@ -10,6 +10,7 @@
 #include <functional>
 #include <unistd.h>
 #include <fcntl.h>
+#include <string.h>
 
 #ifdef ANDROID
 typedef short in_port_t;

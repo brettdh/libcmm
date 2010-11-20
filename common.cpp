@@ -2,7 +2,11 @@
 #include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <linux/sockios.h>
-#include <linux/tcp.h>
+
+// tcp.h is temperamental.
+#include <netinet/tcp.h>
+//#include <linux/tcp.h>
+
 #include <errno.h>
 #include "common.h"
 #include "debug.h"

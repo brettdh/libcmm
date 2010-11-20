@@ -2,7 +2,11 @@
 #include <pthread.h>
 #include "pthread_util.h"
 #include <netinet/in.h>
-#include <linux/tcp.h>
+
+// tcp.h is temperamental.
+#include <netinet/tcp.h>
+//#include <linux/tcp.h>
+
 #include <sys/types.h>
 #include "timeops.h"
 #include <cmath>

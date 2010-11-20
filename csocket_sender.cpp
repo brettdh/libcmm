@@ -15,8 +15,12 @@
 #include <linux/sockios.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-//#include <netinet/tcp.h>
-#include <linux/tcp.h>
+
+// These are weird.  I think one of them causes compile issues on one machine,
+//  while the other causes issues on another.
+#include <netinet/tcp.h>
+//#include <linux/tcp.h>
+
 #include <arpa/inet.h>
 #include <vector>
 #include <algorithm>

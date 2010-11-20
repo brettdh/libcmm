@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <unistd.h>
+#include <string.h>
 #include "timeops.h"
 #include <pthread.h>
 #include "cmm_thread.h"

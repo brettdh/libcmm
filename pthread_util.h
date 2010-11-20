@@ -7,6 +7,9 @@
 #include <vector>
 #include <deque>
 #include <assert.h>
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
 #include "debug.h"
 
 #define PTHREAD_ASSERT_SUCCESS(rc)                      \
