@@ -15,7 +15,7 @@ struct packet_hdr {
 #define MULTI_APP_VANILLA_TEST_PORT 4242
 #define MULTI_APP_INTNW_TEST_PORT 4243
 
-int cmm_connect_to(mc_socket_t sock, const char *hostname, uint16_t port);
+int cmm_connect_to(mc_socket_t sock, const char *hostname, u_int16_t port);
 
 struct AgentData;
 

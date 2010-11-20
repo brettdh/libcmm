@@ -2,6 +2,7 @@
 #include <cppunit/ui/text/TestRunner.h>
 #include "StdioOutputter.h"
 #include <unistd.h>
+#include <stdlib.h>
 #include <iostream>
 #include <stdexcept>
 using std::cout; using std::endl;

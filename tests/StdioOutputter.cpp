@@ -1,6 +1,7 @@
 #include <cppunit/Exception.h>
 #include <cppunit/SourceLine.h>
 #include <cppunit/TestFailure.h>
+#include <cstdio>
 #include "StdioOutputter.h"
 #include <cppunit/TestResultCollector.h>
 

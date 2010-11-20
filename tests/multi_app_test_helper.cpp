@@ -236,7 +236,7 @@ SenderThread::SenderThread(char *cmdline_args[], char *argv[])
             sending_duration.tv_usec = 0;
         }
     } catch (std::runtime_error& e) {
-        dbgprintf_always(e.what());
+	dbgprintf_always("%s\n", e.what());
         usage(argv);
     }
 }

@@ -9,6 +9,7 @@
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <string.h>
 #include <libcmm.h>
 #include <stdexcept>
 using std::runtime_error;

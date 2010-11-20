@@ -447,7 +447,7 @@ int main(int argc, char *argv[])
             }
         }
     } catch (std::runtime_error& e) {
-        fprintf(stderr, e.what());
+	fprintf(stderr, "%s\n", e.what());
         usage(argv[0]);
     }
 
