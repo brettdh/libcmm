@@ -8,7 +8,7 @@ CXXFLAGS+=-Wall -Werror -I.. -I../libancillary -I/usr/local/include -pthread -fP
 	  $(DEBUG_FLAGS) -DBUILDING_SCOUT
 LDFLAGS+=-lrt -lglib-2.0 -lboost_thread
 
-all: conn_scout
+all: conn_scout virgil_server
 
 libcmm_shmem_scout.o: ../libcmm_shmem.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $^
