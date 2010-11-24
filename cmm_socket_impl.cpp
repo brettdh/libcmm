@@ -1465,13 +1465,18 @@ struct set_sock_opt {
         assert(csock);
         assert(csock->osfd >= 0);
 
-        if(optname == O_NONBLOCK) {
+        if (optname == O_NONBLOCK) {
             int flags;
             flags = fcntl(csock->osfd, F_GETFL, 0);
             flags |= O_NONBLOCK;
             return fcntl(csock->osfd, F_SETFL, flags);
         } else {
-            return setsockopt(csock->osfd, level, optname, optval, optlen);
+            int rc = setsockopt(csock->osfd, level, optname, optval, optlen);
+            if (rc < 0) {
+                dbgprintf("Failed setting sockopt on osfd %d: %s\n",
+                          csock->osfd, strerror(errno));
+            }
+            return rc;
         }
     }
 };
