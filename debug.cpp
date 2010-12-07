@@ -14,7 +14,11 @@ using std::ostringstream; using std::string;
 using std::setw; using std::setfill;
 
 #ifdef ANDROID
-#include <cutils/logd.h>
+#  ifdef NDK_BUILD
+#  include <android/log.h>
+#  else
+#  include <cutils/logd.h>
+#  endif
 #endif
 
 pthread_key_t thread_name_key;

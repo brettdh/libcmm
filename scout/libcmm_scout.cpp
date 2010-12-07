@@ -555,6 +555,9 @@ Java_edu_umich_intnw_scout_ConnScoutService_stopScoutIPC(JNIEnv *env,
     running = false;
     shutdown(scout_control_ipc_sock, SHUT_RDWR);
     // IPC thread will then exit.
+    
+    PthreadScopedLock lock(&ifaces_lock);
+    net_interfaces.clear();
 }
 
 extern "C"
