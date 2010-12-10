@@ -86,6 +86,9 @@ static
 int notify_subscriber(pid_t pid, int ipc_sock,
                       const IfaceList& changed_ifaces, 
                       const IfaceList& down_ifaces);
+static int
+notify_subscriber_of_event(pid_t pid, int ipc_sock, 
+                           struct net_interface iface, MsgOpcode opcode);
 
 static int init_subscriber(pid_t pid, int ipc_sock)
 {
@@ -199,29 +202,49 @@ void * IPC_Listener(void *)
                     DEBUG_LOG("Failed to receive subscribe message\n");
                     close(ipc_sock);
                 } else {
-                    SubscriberProcHash::accessor ac;
-                    if (subscriber_procs.find(ac, msg.data.pid)) {
-                        DEBUG_LOG("Duplicate subscribe request received "
-                            "from process %d\n", msg.data.pid);
-                        DEBUG_LOG("Reopening socket\n");
-                        close(ac->second.ipc_sock);
-                    } else {
-                        subscriber_procs.insert(ac, ipc_sock);
-                        ac->second.pid = msg.data.pid;
-                    }
-                    
-                    rc = init_subscriber(msg.data.pid, ipc_sock);
-                    if (rc < 0) {
-                        close(ipc_sock);
-                        subscriber_procs.erase(ac);
-                    } else {
-                        ac->second.ipc_sock = ipc_sock;
-                        DEBUG_LOG("Process %d subscribed\n", 
-                                msg.data.pid);
-                        if (ipc_sock > maxfd) {
-                            maxfd = ipc_sock;
+                    if (msg.opcode == CMM_MSG_GET_IFACES) {
+                        // not a real subscriber; just an iface request
+                        rc = init_subscriber(msg.data.pid, ipc_sock);
+                        if (rc < 0) {
+                            DEBUG_LOG("Failed to send iface info to pid %d\n",
+                                      msg.data.pid);
+                        } else {
+                            struct net_interface sentinel = {0};
+                            rc = notify_subscriber_of_event(
+                                msg.data.pid, ipc_sock, sentinel,
+                                CMM_MSG_IFACE_LABELS
+                            );
+                            if (rc < 0) {
+                                DEBUG_LOG("Failed to send sentinel iface to "
+                                          "process %d\n", msg.data.pid);
+                            }
                         }
-                        FD_SET(ipc_sock, &active_fds);
+                        close(ipc_sock);
+                    } else {
+                        SubscriberProcHash::accessor ac;
+                        if (subscriber_procs.find(ac, msg.data.pid)) {
+                            DEBUG_LOG("Duplicate subscribe request received "
+                                "from process %d\n", msg.data.pid);
+                            DEBUG_LOG("Reopening socket\n");
+                            close(ac->second.ipc_sock);
+                        } else {
+                            subscriber_procs.insert(ac, ipc_sock);
+                            ac->second.pid = msg.data.pid;
+                        }
+                        
+                        rc = init_subscriber(msg.data.pid, ipc_sock);
+                        if (rc < 0) {
+                            close(ipc_sock);
+                            subscriber_procs.erase(ac);
+                        } else {
+                            ac->second.ipc_sock = ipc_sock;
+                            DEBUG_LOG("Process %d subscribed\n", 
+                                    msg.data.pid);
+                            if (ipc_sock > maxfd) {
+                                maxfd = ipc_sock;
+                            }
+                            FD_SET(ipc_sock, &active_fds);
+                        }
                     }
                     
                     ready_fds--;

@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <linux/un.h>
 #include "libcmm_ipc.h"
+#include "libcmm_external_ipc.h"
 #include "cmm_thread.h"
 #include <set>
 using std::set;
@@ -99,29 +100,14 @@ int scout_ipc_init()
     struct cmm_msg msg;
     memset(&msg, 0, sizeof(msg));
 
-    scout_ipc_fd = socket(PF_UNIX, SOCK_STREAM, 0);
+    scout_ipc_fd = open_scout_socket();
     if (scout_ipc_fd < 0) {
-        perror("socket");
-        return -1;
-    }
-
-    struct sockaddr_un addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    strncpy(&addr.sun_path[1], SCOUT_CONTROL_MQ_NAME,
-            UNIX_PATH_MAX - 2);
-    int rc = connect(scout_ipc_fd, (struct sockaddr *)&addr, sizeof(addr));
-    if (rc < 0) {
-        perror("connect");
-        dbgprintf_always("Failed to connect to scout IPC socket\n");
-        close(scout_ipc_fd);
-        scout_ipc_fd = -1;
         return -1;
     }
 
     msg.opcode = CMM_MSG_SUBSCRIBE;
     msg.data.pid = getpid();
-    rc = send_control_message(&msg);
+    int rc = send_control_message(&msg);
     if (rc < 0) {
         dbgprintf_always(
                 "Failed to send subscription message to scout, "
@@ -190,12 +176,12 @@ static int net_status_change_handler(void)
     return 0;
 }
 
-static void sig_handler(int sig)
+static void sig_handler(int)
 {
     running = false;
 }
 
-static void *IPCThread(void *arg)
+static void *IPCThread(void *)
 {
     char name[MAX_NAME_LEN+1] = "IPCThread";
     set_thread_name(name);

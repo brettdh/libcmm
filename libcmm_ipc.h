@@ -21,7 +21,8 @@ typedef enum {
     CMM_MSG_SUBSCRIBE=1,
     CMM_MSG_UNSUBSCRIBE,
     CMM_MSG_IFACE_LABELS, /* add/update an interface */
-    CMM_MSG_IFACE_DOWN /* remove an interface */
+    CMM_MSG_IFACE_DOWN, /* remove an interface */
+    CMM_MSG_GET_IFACES /* get all interfaces plus a sentinel */
 } MsgOpcode;
 
 struct cmm_msg {

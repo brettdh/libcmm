@@ -30,6 +30,7 @@ LOCAL_SRC_FILES := \
 	intset.cpp \
 	irob_scheduling.cpp \
 	libcmm.cpp \
+	libcmm_external_ipc.cpp \
 	libcmm_ipc.cpp \
 	libcmm_irob.cpp \
 	libcmm_shmem.cpp \
