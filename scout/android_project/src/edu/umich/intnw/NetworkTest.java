@@ -18,7 +18,7 @@ public class NetworkTest {
     final private static short BW_UP_PORT = 4322;
     final private static short RTT_PORT = 4323;
 
-    final private static int timeoutSecs = 2;
+    final private static int timeoutSecs = 5;
     final private static int connectTimeoutSecs = 10;
     //final private static long timeoutNanosecs = timeoutSecs*1000*1000*1000;
     
