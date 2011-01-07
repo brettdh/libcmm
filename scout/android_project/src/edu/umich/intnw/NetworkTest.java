@@ -45,6 +45,15 @@ public class NetworkTest {
         bytes = new byte[MTU];
     }
     
+    private void close_noexcept(Socket sock) {
+        try {
+            sock.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            // log, but ignore
+        }
+    }
+    
     private Socket setupSocket(short port) throws IOException {
         Log.d(TAG, "Connecting to " + remoteAddr + ":" + port);
         Socket sock = new Socket();
@@ -75,8 +84,9 @@ public class NetworkTest {
     private void testDownload() throws NetworkTestException {
         Log.d(TAG, "Starting download test");
         
+        Socket sock = null;
         try {
-            Socket sock = setupSocket(BW_DOWN_PORT);
+            sock = setupSocket(BW_DOWN_PORT);
             //long startTime = System.nanoTime();
             //long endTime = startTime + timeoutNanosecs;
             Date startTime = new Date();
@@ -91,7 +101,6 @@ public class NetworkTest {
                 int rc;
                 rc = in.read(bytes);
                 if (rc <= 0) {
-                    sock.close();
                     throw new IOException();
                 }
                 data += rc;
@@ -103,6 +112,9 @@ public class NetworkTest {
             bw_down_Bps = (int)((double)data/secondsDiff(startTime, endTime));
         } catch (IOException e) {
             e.printStackTrace();
+            if (sock != null) {
+                close_noexcept(sock);
+            }
             throw new NetworkTestException("Download test failed: " + e.getMessage());
         }
     }
@@ -110,8 +122,9 @@ public class NetworkTest {
     private void testUpload() throws NetworkTestException {
         Log.d(TAG, "Starting upload test");
         
+        Socket sock = null;
         try {
-            Socket sock = setupSocket(BW_UP_PORT);
+            sock = setupSocket(BW_UP_PORT);
             //long startTime = System.nanoTime();
             //long endTime = startTime + timeoutNanosecs;
             Date startTime = new Date();
@@ -136,6 +149,9 @@ public class NetworkTest {
             bw_up_Bps = (int)((double)data / secondsDiff(startTime, endTime));
         } catch (IOException e) {
             e.printStackTrace();
+            if (sock != null) {
+                close_noexcept(sock);
+            }
             throw new NetworkTestException("Upload test failed: " + e.getMessage());
         }
     }
@@ -155,8 +171,9 @@ public class NetworkTest {
         Date lastResponseTime = null;
         Date endTime = new Date(startTime.getTime() + timeoutSecs * 1000);
         int tries = 0;
+        Socket sock = null;
         try {
-            Socket sock = setupSocket(RTT_PORT);
+            sock = setupSocket(RTT_PORT);
             //long startTime = System.nanoTime();
             //long endTime = startTime + timeoutNanosecs;
             
@@ -170,7 +187,6 @@ public class NetworkTest {
                 out.write(buf);
                 int rc = in.read(recvBuf);
                 if (rc <= 0) {
-                    sock.close();
                     throw new IOException();
                 }
                 tries++;
@@ -185,6 +201,9 @@ public class NetworkTest {
                 throw new NetworkTestException("RTT test failed; no responses");
             }
         } catch (IOException e) {
+            if (sock != null) {
+                close_noexcept(sock);
+            }
             if (tries == 0) {
                 e.printStackTrace();
                 throw new NetworkTestException("RTT test failed: " + e.getMessage());
