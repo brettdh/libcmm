@@ -28,7 +28,7 @@ public class NetworkTest {
     public int bw_up_Bps;
     public int rtt_ms;
 
-    final private static int MTU = 1500;
+    final private static int CHUNKSIZE = 100000;
     private byte[] bytes;
     
     public NetworkTest(String local) {
@@ -42,7 +42,7 @@ public class NetworkTest {
     public void init(String local, String remote) {
         localAddr = local;
         remoteAddr = remote;
-        bytes = new byte[MTU];
+        bytes = new byte[CHUNKSIZE];
     }
     
     private void close_noexcept(Socket sock) {
