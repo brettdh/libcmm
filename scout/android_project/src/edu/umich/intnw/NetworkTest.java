@@ -28,7 +28,7 @@ public class NetworkTest {
     public int bw_up_Bps;
     public int rtt_ms;
 
-    final private static int CHUNKSIZE = 100000;
+    final private static int CHUNKSIZE = 10000;
     private byte[] bytes;
     
     public NetworkTest(String local) {
