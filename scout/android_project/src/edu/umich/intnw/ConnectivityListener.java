@@ -63,7 +63,8 @@ public class ConnectivityListener extends BroadcastReceiver {
         ifaces.put(ConnectivityManager.TYPE_MOBILE, cellularNetwork);
         
         if (wifiNetwork != null) {
-            setCustomGateway(wifiNetwork.ipAddr);
+            // Timur's DHCP client does this now.
+            //setCustomGateway(wifiNetwork.ipAddr);
         }
         
         for (int type : ifaces.keySet()) {
@@ -79,10 +80,13 @@ public class ConnectivityListener extends BroadcastReceiver {
     }
     
     public void cleanup() {
+        // Timur's DHCP client does this now.
+        /*
         NetUpdate wifi = ifaces.get(ConnectivityManager.TYPE_WIFI);
         if (wifi != null) {
             removeCustomGateway(wifi.ipAddr, true);
         }
+        */
     }
     
     private class NetworkStatusException extends Exception {};
@@ -161,14 +165,14 @@ public class ConnectivityListener extends BroadcastReceiver {
         }
     }
     
+    // Timur's DHCP client does this now.
+    /*
     private void setCustomGateway(String ipAddr) {
-        /*
-        Steps:
-        1) Get already-configured gateway address
-        2) Remove system-added gateway
-        3) Add new gateway in routing table 'g1custom'
-        4) Add routing rules for g1custom table
-        */
+        // Steps:
+        // 1) Get already-configured gateway address
+        // 2) Remove system-added gateway
+        // 3) Add new gateway in routing table 'g1custom'
+        // 4) Add routing rules for g1custom table
         Log.d(TAG, "Setting up gateway and routing rules for " + ipAddr);
         String gateway = getWifiGateway("main");
         if (gateway != null) {
@@ -188,13 +192,13 @@ public class ConnectivityListener extends BroadcastReceiver {
         }
     }
     
+    // Timur's DHCP client does this now.
     private void removeCustomGateway(String ipAddr, boolean restoreOld) {
-        /*
-        Steps:
-        1) Get already-configured gateway address
-        2) Remove my custom gateway (it's probably gone already)
-        3) Remove routing rules for g1custom table
-        */
+        
+        // Steps:
+        // 1) Get already-configured gateway address
+        // 2) Remove my custom gateway (it's probably gone already)
+        // 3) Remove routing rules for g1custom table
         Log.d(TAG, "Removing custom routing setup for " + ipAddr);
         String wifiNet = getWifiNetwork("g1custom");
         if (wifiNet != null) {
@@ -217,6 +221,7 @@ public class ConnectivityListener extends BroadcastReceiver {
             Log.e(TAG, "Couldn't find gateway for tiwlan0 in g1custom table");
         }
     }
+    */
     
     public static final String NETWORK_MEASUREMENT_RESULT = 
         "edu.umich.intnw.scout.NetworkMeasurementResult";
@@ -336,16 +341,24 @@ public class ConnectivityListener extends BroadcastReceiver {
                     
                     network.ipAddr = ipAddr;
                     ifaces.put(networkInfo.getType(), network);
+                    
+                    // Timur's DHCP client does this now.
+                    /*
                     if (networkInfo.getType() ==
                         ConnectivityManager.TYPE_WIFI) {
                         setCustomGateway(ipAddr);
                     }
+                    */
                 } else {
                     ifaces.put(networkInfo.getType(), null);
+                    
+                    // Timur's DHCP client does this now.
+                    /*
                     if (networkInfo.getType() ==
                         ConnectivityManager.TYPE_WIFI) {
                         removeCustomGateway(ipAddr, false);
                     }
+                    */
                 }
                 
                 // TODO: real network measurements here
