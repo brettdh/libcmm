@@ -476,10 +476,14 @@ struct trace_slice {
     u_long cellular_bw_down;
     u_long cellular_bw_up;
     u_long cellular_RTT;
+    long gps_lat; // coord to 0.001, times 1000
+    long gps_long; // coord to 0.001, times 1000
+    long wifi_rssi;
+    char wifi_ssid[32]; // maximum ssid length
 
     void ntohl_all() {
-        const size_t numints = sizeof(trace_slice) / sizeof(u_long);
-        assert(numints*sizeof(u_long) == sizeof(trace_slice)); // no truncation
+        const size_t numints = (sizeof(trace_slice) - 32) / sizeof(u_long);
+        assert(numints*sizeof(u_long) == (sizeof(trace_slice) - 32)); // no truncation
         for (size_t i = 0; i < numints; ++i) {
             u_long *pos = ((u_long*)this) + i;
             *pos = ntohl(*pos);
