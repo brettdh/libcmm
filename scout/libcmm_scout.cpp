@@ -209,7 +209,7 @@ void * IPC_Listener(void *)
                             DEBUG_LOG("Failed to send iface info to pid %d\n",
                                       msg.data.pid);
                         } else {
-                            struct net_interface sentinel = {0};
+                            struct net_interface sentinel = {{0}};
                             rc = notify_subscriber_of_event(
                                 msg.data.pid, ipc_sock, sentinel,
                                 CMM_MSG_IFACE_LABELS
