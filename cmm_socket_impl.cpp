@@ -302,11 +302,22 @@ CMMSocketImpl::connect_status()
 mc_socket_t
 CMMSocketImpl::create(int family, int type, int protocol)
 {
+    bool unsupported_argument = false;
     if (family != PF_INET) {
         // TODO: remove this restriction and support 
         // more socket types.
         dbgprintf("Warning: only AF_INET supported.  cmm_socket returns "
                   "pass-through calls for AF %d.\n", family);
+        unsupported_argument = true;
+    }
+    if (type != SOCK_STREAM) {
+        // TODO: remove this restriction and support 
+        // more socket types.
+        dbgprintf("Warning: only SOCK_STREAM supported.  cmm_socket returns "
+                  "pass-through calls for type %d.\n", type);
+        unsupported_argument = true;
+    }
+    if (unsupported_argument) {
         return socket(family, type, protocol);
     }
 
