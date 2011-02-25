@@ -14,6 +14,7 @@ using std::ostringstream; using std::string;
 using std::setw; using std::setfill;
 
 #ifdef ANDROID
+#define LIBCMM_LOGFILE "/sdcard/intnw/intnw.log"
 #  ifdef NDK_BUILD
 #  include <android/log.h>
 #  else
@@ -87,7 +88,14 @@ static void vdbgprintf(bool plain, const char *fmt, va_list ap)
     
 #ifdef ANDROID
     //int rc = vprintf(fmtstr.c_str(), ap);
-    __android_log_vprint(ANDROID_LOG_INFO, "libcmm", fmtstr.c_str(), ap);
+    //__android_log_vprint(ANDROID_LOG_INFO, "libcmm", fmtstr.c_str(), ap);
+    FILE *out = fopen(LIBCMM_LOGFILE, "a");
+    if (out) {
+        vfprintf(out, fmtstr.c_str(), ap);
+        fclose(out);
+    } else {
+        __android_log_vprint(ANDROID_LOG_INFO, "libcmm", fmtstr.c_str(), ap);
+    }
 #else
     vfprintf(stderr, fmtstr.c_str(), ap);
 #endif
