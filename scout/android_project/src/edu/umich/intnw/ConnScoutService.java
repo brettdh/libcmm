@@ -46,34 +46,37 @@ public class ConnScoutService extends ServiceCompat
     
     @Override
     public void onStart(Intent intent, int startId) {
-        //mNM = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
         super.onStart(intent, startId);
 
-        int rc = startScoutIPC();
-        if (rc < 0) {
-            stopSelf();
-        } else {
-            mListener = new ConnectivityListener(this);
+        // This can be called multiple times, even though the service
+        //   has already been started.  So, ignore all but the first.
+        if (mListener == null) {
+            int rc = startScoutIPC();
+            if (rc < 0) {
+                stopSelf();
+            } else {
+                mListener = new ConnectivityListener(this);
             
-            IntentFilter filter = new IntentFilter();
-            filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
-            filter.addAction(ConnectivityListener.NETWORK_MEASUREMENT_RESULT);
-            registerReceiver(mListener, filter);
+                IntentFilter filter = new IntentFilter();
+                filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
+                filter.addAction(ConnectivityListener.NETWORK_MEASUREMENT_RESULT);
+                registerReceiver(mListener, filter);
             
-            running = true;
-            showNotification();
+                running = true;
+                showNotification();
 
-            sendBroadcast(new Intent(BROADCAST_START));
+                sendBroadcast(new Intent(BROADCAST_START));
             
-            mTimer = new Timer();
-            mTask = new TimerTask() {
-                public void run() {
-                    measureNetworks();
-                }
-            };
+                mTimer = new Timer();
+                mTask = new TimerTask() {
+                        public void run() {
+                            measureNetworks();
+                        }
+                    };
             
-            // re-measure the networks every 15 minutes or so
-            //mTimer.schedule(mTask, 0, 900 * 1000);
+                // re-measure the networks every 15 minutes or so
+                //mTimer.schedule(mTask, 0, 900 * 1000);
+            }
         }
     }
 
