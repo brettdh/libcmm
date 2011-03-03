@@ -17,7 +17,6 @@ import android.net.ConnectivityManager;
 import android.content.ServiceConnection;
 import android.content.ComponentName;
 import android.os.IBinder;
-import android.os.Binder;
 import android.util.Log;
 
 import java.util.List;

@@ -1,9 +1,7 @@
 package edu.umich.intnw.scout;
 
-import android.app.Service;
 import android.widget.Toast;
 import android.app.Notification;
-import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -11,13 +9,9 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.IBinder;
 import android.os.Binder;
-import android.os.Parcelable;
-import android.os.Parcel;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.LinkedList;
-import java.util.Date;
 import java.util.Timer;
 import java.util.TimerTask;
 

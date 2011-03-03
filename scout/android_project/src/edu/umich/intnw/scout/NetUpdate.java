@@ -2,10 +2,7 @@ package edu.umich.intnw.scout;
 
 import android.os.Parcelable;
 import android.os.Parcel;
-import android.net.NetworkInfo;
 import java.util.Date;
-import java.util.Calendar;
-import java.util.GregorianCalendar;
 import edu.umich.intnw.scout.Utilities;
 
 public final class NetUpdate implements Parcelable, Cloneable {

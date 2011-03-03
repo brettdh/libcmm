@@ -3,7 +3,6 @@ package edu.umich.intnw.scout;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.util.Log;
@@ -331,9 +330,29 @@ public class ConnectivityListener extends BroadcastReceiver {
                     if (prevNet != null && prevNet.ipAddr.equals(ipAddr)) {
                         // preserve existing stats
                     } else {
-                        // optimistic fake estimate while we wait for 
-                        //  real measurements
-                        network.setNoStats();
+                        BreadcrumbsNetworkStats bcStats = null;
+                        WifiInfo wifiInfo = null;
+                        if (networkInfo.getType() == ConnectivityManager.TYPE_WIFI) {
+                            WifiManager wifi = (WifiManager)
+                                mScoutService.getSystemService(Context.WIFI_SERVICE);
+                            wifiInfo = wifi.getConnectionInfo();
+                        }
+                        if (wifiInfo != null) {
+                            String essid = wifiInfo.getSSID();
+                            String bssid = wifiInfo.getBSSID();
+                            if (essid != null && bssid != null) {
+                                bcStats = BreadcrumbsNetworkStats.lookup(context, essid, bssid);
+                            }
+                        }
+                        if (bcStats != null) {
+                            network.bw_down_Bps = bcStats.bw_down;
+                            network.bw_up_Bps = bcStats.bw_up;
+                            network.rtt_ms = bcStats.rtt_ms;
+                        } else {
+                            // optimistic fake estimate while we wait for 
+                            //  real measurements
+                            network.setNoStats();
+                        }
                     }
                     bw_down_Bps = network.bw_down_Bps;
                     bw_up_Bps = network.bw_up_Bps;
