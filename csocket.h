@@ -75,8 +75,10 @@ class CSocket {
     int wait_until_connected();
 
     // called when a new incoming connection is added
-    // by the listener.
-    void send_confirmation();
+    //  by the listener.
+    // The CSocketReceiver calls this in order to let
+    //  the listener thread continue.
+    int send_confirmation();
 
     // network measurements/estimates for this connection.
     u_long bandwidth();

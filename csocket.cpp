@@ -268,7 +268,7 @@ CSocket::phys_connect()
     return 0;
 }
 
-void
+int
 CSocket::send_confirmation()
 {
     struct CMMSocketControlHdr hdr;
@@ -276,19 +276,20 @@ CSocket::send_confirmation()
     hdr.type = htons(CMM_CONTROL_MSG_HELLO);
     int rc = send(osfd, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr)) {
-        perror("send");
-        dbgprintf("Error sending confirmation (HELLO)\n");
+        dbgprintf("Error sending confirmation (HELLO): %s\n",
+                  strerror(errno));
 
         PthreadScopedLock lock(&csock_lock);
         close(osfd);
         osfd = -1;
         pthread_cond_broadcast(&csock_cv);
-        return;
+        return -1;
     }
 
     PthreadScopedLock lock(&csock_lock);
     connected = true;
     pthread_cond_broadcast(&csock_cv);
+    return 0;
 }
 
 bool
