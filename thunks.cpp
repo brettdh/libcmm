@@ -74,6 +74,10 @@ struct labeled_thunk_queue {
             delete th;
         }
     }
+
+    size_t size() {
+        return thunk_queue.size();
+    }
 };
 
 struct tq_key {
@@ -209,6 +213,19 @@ void fire_thunks(void)
             }
         }
     }
+}
+
+int count_thunks(mc_socket_t sock)
+{
+    int count = 0;
+    for (ThunkHash::iterator tq_iter = thunk_hash.begin(true, true);
+         tq_iter != thunk_hash.end(); tq_iter++) {
+        struct labeled_thunk_queue *tq = tq_iter->second;
+        if (tq->sock == sock) {
+            count += tq->size();
+        }
+    }
+    return count;
 }
 
 void cancel_all_thunks(mc_socket_t sock)

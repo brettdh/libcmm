@@ -217,7 +217,8 @@ CSocketSender::Run()
             struct timespec rel_thunk_timeout = { 0, 11 * 1000 * 1000 };
             struct timespec thunk_timeout = abs_time(rel_thunk_timeout);
             //if (get_unsent_bytes(csock->osfd) > 0) {
-            if (ipc_total_bytes_inflight(csock) > 0) {//->local_iface.ip_addr) > 0) {
+            if (ipc_total_bytes_inflight(csock) > 0 &&
+                count_thunks(sk->sock) > 0) {
                 timeout = thunk_timeout;
             }
 
