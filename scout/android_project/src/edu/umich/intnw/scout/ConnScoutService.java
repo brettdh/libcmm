@@ -139,11 +139,7 @@ public class ConnScoutService extends ServiceCompat
         NetUpdate update = new NetUpdate(ip_addr);
         update.type = type;
         update.connected = connected;
-        updateHistory.add(update);
-        
-        Intent updateNotification = new Intent(BROADCAST_ACTION);
-        updateNotification.putExtra(BROADCAST_EXTRA, update);
-        sendBroadcast(updateNotification);
+        logUpdate(update);
     }
     
     public void logUpdate(NetUpdate network) {

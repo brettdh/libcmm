@@ -42,6 +42,12 @@ public class ConnectivityListener extends BroadcastReceiver {
             wifiNetwork = new NetUpdate(intToIp(wifiInfo.getIpAddress()));
             wifiNetwork.type = ConnectivityManager.TYPE_WIFI;
             wifiNetwork.connected = true;
+            BreadcrumbsNetworkStats stats = 
+                BreadcrumbsNetworkStats.lookup(wifiInfo.getSSID(), 
+                                               wifiInfo.getBSSID());
+            if (stats != null) {
+                wifiNetwork.setStats(stats);
+            }
         }
         
         try {
@@ -320,8 +326,9 @@ public class ConnectivityListener extends BroadcastReceiver {
                     mScoutService.updateNetwork(prevNet.ipAddr, 0, 0, 0, true);
                 }
                 
+                NetUpdate network;
                 if (networkInfo.isConnected()) {
-                    NetUpdate network = prevNet;
+                    network = prevNet;
                     if (network == null) {
                         network = new NetUpdate(ipAddr);
                         network.type = networkInfo.getType();
@@ -331,23 +338,11 @@ public class ConnectivityListener extends BroadcastReceiver {
                         // preserve existing stats
                     } else {
                         BreadcrumbsNetworkStats bcStats = null;
-                        WifiInfo wifiInfo = null;
                         if (networkInfo.getType() == ConnectivityManager.TYPE_WIFI) {
-                            WifiManager wifi = (WifiManager)
-                                mScoutService.getSystemService(Context.WIFI_SERVICE);
-                            wifiInfo = wifi.getConnectionInfo();
-                        }
-                        if (wifiInfo != null) {
-                            String essid = wifiInfo.getSSID();
-                            String bssid = wifiInfo.getBSSID();
-                            if (essid != null && bssid != null) {
-                                bcStats = BreadcrumbsNetworkStats.lookup(context, essid, bssid);
-                            }
+                            bcStats = BreadcrumbsNetworkStats.lookupCurrentAP(mScoutService);
                         }
                         if (bcStats != null) {
-                            network.bw_down_Bps = bcStats.bw_down;
-                            network.bw_up_Bps = bcStats.bw_up;
-                            network.rtt_ms = bcStats.rtt_ms;
+                            network.setStats(bcStats);
                         } else {
                             // optimistic fake estimate while we wait for 
                             //  real measurements
@@ -378,13 +373,16 @@ public class ConnectivityListener extends BroadcastReceiver {
                         removeCustomGateway(ipAddr, false);
                     }
                     */
+                    network = new NetUpdate(ipAddr);
+                    network.type = networkInfo.getType();
+                    network.connected = false;
                 }
                 
                 // TODO: real network measurements here
                 mScoutService.updateNetwork(ipAddr, 
                                             bw_down_Bps, bw_up_Bps, rtt_ms,
                                             !networkInfo.isConnected());
-                mScoutService.logUpdate(ipAddr, networkInfo);
+                mScoutService.logUpdate(network);
                 
             } catch (NetworkStatusException e) {
                 // ignore; already logged
