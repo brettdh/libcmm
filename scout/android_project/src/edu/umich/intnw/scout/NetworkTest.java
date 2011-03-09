@@ -129,8 +129,8 @@ public class NetworkTest {
             Date startTime = new Date();
             Date endTime = new Date(startTime.getTime() + timeoutSecs * 1000);
             
-            for (byte b : bytes) {
-                b = '5';
+            for (int i = 0; i < bytes.length; ++i) {
+                bytes[i] = '5';
             }
             int data = 0;
             OutputStream out = sock.getOutputStream();

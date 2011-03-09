@@ -103,9 +103,9 @@ public class Utilities {
     
     public static NetworkInterface getCellularIface(WifiInfo wifiInfo) 
         throws SocketException {
-        for (Enumeration e = NetworkInterface.getNetworkInterfaces();
+        for (Enumeration<NetworkInterface> e = NetworkInterface.getNetworkInterfaces();
              e.hasMoreElements(); ) {
-            NetworkInterface iface = (NetworkInterface) e.nextElement();
+            NetworkInterface iface = e.nextElement();
             InetAddress addr = getIfaceIpAddr(iface);
 
             if (addr != null &&
@@ -118,9 +118,9 @@ public class Utilities {
     }
     
     public static InetAddress getIfaceIpAddr(NetworkInterface iface) {
-        for (Enumeration ip = iface.getInetAddresses(); 
+        for (Enumeration<InetAddress> ip = iface.getInetAddresses(); 
              ip.hasMoreElements(); ) {
-            InetAddress addr = (InetAddress) ip.nextElement();
+            InetAddress addr = ip.nextElement();
             if (!addr.isLoopbackAddress()) {
                 return addr;
             }

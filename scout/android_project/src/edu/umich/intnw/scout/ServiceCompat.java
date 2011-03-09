@@ -11,9 +11,9 @@ import java.lang.reflect.InvocationTargetException;
 // see http://android-developers.blogspot.com/2010/02/service-api-changes-starting-with.html
 
 public abstract class ServiceCompat extends Service {
-    private static final Class[] mStartForegroundSignature = new Class[] {
+    private static final Class<?>[] mStartForegroundSignature = new Class[] {
         int.class, Notification.class};
-    private static final Class[] mStopForegroundSignature = new Class[] {
+    private static final Class<?>[] mStopForegroundSignature = new Class[] {
         boolean.class};
     
     private NotificationManager mNM;

@@ -96,7 +96,6 @@ public class ConnScoutService extends ServiceCompat
             
             sendBroadcast(new Intent(BROADCAST_STOP));
             
-            mListener.cleanup();
             unregisterReceiver(mListener);
 
             stopScoutIPC();
