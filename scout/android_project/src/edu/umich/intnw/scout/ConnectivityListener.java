@@ -160,6 +160,9 @@ public class ConnectivityListener extends BroadcastReceiver {
     private static final String NETWORK_STATS_EXTRA = 
         "edu.umich.intnw.scout.NetworkStatsExtra";
     
+    public static final String ACTION_START_MEASUREMENT = 
+        "edu.umich.intnw.scout.StartMeasurement";
+    
     private class MeasurementThread extends Thread {
         private ConnectivityListener mListener;
         private Map<Integer, NetUpdate> networks;
@@ -224,6 +227,9 @@ public class ConnectivityListener extends BroadcastReceiver {
                 measurementThread.start();
             }
         }
+
+        Intent startNotification = new Intent(ConnScoutService.BROADCAST_MEASUREMENT_STARTED);
+        mScoutService.sendBroadcast(startNotification);
     }
     
     @Override
@@ -319,6 +325,9 @@ public class ConnectivityListener extends BroadcastReceiver {
                                             false);
                 mScoutService.logUpdate(network);
             }
+        } else if (action.equals(ACTION_START_MEASUREMENT)) {
+            Log.d(TAG, "Got start-measurement intent; starting measurement");
+            measureNetworks();
         } else {
             // unknown action; ignore (shouldn't happen)
         }

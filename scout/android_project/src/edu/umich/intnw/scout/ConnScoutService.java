@@ -54,6 +54,7 @@ public class ConnScoutService extends ServiceCompat
                 IntentFilter filter = new IntentFilter();
                 filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
                 filter.addAction(ConnectivityListener.NETWORK_MEASUREMENT_RESULT);
+                filter.addAction(ConnectivityListener.ACTION_START_MEASUREMENT);
                 registerReceiver(mListener, filter);
             
                 running = true;
@@ -151,9 +152,6 @@ public class ConnScoutService extends ServiceCompat
     
     public void measureNetworks() {
         mListener.measureNetworks();
-        
-        Intent startNotification = new Intent(BROADCAST_MEASUREMENT_STARTED);
-        sendBroadcast(startNotification);
     }
     
     public boolean measurementInProgress() {
