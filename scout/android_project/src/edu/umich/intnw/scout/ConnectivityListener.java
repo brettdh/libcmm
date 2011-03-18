@@ -238,8 +238,10 @@ public class ConnectivityListener extends BroadcastReceiver {
         Log.d(TAG, "Context: " + context.toString());
         Log.d(TAG, "Intent: " + intent.toString());
         Bundle extras = intent.getExtras();
-        for (String key : extras.keySet()) {
-            Log.d(TAG, key + "=>" + extras.get(key));
+        if (extras != null) {
+            for (String key : extras.keySet()) {
+                Log.d(TAG, key + "=>" + extras.get(key));
+            }
         }
         
         String action = intent.getAction();
