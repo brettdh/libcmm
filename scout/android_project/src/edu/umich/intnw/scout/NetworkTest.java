@@ -158,11 +158,11 @@ public class NetworkTest {
     private void testRTT() throws NetworkTestException {
         Log.d(TAG, "Starting RTT test");
         
-        byte[] buf = new byte[4];
-        buf[0] = 't';
-        buf[1] = 'e';
-        buf[2] = 's';
-        buf[3] = 't';
+        final int RTT_PACKET_SIZE = 64;
+        byte[] buf = new byte[RTT_PACKET_SIZE];
+        for (int i = 0; i < buf.length; ++i) {
+            buf[i] = '5';
+        }
         
         byte[] recvBuf = new byte[buf.length];
 
