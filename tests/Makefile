@@ -3,7 +3,8 @@ CXXFLAGS:=-Wall -Werror -I. -I.. -I../libancillary -m32 -g -DCMM_UNIT_TESTING -D
 LDFLAGS:=-L. -L..  -lcppunit -ldl -pthread -lrt -lglib-2.0 -lboost_thread
 
 EXECUTABLES=run_unit_tests run_lib_tests run_remote_tests run_thunk_tests run_trickle_tests \
-	    run_lib_tests_nb run_remote_tests_nb multi_app_test multi_app_test_helper
+	    run_lib_tests_nb run_remote_tests_nb multi_app_test multi_app_test_helper \
+	    socket_api_tests_remote 
 
 .gitignore: Makefile
 	echo "$(EXECUTABLES)" | sed -e 's/\s+/ /' | tr ' ' '\n' > .gitignore
@@ -41,7 +42,7 @@ shmem_test_helper: shmem_test_helper.o shmem_test_common.o libcmm_shmem.o common
 TESTOBJS := pending_irob_test.o lattice_test.o intset_test.o \
 	    receiver_lattice_test.o pending_sender_irob_test.o \
 	    ack_timeouts_test.o pending_receiver_irob_test.o \
-	    estimation_test.o pthread_util_test.o
+	    estimation_test.o pthread_util_test.o 
 SUPPORTOBJS := pending_irob.o intset.o debug.o pending_receiver_irob.o \
 	       pending_sender_irob.o timeops.o ack_timeouts.o net_stats.o \
 	       test_common.o debug.o net_interface.o irob_scheduling.o common.o \
@@ -89,6 +90,12 @@ multi_app_test_helper: multi_app_test_helper_main.o test_common.o
 
 multi_app_test: multi_app_test.o multi_app_test_helper.o test_common.o
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -pthread
+
+socket_api_tests_remote: run_all_tests.o socket_api_tests.o \
+		         end_to_end_tests_base.o end_to_end_tests_remote.o \
+			 remote_tests.o test_common.o StdioOutputter.o
+	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
+
 
 include ../deps.mk
 

@@ -9,3 +9,5 @@ shmem_test_helper
 multi_app_test
 multi_app_test_helper
 intnw_header_size
+socket_api_tests_remote
+
