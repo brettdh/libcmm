@@ -3,8 +3,7 @@ CXXFLAGS:=-Wall -Werror -I. -I.. -I../libancillary -m32 -g -DCMM_UNIT_TESTING -D
 LDFLAGS:=-L. -L..  -lcppunit -ldl -pthread -lrt -lglib-2.0 -lboost_thread
 
 EXECUTABLES=run_unit_tests run_lib_tests run_remote_tests run_thunk_tests run_trickle_tests \
-	    run_lib_tests_nb run_remote_tests_nb multi_app_test multi_app_test_helper \
-	    socket_api_tests_remote 
+	    run_lib_tests_nb run_remote_tests_nb multi_app_test multi_app_test_helper
 
 .gitignore: Makefile
 	echo "$(EXECUTABLES)" | sed -e 's/\s+/ /' | tr ' ' '\n' > .gitignore
@@ -57,7 +56,7 @@ LIBTESTOBJS:=end_to_end_tests_base.o end_to_end_tests_forked.o forked_tests.o
 run_lib_tests: run_all_tests.o StdioOutputter.o test_common.o $(LIBTESTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
 
-REMOTETESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o remote_tests.o
+REMOTETESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o remote_tests.o socket_api_tests.o
 run_remote_tests: run_all_tests.o StdioOutputter.o test_common.o $(REMOTETESTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
 
@@ -90,11 +89,6 @@ multi_app_test_helper: multi_app_test_helper_main.o test_common.o
 
 multi_app_test: multi_app_test.o multi_app_test_helper.o test_common.o
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -pthread
-
-socket_api_tests_remote: run_all_tests.o socket_api_tests.o \
-		         end_to_end_tests_base.o end_to_end_tests_remote.o \
-			 remote_tests.o test_common.o StdioOutputter.o
-	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
 
 
 include ../deps.mk
