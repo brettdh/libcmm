@@ -27,6 +27,9 @@ class EndToEndTestsBase :  public CppUnit::TestFixture {
     virtual bool isReceiver() = 0;
     virtual void waitForReceiver() {}
 
+    // here the subclass can set socket options as needed.
+    virtual void socketSetup() {}
+
     void receiverAssertIntsSorted(int nums[], size_t n);
 
     mc_socket_t data_sock;

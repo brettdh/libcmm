@@ -76,6 +76,8 @@ EndToEndTestsBase::setUp()
     }
     
     if (isReceiver()) {
+        socketSetup();
+
         startReceiver();
     } else {
         waitForReceiver();
@@ -120,8 +122,10 @@ EndToEndTestsBase::setRemoteHost(const char *hostname_)
 void
 EndToEndTestsBase::startSender()
 {
-    send_sock = cmm_socket(PF_INET, SOCK_STREAM, 0);
-    handle_error(send_sock < 0, "cmm_socket");
+    data_sock = cmm_socket(PF_INET, SOCK_STREAM, 0);
+    handle_error(data_sock < 0, "cmm_socket");
+
+    socketSetup();
 
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
