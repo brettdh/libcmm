@@ -24,13 +24,15 @@ LOCAL_SRC_FILES := \
     ./android_run_tests.cpp \
     $(addprefix ../../, end_to_end_tests_base.cpp \
 			end_to_end_tests_remote.cpp \
-        		remote_tests.cpp test_common.cpp)
+			remote_tests.cpp \
+			socket_api_tests.cpp \
+			test_common.cpp)
 
 LOCAL_C_INCLUDES := $(common_C_INCLUDES)
 LOCAL_CFLAGS := $(common_CFLAGS)
 LOCAL_LDLIBS := -L$(LOCAL_PATH)/../../../android_libs \
 		-L/Users/brettdh/src/android-source/out/target/product/generic/obj/lib \
 		-Wl,-rpath-link=/Users/brettdh/src/android-source/out/target/product/generic/obj/lib \
- 	        -lcmm -lssl -lcrypto -lcppunit -lboost_thread -llog
+	        -lcmm -lssl -lcrypto -lcppunit -lboost_thread -llog
 
 include $(BUILD_SHARED_LIBRARY)
