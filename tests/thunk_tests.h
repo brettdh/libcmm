@@ -6,8 +6,6 @@
 #include "end_to_end_tests_remote.h"
 
 class ThunkTests : public EndToEndTestsRemote {
-    static bool is_receiver;
-  
     CPPUNIT_TEST_SUITE(ThunkTests);
     CPPUNIT_TEST(testThunks);
     //CPPUNIT_TEST(testBlockingSend);

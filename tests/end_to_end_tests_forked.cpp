@@ -64,7 +64,7 @@ EndToEndTestsForked::testOrderingSimple()
         fprintf(stderr, "Sending 10 sorted integers, in order\n");
         for (size_t i = 0; i < NUMINTS; i++) {
             nums[i] = htonl(nums[i]);
-            int rc = cmm_send(send_sock, &nums[i], sizeof(nums[i]), 0,
+            int rc = cmm_send(data_sock, &nums[i], sizeof(nums[i]), 0,
                               0, NULL, NULL);
             print_on_error(rc < 0, "cmm_send");
             CPPUNIT_ASSERT_EQUAL_MESSAGE("Sending integers", 
@@ -88,10 +88,10 @@ EndToEndTestsForked::testOrderingReverse()
                "IROBs, sending in reverse order\n");
 
         irob_id_t irobs[NUMINTS];
-        irobs[0] = begin_irob(send_sock, 0, NULL, 0, NULL, NULL);
+        irobs[0] = begin_irob(data_sock, 0, NULL, 0, NULL, NULL);
         CPPUNIT_ASSERT_MESSAGE("begin_irob succeeds", irobs[0] >= 0);
         for (size_t i = 1; i < NUMINTS; ++i) {
-            irobs[i] = begin_irob(send_sock, 1, &irobs[i-1], 0, NULL, NULL);
+            irobs[i] = begin_irob(data_sock, 1, &irobs[i-1], 0, NULL, NULL);
             CPPUNIT_ASSERT_MESSAGE("begin_irob succeeds", irobs[i] >= 0);
         }
         for (int i = (int)NUMINTS - 1; i >= 0; --i) {

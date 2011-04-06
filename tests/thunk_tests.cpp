@@ -64,7 +64,7 @@ ThunkTests::testThunks()
     memset(buf, 'Q', sizeof(buf));
 
     if (isReceiver()) {
-        int rc = cmm_recv(read_sock, buf, LARGE_BUF_SIZE, MSG_WAITALL, NULL);
+        int rc = cmm_recv(data_sock, buf, LARGE_BUF_SIZE, MSG_WAITALL, NULL);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Received large buffer",
                                      LARGE_BUF_SIZE, rc);
 
@@ -74,12 +74,12 @@ ThunkTests::testThunks()
             nums[i] = htonl(nums[i]);
         }
 
-        int rc = cmm_write(send_sock, buf, LARGE_BUF_SIZE, 
+        int rc = cmm_write(data_sock, buf, LARGE_BUF_SIZE, 
                            CMM_LABEL_BACKGROUND, NULL, NULL);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Sent large buffer",
                                      LARGE_BUF_SIZE, rc);
 
-        struct thunk_args *th_arg = new struct thunk_args(send_sock, nums, 
+        struct thunk_args *th_arg = new struct thunk_args(data_sock, nums, 
                                                           NUMINTS, 0);
         PthreadScopedLock lock(&th_arg->mutex);
         while (th_arg->next < th_arg->n) {
@@ -127,7 +127,7 @@ ThunkTests::testBlockingSend()
         size_t next = 0;
         while (next < NUMINTS) {
             fprintf(stderr, "Sending int... ");
-            int rc = cmm_send(send_sock, &nums[next], sizeof(int), 0, 
+            int rc = cmm_send(data_sock, &nums[next], sizeof(int), 0, 
                               CMM_LABEL_BACKGROUND, NULL, NULL);
             if (rc >= 0) {
                 fprintf(stderr, "sent, rc=%d\n", rc);

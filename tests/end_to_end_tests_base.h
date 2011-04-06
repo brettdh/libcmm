@@ -29,8 +29,7 @@ class EndToEndTestsBase :  public CppUnit::TestFixture {
 
     void receiverAssertIntsSorted(int nums[], size_t n);
 
-    mc_socket_t read_sock;
-    mc_socket_t send_sock;
+    mc_socket_t data_sock;
 
     virtual void setupReceiver();
     virtual void startReceiver();

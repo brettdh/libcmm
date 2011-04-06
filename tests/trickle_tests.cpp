@@ -88,13 +88,13 @@ TrickleTests::testTrickle()
         receiverAssertIntsSorted(nums, NUMINTS*2);
     } else {
         struct thread_args *fg_args = new struct thread_args;
-        fg_args->sock = send_sock;
+        fg_args->sock = data_sock;
         fg_args->send_label = CMM_LABEL_ONDEMAND;
         fg_args->delay.tv_sec = 0;
         fg_args->delay.tv_nsec = 500000000;
 
         struct thread_args *bg_args = new struct thread_args;
-        bg_args->sock = send_sock;
+        bg_args->sock = data_sock;
         bg_args->send_label = CMM_LABEL_BACKGROUND;
         bg_args->delay.tv_sec = 0;
         bg_args->delay.tv_nsec = 600000000;
