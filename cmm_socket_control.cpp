@@ -1,4 +1,5 @@
 #include "cmm_socket_control.h"
+#include "debug.h"
 #include <stdexcept>
 #include <iostream>
 #include <sstream>
@@ -39,9 +40,15 @@ CMMSocketControlHdr::type_str() const
     return strs[my_type];
 }
 
+static std::string nodebug_description = "(no debugging)";
+
 std::string
 CMMSocketControlHdr::describe() const
 {
+    if (!is_debugging_on()) {
+        return nodebug_description;
+    }
+
     std::ostringstream stream;
     stream << " Type: " << type_str() << "("  << ntohs(type) << ") ";
     

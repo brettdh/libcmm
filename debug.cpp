@@ -112,12 +112,15 @@ void dbgprintf_always(const char *fmt, ...)
 #ifdef CMM_DEBUG
 static bool debugging = true;
 
+bool is_debugging_on()
+{
+    return debugging;
+}
+
 void set_debugging(bool value)
 {
     debugging = value;
 }
-
-
 
 void dbgprintf(const char *fmt, ...)
 {

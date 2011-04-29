@@ -67,14 +67,16 @@ void
 PendingReceiverIROB::assert_valid()
 {
     assert(recvd_bytes >= 0);
-    struct irob_chunk_data *prev_chunk = NULL;
-    struct irob_chunk_data *cur_chunk = NULL;
-    for (size_t i = 1; i < chunks.size(); ++i) {
-        prev_chunk = cur_chunk;
-        if (!prev_chunk) {
-            prev_chunk = &chunks[i-1];
-        }
-        cur_chunk = &chunks[i];
+    //struct irob_chunk_data *prev_chunk = NULL;
+    //struct irob_chunk_data *cur_chunk = NULL;
+    std::deque<irob_chunk_data>::iterator prev_chunk;
+    std::deque<irob_chunk_data>::iterator cur_chunk;
+
+    int i = 1;
+    prev_chunk = chunks.begin();
+    cur_chunk = prev_chunk;
+    ++cur_chunk;
+    while (cur_chunk != chunks.end()) {
         if (prev_chunk->data != NULL &&
             cur_chunk->data != NULL) {
             if ((prev_chunk->offset + prev_chunk->datalen)
@@ -87,6 +89,9 @@ PendingReceiverIROB::assert_valid()
                 assert(0);
             }
         }
+        ++prev_chunk;
+        ++cur_chunk;
+        ++i;
     }
 }
 
@@ -123,7 +128,10 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
         recvd_bytes += chunk.datalen;
         dbgprintf("Added chunk %lu (%d bytes) to IROB %ld new total %d\n", 
                   chunk.seqno, chunk.datalen, id, num_bytes);
-        assert_valid();
+
+        // This is kinda expensive, and this code is pretty stable,
+        //  so we'll leave it out for now.
+        //assert_valid();
     } else {
         dbgprintf("Adding chunk %lu (%d bytes) on IROB %ld failed! recvd_bytes=%d, expected_bytes=%d\n",
                   chunk.seqno, chunk.datalen, id, recvd_bytes, expected_bytes);
