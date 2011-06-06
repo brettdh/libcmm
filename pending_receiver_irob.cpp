@@ -113,7 +113,6 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
             struct irob_chunk_data empty;
             memset(&empty, 0, sizeof(empty));
             chunks.resize(seqno + 1, empty);
-            // TODO: account for new, incomplete chunks
         }
 
         if (chunks[seqno].data() != NULL) {
@@ -124,8 +123,7 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
         }
         recvd_chunks++; // only valid because we don't do partial chunks
 
-        // TODO: account for new chunk (if incomplete)
-        chunks[seqno] = chunk;
+        chunks.setChunkData(seqno, chunk.data(), chunk.datalen);
         num_bytes += chunk.datalen;
         recvd_bytes += chunk.datalen;
         dbgprintf("Added chunk %lu (%d bytes) to IROB %ld new total %d\n", 

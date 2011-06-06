@@ -7,8 +7,11 @@
 class IROBDataChunkDeque {
     typedef std::deque<struct irob_chunk_data> DequeType;
     DequeType chunks;
+    int incomplete_chunks;
 
   public:
+    IROBDataChunkDeque();
+
     bool all_complete() const;
 
     bool empty() const;
@@ -16,11 +19,13 @@ class IROBDataChunkDeque {
     void resize(size_t new_size, struct irob_chunk_data empty_data);
     void clear();
 
-    struct irob_chunk_data& operator[](size_t n);
+    void setChunkData(unsigned long seqno, char *data, size_t datalen);
+
+    //struct irob_chunk_data& operator[](size_t n);
     const struct irob_chunk_data& operator[](size_t n) const;
-    struct irob_chunk_data& front();
+    //struct irob_chunk_data& front();
     const struct irob_chunk_data& front() const;
-    struct irob_chunk_data& back();
+    //struct irob_chunk_data& back();
     const struct irob_chunk_data& back() const;
 
     void push_front(const struct irob_chunk_data& chunk);

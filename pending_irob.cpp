@@ -143,7 +143,8 @@ PendingIROB::subsume(PendingIROB *other)
     dependents.insert(other->dependents.begin(),
                       other->dependents.end());
     for (size_t i = 0; i < other->chunks.size(); ++i) {
-        add_chunk(other->chunks[i]);
+        struct irob_chunk_data copied_chunk = other->chunks[i];
+        add_chunk(copied_chunk);
     }
     other->chunks.clear(); // prevent double-free
     
