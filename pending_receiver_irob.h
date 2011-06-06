@@ -94,8 +94,6 @@ class PendingReceiverIROB : public PendingIROB {
     ssize_t recvd_bytes;
 
     int recvd_chunks;
-
-    bool all_chunks_complete();
 };
 
 class CMMSocketImpl;

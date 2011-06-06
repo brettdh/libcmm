@@ -790,7 +790,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
             chunk_hdr.op.irob_chunk.seqno = htonl(seqno);
             chunk_hdr.op.irob_chunk.offset = htonl(offset);
             chunk_hdr.op.irob_chunk.datalen = htonl(chunksize);
-            chunk_hdr.op.irob_chunk.data = NULL;
+            chunk_hdr.op.irob_chunk.setData(NULL);
             count++;
 
             // begin_irob hdr, deps array, irob_chunk hdr, data, end_irob hdr
@@ -1030,7 +1030,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     hdr.op.irob_chunk.seqno = htonl(seqno);
     hdr.op.irob_chunk.offset = htonl(offset);
     hdr.op.irob_chunk.datalen = htonl(chunksize);
-    hdr.op.irob_chunk.data = NULL;
+    hdr.op.irob_chunk.setData(NULL);
 
     int total_bytes = sizeof(hdr) + chunksize;
     int veccount = 1 + irob_vecs.size();

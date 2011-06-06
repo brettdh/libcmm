@@ -43,7 +43,12 @@ struct irob_chunk_data {
     u_long seqno; /* starting at 0. */
     size_t offset; // offset in this IROB at which this chunk's data begins
     size_t datalen;
-    char *data; /* NULL in network messages
+
+    void setData(const char *data);
+    char *data();
+    const char *data() const;
+  private:
+    char *_data; /* NULL in network messages
                  * Allocated and used at receiver */
     /* followed by datalen bytes of application data */
 };
@@ -55,15 +60,6 @@ struct SumChunkFunctor {
         sum += chunk.datalen;
     }
 };
-
-#if 0
-struct default_irob_data {
-    irob_id_t id;
-    int numdeps;
-    size_t datalen;
-    /* followed by datalen bytes of application data */
-};
-#endif
 
 struct new_interface_data {
     struct in_addr ip_addr;

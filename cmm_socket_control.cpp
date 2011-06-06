@@ -9,6 +9,25 @@
 #include <iomanip>
 using std::setfill; using std::setw;
 
+
+void
+irob_chunk_data::setData(const char *newData)
+{
+    _data = newData;
+}
+
+char *
+irob_chunk_data::data()
+{
+    return _data;
+}
+
+const char *
+irob_chunk_data::data() const
+{
+    return _data;
+}
+
 CMMSocketControlHdr::CMMSocketControlHdr()
 {
     memset(this, 0, sizeof(this));
@@ -74,13 +93,6 @@ CMMSocketControlHdr::describe() const
         stream << "offset: " << ntohl(op.irob_chunk.offset) << " ";
         stream << "datalen: " << ntohl(op.irob_chunk.datalen);
         break;
-#if 0
-    case CMM_CONTROL_MSG_DEFAULT_IROB:
-        stream << "IROB: " << ntohl(op.default_irob.id) << " ";
-        stream << "numdeps: " << ntohl(op.default_irob.numdeps);
-        stream << "datalen: " << ntohl(op.default_irob.datalen);
-        break;
-#endif
     case CMM_CONTROL_MSG_NEW_INTERFACE:
         stream << "IP: " << inet_ntoa(op.new_interface.ip_addr) << " ";
         stream << "labels: " << ntohl(op.new_interface.labels) << " ";

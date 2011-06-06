@@ -44,6 +44,7 @@ TESTOBJS := pending_irob_test.o lattice_test.o intset_test.o \
 	    estimation_test.o pthread_util_test.o 
 SUPPORTOBJS := pending_irob.o intset.o debug.o pending_receiver_irob.o \
 	       pending_sender_irob.o timeops.o ack_timeouts.o net_stats.o \
+	       irob_data_chunk_deque.o \
 	       test_common.o debug.o net_interface.o irob_scheduling.o common.o \
 	       shmem_test.o shmem_test_common.o libcmm_shmem.o ../libancillary/libancillary.a csocket.o
 

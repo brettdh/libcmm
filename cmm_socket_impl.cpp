@@ -2065,8 +2065,8 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
         chunk.seqno = 0; /* will be overwritten 
                           * with new seqno */
         chunk.datalen = len;
-        chunk.data = new char[len];
-        memcpy(chunk.data, buf, len);
+        chunk.setData(new char[len]);
+        memcpy(chunk.data(), buf, len);
 
         psirob->add_chunk(chunk); /* writes correct seqno into struct */
 
