@@ -42,6 +42,8 @@ class PendingReceiverIROB : public PendingIROB {
      * have arrived. */
     bool is_complete(void);
 
+    bool all_chunks_complete();
+
     //  From this, get_missing_chunks()
     //  will know which seqnos haven't been received.
     bool finish(ssize_t expected_bytes, int num_chunks);

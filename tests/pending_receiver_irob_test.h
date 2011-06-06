@@ -11,6 +11,7 @@ class PendingReceiverIROBTest : public CppUnit::TestFixture {
     PendingReceiverIROB *prirob;
 
     CPPUNIT_TEST_SUITE(PendingReceiverIROBTest);
+    CPPUNIT_TEST(testAllChunksComplete);
     //CPPUNIT_TEST(testOverwrite);
     CPPUNIT_TEST_SUITE_END();
 
@@ -20,7 +21,11 @@ class PendingReceiverIROBTest : public CppUnit::TestFixture {
     void setUp();
     void tearDown();
 
+    void testAllChunksComplete();
     void testOverwrite();
+
+  private:
+    void addAChunk(unsigned long seqno, size_t offset, size_t len);
 };
 
 #endif

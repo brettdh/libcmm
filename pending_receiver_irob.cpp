@@ -149,6 +149,12 @@ PendingReceiverIROB::is_ready(void)
     return !placeholder && deps.empty();
 }
 
+bool
+PendingReceiverIROB::all_chunks_complete()
+{
+    return chunks.all_complete();
+}
+
 vector<struct irob_chunk_data>
 PendingReceiverIROB::get_missing_chunks()
 {

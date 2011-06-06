@@ -26,7 +26,12 @@ PendingSenderIROBTest::setUp()
         char *chunk_data = new char[10];
         size_t offset = 10*i;
         memcpy(chunk_data, buffer + offset, 10);
-        struct irob_chunk_data chunk = {0, 0, offset, 10, chunk_data};
+        struct irob_chunk_data chunk;
+        chunk.id = 0;
+        chunk.seqno = 0;
+        chunk.offset = offset;
+        chunk.datalen = 10;
+        chunk.setData(chunk_data);
         psirob->add_chunk(chunk);
     }
 }

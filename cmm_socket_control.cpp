@@ -11,7 +11,7 @@ using std::setfill; using std::setw;
 
 
 void
-irob_chunk_data::setData(const char *newData)
+irob_chunk_data::setData(char *newData)
 {
     _data = newData;
 }
