@@ -18,7 +18,7 @@ PendingReceiverIROB::PendingReceiverIROB(irob_id_t id, int numdeps, irob_id_t *d
       offset(0), num_bytes(datalen), expected_bytes(-1), expected_chunks(-1), 
       recvd_bytes(0), recvd_chunks(0)
 {
-    partial_chunk.setData(NULL);
+    partial_chunk.data = NULL;
     partial_chunk.datalen = 0;
 
     if (datalen > 0) {
@@ -35,7 +35,7 @@ PendingReceiverIROB::PendingReceiverIROB(irob_id_t id_)
 {
     /* this placeholder PendingReceiverIROB will be replaced by 
        the real one, when it arrives. */
-    partial_chunk.setData(NULL);
+    partial_chunk.data = NULL;
     partial_chunk.datalen = 0;
 }
 
@@ -54,13 +54,13 @@ PendingReceiverIROB::subsume(PendingIROB *other)
     recvd_bytes = prirob->recvd_bytes;
     recvd_chunks = prirob->recvd_chunks;
     partial_chunk = prirob->partial_chunk; // should be {NULL, 0}
-    prirob->partial_chunk.setData(NULL); // prevent double free, just in case
+    prirob->partial_chunk.data = NULL; // prevent double free, just in case
 }
 
 PendingReceiverIROB::~PendingReceiverIROB()
 {
     // XXX: make sure there are no races here
-    delete [] partial_chunk.data();
+    delete [] partial_chunk.data;
 }
 
 void
@@ -77,8 +77,8 @@ PendingReceiverIROB::assert_valid()
     cur_chunk = prev_chunk;
     ++cur_chunk;
     while (cur_chunk != chunks.end()) {
-        if (prev_chunk->data() != NULL &&
-            cur_chunk->data() != NULL) {
+        if (prev_chunk->data != NULL &&
+            cur_chunk->data != NULL) {
             if ((prev_chunk->offset + prev_chunk->datalen)
                 != cur_chunk->offset) {
                 dbgprintf("IROB validity check failed!\n");
@@ -115,7 +115,7 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
             chunks.resize(seqno + 1, empty);
         }
 
-        if (chunks[seqno].data() != NULL) {
+        if (chunks[seqno].data != NULL) {
             dbgprintf("Ignoring already-seen chunk %lu "
                       "(%zu bytes at offset %zu);\n",
                       chunk.seqno, chunk.datalen, chunk.offset);
@@ -123,7 +123,7 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
         }
         recvd_chunks++; // only valid because we don't do partial chunks
 
-        chunks.setChunkData(seqno, chunk.data(), chunk.datalen);
+        chunks.setChunkData(seqno, chunk.data, chunk.datalen);
         num_bytes += chunk.datalen;
         recvd_bytes += chunk.datalen;
         dbgprintf("Added chunk %lu (%d bytes) to IROB %ld new total %d\n", 
@@ -158,7 +158,7 @@ PendingReceiverIROB::get_missing_chunks()
 {
     vector<struct irob_chunk_data> missing_chunks;
     for (size_t i = 0; i < chunks.size(); ++i) {
-        if (chunks[i].data() == NULL) {
+        if (chunks[i].data == NULL) {
             // for now, just whole chunks can be missing.
             struct irob_chunk_data missing_chunk;
             missing_chunk.seqno = i;
@@ -238,16 +238,16 @@ PendingReceiverIROB::read_data(void *buf, size_t len)
 
     dbgprintf("Attempting to copy %zu bytes from irob %ld, which has %d bytes,\n"
               "                   %d untouched chunks, and %s partial chunk\n", 
-              len, id, num_bytes, chunks.size(), (partial_chunk.data()?"a":"no"));
-    if (partial_chunk.data()) {
+              len, id, num_bytes, chunks.size(), (partial_chunk.data?"a":"no"));
+    if (partial_chunk.data) {
         dbgprintf("Copying first from partial chunk; offset=%d, datalen=%d\n",
                   offset, partial_chunk.datalen);
         ssize_t bytes = min(len, partial_chunk.datalen - offset);
         assert(bytes > 0);
-        memcpy(buf, partial_chunk.data() + offset, bytes);
+        memcpy(buf, partial_chunk.data + offset, bytes);
         if (len >= (partial_chunk.datalen - offset)) {
-            delete [] partial_chunk.data();
-            partial_chunk.setData(NULL);
+            delete [] partial_chunk.data;
+            partial_chunk.data = NULL;
             partial_chunk.datalen = 0;
             offset = 0;
         } else {
@@ -263,16 +263,16 @@ PendingReceiverIROB::read_data(void *buf, size_t len)
         chunks.pop_front();
 
         dbgprintf("Copying from chunk: datalen=%d, data=%p\n", 
-                  chunk.datalen, chunk.data());
+                  chunk.datalen, chunk.data);
 
         ssize_t bytes = min(len, chunk.datalen);
-        memcpy((char*)buf + bytes_copied, chunk.data(), bytes);
+        memcpy((char*)buf + bytes_copied, chunk.data, bytes);
         bytes_copied += bytes;
         if (chunk.datalen > len) {
             offset = bytes;
             partial_chunk = chunk;
         } else {
-            delete [] chunk.data();
+            delete [] chunk.data;
         }
         len -= bytes;
         dbgprintf("Read %d bytes; %d bytes remaining in request\n",

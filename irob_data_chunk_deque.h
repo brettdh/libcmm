@@ -21,11 +21,8 @@ class IROBDataChunkDeque {
 
     void setChunkData(unsigned long seqno, char *data, size_t datalen);
 
-    //struct irob_chunk_data& operator[](size_t n);
     const struct irob_chunk_data& operator[](size_t n) const;
-    //struct irob_chunk_data& front();
     const struct irob_chunk_data& front() const;
-    //struct irob_chunk_data& back();
     const struct irob_chunk_data& back() const;
 
     void push_front(const struct irob_chunk_data& chunk);

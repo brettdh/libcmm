@@ -43,12 +43,7 @@ struct irob_chunk_data {
     u_long seqno; /* starting at 0. */
     size_t offset; // offset in this IROB at which this chunk's data begins
     size_t datalen;
-
-    void setData(char *data);
-    char *data();
-    const char *data() const;
-  private:
-    char *_data; /* NULL in network messages
+    char *data; /* NULL in network messages
                  * Allocated and used at receiver */
     /* followed by datalen bytes of application data */
 };

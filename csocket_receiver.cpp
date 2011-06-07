@@ -369,7 +369,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         throw;
     }
 
-    hdr.op.irob_chunk.setData(buf);
+    hdr.op.irob_chunk.data = buf;
 
     {
         PthreadScopedLock lock(&sk->scheduling_state_lock);
@@ -403,7 +403,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         chunk.seqno = ntohl(hdr.op.irob_chunk.seqno);
         chunk.offset = ntohl(hdr.op.irob_chunk.offset);
         chunk.datalen = ntohl(hdr.op.irob_chunk.datalen);
-        chunk.setData(hdr.op.irob_chunk.data());
+        chunk.data = hdr.op.irob_chunk.data;
         
         assert(pirob);
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);

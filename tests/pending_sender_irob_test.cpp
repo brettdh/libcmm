@@ -31,7 +31,7 @@ PendingSenderIROBTest::setUp()
         chunk.seqno = 0;
         chunk.offset = offset;
         chunk.datalen = 10;
-        chunk.setData(chunk_data);
+        chunk.data = chunk_data;
         psirob->add_chunk(chunk);
     }
 }

@@ -40,23 +40,15 @@ IROBDataChunkDeque::clear()
     incomplete_chunks = 0;
 }
 
-/*
-struct irob_chunk_data& 
-IROBDataChunkDeque::operator[](size_t n)
-{
-    return chunks[n];
-}
-*/
-
 void
 IROBDataChunkDeque::setChunkData(unsigned long seqno, char *data, size_t datalen)
 {
     assert(seqno < chunks.size());
     struct irob_chunk_data& chunk = chunks[seqno];
-    assert(chunk.data() == NULL);
+    assert(chunk.data == NULL);
     incomplete_chunks--;
     chunk.datalen = datalen;
-    chunk.setData(data);
+    chunk.data = data;
 }
 
 const struct irob_chunk_data& 
@@ -65,27 +57,11 @@ IROBDataChunkDeque::operator[](size_t n) const
     return chunks[n];
 }
 
-/*
-struct irob_chunk_data& 
-IROBDataChunkDeque::front()
-{
-    return chunks.front();
-}
-*/
-
 const struct irob_chunk_data& 
 IROBDataChunkDeque::front() const
 {
     return chunks.front();
 }
-
-/*
-struct irob_chunk_data& 
-IROBDataChunkDeque::back()
-{
-    return chunks.back();
-}
-*/
 
 const struct irob_chunk_data& 
 IROBDataChunkDeque::back() const
@@ -98,7 +74,7 @@ void
 IROBDataChunkDeque::push_front(const struct irob_chunk_data& chunk)
 {
     chunks.push_front(chunk);
-    if (chunk.data() == NULL) {
+    if (chunk.data == NULL) {
         incomplete_chunks++;
     }
 }
@@ -107,7 +83,7 @@ void
 IROBDataChunkDeque::push_back(const struct irob_chunk_data& chunk)
 {
     chunks.push_back(chunk);
-    if (chunk.data() == NULL) {
+    if (chunk.data == NULL) {
         incomplete_chunks++;
     }
 }
@@ -116,7 +92,7 @@ IROBDataChunkDeque::push_back(const struct irob_chunk_data& chunk)
 void 
 IROBDataChunkDeque::pop_front()
 {
-    if (chunks.front().data() == NULL) {
+    if (chunks.front().data == NULL) {
         incomplete_chunks--;
     }
     chunks.pop_front();
@@ -125,7 +101,7 @@ IROBDataChunkDeque::pop_front()
 void 
 IROBDataChunkDeque::pop_back()
 {
-    if (chunks.back().data() == NULL) {
+    if (chunks.back().data == NULL) {
         incomplete_chunks--;
     }
     chunks.pop_back();

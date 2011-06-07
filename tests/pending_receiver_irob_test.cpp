@@ -39,7 +39,7 @@ PendingReceiverIROBTest::addAChunk(u_long seqno, size_t offset, size_t len)
     chunk.seqno = seqno;
     chunk.offset = offset;
     chunk.datalen = len;
-    chunk.setData(chunk_data);
+    chunk.data = chunk_data;
     prirob->add_chunk(chunk);
 }
 
@@ -80,13 +80,13 @@ PendingReceiverIROBTest::testOverwrite()
             chunk.seqno = j/chunksize;
             chunk.offset = 0;
             chunk.datalen = chunksize;
-            chunk.setData(new char[chunksize]);
+            chunk.data = new char[chunksize];
             bool ret = prirob->add_chunk(chunk);
             
             CPPUNIT_ASSERT_MESSAGE("add_chunk succeeds", ret);
             CPPUNIT_ASSERT_EQUAL_MESSAGE("Number of bytes is unchanged",
                                          BUFSIZE, (size_t)prirob->numbytes());
-            delete [] chunk.data();
+            delete [] chunk.data;
         }
     }
 
@@ -96,9 +96,9 @@ PendingReceiverIROBTest::testOverwrite()
     chunk.seqno = -1;
     chunk.offset = BUFSIZE-10;
     chunk.datalen = 20;
-    chunk.setData(new char[20]);
-    memcpy(chunk.data(), buffer + BUFSIZE - 10, 10);
-    memcpy(chunk.data() + 10, buffer + BUFSIZE - 10, 10);
+    chunk.data = new char[20];
+    memcpy(chunk.data, buffer + BUFSIZE - 10, 10);
+    memcpy(chunk.data + 10, buffer + BUFSIZE - 10, 10);
 
     bool ret = prirob->add_chunk(chunk);
     CPPUNIT_ASSERT_MESSAGE("add_chunk succeeds", ret);

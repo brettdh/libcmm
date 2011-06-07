@@ -50,7 +50,7 @@ PendingIROB::PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array
         chunk.seqno = 0;
         chunk.datalen = datalen;
         chunk.offset = 0;
-        chunk.setData(data);
+        chunk.data = data;
 
         chunks.push_back(chunk);
         complete = true;
@@ -65,7 +65,7 @@ PendingIROB::~PendingIROB()
     while (!chunks.empty()) {
         struct irob_chunk_data chunk = chunks.front();
         chunks.pop_front();
-        delete [] chunk.data();
+        delete [] chunk.data;
     }
 
     //dbgprintf("PendingIROB %p is being destroyed\n", this);

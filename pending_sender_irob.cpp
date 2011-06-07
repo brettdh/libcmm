@@ -118,7 +118,7 @@ PendingSenderIROB::get_bytes_internal(size_t offset, ssize_t& len)
             bytes = len - bytes_gathered;
         }
         next_buf.iov_len = bytes;
-        next_buf.iov_base = chunk.data() + cur_chunk_offset;
+        next_buf.iov_base = chunk.data + cur_chunk_offset;
         dbgprintf("Gathering %zd bytes from chunk %lu chunk_offset %zd\n",
                   bytes, it->seqno, cur_chunk_offset);
         data.push_back(next_buf);
