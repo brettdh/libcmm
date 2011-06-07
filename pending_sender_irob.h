@@ -119,7 +119,7 @@ class PendingSenderIROB : public PendingIROB {
     size_t irob_offset;  // number of bytes given to senders
 
     std::vector<struct iovec> get_bytes_internal(size_t offset, ssize_t& len);
-    std::deque<struct irob_chunk_data>::iterator find_app_chunk(size_t offset);
+    std::deque<struct irob_chunk_data>::const_iterator find_app_chunk(size_t offset);
     
     // only one thread at a time should be sending app data
     //bool chunk_in_flight;

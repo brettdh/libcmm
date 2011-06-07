@@ -44,9 +44,9 @@ CMMSocketControlHdr::type_str() const
 static std::string nodebug_description = "(no debugging)";
 
 std::string
-CMMSocketControlHdr::describe() const
+CMMSocketControlHdr::describe(bool force_verbose) const
 {
-    if (!is_debugging_on()) {
+    if (!is_debugging_on() && !force_verbose) {
         return nodebug_description;
     }
 

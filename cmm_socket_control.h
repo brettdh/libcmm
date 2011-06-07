@@ -138,7 +138,7 @@ struct CMMSocketControlHdr {
     } op;
 
     /* for use with exceptions and debug information. */
-    std::string describe() const;
+    std::string describe(bool force_verbose=false) const;
   private:
     const char *type_str() const;
 };

@@ -31,9 +31,7 @@ class IROBDataChunkDeque {
     void pop_front();
     void pop_back();
 
-    DequeType::iterator begin();
     DequeType::const_iterator begin() const;
-    DequeType::iterator end();
     DequeType::const_iterator end() const;
 };
 

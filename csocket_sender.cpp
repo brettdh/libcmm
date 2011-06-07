@@ -72,26 +72,16 @@ CSocketSender::Run()
 
         if (csock->matches(CMM_LABEL_ONDEMAND)) {
             csock->last_fg = sk->last_fg;
-            int last_fg_secs = ipc_last_fg_tv_sec(csock);//->local_iface.ip_addr);
+            int last_fg_secs = ipc_last_fg_tv_sec(csock);
             ipc_set_last_fg_tv_sec(iface_pair(csock->local_iface.ip_addr,
-                                              csock->remote_iface.ip_addr), //->local_iface.ip_addr, 
+                                              csock->remote_iface.ip_addr),
                                    max((int)sk->last_fg.tv_sec,
                                        last_fg_secs));
         }
 
-        ipc_add_csocket(csock, //->local_iface.ip_addr, 
-                        csock->osfd);
+        ipc_add_csocket(csock, csock->osfd);
 
         PthreadScopedLock lock(&sk->scheduling_state_lock);
-
-        // on startup, find all IROBs that might benefit from me sending
-        //  some data on the new network.
-//         NotCompletelySent obj;
-//         sk->outgoing_irobs.for_each_by_ref(obj);
-//         for (size_t i = 0; i < obj.matches.size(); ++i) {
-//             IROBSchedulingData data(obj.matches[i], false);
-//             csock->irob_indexes.waiting_data_checks.insert(data);
-//         }
 
         while (1) {
             if (sk->shutting_down) {
@@ -216,7 +206,6 @@ CSocketSender::Run()
             // 11ms so I can tell between the two.
             struct timespec rel_thunk_timeout = { 0, 11 * 1000 * 1000 };
             struct timespec thunk_timeout = abs_time(rel_thunk_timeout);
-            //if (get_unsent_bytes(csock->osfd) > 0) {
             if (ipc_total_bytes_inflight(csock) > 0 &&
                 count_thunks(sk->sock) > 0) {
                 timeout = thunk_timeout;
@@ -260,7 +249,6 @@ CSocketSender::Run()
         pthread_cond_broadcast(&sk->scheduling_state_cv);
         throw;
     } catch (CMMControlException& e) {
-        //pthread_mutex_unlock(&sk->scheduling_state_lock); // no longer held here
         sk->csock_map->remove_csock(csock);
         if (sk->accepting_side) {
             // don't try to make a new connection; 
@@ -280,22 +268,6 @@ CSocketSender::Run()
             throw;
         }
         CSocketPtr replacement = sk->csock_map->new_csock_with_labels(0);
-        /*
-        while (replacement && replacement->wait_until_connected() < 0) {
-            if (replacement->oserr == ECONNREFUSED) {
-                dbgprintf("Failed to connect replacement csocket; "
-                          "connection refused, giving up\n");
-                sk->csock_map->remove_csock(replacement);
-                replacement.reset();
-            } else {
-                dbgprintf("Failed to connect replacement csocket; "
-                          " %s; trying again\n",
-                          strerror(replacement->oserr));
-                sk->csock_map->remove_csock(replacement);
-                replacement = sk->csock_map->new_csock_with_labels(0);
-            }
-        }
-        */
 
         PthreadScopedLock lock(&sk->scheduling_state_lock);
         if (replacement) {
@@ -566,7 +538,6 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
                 match->irob_indexes.new_chunks.insert(data);
                 if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND) {
                     //  Try to send this chunk in parallel
-                    //sk->irob_indexes.new_chunks.insert(data);
                     ret = false;
                 }
             }
@@ -582,74 +553,48 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 {
     bool do_trickle = true;
 
-    //dbgprintf("Checking whether to trickle background data...\n");
-
     struct timeval rel_timeout;
     
-    // Removing the wait duration, in hope that the small chunksize
-    //  is sufficient to limit interference with FG traffic
-    if (false) {//!sk->okay_to_send_bg(time_since_last_fg)) {
-        /*
-        dbgprintf("     ...too soon after last FG transmission\n");
+    chunksize = csock->trickle_chunksize();
+
+    struct timeval time_since_last_fg, now;
+    struct timeval iface_last_fg;
+
+    // get last_fg value
+    iface_last_fg.tv_sec = ipc_last_fg_tv_sec(csock);
+    iface_last_fg.tv_usec = 0;
+        
+    TIME(now);
+        
+    TIMEDIFF(iface_last_fg, now, time_since_last_fg);
+    if (time_since_last_fg.tv_sec > 5) {
+        chunksize = csock->bandwidth();
+    }
+        
+    // Avoid sending tiny chunks and thereby killing throughput with
+    //  header overhead
+    ssize_t MIN_CHUNKSIZE = 1500; // one Ethernet MTU
+    chunksize = max(chunksize, MIN_CHUNKSIZE);
+        
+    int unsent_bytes = ipc_total_bytes_inflight(csock);
+    if (unsent_bytes < 0) {
         do_trickle = false;
-        struct timeval wait_time = bg_wait_time();
-        timersub(&wait_time, &time_since_last_fg, 
-                 &rel_timeout);
-        */
+    } else if (unsent_bytes >= chunksize) {
+        /*dbgprintf("     ...socket buffer has %d bytes left; more than %d\n",
+          unsent_bytes, csock->trickle_chunksize());*/
+        do_trickle = false;
     } else {
-        chunksize = csock->trickle_chunksize();
-
-        struct timeval time_since_last_fg, now;
-        struct timeval iface_last_fg;
-
-        // get last_fg value
-        iface_last_fg.tv_sec = ipc_last_fg_tv_sec(csock); //->local_iface.ip_addr);
-        iface_last_fg.tv_usec = 0;
-        
-        TIME(now);
-        
-        TIMEDIFF(iface_last_fg, now, time_since_last_fg);
-        if (time_since_last_fg.tv_sec > 5) {
-            chunksize = csock->bandwidth();
-        }
-        
-        // Avoid sending tiny chunks and thereby killing throughput with
-        //  header overhead
-        ssize_t MIN_CHUNKSIZE = 1500; // one Ethernet MTU
-        chunksize = max(chunksize, MIN_CHUNKSIZE);
-        
-        int unsent_bytes = ipc_total_bytes_inflight(csock);//->local_iface.ip_addr);
-        if (unsent_bytes < 0) {
-            //dbgprintf("     ...failed to check socket send buffer: %s\n",
-            //strerror(errno));
-            do_trickle = false;
-            //rel_timeout = bg_wait_time();
-        } else if (unsent_bytes >= chunksize) {
-            /*dbgprintf("     ...socket buffer has %d bytes left; more than %d\n",
-              unsent_bytes, csock->trickle_chunksize());*/
-            do_trickle = false;
-
-            /*
-            u_long clear_time = (u_long)((unsent_bytes * (1000000.0 / csock->bandwidth()))
-                                         + (csock->RTT() * 1000.0));
-            rel_timeout.tv_sec = clear_time / 1000000;
-            rel_timeout.tv_usec = clear_time - (rel_timeout.tv_sec * 1000000);
-            */
-        } else {
 #ifdef CMM_TIMING
-            {
-                PthreadScopedLock lock(&timing_mutex);
-                if (timing_file) {
-                    struct timeval now;
-                    TIME(now);
-                    fprintf(timing_file, "%lu.%06lu  bw est %lu trickle size %zd   %d bytes in all buffers\n",
-                            now.tv_sec, now.tv_usec, csock->bandwidth(), chunksize, unsent_bytes);
-                }
+        {
+            PthreadScopedLock lock(&timing_mutex);
+            if (timing_file) {
+                struct timeval now;
+                TIME(now);
+                fprintf(timing_file, "%lu.%06lu  bw est %lu trickle size %zd   %d bytes in all buffers\n",
+                        now.tv_sec, now.tv_usec, csock->bandwidth(), chunksize, unsent_bytes);
             }
-#endif
-            
-            //chunksize = chunksize - unsent_bytes;
         }
+#endif
     }
     
     if (do_trickle) {
@@ -702,7 +647,6 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
             // BG BEGIN_IROB message on the FG socket.
         }
     
-        //PendingIROB *pirob = NULL;
         if (delegate_if_necessary(id, pirob, data)) {
             // we passed it off, so make sure that we don't
             // try to re-insert data into the IROBSchedulingIndexes.
@@ -820,7 +764,6 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     for (size_t i = 0; i < count; ++i) {
         bytes += vecs_to_send[i].iov_len;
     }
-    //vec[0].iov_len + vec[1].iov_len + vec[2].iov_len;
 
     dbgprintf("About to send message: %s", hdr.describe().c_str());
     if (deps) {
@@ -870,14 +813,12 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
                 
                 if (!psirob->end_announced) {
                     psirob->end_announced = true;
-                    //csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
                 }
             }
         } else {
             IROBSchedulingData new_chunk(id, true, data.send_labels);
             if (pirob->is_anonymous()) {
                 csock->irob_indexes.new_chunks.insert(new_chunk);
-                //csock->irob_indexes.finished_irobs.insert(data);
             } else if (pirob->chunks.size() > 0) {
                 csock->irob_indexes.new_chunks.insert(new_chunk);
             }
@@ -978,30 +919,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
 
-    /*
-    if (psirob->chunk_in_flight) {
-        // another thread is sending a chunk; it will
-        // signal for the next chunk to be sent when it is done
-        // XXX: this will need to be changed to enable striping.
-        //return true;
-        dbgprintf("Sending a chunk in parallel\n");
-    }
-    */
-
     if (psirob->needs_data_check()) {
-//         struct CMMSocketControlHdr data_check_hdr;
-//         memset(&data_check_hdr, 0, sizeof(data_check_hdr));
-//         data_check_hdr.type = htons(CMM_CONTROL_MSG_DATA_CHECK);
-//         data_check_hdr.send_labels = htonl(pirob->send_labels);
-//         data_check_hdr.op.data_check.id = htonl(id);
-//         pthread_mutex_unlock(&sk->scheduling_state_lock);
-//         int rc = write(csock->osfd, &data_check_hdr, sizeof(data_check_hdr));
-//         pthread_mutex_lock(&sk->scheduling_state_lock);
-//         if (rc != sizeof(data_check_hdr)) {
-//             sk->irob_indexes.new_chunks.insert(data);
-//             pthread_cond_broadcast(&sk->scheduling_state_cv);
-//             throw CMMControlException("Socket error", data_check_hdr);
-//         }
         dbgprintf("Data check in progress for IROB %ld; waiting for response\n",
                   id);
 
@@ -1085,14 +1003,12 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
 #endif
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
-    //if (!psirob->chunk_in_flight) {
     if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND &&
         sk->csock_map->count() > 1) {
         // let other threads try to send this chunk too
         sk->irob_indexes.new_chunks.insert(data);
         pthread_cond_broadcast(&sk->scheduling_state_cv);
     }
-    //psirob->chunk_in_flight = true;
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     if (waiting_ack_irob != -1) {
         csock->stats.report_send_event(sizeof(ack_hdr), &ack_hdr.op.ack.qdelay);
@@ -1124,22 +1040,9 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     // It might've been ACK'd and removed, so check first
     psirob = dynamic_cast<PendingSenderIROB*>(sk->outgoing_irobs.find(id));
     if (psirob) {
-        //psirob->chunk_in_flight = false;
-
         size_t total_header_size = sizeof(hdr);
         if (waiting_ack_irob != -1) {
             total_header_size += sizeof(ack_hdr);
-        }
-        if (rc > (ssize_t)total_header_size) {
-            // this way, I won't have to resend bytes that were
-            //  already received
-            //psirob->mark_sent(rc - (ssize_t)total_header_size);
-        
-            if (rc != (ssize_t)total_bytes) {
-                // XXX: data checks are now done by the sender-side
-                // when a network goes down.
-                //psirob->request_data_check();
-            }
         }
     }
 
@@ -1166,9 +1069,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     }
 
     // It might've been ACK'd and removed, so check first
-    //psirob = dynamic_cast<PendingSenderIROB*>(sk->outgoing_irobs.find(id));
     if (psirob) {
-        //psirob->mark_sent(chunksize);
         if (psirob->is_complete() && psirob->all_chunks_sent()) {
             sk->ack_timeouts.update(id, csock->retransmission_timeout());
 
@@ -1407,8 +1308,6 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
     hdrs[0].op.resend_request.request =
         (resend_request_type_t)htonl(req_type);
     hdrs[0].op.resend_request.seqno = 0;
-    //hdrs[0].op.resend_request.offset = 0;
-    //hdrs[0].op.resend_request.len = 0;
     hdrs[0].send_labels = 0;
     if ((req_type & CMM_RESEND_REQUEST_END) && prirob) {
         hdrs[0].op.resend_request.next_chunk = htonl(prirob->next_chunk_seqno());
@@ -1423,8 +1322,6 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
                 (resend_request_type_t)htonl(CMM_RESEND_REQUEST_DATA);
         }
         hdrs[i].op.resend_request.seqno = htonl(missing_chunks[i].seqno);
-        //hdrs[i].op.resend_request.offset = htonl(missing_chunks[i].offset);
-        //hdrs[i].op.resend_request.len = htonl(missing_chunks[i].datalen);
         hdrs[i].send_labels = 0;
     }
 
@@ -1463,6 +1360,8 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
     data_check_hdr.send_labels = 0;
     data_check_hdr.op.data_check.id = htonl(data.id);
 
+    dbgprintf_always("Requesting data check: %s\n",
+                     data_check_hdr.describe().c_str());
     dbgprintf("About to send message: %s\n", 
               data_check_hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);

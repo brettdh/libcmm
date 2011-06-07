@@ -69,8 +69,8 @@ PendingReceiverIROB::assert_valid()
     assert(recvd_bytes >= 0);
     //struct irob_chunk_data *prev_chunk = NULL;
     //struct irob_chunk_data *cur_chunk = NULL;
-    std::deque<irob_chunk_data>::iterator prev_chunk;
-    std::deque<irob_chunk_data>::iterator cur_chunk;
+    std::deque<irob_chunk_data>::const_iterator prev_chunk;
+    std::deque<irob_chunk_data>::const_iterator cur_chunk;
 
     int i = 1;
     prev_chunk = chunks.begin();
