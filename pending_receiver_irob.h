@@ -131,7 +131,6 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
   private:
     CMMSocketImpl *sk; // for scheduling state locks
     /* for now, pass IROBs to the app in the order in which they are released */
-    //std::set<irob_id_t> ready_irobs;
     IROBPrioritySet ready_irobs;
 
     // must call with sk->scheduling_state_lock held

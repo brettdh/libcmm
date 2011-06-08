@@ -19,7 +19,7 @@ class IROBDataChunkDeque {
     void resize(size_t new_size, struct irob_chunk_data empty_data);
     void clear();
 
-    void setChunkData(unsigned long seqno, char *data, size_t datalen);
+    void setChunkData(struct irob_chunk_data replacement_chunk);
 
     const struct irob_chunk_data& operator[](size_t n) const;
     const struct irob_chunk_data& front() const;

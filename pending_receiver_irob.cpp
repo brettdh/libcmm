@@ -102,20 +102,19 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
         // since we don't release bytes until the IROB is complete
         assert(num_bytes == recvd_bytes);
 
-        u_long seqno = chunk.seqno;
-        if (expected_chunks != -1 && seqno >= (u_long)expected_chunks) {
+        if (expected_chunks != -1 && chunk.seqno >= (u_long)expected_chunks) {
             dbgprintf("add_chunk: received seqno %lu IROB %ld, "
                       "but expected only %d chunks\n",
-                      seqno, id, expected_chunks);
+                      chunk.seqno, id, expected_chunks);
             return false;
         }
-        if (seqno >= chunks.size()) {
+        if (chunk.seqno >= chunks.size()) {
             struct irob_chunk_data empty;
             memset(&empty, 0, sizeof(empty));
-            chunks.resize(seqno + 1, empty);
+            chunks.resize(chunk.seqno + 1, empty);
         }
 
-        if (chunks[seqno].data != NULL) {
+        if (chunks[chunk.seqno].data != NULL) {
             dbgprintf("Ignoring already-seen chunk %lu "
                       "(%zu bytes at offset %zu);\n",
                       chunk.seqno, chunk.datalen, chunk.offset);
@@ -123,7 +122,7 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
         }
         recvd_chunks++; // only valid because we don't do partial chunks
 
-        chunks.setChunkData(seqno, chunk.data, chunk.datalen);
+        chunks.setChunkData(chunk);
         num_bytes += chunk.datalen;
         recvd_bytes += chunk.datalen;
         dbgprintf("Added chunk %lu (%d bytes) to IROB %ld new total %d\n", 

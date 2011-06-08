@@ -8,11 +8,9 @@
 const size_t BUFSIZE = 50;
 
 class PendingReceiverIROBTest : public CppUnit::TestFixture {
-    PendingReceiverIROB *prirob;
-
     CPPUNIT_TEST_SUITE(PendingReceiverIROBTest);
     CPPUNIT_TEST(testAllChunksComplete);
-    //CPPUNIT_TEST(testOverwrite);
+    CPPUNIT_TEST(testOutOfOrderChunks);
     CPPUNIT_TEST_SUITE_END();
 
     static char buffer[BUFSIZE+1];
@@ -22,10 +20,11 @@ class PendingReceiverIROBTest : public CppUnit::TestFixture {
     void tearDown();
 
     void testAllChunksComplete();
-    void testOverwrite();
+    void testOutOfOrderChunks();
 
   private:
-    void addAChunk(unsigned long seqno, size_t offset, size_t len);
+    void addAChunk(PendingReceiverIROB *prirob,
+                   unsigned long seqno, size_t offset, size_t len);
 };
 
 #endif

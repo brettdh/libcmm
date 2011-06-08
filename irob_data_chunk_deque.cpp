@@ -41,14 +41,15 @@ IROBDataChunkDeque::clear()
 }
 
 void
-IROBDataChunkDeque::setChunkData(unsigned long seqno, char *data, size_t datalen)
+IROBDataChunkDeque::setChunkData(struct irob_chunk_data replacement_chunk)
 {
-    assert(seqno < chunks.size());
-    struct irob_chunk_data& chunk = chunks[seqno];
+    assert(replacement_chunk.seqno < chunks.size());
+    struct irob_chunk_data& chunk = chunks[replacement_chunk.seqno];
     assert(chunk.data == NULL);
-    incomplete_chunks--;
-    chunk.datalen = datalen;
-    chunk.data = data;
+    if (replacement_chunk.data != NULL) {
+        incomplete_chunks--;
+    }
+    chunk = replacement_chunk;
 }
 
 const struct irob_chunk_data& 
