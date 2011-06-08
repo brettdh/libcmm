@@ -1618,6 +1618,10 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
                             iface.bandwidth_down != 0));
     }
 
+    // if (local && need_data_check) {
+//         bootstrapper->restart(iface, true);
+//     }
+
     // If bootstrapping is in progress, the bootstrapper is
     //  in the middle of creating connections, so don't do it here.
     bool make_connection = (bootstrapper && bootstrapper->status() == 0);

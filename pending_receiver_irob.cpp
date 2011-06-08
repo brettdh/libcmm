@@ -69,8 +69,8 @@ PendingReceiverIROB::assert_valid()
     assert(recvd_bytes >= 0);
     //struct irob_chunk_data *prev_chunk = NULL;
     //struct irob_chunk_data *cur_chunk = NULL;
-    std::deque<irob_chunk_data>::const_iterator prev_chunk;
-    std::deque<irob_chunk_data>::const_iterator cur_chunk;
+    std::deque<irob_chunk_data>::iterator prev_chunk;
+    std::deque<irob_chunk_data>::iterator cur_chunk;
 
     int i = 1;
     prev_chunk = chunks.begin();
@@ -102,19 +102,20 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
         // since we don't release bytes until the IROB is complete
         assert(num_bytes == recvd_bytes);
 
-        if (expected_chunks != -1 && chunk.seqno >= (u_long)expected_chunks) {
+        u_long seqno = chunk.seqno;
+        if (expected_chunks != -1 && seqno >= (u_long)expected_chunks) {
             dbgprintf("add_chunk: received seqno %lu IROB %ld, "
                       "but expected only %d chunks\n",
-                      chunk.seqno, id, expected_chunks);
+                      seqno, id, expected_chunks);
             return false;
         }
-        if (chunk.seqno >= chunks.size()) {
+        if (seqno >= chunks.size()) {
             struct irob_chunk_data empty;
             memset(&empty, 0, sizeof(empty));
-            chunks.resize(chunk.seqno + 1, empty);
+            chunks.resize(seqno + 1, empty);
         }
 
-        if (chunks[chunk.seqno].data != NULL) {
+        if (chunks[seqno].data != NULL) {
             dbgprintf("Ignoring already-seen chunk %lu "
                       "(%zu bytes at offset %zu);\n",
                       chunk.seqno, chunk.datalen, chunk.offset);
@@ -122,7 +123,7 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
         }
         recvd_chunks++; // only valid because we don't do partial chunks
 
-        chunks.setChunkData(chunk);
+        chunks[seqno] = chunk;
         num_bytes += chunk.datalen;
         recvd_bytes += chunk.datalen;
         dbgprintf("Added chunk %lu (%d bytes) to IROB %ld new total %d\n", 
@@ -149,7 +150,12 @@ PendingReceiverIROB::is_ready(void)
 bool
 PendingReceiverIROB::all_chunks_complete()
 {
-    return chunks.all_complete();
+    for (size_t i = 0; i < chunks.size(); ++i) {
+        if (chunks[i].data == NULL) {
+            return false;
+        }
+    }
+    return true;
 }
 
 vector<struct irob_chunk_data>
@@ -197,7 +203,7 @@ PendingReceiverIROB::is_complete(void)
     }
     return ((expected_bytes == recvd_bytes) && 
             (expected_chunks == recvd_chunks) && 
-            chunks.all_complete() && complete);
+            all_chunks_complete() && complete);
 }
 
 bool

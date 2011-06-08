@@ -42,8 +42,6 @@ class PendingReceiverIROB : public PendingIROB {
      * have arrived. */
     bool is_complete(void);
 
-    bool all_chunks_complete();
-
     //  From this, get_missing_chunks()
     //  will know which seqnos haven't been received.
     bool finish(ssize_t expected_bytes, int num_chunks);
@@ -96,6 +94,8 @@ class PendingReceiverIROB : public PendingIROB {
     ssize_t recvd_bytes;
 
     int recvd_chunks;
+
+    bool all_chunks_complete();
 };
 
 class CMMSocketImpl;
@@ -131,6 +131,7 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
   private:
     CMMSocketImpl *sk; // for scheduling state locks
     /* for now, pass IROBs to the app in the order in which they are released */
+    //std::set<irob_id_t> ready_irobs;
     IROBPrioritySet ready_irobs;
 
     // must call with sk->scheduling_state_lock held

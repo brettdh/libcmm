@@ -11,9 +11,7 @@
 #include "timeops.h"
 #include <cmath>
 #include <map>
-#include <sstream>
 using std::pair; using std::make_pair;
-using std::ostringstream;
 
 class InvalidEstimateException {};
 
@@ -82,14 +80,14 @@ NetStats::update(struct net_interface local_iface,
         u_long spot_bandwidth = iface_bandwidth(local_iface, remote_iface);
         u_long spot_latency = iface_RTT(local_iface, remote_iface) / 2;
         if (spot_bandwidth > 0) {
-            dbgprintf_always("Adding bandwidth observation from scout: %lu bytes/sec\n",
-                             spot_bandwidth);
+            dbgprintf("Adding bandwidth observation from scout: %lu bytes/sec\n",
+                      spot_bandwidth);
             net_estimates.estimates[NET_STATS_BW_UP].add_observation(spot_bandwidth);
             //net_estimates.estimates[NET_STATS_BW_UP].reset(spot_bandwidth);
         }
         if (spot_latency > 0) {
-            dbgprintf_always("Adding latency observation from scout: %lu ms\n",
-                             spot_latency);
+            dbgprintf("Adding latency observation from scout: %lu ms\n",
+                      spot_latency);
             net_estimates.estimates[NET_STATS_LATENCY].add_observation(spot_latency);
             //net_estimates.estimates[NET_STATS_LATENCY].reset(spot_latency);
         }
@@ -325,16 +323,16 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
         /* the original ACK was dropped, so it's not wise to use 
          * this one for a measurement, since the srv_time is
          * invalid. */
-        dbgprintf_always("Got ACK for IROB %ld, but srv_time is invalid. Ignoring.\n",
-                         irob_id);
+        dbgprintf("Got ACK for IROB %ld, but srv_time is invalid. Ignoring.\n",
+                  irob_id);
         return;
     }
 
     {
         PthreadScopedLock lock(&irob_iface_map_lock);
         if (striped_irobs.contains(irob_id)) {
-            dbgprintf_always("Got ACK for IROB %ld, but it was striped.  Ignoring.\n",
-                             irob_id);
+            dbgprintf("Got ACK for IROB %ld, but it was striped.  Ignoring.\n",
+                      irob_id);
             return;
         }
     }
@@ -342,8 +340,8 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
     {
         PthreadScopedRWLock lock(&my_lock, true);
         if (irob_measurements.find(irob_id) == irob_measurements.end()) {
-            dbgprintf_always("Got ACK for IROB %ld, but I've forgotten it.  Ignoring.\n",
-                             irob_id);
+            dbgprintf("Got ACK for IROB %ld, but I've forgotten it.  Ignoring.\n",
+                      irob_id);
             return;
         }
 
@@ -358,18 +356,18 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
         try {
             RTT = measurement.RTT();
         } catch (const InvalidEstimateException &e) {
-            dbgprintf_always("Invalid measurement detected; ignoring\n");
+            dbgprintf("Invalid measurement detected; ignoring\n");
             return;
         }
 
         size_t req_size = measurement.num_bytes();
 
-        dbgprintf_always("Reporting new ACK for IROB %ld; RTT %lu.%06lu  "
-                         "srv_time %lu.%06lu qdelay %lu.%06lu size %zu\n",
-                         irob_id, RTT.tv_sec, RTT.tv_usec, 
-                         srv_time.tv_sec, srv_time.tv_usec,
-                         ack_qdelay.tv_sec, ack_qdelay.tv_usec,
-                         req_size);
+        dbgprintf("Reporting new ACK for IROB %ld; RTT %lu.%06lu  "
+                  "srv_time %lu.%06lu qdelay %lu.%06lu size %zu\n",
+                  irob_id, RTT.tv_sec, RTT.tv_usec, 
+                  srv_time.tv_sec, srv_time.tv_usec,
+                  ack_qdelay.tv_sec, ack_qdelay.tv_usec,
+                  req_size);
 
         if (last_RTT.tv_sec != -1) {
             // solving simple system of 2 linear equations, from paper
@@ -469,7 +467,7 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
                     valid_result = (bw_valid && lat_valid);
                 }
                 if (!valid_result) {
-                    dbgprintf_always("Spot values indicate invalid observation; ignoring\n");
+                    dbgprintf("Spot values indicate invalid observation; ignoring\n");
                 }
             } else if(net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est)) {
                 /* latency = ((RTT - srv_time)/1000 - (req_size/bw)*1000); */
@@ -489,37 +487,37 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
                 lat_valid = (latency > 0);
                 valid_result = (bw_valid && lat_valid);
                 if (!valid_result) {
-                    dbgprintf_always("Spot values indicate invalid observation; ignoring\n");
+                    dbgprintf("Spot values indicate invalid observation; ignoring\n");
                 }
             } else {
-                dbgprintf_always("Couldn't produce spot values; equal message "
-                                 "sizes and no prior bw estimate\n");
+                dbgprintf("Couldn't produce spot values; equal message "
+                          "sizes and no prior bw estimate\n");
             }
 
             if (valid_result) {
-                ostringstream oss("New spot values: ");
+                dbgprintf("New spot values: ");
                 if (bw_valid) {
                     net_estimates.estimates[NET_STATS_BW_UP].add_observation(bw_est);
-                    oss << "bw " << bw_est;
+                    dbgprintf_plain("bw %lu", bw_est);
                 }
                 if (lat_valid) {
                     net_estimates.estimates[NET_STATS_LATENCY].add_observation(latency_est);
-                    oss << " latency " << latency_est;
+                    dbgprintf_plain(" latency %lu", latency_est);
                 }
-                dbgprintf_always("%s\n", oss.str().c_str());
-                
-                oss.str("New estimates: bw_up ");
+                dbgprintf_plain("\n");
+            
+                dbgprintf("New estimates: bw_up ");
                 if (net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est)) {
-                    oss << bw_est << " bytes/sec, ";
+                    dbgprintf_plain("%lu bytes/sec, ", bw_est);
                 } else {
-                    oss << "(invalid), ";
+                    dbgprintf_plain("(invalid), ");
                 }
                 if (net_estimates.estimates[NET_STATS_LATENCY].get_estimate(latency_est)) {
-                    oss << "latency " << latency_est << " ms";
+                    dbgprintf_plain("latency %lu ms", latency_est);
                 } else {
-                    oss << "latency (invalid)";
+                    dbgprintf_plain("latency (invalid)");
                 }
-                dbgprintf_always("%s\n", oss.str().c_str());
+                dbgprintf_plain("\n");
 
                 // TODO: send bw_up estimate to remote peer as its bw_down.  Or maybe do that
                 //       in CSocketReceiver, after calling this.

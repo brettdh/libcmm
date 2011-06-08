@@ -17,109 +17,56 @@ PendingReceiverIROBTest::setUp()
         buffer[i] = 'A' + i;
     }
     buffer[BUFSIZE] = '\0';
+
+    prirob = new PendingReceiverIROB(0, 0, NULL, 0, NULL, 0);
+    for (size_t i = 0; i < BUFSIZE/10; ++i) {
+        char *chunk_data = new char[10];\
+        size_t offset = 10*i;
+        memcpy(chunk_data, buffer + offset, 10);
+        struct irob_chunk_data chunk = {0, i, offset, 10, chunk_data};
+        prirob->add_chunk(chunk);
+    }
 }
 
 void 
 PendingReceiverIROBTest::tearDown()
 {
-}
-
-void
-PendingReceiverIROBTest::addAChunk(PendingReceiverIROB *prirob,
-                                   u_long seqno, size_t offset, size_t len)
-{
-    assert(offset + len < BUFSIZE);
-    char *chunk_data = new char[len+1];
-    memcpy(chunk_data, buffer + offset, len);
-    chunk_data[len] = '\0';
-    
-    struct irob_chunk_data chunk;
-    chunk.id = 0;
-    chunk.seqno = seqno;
-    chunk.offset = offset;
-    chunk.datalen = len;
-    chunk.data = chunk_data;
-    prirob->add_chunk(chunk);
-}
-
-void
-PendingReceiverIROBTest::testAllChunksComplete()
-{
-    PendingReceiverIROB *prirob = 
-        new PendingReceiverIROB(0, 0, NULL, 0, NULL, 0);
-
-    CPPUNIT_ASSERT_MESSAGE("Empty IROB has all chunks complete",
-                           prirob->all_chunks_complete());
-
-    addAChunk(prirob, 1, 10, 10);
-
-    CPPUNIT_ASSERT_MESSAGE("IROB with missing chunk doesn't have all chunks complete",
-                           !prirob->all_chunks_complete());
-
-    addAChunk(prirob, 0, 0, 10);
-
-    CPPUNIT_ASSERT_MESSAGE("IROB with missing chunk filled in has all chunks complete",
-                           prirob->all_chunks_complete());
-    
     delete prirob;
 }
 
+// XXX: disabled this test for now since it conflicts with the new approach
+//  to received chunks (that is, there are no partial chunks;
+//  the seqnos that are received are the chunks.)
 void
-PendingReceiverIROBTest::testOutOfOrderChunks()
+PendingReceiverIROBTest::testOverwrite()
 {
-    PendingReceiverIROBLattice lattice(NULL);
+    const size_t NUMCHUNKSIZES = 6;
+    size_t chunksizes[NUMCHUNKSIZES] = {10, 1, 5, 15, 20, BUFSIZE};
 
-    // create placeholder
-    PendingReceiverIROB *placeholder = 
-        (PendingReceiverIROB *) lattice.make_placeholder(0);
-    CPPUNIT_ASSERT(!placeholder->is_complete());
-    CPPUNIT_ASSERT_EQUAL(0, placeholder->numbytes());
-    CPPUNIT_ASSERT_EQUAL(0, placeholder->recvdbytes());
+    CPPUNIT_ASSERT_EQUAL_MESSAGE("Number of bytes is as expected",
+                                 BUFSIZE, (size_t)prirob->numbytes());
+    for (size_t i = 0; i < NUMCHUNKSIZES; ++i) {
+        size_t chunksize = chunksizes[i];
 
-    // add chunks
-    addAChunk(placeholder, 1, 10, 10);
-    addAChunk(placeholder, 2, 20, 10);
-    CPPUNIT_ASSERT(!placeholder->is_complete());
-    CPPUNIT_ASSERT_EQUAL(20, placeholder->numbytes());
-    CPPUNIT_ASSERT_EQUAL(20, placeholder->recvdbytes());
+        for (size_t j = 0; j < BUFSIZE; j += chunksize) {
+            struct irob_chunk_data chunk = {0, j/chunksize, 0, chunksize, new char[chunksize]};
+            bool ret = prirob->add_chunk(chunk);
+            
+            CPPUNIT_ASSERT_MESSAGE("add_chunk succeeds", ret);
+            CPPUNIT_ASSERT_EQUAL_MESSAGE("Number of bytes is unchanged",
+                                         BUFSIZE, (size_t)prirob->numbytes());
+            delete [] chunk.data;
+        }
+    }
 
-    // create real IROB and subsume placeholder
-    PendingReceiverIROB *irob = new PendingReceiverIROB(0, 0, NULL, 0, NULL, 0);
-    irob->subsume(placeholder);
-    delete placeholder;
-    
-    CPPUNIT_ASSERT(!irob->is_complete());
-    CPPUNIT_ASSERT_EQUAL(20, irob->numbytes());
-    CPPUNIT_ASSERT_EQUAL(20, irob->recvdbytes());
+    // add overlapping chunk near the end; only the new part should be inserted
+    struct irob_chunk_data chunk = {0, -1, BUFSIZE-10, 20, new char[20]};
+    memcpy(chunk.data, buffer + BUFSIZE - 10, 10);
+    memcpy(chunk.data + 10, buffer + BUFSIZE - 10, 10);
 
-    // add chunks
-    addAChunk(irob, 0, 0, 10);
-    CPPUNIT_ASSERT(!irob->is_complete());
-    CPPUNIT_ASSERT_EQUAL(30, irob->numbytes());
-    CPPUNIT_ASSERT_EQUAL(30, irob->recvdbytes());
-
-    addAChunk(irob, 3, 30, 10);
-    CPPUNIT_ASSERT(!irob->is_complete());
-    CPPUNIT_ASSERT_EQUAL(40, irob->numbytes());
-    CPPUNIT_ASSERT_EQUAL(40, irob->recvdbytes());
-
-    irob->finish(40, 4);
-    CPPUNIT_ASSERT(irob->is_complete());
-    CPPUNIT_ASSERT(irob->is_ready());
-
-    // read data
-    char buf[40];
-    ssize_t rc = irob->read_data(buf, 15);
-    CPPUNIT_ASSERT_EQUAL(15, rc);
-    CPPUNIT_ASSERT_EQUAL(0, memcmp(buf, buffer, 15));
-    CPPUNIT_ASSERT_EQUAL(25, irob->numbytes());
-    CPPUNIT_ASSERT_EQUAL(40, irob->recvdbytes());
-
-    rc = irob->read_data(buf + 15, 25);
-    CPPUNIT_ASSERT_EQUAL(25, rc);
-    CPPUNIT_ASSERT_EQUAL(0, memcmp(buf, buffer, 40));
-    CPPUNIT_ASSERT_EQUAL(0, irob->numbytes());
-    CPPUNIT_ASSERT_EQUAL(40, irob->recvdbytes());
-
-    delete irob;
+    bool ret = prirob->add_chunk(chunk);
+    CPPUNIT_ASSERT_MESSAGE("add_chunk succeeds", ret);
+    CPPUNIT_ASSERT_EQUAL_MESSAGE("Number of bytes changed correctly",
+                                 BUFSIZE + 10, (size_t)prirob->numbytes());
 }
+

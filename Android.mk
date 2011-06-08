@@ -28,7 +28,6 @@ LOCAL_SRC_FILES := \
 	csocket_sender.cpp \
 	debug.cpp \
 	intset.cpp \
-	irob_data_chunk_deque.cpp \
 	irob_scheduling.cpp \
 	libcmm.cpp \
 	libcmm_external_ipc.cpp \

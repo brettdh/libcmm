@@ -15,8 +15,6 @@ void set_thread_name(const char *name);
 
 CDECL void dbgprintf_always(const char *fmt, ...)
     __attribute__((format(printf, 1, 2)));
-CDECL void dbgprintf_plain_always(const char *fmt, ...)
-    __attribute__((format(printf, 1, 2)));
 
 #ifdef CMM_DEBUG
 CDECL bool is_debugging_on();

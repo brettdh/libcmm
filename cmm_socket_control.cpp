@@ -9,7 +9,6 @@
 #include <iomanip>
 using std::setfill; using std::setw;
 
-
 CMMSocketControlHdr::CMMSocketControlHdr()
 {
     memset(this, 0, sizeof(this));
@@ -44,9 +43,9 @@ CMMSocketControlHdr::type_str() const
 static std::string nodebug_description = "(no debugging)";
 
 std::string
-CMMSocketControlHdr::describe(bool force_verbose) const
+CMMSocketControlHdr::describe() const
 {
-    if (!is_debugging_on() && !force_verbose) {
+    if (!is_debugging_on()) {
         return nodebug_description;
     }
 
@@ -75,6 +74,13 @@ CMMSocketControlHdr::describe(bool force_verbose) const
         stream << "offset: " << ntohl(op.irob_chunk.offset) << " ";
         stream << "datalen: " << ntohl(op.irob_chunk.datalen);
         break;
+#if 0
+    case CMM_CONTROL_MSG_DEFAULT_IROB:
+        stream << "IROB: " << ntohl(op.default_irob.id) << " ";
+        stream << "numdeps: " << ntohl(op.default_irob.numdeps);
+        stream << "datalen: " << ntohl(op.default_irob.datalen);
+        break;
+#endif
     case CMM_CONTROL_MSG_NEW_INTERFACE:
         stream << "IP: " << inet_ntoa(op.new_interface.ip_addr) << " ";
         stream << "labels: " << ntohl(op.new_interface.labels) << " ";

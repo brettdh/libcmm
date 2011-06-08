@@ -11,8 +11,6 @@
 #include <string.h>
 //#include <boost/pool/pool_alloc.hpp>
 
-#include "irob_data_chunk_deque.h"
-
 #include "pthread_util.h"
 
 /* Terminology:
@@ -87,8 +85,7 @@ class PendingIROB {
 
 /*     std::deque<struct irob_chunk_data, */
 /*                boost::pool_allocator<struct irob_chunk_data> > chunks; */
-    //std::deque<struct irob_chunk_data> chunks;
-    IROBDataChunkDeque chunks;
+    std::deque<struct irob_chunk_data> chunks;
 
     bool anonymous;
     bool complete;

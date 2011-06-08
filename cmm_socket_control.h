@@ -56,6 +56,15 @@ struct SumChunkFunctor {
     }
 };
 
+#if 0
+struct default_irob_data {
+    irob_id_t id;
+    int numdeps;
+    size_t datalen;
+    /* followed by datalen bytes of application data */
+};
+#endif
+
 struct new_interface_data {
     struct in_addr ip_addr;
     u_long labels;
@@ -138,7 +147,7 @@ struct CMMSocketControlHdr {
     } op;
 
     /* for use with exceptions and debug information. */
-    std::string describe(bool force_verbose=false) const;
+    std::string describe() const;
   private:
     const char *type_str() const;
 };
