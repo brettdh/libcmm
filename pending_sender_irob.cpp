@@ -76,14 +76,14 @@ struct LessByOffset {
     }
 };
 
-deque<struct irob_chunk_data>::iterator
+deque<struct irob_chunk_data>::const_iterator
 PendingSenderIROB::find_app_chunk(size_t offset)
 {
     struct irob_chunk_data dummy;
     dummy.offset = offset;
     // find the one with the greatest offset where the offset is not greater
     //  than this one
-    deque<struct irob_chunk_data>::iterator it = upper_bound(chunks.begin(), 
+    deque<struct irob_chunk_data>::const_iterator it = upper_bound(chunks.begin(), 
                                                              chunks.end(), 
                                                              dummy, 
                                                              LessByOffset());
@@ -101,7 +101,7 @@ vector<struct iovec>
 PendingSenderIROB::get_bytes_internal(size_t offset, ssize_t& len)
 {
     vector<struct iovec> data;
-    deque<struct irob_chunk_data>::iterator it = find_app_chunk(offset);
+    deque<struct irob_chunk_data>::const_iterator it = find_app_chunk(offset);
     if (it == chunks.end()) {
         len = 0;
         return data;
@@ -112,7 +112,7 @@ PendingSenderIROB::get_bytes_internal(size_t offset, ssize_t& len)
     while (bytes_gathered < len && it != chunks.end()) {
         struct iovec next_buf;
 
-        struct irob_chunk_data& chunk = *it;
+        const struct irob_chunk_data& chunk = *it;
         ssize_t bytes = chunk.datalen - cur_chunk_offset;
         if ((bytes + bytes_gathered) > len) {
             bytes = len - bytes_gathered;

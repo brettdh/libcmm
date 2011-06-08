@@ -109,22 +109,10 @@ IROBDataChunkDeque::pop_back()
 }
 
 
-IROBDataChunkDeque::DequeType::iterator 
-IROBDataChunkDeque::begin()
-{
-    return chunks.begin();
-}
-
 IROBDataChunkDeque::DequeType::const_iterator 
 IROBDataChunkDeque::begin() const
 {
     return chunks.begin();
-}
-
-IROBDataChunkDeque::DequeType::iterator 
-IROBDataChunkDeque::end()
-{
-    return chunks.end();
 }
 
 IROBDataChunkDeque::DequeType::const_iterator 
