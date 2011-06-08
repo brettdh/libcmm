@@ -78,7 +78,7 @@ PendingSenderIROBTest::testMemcpyIovecs()
 void
 PendingSenderIROBTest::testFindChunkByOffset()
 {
-    deque<struct irob_chunk_data>::iterator it;
+    deque<struct irob_chunk_data>::const_iterator it;
     for (size_t i = 0; i < BUFSIZE; ++i) {
         u_long expected_seqno = i / 10;
         it = psirob->find_app_chunk(i);
