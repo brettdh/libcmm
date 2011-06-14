@@ -114,15 +114,14 @@ void remove_subscriber(SubscriberProcHash::accessor &ac)
 
 static int scout_control_ipc_sock = -1;
 
-static
-void * IPC_Listener(void *)
+int
+make_scout_listener_socket()
 {
-    int rc;
-    scout_control_ipc_sock = socket(PF_UNIX, SOCK_STREAM, 0);
-    if (scout_control_ipc_sock < 0) {
+    int listener_sock = socket(PF_UNIX, SOCK_STREAM, 0);
+    if (listener_sock < 0) {
         LOG_PERROR("socket");
         DEBUG_LOG("Failed to open IPC socket\n");
-        raise(SIGINT); /* easy way to bail out */
+        return -1;
     }
 
     struct sockaddr_un addr;
@@ -130,18 +129,31 @@ void * IPC_Listener(void *)
     addr.sun_family = AF_UNIX;
     strncpy(&addr.sun_path[1], SCOUT_CONTROL_MQ_NAME, 
             UNIX_PATH_MAX - 2);
-    rc = bind(scout_control_ipc_sock, (struct sockaddr*)&addr,
-              sizeof(addr));
+    int rc = bind(listener_sock, (struct sockaddr*)&addr,
+                  sizeof(addr));
     if (rc < 0) {
         LOG_PERROR("bind");
         DEBUG_LOG("Failed to bind IPC socket\n");
-        raise(SIGINT);
+        close(listener_sock);
+        return -1;
     }
-    rc = listen(scout_control_ipc_sock, 10);
+    rc = listen(listener_sock, 10);
     if (rc < 0) {
         LOG_PERROR("listen");
         DEBUG_LOG("Failed to listen on IPC socket\n");
-        raise(SIGINT);
+        close(listener_sock);
+        return -1;
+    }
+    return listener_sock;
+}
+
+static
+void * IPC_Listener(void *)
+{
+    int rc;
+    scout_control_ipc_sock = make_scout_listener_socket();
+    if (scout_control_ipc_sock < 0) {
+        raise(SIGINT); /* easy way to bail out */
     }
 
     //struct timeval timeout = {1, 0}; /* 1-second timeout */
@@ -393,6 +405,10 @@ void usage(char *argv[])
             "Usage 3: conn_scout replay <FG iface> <BG iface>\n"
             "   -Connects to the emulation box, which will transmit\n"
             "     the trace of network measurements.\n");
+    dbgprintf_always("Usage 4: conn_scout stdin \n"
+                     "                    <FG iface> <bandwidth> <RTT>\n"
+                     "                    <BG iface> <bandwidth> <RTT>\n"
+                     "  -Acts upon up/down commands from standard input.\n");
     exit(-1);
 }
 
@@ -636,6 +652,10 @@ Java_edu_umich_intnw_scout_ConnScoutService_updateNetwork(JNIEnv *env,
 }
 #else /* !BUILDING_SCOUT_SHLIB */
 
+void put_up_iface(struct net_interface iface)
+{
+}
+
 int main(int argc, char *argv[])
 {
     // ensure shared memory gets cleaned up when I exit
@@ -653,6 +673,7 @@ int main(int argc, char *argv[])
     signal(SIGPIPE, SIG_IGN);
 
     bool trace_replay = false;
+    bool read_stdin = false;
     bool sampling = false;
     CDFSampler *up_time_samples = NULL;
     CDFSampler *down_time_samples = NULL;
@@ -670,6 +691,13 @@ int main(int argc, char *argv[])
 
         fg_iface_name = argv[argi++];
         bg_iface_name = argv[argi++];
+    } else if (!strcmp(argv[argi], "stdin")) {
+        read_stdin = true;
+        argi++;
+
+        fg_iface_name = argv[argi++];
+        fg_bandwidth = atoi(argv[argi++]);
+        fg_RTT = atoi(argv[argi++]);
     } else {
         fg_iface_name = argv[argi++];
         fg_bandwidth = atoi(argv[argi++]);
@@ -706,6 +734,8 @@ int main(int argc, char *argv[])
                 dbgprintf_always("CDF Error: %s\n", e.str.c_str());
                 exit(1);
             }
+        } else if (read_stdin) {
+            // nothing; don't read up/down time because it's stdin-driven
         } else {
             if ((argc - argi) < 2) {
                 usage(argv);
@@ -816,6 +846,38 @@ int main(int argc, char *argv[])
             struct net_interface cellular_iface = ifs[0];
             struct net_interface wifi_iface = ifs[1];
             emulate_slice(slice, end, cellular_iface, wifi_iface, emu_sock);
+            continue;
+        } else if (read_stdin) {
+            const size_t TOKEN_LEN = 80;
+            char cmd[TOKEN_LEN + 1];
+            int rc = scanf("%80s", cmd);
+            if (rc != 1) {
+                if (feof(stdin) || ferror(stdin)) {
+                    // all done with stdin, so just sleep until SIGINT
+                    dbgprintf_always("No more commands on stdin; sleeping until SIGINT\n");
+                    if (running) {
+                        (void)select(0, NULL, NULL, NULL, NULL);
+                    }
+                    // fall through and exit loop
+                } else {
+                    dbgprintf_always("Error: malformed input on stdin\n");
+                }
+            } else {
+                if (!strcmp(cmd, "bg_down")) {
+                    pthread_mutex_lock(&ifaces_lock);
+                    net_interfaces.erase(bg_iface.ip_addr.s_addr);
+                    pthread_mutex_unlock(&ifaces_lock);
+                    notify_all_subscribers(empty_list, bg_iface_list);
+                } else if (!strcmp(cmd, "bg_up")) {
+                    pthread_mutex_lock(&ifaces_lock);
+                    net_interfaces[bg_iface.ip_addr.s_addr] = bg_iface;
+                    pthread_mutex_unlock(&ifaces_lock);
+                    notify_all_subscribers(bg_iface_list, empty_list);
+                } else { 
+                    dbgprintf_always("Error: unrecognized command '%s' on stdin\n", cmd);
+                }
+            }
+
             continue;
         }
 

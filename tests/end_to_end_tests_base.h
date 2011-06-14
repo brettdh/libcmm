@@ -7,7 +7,7 @@
 class EndToEndTestsBase :  public CppUnit::TestFixture {
   public:
     void setUp();
-    void tearDown();
+    virtual void tearDown();
 
     void testRandomBytesReceivedCorrectly();
     void testNoInterleaving();

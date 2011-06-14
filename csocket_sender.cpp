@@ -525,9 +525,7 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
             // on the available network
             return false;
         }
-    }
 
-    if (!match) {
         if (!pirob->complete) {
             // mc_end_irob hasn't returned yet for this IROB;
             //  we can still tell the application it failed
@@ -557,6 +555,12 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
         }
         return true;
     } else {
+        char local_ip[16], remote_ip[16];
+        get_ip_string(csock->local_iface.ip_addr, local_ip);
+        get_ip_string(csock->remote_iface.ip_addr, remote_ip);
+        dbgprintf("Deciding to send %s for IROB %d on socket %d (%s -> %s)\n",
+                  data.chunks_ready ? "data" : "metadata", (int) id,
+                  csock->osfd, local_ip, remote_ip);
         if (match != csock && match->is_connected()) {
             bool ret = true;
             // pass this task to the right thread
@@ -566,7 +570,6 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
                 match->irob_indexes.new_chunks.insert(data);
                 if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND) {
                     //  Try to send this chunk in parallel
-                    //sk->irob_indexes.new_chunks.insert(data);
                     ret = false;
                 }
             }

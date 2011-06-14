@@ -83,4 +83,8 @@ inline void set_signal(int signo, void (*handler)(int))
 
 int get_unsent_bytes(int sock);
 
+// ip_string must point to a buffer of at least 16 chars
+//   (enough to hold an IPv4 a.b.c.d addr, plus NUL)
+void get_ip_string(struct in_addr ip_addr, char *ip_string);
+
 #endif

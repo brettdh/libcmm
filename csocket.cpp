@@ -211,7 +211,10 @@ CSocket::phys_connect()
             throw -1;
         }
 
-        //if (!sk->isLoopbackOnly()) {
+        dbgprintf("Successfully connected osfd %d to %s:%d\n",
+                  osfd, inet_ntoa(remote_addr.sin_addr), 
+                  ntohs(remote_addr.sin_port));
+
         struct CMMSocketControlHdr hdr;
         memset(&hdr, 0, sizeof(hdr));
         hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
@@ -229,6 +232,8 @@ CSocket::phys_connect()
             close(osfd);
             throw -1;
         }
+        
+        dbgprintf("Sent local-interface info\n");
 
         rc = recv(osfd, &hdr, sizeof(hdr), 0);
         if (rc != sizeof(hdr)) {
@@ -250,7 +255,7 @@ CSocket::phys_connect()
             close(osfd);
             throw -1;
         }
-        //}
+        dbgprintf("Received confirmation; csocket %d is now connected\n", osfd);
     } catch (int rc) {
         PthreadScopedLock lock(&csock_lock);
         osfd = -1;
@@ -416,33 +421,6 @@ CSocket::retransmission_timeout()
         return min_rto;
     }
     return ts_rto;
-
-    /*
-    struct tcp_info info;
-    socklen_t len = sizeof(info);
-    struct protoent *pe = getprotobyname("TCP");
-    int rc = -1;
-    if (pe) {
-        rc = getsockopt (osfd, pe->p_proto, TCP_INFO, &info, &len);
-        if (rc == 0) {
-            long int usecs = info.tcpi_rto;
-            ret.tv_sec = usecs / 1000000;
-            ret.tv_nsec = (usecs - (ret.tv_sec*1000000)) * 1000;
-        } else {
-            dbgprintf("getsockopt failed for TCP_INFO: %s\n",
-                      strerror(errno));
-        }
-    } else {
-        dbgprintf("getprotoent failed for TCP: %s\n",
-                  strerror(errno));
-    }
-    if (rc < 0) {
-        dbgprintf("Cannot read tcpi_rto; making a lazy guess\n");
-        //TODO: more accurate guess?
-    }
-    dbgprintf("Retransmission timeout for csock %d is %ld.%09ld\n",
-              osfd, ret.tv_sec, ret.tv_nsec);
-    */
 }
 
 long int

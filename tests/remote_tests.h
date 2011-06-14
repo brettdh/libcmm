@@ -6,8 +6,6 @@
 #include "end_to_end_tests_remote.h"
 
 class RemoteTests : public EndToEndTestsRemote {
-    static bool is_receiver;
-  
     CPPUNIT_TEST_SUITE(RemoteTests);
     CPPUNIT_TEST(testRandomBytesReceivedCorrectly);
     CPPUNIT_TEST(testDefaultIROBOrdering);

@@ -1,6 +1,7 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <linux/sockios.h>
 
 // tcp.h is temperamental.
@@ -32,4 +33,10 @@ int get_unsent_bytes(int sock)
     /*dbgprintf("socket %d: %d bytes in sndbuf and %d bytes unacked = %d bytes unsent?\n",
                 sock, bytes_in_send_buffer, info.tcpi_unacked, unsent_bytes);*/
     return unsent_bytes;
+}
+
+void get_ip_string(struct in_addr ip_addr, char *ip_string)
+{
+    char *tmpstr = inet_ntoa(ip_addr);
+    strcpy(ip_string, tmpstr);
 }
