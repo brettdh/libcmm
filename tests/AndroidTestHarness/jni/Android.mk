@@ -20,13 +20,21 @@ common_C_INCLUDES := \
 common_CFLAGS:=-DANDROID -DNDK_BUILD -DCMM_UNIT_TESTING -DCMM_DEBUG -g -O0
 
 LOCAL_MODULE := run_remote_tests
+# LOCAL_SRC_FILES := \
+#     ./android_run_tests.cpp \
+#     $(addprefix ../../, end_to_end_tests_base.cpp \
+# 			end_to_end_tests_remote.cpp \
+# 			remote_tests.cpp \
+# 			socket_api_tests.cpp \
+# 			test_common.cpp)
+
 LOCAL_SRC_FILES := \
     ./android_run_tests.cpp \
     $(addprefix ../../, end_to_end_tests_base.cpp \
 			end_to_end_tests_remote.cpp \
-			remote_tests.cpp \
-			socket_api_tests.cpp \
-			test_common.cpp)
+			spotty_network_failure_test.cpp \
+			test_common.cpp) \
+	$(addprefix ../../../, net_interface.cpp cmm_socket_control.cpp)
 
 LOCAL_C_INCLUDES := $(common_C_INCLUDES)
 LOCAL_CFLAGS := $(common_CFLAGS)

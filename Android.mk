@@ -123,4 +123,16 @@ include $(BUILD_EXECUTABLE)
 # LOCAL_STATIC_LIBRARIES := android_libs/libboost_thread
 # include $(BUILD_EXECUTABLE)
 
+include $(CLEAR_VARS)
+
+LOCAL_MODULE := conn_scout
+LOCAL_SRC_FILES := scout/libcmm_scout.cpp \
+    debug.cpp cmm_thread.cpp timeops.cpp cdf_sampler.cpp
+LOCAL_CFLAGS += -DBUILDING_SCOUT -DANDROID
+LOCAL_C_INCLUDES += $(LOCAL_PATH)/../
+LOCAL_STATIC_LIBRARIES := android_libs/libboost_thread
+LOCAL_SHARED_LIBRARIES := liblog
+
+include $(BUILD_EXECUTABLE)
+
 endif

@@ -13,7 +13,6 @@
 #include <arpa/inet.h>
 #include <assert.h>
 #include <string.h>
-#include <dlfcn.h>
 #include <libcmm.h>
 #include <libcmm_irob.h>
 #include "net_interface.h"
@@ -171,10 +170,6 @@ SpottyNetworkFailureTest::exchangeNetworkInterfaces(int bootstrap_sock)
 void
 SpottyNetworkFailureTest::startSender()
 {
-    // start up intnw
-    void *dl_handle = dlopen("libcmm.so", RTLD_LAZY);
-    handle_error(dl_handle == NULL, "loading libcmm: dlopen");
-    
     // create connecting multisocket
     EndToEndTestsBase::startSender();
 }
@@ -208,6 +203,10 @@ connect_to_scout_control()
     int rc = connect(sock, (struct sockaddr *)&addr, addrlen);
     handle_error(rc < 0, "connecting scout control socket");
     
+    char cmd[] = "bg_up\n";
+    rc = write(sock, cmd, strlen(cmd));
+    handle_error(rc != strlen(cmd), "sending bg_up command");
+
     return sock;
 }
 
@@ -215,7 +214,7 @@ void
 SpottyNetworkFailureTest::testOneNetworkFails()
 {
     const char expected_str[] = "ABCDEFGHIJ";
-    const size_t len = sizeof(expected_str);
+    const size_t len = strlen(expected_str);
     sleep(1);
 
     char buf[len + 1];
@@ -319,8 +318,8 @@ SpottyNetworkFailureTest::testOneNetworkFails()
         
         sleep(1);
         char cmd[] = "bg_down\n";
-        rc = write(scout_control_sock, cmd, sizeof(cmd));
-        CPPUNIT_ASSERT_EQUAL((int) sizeof(cmd), rc);
+        rc = write(scout_control_sock, cmd, strlen(cmd));
+        CPPUNIT_ASSERT_EQUAL((int) strlen(cmd), rc);
 
         sleep(1);
         memset(buf, 0, sizeof(buf));
