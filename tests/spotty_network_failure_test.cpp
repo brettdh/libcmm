@@ -205,7 +205,7 @@ connect_to_scout_control()
     
     char cmd[] = "bg_up\n";
     rc = write(sock, cmd, strlen(cmd));
-    handle_error(rc != strlen(cmd), "sending bg_up command");
+    handle_error(rc != (int)strlen(cmd), "sending bg_up command");
 
     return sock;
 }
@@ -296,7 +296,7 @@ SpottyNetworkFailureTest::testOneNetworkFails()
         irob_chunk_hdr->op.irob_chunk.id = htonl(resp_irob_id);
         irob_chunk_hdr->op.irob_chunk.seqno = 0;
         irob_chunk_hdr->op.irob_chunk.datalen = htonl(len);
-        memcpy(resp_data, buf, len);
+        memcpy(resp_data, expected_str, len);
         end_irob_hdr->op.end_irob.id = htonl(resp_irob_id);
         end_irob_hdr->op.end_irob.expected_bytes = htonl(len);
         end_irob_hdr->op.end_irob.expected_chunks = htonl(1);
