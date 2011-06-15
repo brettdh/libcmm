@@ -289,10 +289,12 @@ SpottyNetworkFailureTest::testOneNetworkFails()
         irob_id_t resp_irob_id = irob_id + 1;
         begin_irob_hdr->type = htons(CMM_CONTROL_MSG_BEGIN_IROB);
         begin_irob_hdr->op.begin_irob.id = htonl(resp_irob_id);
+        irob_chunk_hdr->type = htons(CMM_CONTROL_MSG_IROB_CHUNK);
         irob_chunk_hdr->op.irob_chunk.id = htonl(resp_irob_id);
         irob_chunk_hdr->op.irob_chunk.seqno = 0;
         irob_chunk_hdr->op.irob_chunk.datalen = htonl(len);
         memcpy(resp_data, expected_str, len);
+        end_irob_hdr->type = htons(CMM_CONTROL_MSG_END_IROB);
         end_irob_hdr->op.end_irob.id = htonl(resp_irob_id);
         end_irob_hdr->op.end_irob.expected_bytes = htonl(len);
         end_irob_hdr->op.end_irob.expected_chunks = htonl(1);
