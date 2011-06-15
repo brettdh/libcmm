@@ -166,10 +166,6 @@ SpottyNetworkFailureTest::exchangeNetworkInterfaces(int bootstrap_sock)
 void
 SpottyNetworkFailureTest::startSender()
 {
-    // start fake scout
-    //scout_stdin = popen("conn_scout stdin rmnet0 12500 12500 100 tiwlan0 125000 125000 1", "w");
-    //handle_error(scout_stdin == NULL, "starting scout: popen");
-
     // start up intnw
     void *dl_handle = dlopen("libcmm.so", RTLD_LAZY);
     handle_error(dl_handle == NULL, "loading libcmm: dlopen");
@@ -189,12 +185,143 @@ SpottyNetworkFailureTest::tearDown()
     } else {
         EndToEndTestsBase::tearDown();
     }
+}
+
+int
+connect_to_scout_control()
+{
+    int sock = socket(PF_INET, SOCK_STREAM, 0);
+    handle_error(sock < 0, "creating scout control socket");
+
+    struct sockaddr addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = htons(CONTROL_SOCKET_PORT);
+
+    socklen_t addrlen = sizeof(addr);
+    int rc = connect(sock, (struct sockaddr *)&addr, addrlen);
+    handle_error(rc < 0, "connecting scout control socket");
     
-    //pclose(scout_stdin);
+    return sock;
 }
 
 void 
 SpottyNetworkFailureTest::testOneNetworkFails()
 {
-    sleep(5);
+    const char expected_str[] = "ABCDEFGHIJ";
+    const size_t len = sizeof(expected_str);
+    sleep(1);
+
+    if (isReceiver()) {
+        char buf[len + 1];
+        memset(buf, 0, sizeof(buf));
+
+        shutdown(intermittent_csock, SHUT_RDWR);
+
+        // expected messages:
+        //  in order:
+        //  1) begin_irob
+        //  2) irob_chunk
+        //  3) end_irob
+        //
+        // at any time:
+        //  - down_interface
+        vector<struct CMMSocketControlHdr> hdrs;
+        while (hdrs.size() < 4) {
+            struct CMMSocketControlHdr hdr;
+            memset(&hdr, 0, sizeof(hdr));
+            int rc = recv(steady_csock, &hdr, sizeof(hdr), MSG_WAITALL);
+            CPPUNIT_ASSERT_EQUAL((int)sizeof(hdr), rc);
+            if (ntohs(hdr.type) == CMM_CONTROL_MSG_IROB_CHUNK) {
+                CPPUNIT_ASSERT_EQUAL(len, ntohl(hdr.op.irob_chunk.datalen));
+                
+                rc = recv(steady_csock, buf, len, MSG_WAITALL);
+                CPPUNIT_ASSERT_EQUAL(rc, len);
+                CPPUNIT_ASSERT_EQUAL(string(expected_str), string(buf));
+            }
+            
+            hdrs.push_back(hdr);
+        }
+        CPPUNIT_ASSERT_EQUAL(4, hdrs.size());
+
+        irob_id_t irob_id = -1;
+        bool begin_irob_recvd = false;
+        bool irob_chunk_recvd = false;
+        bool end_irob_recvd = false;
+        bool down_interface_recvd = false;
+        for (size_t i = 0; i < hdrs.size(); ++i) {
+            switch (ntohs(hdr.type)) {
+            case CMM_CONTROL_MSG_BEGIN_IROB:
+                irob_id = ntohl(hdrs.op.begin_irob.id);
+                begin_irob_recvd = true; break;
+            case CMM_CONTROL_MSG_IROB_CHUNK:
+                irob_chunk_recvd = true; break;
+            case CMM_CONTROL_MSG_END_IROB:
+                end_irob_recvd = true; break;
+            case CMM_CONTROL_MSG_DOWN_INTERFACE:
+                down_interface_recvd = true; break;
+            default:
+                CPPUNIT_ASSERT(false);
+            }
+        }
+        CPPUNIT_ASSERT(begin_irob_recvd);
+        CPPUNIT_ASSERT(irob_chunk_recvd);
+        CPPUNIT_ASSERT(end_irob_recvd);
+        CPPUNIT_ASSERT(down_interface_recvd);
+
+        struct CMMSocketControlHdr ack;
+        memset(&ack, 0, sizeof(ack));
+        ack.type = htons(CMM_CONTROL_MSG_ACK);
+        ack.op.id = htonl(irob_id);
+        rc = write(steady_csock, &ack, sizeof(ack));
+        CPPUNIT_ASSERT_EQUAL((int)sizeof(ack), rc);
+
+        char response[sizeof(struct CMMSocketControlHdr) * 3 + len];
+        memset(response, 0, sizeof(response));
+        struct CMMSocketControlHdr *begin_irob_hdr = response;
+        struct CMMSocketControlHdr *irob_chunk_hdr = ((char *) begin_irob_hdr) + sizeof(*begin_irob_hdr);
+        char *resp_data = ((char *) irob_chunk_hdr) + sizeof(*irob_chunk_hdr);
+        struct CMMSocketControlHdr *end_irob_hdr = 
+            (struct CMMSocketControlHdr *) (resp_data + len);
+
+        irob_id_t resp_irob_id = irob_id + 1;
+        begin_irob_hdr->type = htons(CMM_CONTROL_MSG_BEGIN_IROB);
+        begin_irob_hdr->op.begin_irob.id = htonl(resp_irob_id);
+        irob_chunk_hdr->op.irob_chunk.id = htonl(resp_irob_id);
+        irob_chunk_hdr->op.irob_chunk.seqno = 0;
+        irob_chunk_hdr->op.irob_chunk.datalen = htonl(len);
+        memcpy(resp_data, buf, len);
+        end_irob_hdr->op.end_irob.id = htonl(resp_irob_id);
+        end_irob_hdr->op.end_irob.expected_bytes = htonl(len);
+        end_irob_hdr->op.end_irob.expected_chunks = htonl(1);
+        
+        rc = write(steady_csock, response, sizeof(response));
+        CPPUNIT_ASSERT_EQUAL((int) sizeof(response), rc);
+
+        memset(&ack, 0, sizeof(ack));
+        rc = recv(steady_csock, &ack, sizeof(ack), MSG_WAITALL);
+        CPPUNIT_ASSERT_EQUAL((int) sizeof(ack), rc);
+        CPPUNIT_ASSERT_EQUAL(CMM_CONTROL_MSG_ACK, ntohs(ack.type));
+        CPPUNIT_ASSERT_EQUAL(resp_irob_id, ntohl(ack.op.ack_data.id));
+    } else {
+        int scout_control_sock = connect_to_scout_control();
+        
+        sleep(1);
+        int rc = cmm_write(data_sock, buf, len);
+        CPPUNIT_ASSERT_EQUAL(len, rc); // succeeds immediately without waiting for bytes to be sent
+        
+        sleep(1);
+        char cmd[] = "bg_down\n";
+        rc = write(scout_control_sock, cmd, sizeof(cmd));
+        CPPUNIT_ASSERT_EQUAL((int) sizeof(cmd), rc);
+
+        sleep(1);
+        memset(buf, 0, sizeof(buf));
+        rc = cmm_recv(data_sock, buf, len, MSG_WAITALL, NULL);
+        CPPUNIT_ASSERT_EQUAL(len, rc);
+        CPPUNIT_ASSERT_EQUAL(string(expected_bytes), string(buf));
+        
+        close(scout_control_sock);
+    }
 }
