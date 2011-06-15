@@ -11,11 +11,13 @@ Failure scenario:
 1) I have a CSocket connected on a network that's about to go down.
 2) At time 1, the CSocket notices that its connection is dead.
    It closes its socket and its sender/receiver threads exit.
-3) At time 2, the multisocket wants to send some data.
-   It thinks the about-to-disappear network is still there,
-   because the scout hasn't told it otherwise yet.
-   So, it calls new_csock_with_labels, which tries to start up
-   a new CSocket and its threads.  This fails.
+3) At time 2, the multisocket wants to send some data.  The sender
+   thread for the always-available network picks up the IROB
+   notification, but thinks the about-to-disappear network is still
+   there, because the scout hasn't told it otherwise yet.  Since that
+   network is better than its own, the thread calls
+   new_csock_with_labels, which tries to start up a new CSocket and
+   its threads.  This fails, on the new sender's thread.
 4) However, the thread that tried to create the new CSocket never
    does anything after that fails.  The scout informs the library
    that the transient network is gone, and it re-inserts the IROB
