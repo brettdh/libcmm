@@ -34,7 +34,7 @@ LOCAL_SRC_FILES := \
 			end_to_end_tests_remote.cpp \
 			spotty_network_failure_test.cpp \
 			test_common.cpp) \
-	$(addprefix ../../../, net_interface.cpp cmm_socket_control.cpp)
+	$(addprefix ../../../, net_interface.cpp cmm_socket_control.cpp debug.cpp)
 
 LOCAL_C_INCLUDES := $(common_C_INCLUDES)
 LOCAL_CFLAGS := $(common_CFLAGS)
