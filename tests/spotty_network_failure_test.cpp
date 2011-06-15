@@ -242,7 +242,7 @@ SpottyNetworkFailureTest::testOneNetworkFails()
                 CPPUNIT_ASSERT_EQUAL(len, ntohl(hdr.op.irob_chunk.datalen));
                 
                 rc = recv(steady_csock, buf, len, MSG_WAITALL);
-                CPPUNIT_ASSERT_EQUAL(rc, (int)len);
+                CPPUNIT_ASSERT_EQUAL((int)len, rc);
                 CPPUNIT_ASSERT_EQUAL(string(expected_str), string(buf));
             }
             
