@@ -32,7 +32,16 @@ using std::queue; using std::deque;
 
 #ifdef BUILDING_SCOUT_SHLIB
 #include <jni.h>
-#include <android/log.h>
+#else
+#include "cdf_sampler.h"
+#endif
+
+#ifdef ANDROID
+#  ifdef NDK_BUILD
+#  include <android/log.h>
+#  else
+#  include <cutils/logd.h>
+#  endif
 static void DEBUG_LOG(const char *fmt, ...)
 {
     va_list ap;
@@ -41,8 +50,6 @@ static void DEBUG_LOG(const char *fmt, ...)
     va_end(ap);
 }
 #else
-#include "cdf_sampler.h"
-
 #define DEBUG_LOG dbgprintf_always
 #endif
 
@@ -221,7 +228,8 @@ void * IPC_Listener(void *)
                             DEBUG_LOG("Failed to send iface info to pid %d\n",
                                       msg.data.pid);
                         } else {
-                            struct net_interface sentinel = {{0}};
+                            struct net_interface sentinel;
+                            memset(&sentinel, 0, sizeof(sentinel));
                             rc = notify_subscriber_of_event(
                                 msg.data.pid, ipc_sock, sentinel,
                                 CMM_MSG_IFACE_LABELS
@@ -658,6 +666,7 @@ void put_up_iface(struct net_interface iface)
 
 int main(int argc, char *argv[])
 {
+#ifndef ANDROID
     // ensure shared memory gets cleaned up when I exit
     struct shmem_remover {
         ~shmem_remover() { ipc_shmem_deinit(); }
@@ -665,6 +674,7 @@ int main(int argc, char *argv[])
     (void)remover; // suppress "unused variable" warning
 
     ipc_shmem_init(true);
+#endif
 
     if (argc < 4) {
         usage(argv);
@@ -786,9 +796,11 @@ int main(int argc, char *argv[])
     if (bg_iface_name) {
         bg_iface = ifs[1];
 
-        // will be added back first iteration
-        net_interfaces.erase(bg_iface.ip_addr.s_addr);
         bg_iface_list.push_back(bg_iface);
+        if (!read_socket) {
+            // will be added back first iteration
+            net_interfaces.erase(bg_iface.ip_addr.s_addr);
+        }
     }
 
     deque<struct trace_slice> trace;
@@ -839,13 +851,20 @@ int main(int argc, char *argv[])
     handle_error(control_listen_sock < 0, "creating down/up control socket");
 
     if (read_socket) {
+        int on = 1;
+        int rc = setsockopt(control_listen_sock, SOL_SOCKET, SO_REUSEADDR,
+                            (char *) &on, sizeof(on));
+        if (rc < 0) {
+            DEBUG_LOG("Cannot reuse socket address\n");
+        }
+
         struct sockaddr_in addr;
         memset(&addr, 0, sizeof(addr));
         addr.sin_family = AF_INET;
         addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
         addr.sin_port = htons(CONTROL_SOCKET_PORT);
         socklen_t addrlen = sizeof(addr);
-        int rc = bind(control_listen_sock, (struct sockaddr *) &addr, addrlen);
+        rc = bind(control_listen_sock, (struct sockaddr *) &addr, addrlen);
         handle_error(rc < 0, "binding down/up control socket");
         
         rc = listen(control_listen_sock, 5);
