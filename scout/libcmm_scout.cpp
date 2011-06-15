@@ -405,10 +405,10 @@ void usage(char *argv[])
             "Usage 3: conn_scout replay <FG iface> <BG iface>\n"
             "   -Connects to the emulation box, which will transmit\n"
             "     the trace of network measurements.\n");
-    dbgprintf_always("Usage 4: conn_scout stdin \n"
+    dbgprintf_always("Usage 4: conn_scout socket_control \n"
                      "                    <FG iface> <bandwidth> <RTT>\n"
                      "                    <BG iface> <bandwidth> <RTT>\n"
-                     "  -Acts upon up/down commands from standard input.\n");
+                     "  -Acts upon up/down commands from a socket.\n");
     exit(-1);
 }
 
@@ -673,7 +673,7 @@ int main(int argc, char *argv[])
     signal(SIGPIPE, SIG_IGN);
 
     bool trace_replay = false;
-    bool read_stdin = false;
+    bool read_socket = false;
     bool sampling = false;
     CDFSampler *up_time_samples = NULL;
     CDFSampler *down_time_samples = NULL;
@@ -691,8 +691,8 @@ int main(int argc, char *argv[])
 
         fg_iface_name = argv[argi++];
         bg_iface_name = argv[argi++];
-    } else if (!strcmp(argv[argi], "stdin")) {
-        read_stdin = true;
+    } else if (!strcmp(argv[argi], "socket_control")) {
+        read_socket = true;
         argi++;
 
         fg_iface_name = argv[argi++];
@@ -734,8 +734,8 @@ int main(int argc, char *argv[])
                 dbgprintf_always("CDF Error: %s\n", e.str.c_str());
                 exit(1);
             }
-        } else if (read_stdin) {
-            // nothing; don't read up/down time because it's stdin-driven
+        } else if (read_socket) {
+            // nothing; don't read up/down time because it's socket-driven
         } else {
             if ((argc - argi) < 2) {
                 usage(argv);
@@ -831,6 +831,27 @@ int main(int argc, char *argv[])
         running = false;
     }
 
+    // for control-socket driving
+    int control_sock = -1;
+    FILE *control_socket_file = NULL;
+
+    int control_listen_sock = socket(PF_INET, SOCK_STREAM, 0);
+    handle_error(control_listen_sock < 0, "creating down/up control socket");
+
+    if (read_socket) {
+        struct sockaddr_in addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        addr.sin_port = htons(CONTROL_SOCKET_PORT);
+        socklen_t addrlen = sizeof(addr);
+        int rc = bind(control_listen_sock, (struct sockaddr *) &addr, addrlen);
+        handle_error(rc < 0, "binding down/up control socket");
+        
+        rc = listen(control_listen_sock, 5);
+        handle_error(rc < 0, "listening on down/up control socket");
+    }
+
     size_t cur_trace_slice = 0;
     while (running) {
         if (trace_replay) {
@@ -847,34 +868,53 @@ int main(int argc, char *argv[])
             struct net_interface wifi_iface = ifs[1];
             emulate_slice(slice, end, cellular_iface, wifi_iface, emu_sock);
             continue;
-        } else if (read_stdin) {
+        } else if (read_socket) {
+            if (control_socket_file == NULL) {
+                control_sock = accept(control_listen_sock, NULL, NULL);
+                if (control_sock < 0) {
+                    if (errno == EINTR) {
+                        // should fall out of the loop
+                        continue;
+                    } else {
+                        handle_error(control_sock < 0, "accepting connection on control socket");
+                    }
+                }
+                control_socket_file = fdopen(control_sock, "r");
+                handle_error(control_socket_file == NULL, "fdopen");
+
+                dbgprintf_always("connection on control socket\n");
+            }
+
             const size_t TOKEN_LEN = 80;
             char cmd[TOKEN_LEN + 1];
-            int rc = scanf("%80s", cmd);
+            int rc = fscanf(control_socket_file, "%80s", cmd);
             if (rc != 1) {
-                if (feof(stdin) || ferror(stdin)) {
-                    // all done with stdin, so just sleep until SIGINT
-                    dbgprintf_always("No more commands on stdin; sleeping until SIGINT\n");
-                    if (running) {
-                        (void)select(0, NULL, NULL, NULL, NULL);
-                    }
-                    // fall through and exit loop
+                if (feof(control_socket_file) || ferror(control_socket_file)) {
+                    dbgprintf_always("No more commands on socket\n");
+                    fclose(control_socket_file);
+                    close(control_sock);
+                    control_socket_file = NULL;
+                    control_sock = -1;
                 } else {
-                    dbgprintf_always("Error: malformed input on stdin\n");
+                    dbgprintf_always("Error: malformed input on socket\n");
                 }
             } else {
                 if (!strcmp(cmd, "bg_down")) {
+                  dbgprintf_always("Got bg_down command; bringing down %s\n",
+                                   inet_ntoa(bg_iface.ip_addr));
                     pthread_mutex_lock(&ifaces_lock);
                     net_interfaces.erase(bg_iface.ip_addr.s_addr);
                     pthread_mutex_unlock(&ifaces_lock);
                     notify_all_subscribers(empty_list, bg_iface_list);
                 } else if (!strcmp(cmd, "bg_up")) {
+                  dbgprintf_always("Got bg_up command; bringing up %s\n",
+                                   inet_ntoa(bg_iface.ip_addr));
                     pthread_mutex_lock(&ifaces_lock);
                     net_interfaces[bg_iface.ip_addr.s_addr] = bg_iface;
                     pthread_mutex_unlock(&ifaces_lock);
                     notify_all_subscribers(bg_iface_list, empty_list);
                 } else { 
-                    dbgprintf_always("Error: unrecognized command '%s' on stdin\n", cmd);
+                    dbgprintf_always("Error: unrecognized command '%s' on socket\n", cmd);
                 }
             }
 

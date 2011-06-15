@@ -33,4 +33,6 @@ struct cmm_msg {
     } data;
 };
 
+const short CONTROL_SOCKET_PORT = 4246;
+
 #endif /* LIBCMM_IPC_H_INCL */
