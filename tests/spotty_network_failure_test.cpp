@@ -313,7 +313,7 @@ SpottyNetworkFailureTest::testOneNetworkFails()
         int scout_control_sock = connect_to_scout_control();
         
         sleep(1);
-        int rc = cmm_write(data_sock, buf, len, 0, NULL, NULL);
+        int rc = cmm_write(data_sock, expected_str, len, 0, NULL, NULL);
         CPPUNIT_ASSERT_EQUAL((int)len, rc); // succeeds immediately without waiting for bytes to be sent
         
         sleep(1);
