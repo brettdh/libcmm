@@ -3,7 +3,8 @@ CXXFLAGS:=-Wall -Werror -I. -I.. -I../libancillary -m32 -g -DCMM_UNIT_TESTING -D
 LDFLAGS:=-L. -L..  -lcppunit -ldl -pthread -lrt -lglib-2.0 -lboost_thread
 
 EXECUTABLES=run_unit_tests run_lib_tests run_remote_tests run_thunk_tests run_trickle_tests \
-	    run_lib_tests_nb run_remote_tests_nb multi_app_test multi_app_test_helper
+	    run_lib_tests_nb run_remote_tests_nb multi_app_test multi_app_test_helper \
+		fake_intnw_test run_spotty_network_failure_test
 
 .gitignore: Makefile
 	echo "$(EXECUTABLES)" | sed -e 's/\s+/ /' | tr ' ' '\n' > .gitignore
@@ -95,6 +96,9 @@ fake_intnw_test: run_all_tests.o spotty_network_failure_test.o \
 			     end_to_end_tests_base.o end_to_end_tests_remote.o \
 			     net_interface.o test_common.o cmm_socket_control.o StdioOutputter.o
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
+
+run_spotty_network_failure_test:: run_spotty_network_failure_test.o
+	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
 
 include ../deps.mk
 
