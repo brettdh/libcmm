@@ -211,7 +211,10 @@ SpottyNetworkFailureTest::testOneNetworkFails()
 {
     const char expected_str[] = "ABCDEFGHIJ";
     const size_t len = strlen(expected_str);
-    sleep(1);
+
+    printf("Waiting for connection to settle\n");
+    sleep(10);
+    printf("Starting test\n");
 
     char buf[len + 1];
     memset(buf, 0, sizeof(buf));
