@@ -12,10 +12,15 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <assert.h>
+#include <string.h>
+#include <dlfcn.h>
 #include <libcmm.h>
 #include <libcmm_irob.h>
+#include "net_interface.h"
+#include "test_common.h"
+#include "cmm_socket_control.h"
 
-CPPUNIT_TEST_SUITE_REGISTRATION(SpottyNetworkFailureTests);
+CPPUNIT_TEST_SUITE_REGISTRATION(SpottyNetworkFailureTest);
 
 int
 make_listening_socket(short port)
@@ -54,22 +59,23 @@ SpottyNetworkFailureTest::setupReceiver()
 }
 
 void
-SpottyNetworkFailureTests::startReceiver()
+SpottyNetworkFailureTest::startReceiver()
 {
     struct sockaddr_in addr;
     socklen_t addrlen = sizeof(addr);
 
-    bootstrap_sock = accept(listen_sock, 
-                            (struct sockaddr *)&addr,
-                            &addrlen);
+    int bootstrap_sock = accept(listen_sock, 
+                                (struct sockaddr *)&addr,
+                                &addrlen);
     handle_error(bootstrap_sock < 0, "accept");
     DEBUG_LOG("Receiver accepted connection %d\n", bootstrap_sock);
 
-    doFakeIntNWSetup();
+    doFakeIntNWSetup(bootstrap_sock);
+    close(bootstrap_sock);
 }
 
 void
-SpottyNetworkFailureTests::doFakeIntNWSetup()
+SpottyNetworkFailureTest::doFakeIntNWSetup(int bootstrap_sock)
 {
     struct CMMSocketControlHdr hello;
     int rc = read(bootstrap_sock, &hello, sizeof(hello));
@@ -79,15 +85,13 @@ SpottyNetworkFailureTests::doFakeIntNWSetup()
     intnw_listen_sock = make_listening_socket(intnw_listen_port);
     handle_error(intnw_listen_sock < 0, "creating intnw listener socket");
     
-    hello.listen_port = htons(intnw_listen_port);
-    hello.num_ifaces = htonl(1);
+    hello.op.hello.listen_port = htons(intnw_listen_port);
+    hello.op.hello.num_ifaces = htonl(1);
     rc = write(bootstrap_sock, &hello, sizeof(hello));
     handle_error(rc != sizeof(hello), "sending intnw hello");
 
     acceptCsocks();
-    
-    // TODO: receive and send network interfaces.
-    struct net_interface sentinel = {0};
+    exchangeNetworkInterfaces(bootstrap_sock);
 }
 
 struct net_interface init_csocket(int csock)
@@ -112,9 +116,9 @@ struct net_interface init_csocket(int csock)
 }
 
 void
-SpottyNetworkFailureTests::acceptCsocks()
+SpottyNetworkFailureTest::acceptCsocks()
 {
-    struct net_interface steady_iface, intermitent_iface;
+    struct net_interface steady_iface, intermittent_iface;
 
     steady_csock = accept(intnw_listen_sock, NULL, NULL);
     handle_error(steady_csock < 0, "accepting csocket");
@@ -135,14 +139,39 @@ SpottyNetworkFailureTests::acceptCsocks()
 }
 
 void
-SpottyNetworkFailureTests::startSender()
+SpottyNetworkFailureTest::exchangeNetworkInterfaces(int bootstrap_sock)
+{
+    struct net_interface sentinel;
+    memset(&sentinel, 0, sizeof(sentinel));
+    int rc;
+    struct CMMSocketControlHdr hdr;
+    do {
+        rc = read(bootstrap_sock, &hdr, sizeof(hdr));
+        handle_error(rc != sizeof(hdr), "reading net iface");
+    } while (memcmp(&hdr.op.new_interface, &sentinel, sizeof(struct net_interface)) != 0);
+
+    struct CMMSocketControlHdr hdrs[2];
+    memset(hdrs, 0, sizeof(hdrs));
+    hdrs[0].type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
+    inet_aton("141.212.110.132", &hdrs[0].op.new_interface.ip_addr);
+    hdrs[0].op.new_interface.bandwidth_down = 1250000;
+    hdrs[0].op.new_interface.bandwidth_up = 1250000;
+    hdrs[0].op.new_interface.RTT = 1;
+    hdrs[1].type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
+    hdrs[0].op.new_interface = sentinel;
+    rc = write(bootstrap_sock, hdrs, sizeof(hdrs));
+    handle_error(rc != sizeof(hdrs), "sending net iface");
+}
+
+void
+SpottyNetworkFailureTest::startSender()
 {
     // start fake scout
-    scout_stdin = popen("conn_scout stdin rmnet0 12500 12500 100 tiwlan0 125000 125000 1", "w");
-    handle_error(scout_stdin == NULL, "starting scout: popen");
+    //scout_stdin = popen("conn_scout stdin rmnet0 12500 12500 100 tiwlan0 125000 125000 1", "w");
+    //handle_error(scout_stdin == NULL, "starting scout: popen");
 
     // start up intnw
-    dl_handle = dlopen("libcmm.so", RTLD_LAZY);
+    void *dl_handle = dlopen("libcmm.so", RTLD_LAZY);
     handle_error(dl_handle == NULL, "loading libcmm: dlopen");
     
     // create connecting multisocket
@@ -150,15 +179,22 @@ SpottyNetworkFailureTests::startSender()
 }
 
 void
-SpottyNetworkFailureTests::tearDown()
+SpottyNetworkFailureTest::tearDown()
 {
-    EndToEndTestsBase::tearDown();
+    if (isReceiver()) {
+        close(steady_csock);
+        close(intermittent_csock);
+        close(intnw_listen_sock);
+        close(listen_sock);
+    } else {
+        EndToEndTestsBase::tearDown();
+    }
     
-    pclose(scout_stdin);
+    //pclose(scout_stdin);
 }
 
 void 
-SpottyNetworkFailureTests::testOneNetworkFails()
+SpottyNetworkFailureTest::testOneNetworkFails()
 {
-    
+    sleep(5);
 }

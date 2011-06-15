@@ -1,5 +1,5 @@
-#ifndef end_to_end_tests_base_h_incl
-#define end_to_end_tests_base_h_incl
+#ifndef spotty_network_failure_test_h_incl
+#define spotty_network_failure_test_h_incl
 
 #include <cppunit/TestFixture.h>
 #include <cppunit/extensions/HelperMacros.h>
@@ -44,15 +44,27 @@ Proposed test setup:
 */
 
 class SpottyNetworkFailureTest :  public EndToEndTestsRemote {
-  public:
-    
+    CPPUNIT_TEST_SUITE(SpottyNetworkFailureTest);
+    CPPUNIT_TEST(testOneNetworkFails);
+    CPPUNIT_TEST_SUITE_END();
 
+  public:
+    virtual void tearDown();
     void testOneNetworkFails();
 
   protected:
     virtual void setupReceiver();
     virtual void startReceiver();
     virtual void startSender();
+
+  private:
+    int intnw_listen_sock;
+    int steady_csock;
+    int intermittent_csock;
+
+    void doFakeIntNWSetup(int bootstrap_sock);
+    void acceptCsocks();
+    void exchangeNetworkInterfaces(int bootstrap_sock);
 };
 
 #endif
