@@ -203,10 +203,6 @@ connect_to_scout_control()
     int rc = connect(sock, (struct sockaddr *)&addr, addrlen);
     handle_error(rc < 0, "connecting scout control socket");
     
-    char cmd[] = "bg_up\n";
-    rc = write(sock, cmd, strlen(cmd));
-    handle_error(rc != strlen(cmd), "sending bg_up command");
-
     return sock;
 }
 
