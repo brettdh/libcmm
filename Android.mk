@@ -9,6 +9,7 @@ include $(BUILD_MULTI_PREBUILT)
 
 include $(CLEAR_VARS)
 
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libcmm
 LOCAL_CFLAGS += -DANDROID -DCMM_DEBUG -g -O0
 LOCAL_SRC_FILES := \
@@ -53,6 +54,7 @@ include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := cmm_test_sender
 LOCAL_SRC_FILES := libcmm_test_sender.cpp debug.cpp
 LOCAL_SHARED_LIBRARIES := libcmm liblog
@@ -63,6 +65,7 @@ include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := cmm_test_receiver
 LOCAL_SRC_FILES := libcmm_test_receiver.cpp debug.cpp
 LOCAL_SHARED_LIBRARIES := libcmm liblog
@@ -73,6 +76,7 @@ include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := vanilla_test_sender
 LOCAL_SRC_FILES := libcmm_test_sender.cpp timeops.cpp debug.cpp
 LOCAL_CFLAGS += -DNOMULTISOCK
@@ -86,6 +90,7 @@ include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := vanilla_test_receiver
 LOCAL_SRC_FILES := libcmm_test_receiver.cpp timeops.cpp debug.cpp
 LOCAL_SHARED_LIBRARIES := liblog
@@ -97,6 +102,7 @@ include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := cmm_throughput_test
 LOCAL_SRC_FILES := libcmm_throughput_test.cpp debug.cpp
 LOCAL_SHARED_LIBRARIES := libcmm liblog
@@ -107,6 +113,7 @@ include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := vanilla_throughput_test
 LOCAL_SRC_FILES := libcmm_throughput_test.cpp timeops.cpp debug.cpp
 LOCAL_CFLAGS += -DNOMULTISOCK
@@ -117,6 +124,7 @@ include $(BUILD_EXECUTABLE)
 
 # include $(CLEAR_VARS)
 # LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
+# LOCAL_MODULE_TAGS := optional
 # LOCAL_MODULE := conn_scout
 # LOCAL_SRC_FILES := \
 #     libcmm_scout.cpp cdf_sampler.cpp debug.cpp cmm_thread.cpp timeops.cpp
@@ -125,6 +133,7 @@ include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
 
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := conn_scout
 LOCAL_SRC_FILES := scout/libcmm_scout.cpp \
     debug.cpp cmm_thread.cpp timeops.cpp cdf_sampler.cpp

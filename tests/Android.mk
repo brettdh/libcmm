@@ -20,6 +20,7 @@ SUPPORT_SRCS := pending_irob.cpp intset.cpp debug.cpp pending_receiver_irob.cpp 
 	       net_interface.cpp irob_scheduling.cpp
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := run_unit_tests
 LOCAL_SRC_FILES := $(TESTSUITE_SRCS) \
                    $(TEST_SRCS) $(addprefix ../, $(SUPPORT_SRCS))
@@ -36,6 +37,7 @@ include $(CLEAR_VARS)
 LIBTEST_SRCS := end_to_end_tests_base.cpp end_to_end_tests_forked.cpp \
                 forked_tests.cpp
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := run_lib_tests
 LOCAL_SRC_FILES := $(TESTSUITE_SRCS) \
                    $(LIBTEST_SRCS)
@@ -50,6 +52,7 @@ include $(CLEAR_VARS)
 REMOTETEST_SRCS := end_to_end_tests_base.cpp end_to_end_tests_remote.cpp \
                    remote_tests.cpp
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := run_remote_tests
 LOCAL_SRC_FILES := $(TESTSUITE_SRCS) \
                    $(REMOTETEST_SRCS)
@@ -68,6 +71,7 @@ REMOTETESTNB_SRCS := end_to_end_tests_remote.cpp \
                      non_blocking_tests_remote.cpp
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := run_lib_tests_nb
 LOCAL_SRC_FILES := $(TESTSUITE_SRCS) \
                    $(NB_SRCS) $(LIBTESTNB_SRCS)
@@ -79,6 +83,7 @@ include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := run_remote_tests_nb
 LOCAL_SRC_FILES := $(TESTSUITE_SRCS) \
                    $(NB_SRCS) $(REMOTETESTNB_SRCS)
@@ -93,6 +98,7 @@ include $(CLEAR_VARS)
 THUNKTEST_SRCS:=end_to_end_tests_base.cpp end_to_end_tests_remote.cpp \
                 thunk_tests.cpp
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := run_thunk_tests
 LOCAL_SRC_FILES := $(TESTSUITE_SRCS) $(THUNKTEST_SRCS)
 LOCAL_C_INCLUDES := $(common_C_INCLUDES)
@@ -106,6 +112,7 @@ include $(CLEAR_VARS)
 TRICKLETEST_SRCS:=end_to_end_tests_base.cpp end_to_end_tests_remote.cpp \
                   trickle_tests.cpp
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := run_trickle_tests
 LOCAL_SRC_FILES := $(TESTSUITE_SRCS) $(TRICKLETEST_SRCS)
 LOCAL_C_INCLUDES := $(common_C_INCLUDES)
@@ -121,6 +128,7 @@ include $(CLEAR_VARS)
 SPOTTYTEST_SRCS:=spotty_network_failure_test.cpp end_to_end_tests_base.cpp end_to_end_tests_remote.cpp \
                  $(addprefix ../, net_interface.cpp cmm_socket_control.cpp)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := fake_intnw_test
 LOCAL_SRC_FILES := $(TESTSUITE_SRCS) $(SPOTTYTEST_SRCS)
 LOCAL_C_INCLUDES := $(common_C_INCLUDES)
@@ -134,6 +142,7 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 RUNNER_SRCS:=run_spotty_network_failure_test.cpp
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := run_spotty_network_failure_test
 LOCAL_SRC_FILES := $(RUNNER_SRCS)
 LOCAL_C_INCLUDES := $(common_C_INCLUDES)

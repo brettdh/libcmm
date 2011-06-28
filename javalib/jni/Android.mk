@@ -11,6 +11,7 @@ LOCAL_C_INCLUDES += \
 LOCAL_SHARED_LIBRARIES := \
         libcmm
 
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE:= libintnw_javalib
 
 include $(BUILD_SHARED_LIBRARY)

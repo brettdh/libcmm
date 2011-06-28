@@ -7,6 +7,7 @@ common_C_INCLUDES := \
                 external/bdh_apps/libcmm)
 common_CFLAGS:=-g -O0 -Wall -Werror
 
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := intnw_ops
 LOCAL_SRC_FILES := ./intnw_ops.cpp
 

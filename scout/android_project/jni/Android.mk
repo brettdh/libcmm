@@ -7,6 +7,13 @@ include $(BUILD_MULTI_PREBUILT)
 
 include $(CLEAR_VARS)
 
+LOCAL_MODULE=networktest_library
+LOCAL_SRC_FILES := libnative_networktest.so
+include $(PREBUILT_SHARED_LIBRARY)
+
+include $(CLEAR_VARS)
+
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := conn_scout
 LOCAL_SRC_FILES := \
     ../../libcmm_scout.cpp \

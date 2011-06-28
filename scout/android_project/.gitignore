@@ -1,4 +1,5 @@
 local.properties
 bin
 gen
-/libs/armeabi/libconn_scout.so
+obj
+/libs/armeabi
