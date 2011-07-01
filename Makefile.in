@@ -4,13 +4,30 @@ else
 DEBUG_FLAGS:=-g -DCMM_DEBUG
 endif
 
-CXXFLAGS+=-Wall -Werror -I. -I/usr/local/include \
+CXX_PATH:=@CXX_PATH@
+ANDROID:=@ANDROID@
+CXX:=PATH=$(CXX_PATH) @CXX@
+CXXFLAGS:=@CXXFLAGS@
+LDFLAGS:=@LDFLAGS@
+
+CXXFLAGS+=-Wall -Werror -I. \
 	   -I./libancillary \
-	   -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include \
-	   -pthread -fPIC -m32 $(DEBUG_FLAGS) $(OPT_FLAGS)
+	   -fPIC $(DEBUG_FLAGS) $(OPT_FLAGS)
+
+ifeq ($(ANDROID), 1)
+LDFLAGS+=-L./android_libs
+else
+CXXFLAGS+=-pthread -I/usr/local/include \
+		  -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include
+endif
+
 #LIBTBB:=-ltbb_debug
-LDFLAGS:=-L.  -L/usr/local/lib -m32
-LIBS:=-lrt -lglib-2.0 -lboost_thread
+LDFLAGS+=-L.  -L/usr/local/lib
+LIBS:=-lboost_thread
+
+ifneq ($(ANDROID), 1)
+LIBS+=-lrt -lglib-2.0 
+endif
 
 LIBRARIES:=libcmm.so
 EXECUTABLES:=cmm_test_sender cmm_test_receiver cdf_test\
@@ -19,11 +36,13 @@ EXECUTABLES:=cmm_test_sender cmm_test_receiver cdf_test\
 
 all: $(LIBRARIES) $(EXECUTABLES) subdirs
 
-SUBDIRS := scout
-.PHONY: subdirs $(SUBDIRS)
-subdirs: $(SUBDIRS)
-$(SUBDIRS)::
-	make -C $@
+ifneq ($(ANDROID), 1)
+	SUBDIRS := scout
+	.PHONY: subdirs $(SUBDIRS)
+	subdirs: $(SUBDIRS)
+	$(SUBDIRS)::
+		make -C $@
+endif
 
 cdf_test: cdf_test.o cdf_sampler.o debug.o timeops.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^

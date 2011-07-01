@@ -5,7 +5,7 @@ SRCS=$(wildcard *.cpp)
 DEPS=$(SRCS:%.cpp=.%.dep)
 
 .%.dep: %.cpp
-	g++ -MM $(CXXFLAGS) $< >$@
+	$(CXX) -MM $(CXXFLAGS) $< >$@
 
 include $(DEPS)
 

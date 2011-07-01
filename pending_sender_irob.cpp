@@ -119,8 +119,8 @@ PendingSenderIROB::get_bytes_internal(size_t offset, ssize_t& len)
         }
         next_buf.iov_len = bytes;
         next_buf.iov_base = chunk.data + cur_chunk_offset;
-        dbgprintf("Gathering %zd bytes from chunk %lu chunk_offset %zd\n",
-                  bytes, it->seqno, cur_chunk_offset);
+        dbgprintf("Gathering %d bytes from chunk %lu chunk_offset %d\n",
+                  (int)bytes, it->seqno, (int)cur_chunk_offset);
         data.push_back(next_buf);
         bytes_gathered += bytes;
 
@@ -139,8 +139,8 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno,
     vector<struct iovec> data;
 
     dbgprintf("Getting bytes to send from IROB %ld\n", id);
-    dbgprintf("   (%zd bytes requested; %d chunks total; irob_offset %d\n",
-              bytes_requested, (int)chunks.size(), irob_offset);
+    dbgprintf("   (%d bytes requested; %d chunks total; irob_offset %d\n",
+              (int)bytes_requested, (int)chunks.size(), irob_offset);
     dbgprintf("   %zd unsent bytes ready, %zu chunks waiting to resend)\n",
               num_bytes - irob_offset, resend_chunks.size());
 
@@ -211,7 +211,7 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno,
     }
 
     dbgprintf("...returning %d bytes, seqno %lu\n",
-              bytes_requested, next_seqno_to_send);
+              (int)bytes_requested, next_seqno_to_send);
 
     seqno = next_seqno_to_send++;
     offset_ = irob_offset;

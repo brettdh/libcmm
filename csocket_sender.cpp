@@ -645,8 +645,8 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
                 if (timing_file) {
                     struct timeval now;
                     TIME(now);
-                    fprintf(timing_file, "%lu.%06lu  bw est %lu trickle size %zd   %d bytes in all buffers\n",
-                            now.tv_sec, now.tv_usec, csock->bandwidth(), chunksize, unsent_bytes);
+                    fprintf(timing_file, "%lu.%06lu  bw est %lu trickle size %d   %d bytes in all buffers\n",
+                            now.tv_sec, now.tv_usec, csock->bandwidth(), (int)chunksize, unsent_bytes);
                 }
             }
 #endif
@@ -1075,9 +1075,9 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
             socklen_t len = sizeof(info);
             info.tcpi_rtt = 0;
             (void)getsockopt(csock->osfd, IPPROTO_TCP, TCP_INFO, &info, &len);
-            fprintf(timing_file, "%lu.%06lu CSocketSender: IROB %ld about to send %u bytes with label %lu %s ",
+            fprintf(timing_file, "%lu.%06lu CSocketSender: IROB %ld about to send %d bytes with label %lu %s ",
                     now.tv_sec, now.tv_usec, id,
-                    (sizeof(hdr) + chunksize), data.send_labels,
+                    (int)(sizeof(hdr) + chunksize), data.send_labels,
                     inet_ntoa(csock->local_iface.ip_addr));
             fprintf(timing_file, "=> %s est bw %lu rtt %lu tcpi_rtt %f\n",
                     inet_ntoa(csock->remote_iface.ip_addr),
@@ -1157,8 +1157,8 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
             dbgprintf("CSocketSender: writev error: %s\n",
                       strerror(errno));
         } else {
-            dbgprintf("CSocketSender: writev sent only %d of %zd bytes\n",
-                      rc, (ssize_t)(sizeof(hdr) + chunksize));
+            dbgprintf("CSocketSender: writev sent only %d of %d bytes\n",
+                      rc, (int)(sizeof(hdr) + chunksize));
         }
         throw CMMControlException("Socket error", hdr);
     }

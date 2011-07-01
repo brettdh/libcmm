@@ -853,7 +853,7 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
     map<int, struct pollfd*> osfds_to_pollfds;
     vector<struct pollfd> real_fds_list;
 
-    dbgprintf("mc_poll with %lu fds [ ", nfds);
+    dbgprintf("mc_poll with %d fds [ ", (int)nfds);
     for(nfds_t i=0; i<nfds; i++) {
         dbgprintf_plain("%d%s%s ", fds[i].fd,
                         (fds[i].events & POLLIN)?"i":"",
@@ -928,8 +928,8 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 
     nfds_t real_nfds = real_fds_list.size();
     struct pollfd *realfds = new struct pollfd[real_nfds];
-    dbgprintf("About to call poll(): %lu fds [ ",
-              real_nfds);
+    dbgprintf("About to call poll(): %d fds [ ",
+              (int)real_nfds);
     for (nfds_t i = 0; i < real_nfds; i++) {
         realfds[i] = real_fds_list[i];
         dbgprintf_plain("%d%s%s ", realfds[i].fd,
@@ -939,8 +939,8 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
     dbgprintf_plain("]\n");
 
     int rc = poll(realfds, real_nfds, timeout);
-    dbgprintf("poll() returns %d: %lu fds [ ",
-              rc, real_nfds);
+    dbgprintf("poll() returns %d: %d fds [ ",
+              rc, (int)real_nfds);
     for(nfds_t i=0; i < real_nfds; i++) {
         dbgprintf_plain("%d%s%s ", realfds[i].fd,
                         (realfds[i].revents & POLLIN)?"i":"",
@@ -998,8 +998,8 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
     }
     delete [] realfds;
 
-    dbgprintf("Returning %d from mc_poll(): %lu fds [ ",
-              rc, nfds);
+    dbgprintf("Returning %d from mc_poll(): %d fds [ ",
+              rc, (int)nfds);
     for(nfds_t i=0; i<nfds; i++) {
         dbgprintf_plain("%d%s%s ", fds[i].fd,
                         (fds[i].revents & POLLIN)?"i":"",
@@ -1108,7 +1108,7 @@ CMMSocketImpl::mc_writev(const struct iovec *vec, int count,
     }
     PthreadScopedRWLock sock_lock(&my_lock, false);
 
-    dbgprintf("Calling default_irob with %d bytes\n", total_bytes);
+    dbgprintf("Calling default_irob with %d bytes\n", (int)total_bytes);
     int rc = default_irob_writev(id, vec, count, total_bytes,
                                  send_labels, 
                                  resume_handler, arg);
@@ -2163,7 +2163,7 @@ CMMSocketImpl::default_irob_writev(irob_id_t next_irob,
     }
     assert(bytes_copied == total_bytes);
 
-    dbgprintf("Calling send_default_irob with %d bytes\n", total_bytes);
+    dbgprintf("Calling send_default_irob with %d bytes\n", (int)total_bytes);
     rc = send_default_irob(next_irob, csock, data, total_bytes, 
                            send_labels, resume_handler, rh_arg);
 

@@ -127,14 +127,14 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
         num_bytes += chunk.datalen;
         recvd_bytes += chunk.datalen;
         dbgprintf("Added chunk %lu (%d bytes) to IROB %ld new total %d\n", 
-                  chunk.seqno, chunk.datalen, id, num_bytes);
+                  chunk.seqno, chunk.datalen, id, (int)num_bytes);
 
         // This is kinda expensive, and this code is pretty stable,
         //  so we'll leave it out for now.
         //assert_valid();
     } else {
         dbgprintf("Adding chunk %lu (%d bytes) on IROB %ld failed! recvd_bytes=%d, expected_bytes=%d\n",
-                  chunk.seqno, chunk.datalen, id, recvd_bytes, expected_bytes);
+                  chunk.seqno, chunk.datalen, id, (int)recvd_bytes, (int)expected_bytes);
         return false;
     }
 
@@ -193,7 +193,7 @@ PendingReceiverIROB::is_complete(void)
     assert(expected_chunks == -1 || recvd_chunks <= expected_chunks);
     if (expected_bytes != recvd_bytes) {
         dbgprintf("IROB %ld not complete; expected %d bytes, recvd %d so far\n",
-                  id, expected_bytes, recvd_bytes);
+                  id, (int)expected_bytes, (int)recvd_bytes);
         return false;
     }
     if (expected_chunks != recvd_chunks) {
@@ -221,7 +221,7 @@ PendingReceiverIROB::finish(ssize_t expected_bytes_, int num_chunks)
         if (chunks.size() > (size_t)expected_chunks) {
             dbgprintf("Finished IROB %ld with %d chunks expected, "
                       "but it already has seqnos up to %zu\n",
-                      id, expected_bytes, chunks.size());
+                      id, (int)expected_bytes, chunks.size());
             return false;
         }
     } else {
@@ -243,7 +243,7 @@ PendingReceiverIROB::read_data(void *buf, size_t len)
 
     dbgprintf("Attempting to copy %zu bytes from irob %ld, which has %d bytes,\n"
               "                   %d untouched chunks, and %s partial chunk\n", 
-              len, id, num_bytes, chunks.size(), (partial_chunk.data?"a":"no"));
+              len, id, (int)num_bytes, chunks.size(), (partial_chunk.data?"a":"no"));
     if (partial_chunk.data) {
         dbgprintf("Copying first from partial chunk; offset=%d, datalen=%d\n",
                   offset, partial_chunk.datalen);
@@ -281,10 +281,10 @@ PendingReceiverIROB::read_data(void *buf, size_t len)
         }
         len -= bytes;
         dbgprintf("Read %d bytes; %d bytes remaining in request\n",
-                  bytes, len);
+                  (int)bytes, len);
     }
     num_bytes -= bytes_copied;
-    dbgprintf("Copied %d bytes from IROB %ld\n", bytes_copied, id);
+    dbgprintf("Copied %d bytes from IROB %ld\n", (int)bytes_copied, id);
     return bytes_copied;
 }
 
@@ -526,7 +526,7 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
     dbgprintf("recv: gathering and copying bytes took %lu.%06lu seconds\n", 
               diff.tv_sec, diff.tv_usec);
 
-    dbgprintf("Passing %d bytes to application\n", bytes_passed);
+    dbgprintf("Passing %d bytes to application\n", (int)bytes_passed);
 #if defined(CMM_TIMING) && !defined(CMM_UNIT_TESTING)
     if (bytes_passed > 0) {
         PthreadScopedLock lock(&timing_mutex);
@@ -534,7 +534,7 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
             struct timeval now;
             TIME(now);
             fprintf(timing_file, "[%lu.%06lu] %d bytes received with label %lu in %lu.%06lu seconds\n", 
-                    now.tv_sec, now.tv_usec, bytes_passed, timing_recv_labels,
+                    now.tv_sec, now.tv_usec, (int)bytes_passed, timing_recv_labels,
                     diff.tv_sec, diff.tv_usec);
         }
         //global_stats.bytes_received[timing_recv_labels] += bytes_passed;
