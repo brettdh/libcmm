@@ -13,3 +13,5 @@ libcmm.so
 .*install
 libcmm.tgz
 Makeconf.local
+libs
+obj
