@@ -1,17 +1,18 @@
 LOCAL_PATH := $(call my-dir)
 
-ifneq ($(BDH_FULL_LIBSTDCXX),)
+#ifneq ($(BDH_FULL_LIBSTDCXX),)
 
 include $(CLEAR_VARS)
 
-LOCAL_PREBUILT_LIBS := android_libs/libboost_thread.a
-include $(BUILD_MULTI_PREBUILT)
+LOCAL_MODULE=boost_thread
+LOCAL_SRC_FILES := android_libs/libboost_thread.a
+include $(PREBUILT_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
 
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libcmm
-LOCAL_CFLAGS += -DANDROID -DCMM_DEBUG -g -O0
+LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -O0
 LOCAL_SRC_FILES := \
 	ack_timeouts.cpp \
 	cmm_conn_bootstrapper.cpp \
@@ -43,9 +44,10 @@ LOCAL_SRC_FILES := \
 	thunks.cpp \
 	timeops.cpp
 
-LOCAL_STATIC_LIBRARIES := android_libs/libboost_thread
+LOCAL_STATIC_LIBRARIES := libboost_thread
 LOCAL_STATIC_LIBRARIES += libancillary
-LOCAL_SHARED_LIBRARIES := liblog
+#LOCAL_SHARED_LIBRARIES := liblog
+LOCAL_LDLIBS := -llog
 LOCAL_PRELINK_MODULE := false
 include $(BUILD_SHARED_LIBRARY)
 
@@ -56,8 +58,10 @@ include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := cmm_test_sender
+LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -O0
 LOCAL_SRC_FILES := libcmm_test_sender.cpp debug.cpp
 LOCAL_SHARED_LIBRARIES := libcmm liblog
+LOCAL_LDLIBS := -llog
 include $(BUILD_EXECUTABLE)
 
 # cmm_test_receiver: libcmm_test_receiver.o libcmm.so 
@@ -67,8 +71,10 @@ include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := cmm_test_receiver
+LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -O0
 LOCAL_SRC_FILES := libcmm_test_receiver.cpp debug.cpp
 LOCAL_SHARED_LIBRARIES := libcmm liblog
+LOCAL_LDLIBS := -llog
 include $(BUILD_EXECUTABLE)
 
 # vanilla_test_sender: vanilla_test_sender.o timeops.o
@@ -78,11 +84,13 @@ include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := vanilla_test_sender
+LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -O0
 LOCAL_SRC_FILES := libcmm_test_sender.cpp timeops.cpp debug.cpp
 LOCAL_CFLAGS += -DNOMULTISOCK
-LOCAL_STATIC_LIBRARIES := android_libs/libboost_thread
+LOCAL_STATIC_LIBRARIES := libboost_thread
 LOCAL_STATIC_LIBRARIES += libancillary
 LOCAL_SHARED_LIBRARIES := liblog
+LOCAL_LDLIBS := -llog
 include $(BUILD_EXECUTABLE)
 
 # vanilla_test_receiver: vanilla_test_receiver.o timeops.o
@@ -92,8 +100,10 @@ include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := vanilla_test_receiver
+LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -O0
 LOCAL_SRC_FILES := libcmm_test_receiver.cpp timeops.cpp debug.cpp
 LOCAL_SHARED_LIBRARIES := liblog
+LOCAL_LDLIBS := -llog
 LOCAL_CFLAGS += -DNOMULTISOCK
 include $(BUILD_EXECUTABLE)
 
@@ -104,8 +114,10 @@ include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := cmm_throughput_test
+LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -O0
 LOCAL_SRC_FILES := libcmm_throughput_test.cpp debug.cpp
 LOCAL_SHARED_LIBRARIES := libcmm liblog
+LOCAL_LDLIBS := -llog
 include $(BUILD_EXECUTABLE)
 
 # vanilla_throughput_test: vanilla_throughput_test.o timeops.o
@@ -115,21 +127,14 @@ include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := vanilla_throughput_test
+LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -O0
 LOCAL_SRC_FILES := libcmm_throughput_test.cpp timeops.cpp debug.cpp
 LOCAL_CFLAGS += -DNOMULTISOCK
 LOCAL_SHARED_LIBRARIES := liblog
+LOCAL_LDLIBS := -llog
 include $(BUILD_EXECUTABLE)
 
 # conn_scout: libcmm_scout.o cdf_sampler.o debug.o cmm_thread.o timeops.o
-
-# include $(CLEAR_VARS)
-# LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
-# LOCAL_MODULE_TAGS := optional
-# LOCAL_MODULE := conn_scout
-# LOCAL_SRC_FILES := \
-#     libcmm_scout.cpp cdf_sampler.cpp debug.cpp cmm_thread.cpp timeops.cpp
-# LOCAL_STATIC_LIBRARIES := android_libs/libboost_thread
-# include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
 
@@ -137,11 +142,12 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := conn_scout
 LOCAL_SRC_FILES := scout/libcmm_scout.cpp \
     debug.cpp cmm_thread.cpp timeops.cpp cdf_sampler.cpp
-LOCAL_CFLAGS += -DBUILDING_SCOUT -DANDROID
+LOCAL_CFLAGS += -DBUILDING_SCOUT -DANDROID -DNDK_BUILD
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/../
-LOCAL_STATIC_LIBRARIES := android_libs/libboost_thread
+LOCAL_STATIC_LIBRARIES := libboost_thread
 LOCAL_SHARED_LIBRARIES := liblog
+LOCAL_LDLIBS := -llog
 
 include $(BUILD_EXECUTABLE)
 
-endif
+#endif
