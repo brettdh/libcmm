@@ -4,7 +4,7 @@
 #include "test_common.h"
 
 #include <sys/socket.h>
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
