@@ -4,73 +4,50 @@ else
 DEBUG_FLAGS:=-g -DCMM_DEBUG
 endif
 
-CXX_PATH:=@CXX_PATH@
-ANDROID:=@ANDROID@
-CXX:=PATH=$(CXX_PATH) @CXX@
-CXXFLAGS:=@CXXFLAGS@
-LDFLAGS:=@LDFLAGS@
-
-CXXFLAGS+=-Wall -Werror -I. \
+CXXFLAGS+=-Wall -Werror -I. -I/usr/local/include \
 	   -I./libancillary \
-	   -fPIC $(DEBUG_FLAGS) $(OPT_FLAGS)
-
-ifeq ($(ANDROID), 1)
-LDFLAGS+=-L./android_libs
-else
-CXXFLAGS+=-pthread -I/usr/local/include \
-		  -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include
-endif
-
+	   -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include \
+	   -pthread -fPIC -m32 $(DEBUG_FLAGS) $(OPT_FLAGS)
 #LIBTBB:=-ltbb_debug
-LDFLAGS+=-L.
-LIBS:=-lboost_thread
-
-ifeq ($(ANDROID), 1)
-LIBS+=-llog -lstdc++ -lsupc++
-else
-LDFLAGS+=-L/usr/local/lib
-LIBS+=-lrt -lglib-2.0 
-endif
+LDFLAGS:=-L.  -L/usr/local/lib -m32
+LIBS:=-lrt -lglib-2.0 -lboost_thread
 
 LIBRARIES:=libcmm.so
 EXECUTABLES:=cmm_test_sender cmm_test_receiver cdf_test\
 	     vanilla_test_sender vanilla_test_receiver \
 	     cmm_throughput_test vanilla_throughput_test
 
-all:: $(LIBRARIES) $(EXECUTABLES)
+all: $(LIBRARIES) $(EXECUTABLES) subdirs
 
-ifneq ($(ANDROID), 1)
-	all:: subdirs
-	SUBDIRS := scout
-	.PHONY: subdirs $(SUBDIRS)
-	subdirs: $(SUBDIRS)
-	$(SUBDIRS)::
-		make -C $@
-endif
+SUBDIRS := scout
+.PHONY: subdirs $(SUBDIRS)
+subdirs: $(SUBDIRS)
+$(SUBDIRS)::
+	make -C $@
 
 cdf_test: cdf_test.o cdf_sampler.o debug.o timeops.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -o $@ $^
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
 cmm_test_sender: libcmm_test_sender.o libcmm.so debug.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS)  -o $@ $< -lcmm $(LIBS)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -lcmm -o $@ $<
 
 cmm_test_receiver: libcmm_test_receiver.o libcmm.so debug.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -lcmm $(LIBS) -o $@ $<
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -lcmm -o $@ $<
 
 vanilla_test_sender: vanilla_test_sender.o timeops.o debug.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -o $@ $^ -lboost_thread
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
 vanilla_test_receiver: vanilla_test_receiver.o timeops.o debug.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -o $@ $^
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
 cmm_throughput_test: libcmm_throughput_test.o libcmm.so debug.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -lcmm $(LIBS) -o $@ $<
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -lcmm -o $@ $<
 
 vanilla_throughput_test: vanilla_throughput_test.o timeops.o debug.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -o $@ $^
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
 vanilla_%.o: libcmm_%.cpp
-	$(CXX) $(CXXFLAGS) -DNOMULTISOCK -c -o $@ $<
+	$(CXX) $(CXXFLAGS) -DNOMULTISOCK $(LDFLAGS) -c -o $@ $<
 
 libcmm.so: libcmm.o libcmm_ipc.o libcmm_external_ipc.o cmm_socket.o cmm_socket_impl.o \
 	   cmm_socket_passthrough.o thunks.o cmm_timing.o csocket.o \
@@ -80,7 +57,7 @@ libcmm.so: libcmm.o libcmm_ipc.o libcmm_external_ipc.o cmm_socket.o cmm_socket_i
            intset.o cmm_socket_control.o irob_scheduling.o timeops.o \
 	   ack_timeouts.o net_interface.o net_stats.o cmm_conn_bootstrapper.o \
 	   libcmm_shmem.o common.o libancillary/libancillary.a
-	$(CXX) $(CXXFLAGS) $(LDFLAGS)  -shared -o $@ $^ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -shared -o $@ $^
 
 .PHONY: libcmm.tgz
 libcmm.tgz:
@@ -98,6 +75,14 @@ endif
 
 clean: subdirclean
 	rm -f *~ *.o $(LIBRARIES) $(EXECUTABLES) .libinstall .hdrinstall libcmm.tgz
+
+#TBB_LIBS:=libtbbmalloc_debug.so libtbbmalloc.so.2 libtbb_debug.so \
+#          libtbbmalloc_debug.so.2 libtbb.so libtbb_debug.so.2 \
+#          libtbbmalloc.so libtbb.so.2
+
+#.tbbinstall: $(TBB_LIBS)
+#	install $(TBB_LIBS) /usr/local/lib
+#	-touch .tbbinstall
 
 .libinstall: libcmm.so 
 	install libcmm.so /usr/local/lib/
