@@ -33,6 +33,11 @@ static int proxy_data(int from_sock, int to_sock)
     return rc;
 }
 
+struct sockets {
+    int client_proxy_sock;
+    int server_proxy_sock;
+};
+
 void ProxyThread(struct sockets *sockets)
 {
     int client_proxy_sock = sockets->client_proxy_sock;
@@ -48,13 +53,25 @@ void ProxyThread(struct sockets *sockets)
         int rc = select(nfds, &readable, NULL, NULL, NULL);
         if (rc > 0) {
             if (FD_ISSET(client_proxy_sock, &readable)) {
-                proxy_data(client_proxy_sock, server_proxy_sock);
-                // TODO: error handling
+                rc = proxy_data(client_proxy_sock, server_proxy_sock);
+                if (rc > 0) {
+                    FD_SET(client_proxy_sock, &readable);
+                }
             }
             if (FD_ISSET(server_proxy_sock, &readable)) {
                 proxy_data(server_proxy_sock, client_proxy_sock);
-                // TODO: error handling
+                if (rc > 0) {
+                    FD_SET(client_proxy_sock, &readable);
+                }
             }
+            if (!FD_ISSET(client_proxy_sock, &readable) &&
+                !FD_ISSET(server_proxy_sock, &readable)) {
+                fprintf(stderr, "client and server proxy sockets closed; proxy thread exiting.\n");
+                break;
+            }
+        } else {
+            perror("select");
+            break;
         }
     }
 }
@@ -75,5 +92,5 @@ int main()
     int rc = bind(proxy_sock, (struct sockaddr *) &addr, addrlen);
     handle_error(rc < 0, "binding raw socket");
 
-    
+    // TODO: figure out how to handle accept through the proxy sockets.
 }
