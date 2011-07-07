@@ -89,7 +89,7 @@ LOCAL_SRC_FILES := $(addprefix ../, libcmm_test_sender.cpp timeops.cpp debug.cpp
 LOCAL_CFLAGS += -DNOMULTISOCK
 LOCAL_STATIC_LIBRARIES := libboost_thread
 LOCAL_STATIC_LIBRARIES += libancillary
-LOCAL_SHARED_LIBRARIES := liblog
+LOCAL_SHARED_LIBRARIES := libcmm liblog
 LOCAL_LDLIBS := -llog
 include $(BUILD_EXECUTABLE)
 
@@ -102,7 +102,7 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := vanilla_test_receiver
 LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -O0 -I$(LOCAL_PATH)/..
 LOCAL_SRC_FILES := $(addprefix ../, libcmm_test_receiver.cpp timeops.cpp debug.cpp)
-LOCAL_SHARED_LIBRARIES := liblog
+LOCAL_SHARED_LIBRARIES := libcmm liblog
 LOCAL_LDLIBS := -llog
 LOCAL_CFLAGS += -DNOMULTISOCK
 include $(BUILD_EXECUTABLE)
@@ -130,7 +130,7 @@ LOCAL_MODULE := vanilla_throughput_test
 LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -O0 -I$(LOCAL_PATH)/..
 LOCAL_SRC_FILES := $(addprefix ../, libcmm_throughput_test.cpp timeops.cpp debug.cpp)
 LOCAL_CFLAGS += -DNOMULTISOCK
-LOCAL_SHARED_LIBRARIES := liblog
+LOCAL_SHARED_LIBRARIES := libcmm liblog
 LOCAL_LDLIBS := -llog
 include $(BUILD_EXECUTABLE)
 
