@@ -34,4 +34,6 @@ void DEBUG_LOG(const char *fmt, ...)
 #define DEBUG_LOG dbgprintf_always
 #endif
 
+int make_listening_socket(short port);
+
 #endif

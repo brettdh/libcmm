@@ -123,3 +123,33 @@ int get_int_from_string(const char *str, const char *name)
     return val;
 }
 
+
+int
+make_listening_socket(short port)
+{
+    int sock = socket(PF_INET, SOCK_STREAM, 0);
+    handle_error(sock < 0, "socket");
+    
+    int on = 1;
+    int rc = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
+                        (char *) &on, sizeof(on));
+    if (rc < 0) {
+        DEBUG_LOG("Cannot reuse socket address\n");
+    }
+    
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_port = htons(port);
+    
+    socklen_t addrlen = sizeof(addr);
+    rc = bind(sock, (struct sockaddr*)&addr, addrlen);
+    handle_error(rc < 0, "bind");
+    
+    rc = listen(sock, 5);
+    handle_error(rc < 0, "listen");
+    DEBUG_LOG("Receiver is listening...\n");
+    
+    return sock;
+}
