@@ -100,6 +100,9 @@ fake_intnw_test: run_all_tests.o spotty_network_failure_test.o \
 run_spotty_network_failure_test:: run_spotty_network_failure_test.o
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
 
+proxy_socket_test: proxy_socket_test.o test_common.o
+	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
+
 include ../deps.mk
 
 clean:
