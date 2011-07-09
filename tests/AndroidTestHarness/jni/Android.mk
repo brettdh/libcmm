@@ -65,5 +65,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := proxy_socket_test
 LOCAL_C_INCLUDES := $(common_C_INCLUDES)
 LOCAL_CFLAGS := $(common_CFLAGS)
-LOCAL_SRC_FILES := $(addprefix ../../, proxy_socket_test.cpp test_common.cpp)
+LOCAL_SRC_FILES := \
+	$(addprefix ../../, proxy_socket_test.cpp test_common.cpp) \
+	$(addprefix ../../../, debug.cpp timeops.cpp)
 include $(BUILD_EXECUTABLE)

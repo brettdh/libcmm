@@ -4,6 +4,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <stdio.h>
 #include <string.h>
 #include <assert.h>
 #include <algorithm>
@@ -19,8 +20,8 @@ const short LISTEN_PORT = 4210;
 
 typedef void * (*thread_func)(void*);
 
-static pthread_mutex_t proxy_lock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t proxy_cv = PTHREAD_COND_INITIALIZER;
+//static pthread_mutex_t proxy_lock = PTHREAD_MUTEX_INITIALIZER;
+//static pthread_cond_t proxy_cv = PTHREAD_COND_INITIALIZER;
 static bool running = true;
 
 /* from_sock and to_sock are both raw sockets. */
