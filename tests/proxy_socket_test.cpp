@@ -1,6 +1,15 @@
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <string.h>
+#include <assert.h>
+#include <algorithm>
+using std::max;
+
+#include "test_common.h"
 
 /* Purpose: to figure out how to proxy a TCP connection
  *          using raw sockets.
@@ -21,7 +30,9 @@ static int proxy_data(int from_sock, int to_sock, void (*line_proc)(char *))
     int rc = read(from_sock, buf, sizeof(buf) - 1);
     if (rc > 0) {
         buf[rc] = '\0';
-        line_proc(buf);
+        if (line_proc) {
+            line_proc(buf);
+        }
         int bytes_written = write(to_sock, buf, rc);
         if (bytes_written != rc) {
             perror("proxy_data: write");
@@ -35,34 +46,9 @@ static int proxy_data(int from_sock, int to_sock, void (*line_proc)(char *))
     return rc;
 }
 
-void ProxyThread(void *unused)
-{
-    int client_proxy_listen_sock = make_listening_socket(LISTEN_PORT);
-    assert(client_proxy_listen_sock >= 0);
-
-    int client_proxy_sock =  accept(client_proxy_listen_sock, NULL, NULL);
-    handle_error(client_proxy_sock < 0, "accepting proxy socket");
-
-    int server_proxy_sock = socket(PF_INT, SOCK_STREAM, 0);
-    handle_error(server_proxy_sock < 0, "creating client proxy socket");
-
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(LISTEN_PORT + 1);
-    socklen_t addrlen = sizeof(addr);
-    int rc = connect(server_proxy_sock, (struct sockaddr *) &addr, addrlen);
-    handle_error(rc < 0, "connecting server proxy socket");
-
-    proxy_lines_until_closed(client_proxy_sock, server_proxy_sock);
-
-    close(server_proxy_sock);
-    close(client_proxy_sock);
-    close(client_proxy_listen_sock);
-}
-
 // only proxy a given number of lines before simulating disconnection.
-static void proxy_lines_until_closed(int client_fd, int server_fd, void (*line_proc)(char *),
+static void proxy_lines_until_closed(int client_fd, int server_fd, 
+                                     void (*line_proc)(char *),
                                      int num_lines_before_break)
 {
     fd_set readable;
@@ -106,14 +92,42 @@ static void proxy_lines_until_closed(int client_fd, int server_fd, void (*line_p
     }
 }
 
+void ProxyThread(void *unused)
+{
+    int client_proxy_listen_sock = make_listening_socket(LISTEN_PORT);
+    assert(client_proxy_listen_sock >= 0);
+
+    int client_proxy_sock =  accept(client_proxy_listen_sock, NULL, NULL);
+    handle_error(client_proxy_sock < 0, "accepting proxy socket");
+
+    int server_proxy_sock = socket(PF_INET, SOCK_STREAM, 0);
+    handle_error(server_proxy_sock < 0, "creating client proxy socket");
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(LISTEN_PORT + 1);
+    socklen_t addrlen = sizeof(addr);
+    int rc = connect(server_proxy_sock, (struct sockaddr *) &addr, addrlen);
+    handle_error(rc < 0, "connecting server proxy socket");
+
+    proxy_lines_until_closed(client_proxy_sock, server_proxy_sock, NULL, 5);
+
+    close(server_proxy_sock);
+    close(client_proxy_sock);
+    close(client_proxy_listen_sock);
+}
+
+
 void ServerThread(int listen_sock)
 {
     int sock = accept(listen_sock, NULL, NULL);
     handle_error(sock < 0, "accepting socket at server");
     
     char buf[4096];
+    int rc;
     while ((rc = read(sock, buf, sizeof(buf) - 1)) > 0) {
-        bytes = rc;
+        int bytes = rc;
         for (int i = 0; i < rc; ++i) {
             buf[i] = toupper(buf[i]);
         }
@@ -127,7 +141,7 @@ void ServerThread(int listen_sock)
 
 int main()
 {
-    int listen_sock = make_listening_socket(LISTEN_PORT + 1, SOCK_STREAM);
+    int listen_sock = make_listening_socket(LISTEN_PORT + 1);
     assert(listen_sock >= 0);
     
     pthread_t server_thread, proxy_thread;
@@ -146,7 +160,7 @@ int main()
     int rc = connect(client_sock, (struct sockaddr *) &addr, (socklen_t) sizeof(addr));
     handle_error(rc < 0, "connecting client socket");
 
-    proxy_lines_until_closed(STDIN_FILENO, client_sock);
+    proxy_lines_until_closed(STDIN_FILENO, client_sock, NULL, -1);
     close(client_sock);
 
     pthread_join(proxy_thread, NULL);
