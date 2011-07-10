@@ -20,8 +20,8 @@ const short LISTEN_PORT = 4210;
 
 typedef void * (*thread_func)(void*);
 
-//static pthread_mutex_t proxy_lock = PTHREAD_MUTEX_INITIALIZER;
-//static pthread_cond_t proxy_cv = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t proxy_started_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t proxy_started_cv = PTHREAD_COND_INITIALIZER;
 static bool running = true;
 
 /* from_sock and to_sock are both raw sockets. */
@@ -62,7 +62,8 @@ static void proxy_lines_until_closed(int client_fd, int server_fd,
 
     while (running) {
         int rc = select(nfds, &readable, NULL, NULL, NULL);
-        if (num_lines >= num_lines_before_break) {
+        if (num_lines_before_break >= 0 &&
+            num_lines >= num_lines_before_break) {
             // silently drop it
             continue;
         }
@@ -93,10 +94,19 @@ static void proxy_lines_until_closed(int client_fd, int server_fd,
     }
 }
 
+static void print_line(char *line)
+{
+    fprintf(stderr, "proxy'd line: %s", line);
+}
+
 void ProxyThread(void *unused)
 {
     int client_proxy_listen_sock = make_listening_socket(LISTEN_PORT);
     assert(client_proxy_listen_sock >= 0);
+
+    pthread_mutex_lock(&proxy_started_lock);
+    pthread_cond_signal(&proxy_started_cv);
+    pthread_mutex_unlock(&proxy_started_lock);
 
     int client_proxy_sock =  accept(client_proxy_listen_sock, NULL, NULL);
     handle_error(client_proxy_sock < 0, "accepting proxy socket");
@@ -112,7 +122,7 @@ void ProxyThread(void *unused)
     int rc = connect(server_proxy_sock, (struct sockaddr *) &addr, addrlen);
     handle_error(rc < 0, "connecting server proxy socket");
 
-    proxy_lines_until_closed(client_proxy_sock, server_proxy_sock, NULL, 5);
+    proxy_lines_until_closed(client_proxy_sock, server_proxy_sock, print_line, 5);
 
     close(server_proxy_sock);
     close(client_proxy_sock);
@@ -147,7 +157,11 @@ int main()
     
     pthread_t server_thread, proxy_thread;
     pthread_create(&server_thread, NULL, (thread_func) ServerThread, (void *) listen_sock);
+
+    pthread_mutex_lock(&proxy_started_lock);
     pthread_create(&proxy_thread, NULL, (thread_func) ProxyThread, NULL);
+    pthread_cond_wait(&proxy_started_cv, &proxy_started_lock);
+    pthread_mutex_unlock(&proxy_started_lock);
 
     int client_sock = socket(PF_INET, SOCK_STREAM, 0);
     handle_error(client_sock < 0, "socket");
