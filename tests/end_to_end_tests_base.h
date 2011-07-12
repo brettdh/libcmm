@@ -46,6 +46,9 @@ class EndToEndTestsBase :  public CppUnit::TestFixture {
     static int listen_sock;
     static char *hostname;
     static const short TEST_PORT;
+    static short listen_port;
+
+    static void setListenPort(short port);
 };
 
 #endif

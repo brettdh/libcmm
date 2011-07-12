@@ -26,132 +26,134 @@ using std::string; using std::vector;
 
 CPPUNIT_TEST_SUITE_REGISTRATION(SpottyNetworkFailureTest);
 
-void
-SpottyNetworkFailureTest::setupReceiver()
+/* In the process of revising this test as follows.
+ *
+ * What this test currently does:
+ *  1) Fake a multisocket on the server end.
+ *  2) Connect a real multisocket to the fake one.
+ *  3) Shut down one of the TCP sockets.
+ *  4) Try to send/receive data.
+ *
+ * The trouble with this approach is that the multisocket can
+ *  detect the TCP connection being shut down and react to it.
+ *  I really want to test what happens when the TCP connection
+ *  just stops receiving any messages (including FIN, for example).
+ *
+ * What the revised test will do:
+ *  1) Create a real multisocket on the server end.
+ *  2) Create proxy sockets:
+ *     a) Between the IntNW listen socket and the client
+ *     b) Between the multisocket's internal listen socket 
+ *        and the client's connecting csockets
+ *  3) Rewrite the necessary messages to keep the multisocket
+ *     endpoints unaware of the proxy:
+ *     a) The listener port in the initial HELLO response
+ *  4) Snoop on the csocket setup messages to determine which
+ *     one should be considered FG
+ *  5) Stop proxying data on that csocket.
+ *  6) Try to send/receive FG data.
+ */
+
+short SpottyNetworkFailureTest::PROXY_PORT = 4243;
+short SpottyNetworkFailureTest::INTNW_LISTEN_PORT = 42424;
+
+static bool process_chunk(int to_sock, char *chunk, size_t len, 
+                          SpottyNetworkFailureTest *test,
+                          SpottyNetworkFailureTest::chunk_proc_method_t processMethod)
 {
-    listen_sock = make_listening_socket(TEST_PORT);
+    return (test->*processMethod)(to_sock, chunk, len);
+}
+
+static bool process_bootstrap(int to_sock, char *chunk, size_t len, 
+                              SpottyNetworkFailureTest *test)
+{
+    return process_chunk(to_sock, chunk, len, test, 
+                         &SpottyNetworkFailureTest::processBootstrap);
+}
+
+static bool process_data(int to_sock, char *chunk, size_t len, 
+                         SpottyNetworkFailureTest *test)
+{
+    return process_chunk(to_sock, chunk, len, test, 
+                         &SpottyNetworkFailureTest::processData);
 }
 
 void
 SpottyNetworkFailureTest::startReceiver()
 {
+    bootstrap_done = false;
+    
+    setListenPort(PROXY_PORT);
+    start_proxy_thread(&bootstrap_proxy_thread, TEST_PORT, PROXY_PORT, 
+                       (chunk_proc_fn_t) process_bootstrap, this);
+    start_proxy_thread(&internal_data_proxy_thread, 
+                       INTNW_LISTEN_PORT, INTNW_LISTEN_PORT + 1,
+                       (chunk_proc_fn_t) process_data, this);
+
+    EndToEndTestsBase::startReceiver();
+}
+
+bool
+SpottyNetworkFailureTest::processBootstrap(int to_sock, char *chunk, size_t len)
+{
+    // overwrite internal-listener port with the proxy's port
     struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
     socklen_t addrlen = sizeof(addr);
-
-    int bootstrap_sock = accept(listen_sock, 
-                                (struct sockaddr *)&addr,
-                                &addrlen);
-    handle_error(bootstrap_sock < 0, "accept");
-    DEBUG_LOG("Receiver accepted connection %d\n", bootstrap_sock);
-
-    doFakeIntNWSetup(bootstrap_sock);
-    close(bootstrap_sock);
-}
-
-void
-SpottyNetworkFailureTest::doFakeIntNWSetup(int bootstrap_sock)
-{
-    struct CMMSocketControlHdr hello;
-    int rc = read(bootstrap_sock, &hello, sizeof(hello));
-    handle_error(rc != sizeof(hello), "receiving intnw hello");
-
-    short intnw_listen_port = 42429;
-    intnw_listen_sock = make_listening_socket(intnw_listen_port);
-    handle_error(intnw_listen_sock < 0, "creating intnw listener socket");
-    
-    hello.op.hello.listen_port = htons(intnw_listen_port);
-    hello.op.hello.num_ifaces = htonl(1);
-    rc = write(bootstrap_sock, &hello, sizeof(hello));
-    handle_error(rc != sizeof(hello), "sending intnw hello");
-
-    acceptCsocks();
-    exchangeNetworkInterfaces(bootstrap_sock);
-}
-
-struct net_interface init_csocket(int csock)
-{
-    struct CMMSocketControlHdr hdr;
-    struct net_interface iface;
-    int rc = read(csock, &hdr, sizeof(hdr));
-    handle_error(rc != sizeof(hdr), "reading csock net_interface data");
-    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_NEW_INTERFACE);
-
-    iface = hdr.op.new_interface;
-    iface.bandwidth_down = ntohl(iface.bandwidth_down);
-    iface.bandwidth_up = ntohl(iface.bandwidth_up);
-    iface.RTT = ntohl(iface.RTT);
-
-    memset(&hdr, 0, sizeof(hdr));
-    hdr.type = htons(CMM_CONTROL_MSG_HELLO);
-    rc = write(csock, &hdr, sizeof(hdr));
-    handle_error(rc != sizeof(hdr), "sending csock confirmation");
-    
-    return iface;
-}
-
-void
-SpottyNetworkFailureTest::acceptCsocks()
-{
-    struct net_interface steady_iface, intermittent_iface;
-
-    steady_csock = accept(intnw_listen_sock, NULL, NULL);
-    handle_error(steady_csock < 0, "accepting csocket");
-    
-    steady_iface = init_csocket(steady_csock);
-
-    intermittent_csock = accept(intnw_listen_sock, NULL, NULL);
-    handle_error(steady_csock < 0, "accepting csocket");
-    
-    intermittent_iface = init_csocket(intermittent_csock);
-
-    // the better network is the intermittent one.
-    if (steady_iface.RTT < intermittent_iface.RTT) {
-        int tmpsock = steady_csock;
-        steady_csock = intermittent_csock;
-        intermittent_csock = tmpsock;
+    if (!bootstrap_done &&
+        getsockname(to_sock, (struct sockaddr *) &addr, &addrlen) == 0 &&
+        ntohs(addr.sin_port) == TEST_PORT) {
+        // only modify the hello response, not the request
+        struct CMMSocketControlhdr *hdr = (void *) chunk;
+        if (ntohs(hdr->type) == CMM_CONTROL_MSG_HELLO) {
+            short listener_port = ntohs(hdr->op.hello.listen_port);
+            printf("Overwriting listener port %d in hello response with proxy port %d\n",
+                   listener_port, INTNW_LISTEN_PORT);
+            hdr->op.hello.listen_port = htons(INTNW_LISTEN_PORT);
+            bootstrap_done = true;
+        }
     }
+
+    return true;
 }
 
-void
-SpottyNetworkFailureTest::exchangeNetworkInterfaces(int bootstrap_sock)
+bool
+SpottyNetworkFailureTest::processData(int to_sock, char *chunk, size_t len)
 {
-    struct net_interface sentinel;
-    memset(&sentinel, 0, sizeof(sentinel));
-    int rc;
-    struct CMMSocketControlHdr hdr;
-    do {
-        rc = read(bootstrap_sock, &hdr, sizeof(hdr));
-        handle_error(rc != sizeof(hdr), "reading net iface");
-    } while (memcmp(&hdr.op.new_interface, &sentinel, sizeof(struct net_interface)) != 0);
+    // TODO: sniff out the RTT info to decide whether the socket is FG
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    socklen_t addrlen = sizeof(addr);
+    if (getsockname(to_sock, (struct sockaddr *) &addr, &addrlen) == 0 &&
+        ntohs(addr.sin_port) == INTNW_LISTEN_PORT) {
+        struct CMMSocketControlHdr *hdr = (void *) chunk;
+        // XXX: make sure this is in fact the new_interface message for the new csocket
+        // XXX:  (probably not strictly necessary, since that message
+        // XXX:   is the first message on the csocket, but still
+        // XXX:   a good sanity check.)
+        if (ntohs(hdr->type) == CMM_CONTROL_MSG_NEW_INTERFACE) {
+            if (ntohl(hdr->op.new_interface.RTT) < fg_socket_rtt) {
+                fg_socket = to_sock;
+                fg_proxy_thread = pthread_self();
+            }
+        }
+    }
 
-    struct CMMSocketControlHdr hdrs[2];
-    memset(hdrs, 0, sizeof(hdrs));
-    hdrs[0].type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
-    inet_aton("141.212.110.132", &hdrs[0].op.new_interface.ip_addr);
-    hdrs[0].op.new_interface.bandwidth_down = 1250000;
-    hdrs[0].op.new_interface.bandwidth_up = 1250000;
-    hdrs[0].op.new_interface.RTT = 1;
-    hdrs[1].type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
-    hdrs[0].op.new_interface = sentinel;
-    rc = write(bootstrap_sock, hdrs, sizeof(hdrs));
-    handle_error(rc != sizeof(hdrs), "sending net iface");
+    // TODO: stop passing data after a certain time
+    if (fg_proxy_thread == pthread_self() && 
+        false /* TODO: actual pause condition */) {
+        return false;
+    }
+    return true;
 }
 
-void
-SpottyNetworkFailureTest::startSender()
-{
-    // create connecting multisocket
-    EndToEndTestsBase::startSender();
-}
 
 void
 SpottyNetworkFailureTest::tearDown()
 {
     if (isReceiver()) {
-        close(steady_csock);
-        close(intermittent_csock);
-        close(intnw_listen_sock);
-        close(listen_sock);
+        EndToEndTestsBase::tearDown();
+        // TODO: shutdown proxy threads
     } else {
         EndToEndTestsBase::tearDown();
     }
@@ -182,104 +184,17 @@ SpottyNetworkFailureTest::testOneNetworkFails()
     const char expected_str[] = "ABCDEFGHIJ";
     const size_t len = strlen(expected_str);
 
-    printf("Waiting for connection to settle\n");
-    sleep(10);
-    printf("Starting test\n");
-
     char buf[len + 1];
     memset(buf, 0, sizeof(buf));
 
     if (isReceiver()) {
-        shutdown(intermittent_csock, SHUT_RDWR);
+        char resp_data[len + 1];
+        int rc = cmm_read(data_sock, resp_data, len, NULL);
+        CPPUNIT_ASSERT_EQUAL((int)len, rc);
+        resp_data[rc] = '\0';
 
-        // expected messages:
-        //  in order:
-        //  1) begin_irob
-        //  2) irob_chunk
-        //  3) end_irob
-        //
-        // at any time:
-        //  - down_interface
-        vector<struct CMMSocketControlHdr> hdrs;
-        while (hdrs.size() < 4) {
-            struct CMMSocketControlHdr hdr;
-            memset(&hdr, 0, sizeof(hdr));
-            int rc = recv(steady_csock, &hdr, sizeof(hdr), MSG_WAITALL);
-            CPPUNIT_ASSERT_EQUAL((int)sizeof(hdr), rc);
-            if (ntohs(hdr.type) == CMM_CONTROL_MSG_IROB_CHUNK) {
-                CPPUNIT_ASSERT_EQUAL(len, ntohl(hdr.op.irob_chunk.datalen));
-                
-                rc = recv(steady_csock, buf, len, MSG_WAITALL);
-                CPPUNIT_ASSERT_EQUAL((int)len, rc);
-                CPPUNIT_ASSERT_EQUAL(string(expected_str), string(buf));
-            }
-            
-            hdrs.push_back(hdr);
-        }
-        CPPUNIT_ASSERT_EQUAL(4U, hdrs.size());
-
-        irob_id_t irob_id = -1;
-        bool begin_irob_recvd = false;
-        bool irob_chunk_recvd = false;
-        bool end_irob_recvd = false;
-        bool down_interface_recvd = false;
-        for (size_t i = 0; i < hdrs.size(); ++i) {
-            switch (ntohs(hdrs[i].type)) {
-            case CMM_CONTROL_MSG_BEGIN_IROB:
-                irob_id = ntohl(hdrs[i].op.begin_irob.id);
-                begin_irob_recvd = true; break;
-            case CMM_CONTROL_MSG_IROB_CHUNK:
-                irob_chunk_recvd = true; break;
-            case CMM_CONTROL_MSG_END_IROB:
-                end_irob_recvd = true; break;
-            case CMM_CONTROL_MSG_DOWN_INTERFACE:
-                down_interface_recvd = true; break;
-            default:
-                CPPUNIT_ASSERT(false);
-            }
-        }
-        CPPUNIT_ASSERT(begin_irob_recvd);
-        CPPUNIT_ASSERT(irob_chunk_recvd);
-        CPPUNIT_ASSERT(end_irob_recvd);
-        CPPUNIT_ASSERT(down_interface_recvd);
-
-        struct CMMSocketControlHdr ack;
-        memset(&ack, 0, sizeof(ack));
-        ack.type = htons(CMM_CONTROL_MSG_ACK);
-        ack.op.ack.id = htonl(irob_id);
-        int rc = write(steady_csock, &ack, sizeof(ack));
-        CPPUNIT_ASSERT_EQUAL((int)sizeof(ack), rc);
-
-        char response[sizeof(struct CMMSocketControlHdr) * 3 + len];
-        memset(response, 0, sizeof(response));
-        struct CMMSocketControlHdr *begin_irob_hdr = (struct CMMSocketControlHdr *) response;
-        struct CMMSocketControlHdr *irob_chunk_hdr = 
-            (struct CMMSocketControlHdr *) (((char *) begin_irob_hdr) + sizeof(*begin_irob_hdr));
-        char *resp_data = ((char *) irob_chunk_hdr) + sizeof(*irob_chunk_hdr);
-        struct CMMSocketControlHdr *end_irob_hdr = 
-            (struct CMMSocketControlHdr *) (resp_data + len);
-
-        irob_id_t resp_irob_id = irob_id + 1;
-        begin_irob_hdr->type = htons(CMM_CONTROL_MSG_BEGIN_IROB);
-        begin_irob_hdr->op.begin_irob.id = htonl(resp_irob_id);
-        irob_chunk_hdr->type = htons(CMM_CONTROL_MSG_IROB_CHUNK);
-        irob_chunk_hdr->op.irob_chunk.id = htonl(resp_irob_id);
-        irob_chunk_hdr->op.irob_chunk.seqno = 0;
-        irob_chunk_hdr->op.irob_chunk.datalen = htonl(len);
-        memcpy(resp_data, expected_str, len);
-        end_irob_hdr->type = htons(CMM_CONTROL_MSG_END_IROB);
-        end_irob_hdr->op.end_irob.id = htonl(resp_irob_id);
-        end_irob_hdr->op.end_irob.expected_bytes = htonl(len);
-        end_irob_hdr->op.end_irob.expected_chunks = htonl(1);
-        
-        rc = write(steady_csock, response, sizeof(response));
+        rc = cmm_write(data_sock, expected_str, len);
         CPPUNIT_ASSERT_EQUAL((int) sizeof(response), rc);
-
-        memset(&ack, 0, sizeof(ack));
-        rc = recv(steady_csock, &ack, sizeof(ack), MSG_WAITALL);
-        CPPUNIT_ASSERT_EQUAL((int) sizeof(ack), rc);
-        CPPUNIT_ASSERT_EQUAL((uint16_t) CMM_CONTROL_MSG_ACK, ntohs(ack.type));
-        CPPUNIT_ASSERT_EQUAL(resp_irob_id, (irob_id_t) ntohl(ack.op.ack.id));
     } else {
         int scout_control_sock = connect_to_scout_control();
         
@@ -288,7 +203,7 @@ SpottyNetworkFailureTest::testOneNetworkFails()
                            CMM_LABEL_ONDEMAND, NULL, NULL);
         CPPUNIT_ASSERT_EQUAL((int)len, rc); // succeeds immediately without waiting for bytes to be sent
         
-        sleep(1);
+        sleep(5);
         char cmd[] = "bg_down\n";
         rc = write(scout_control_sock, cmd, strlen(cmd));
         CPPUNIT_ASSERT_EQUAL((int) strlen(cmd), rc);

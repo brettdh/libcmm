@@ -23,10 +23,17 @@ using std::min;
 
 
 const short EndToEndTestsBase::TEST_PORT = 4242;
+short EndToEndTestsBase::listen_port = TEST_PORT;
 
 bool EndToEndTestsBase::static_inited = false;
 int EndToEndTestsBase::listen_sock = -1;
 char *EndToEndTestsBase::hostname = NULL;
+
+void
+EndToEndTestsBase::setListenPort(short port)
+{
+    listen_port = port;
+}
 
 void
 EndToEndTestsBase::setupReceiver()
@@ -45,7 +52,7 @@ EndToEndTestsBase::setupReceiver()
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons(TEST_PORT);
+    addr.sin_port = htons(listen_port);
     
     socklen_t addrlen = sizeof(addr);
     rc = bind(listen_sock, (struct sockaddr*)&addr, addrlen);
@@ -147,7 +154,7 @@ EndToEndTestsBase::startSender()
         DEBUG_LOG("Resolved %s to %s\n", 
                 hostname, inet_ntoa(addr.sin_addr));
     }
-    addr.sin_port = htons(TEST_PORT);
+    addr.sin_port = htons(listen_port);
 
     socklen_t addrlen = sizeof(addr);
 

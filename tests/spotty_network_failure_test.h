@@ -59,6 +59,8 @@ class SpottyNetworkFailureTest :  public EndToEndTestsRemote {
     virtual void startReceiver();
     virtual void startSender();
 
+    static const short PROXY_PORT;
+
   private:
     int intnw_listen_sock;
     int steady_csock;
@@ -67,6 +69,19 @@ class SpottyNetworkFailureTest :  public EndToEndTestsRemote {
     void doFakeIntNWSetup(int bootstrap_sock);
     void acceptCsocks();
     void exchangeNetworkInterfaces(int bootstrap_sock);
+
+    bool processLine(int to_sock, char *line);
+
+    typedef bool
+        (SpottyNetworkFailureTest::*chunk_proc_method_t)(int, char *, size_t);
+    
+    friend bool process_chunk(int to_sock, char *chunk, size_t len,
+                              SpottyNetworkFailureTest *test,
+                              chunk_proc_method_t processMethod);
+
+    pthread_t bootstrap_proxy_thread;
+    pthread_t internal_data_proxy_thread;
+    bool bootstrap_done;
 };
 
 #endif

@@ -81,7 +81,7 @@ NonBlockingTestsBase::startSenderNB(EndToEndTestsBase *base)
     memcpy(&addr.sin_addr, he->h_addr, he->h_length);
     fprintf(stderr, "Resolved %s to %s\n", EndToEndTestsBase::hostname,
            inet_ntoa(addr.sin_addr));
-    addr.sin_port = htons(EndToEndTestsBase::TEST_PORT);
+    addr.sin_port = htons(EndToEndTestsBase::listen_port);
 
     socklen_t addrlen = sizeof(addr);
 

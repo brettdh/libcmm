@@ -12,8 +12,6 @@
 
 CPPUNIT_TEST_SUITE_REGISTRATION(SocketAPITest);
 
-static const int TEST_PORT = 4242;
-
 void
 SocketAPITest::socketSetup()
 {
