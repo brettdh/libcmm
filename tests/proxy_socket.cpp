@@ -18,15 +18,15 @@ typedef void * (*thread_func_t)(void *);
 static pthread_mutex_t proxy_started_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t proxy_started_cv = PTHREAD_COND_INITIALIZER;
 
-static int proxy_data(int from_sock, int to_sock, line_proc_fn_t line_proc, void *proc_arg)
+static int proxy_data(int from_sock, int to_sock, chunk_proc_fn_t chunk_proc, void *proc_arg)
 {
     char buf[4096];
     int rc = read(from_sock, buf, sizeof(buf) - 1);
     if (rc > 0) {
         buf[rc] = '\0';
         bool send_onward = true;
-        if (line_proc) {
-            send_onward = line_proc(to_sock, buf, proc_arg);
+        if (chunk_proc) {
+            send_onward = chunk_proc(to_sock, buf, rc, proc_arg);
         }
         if (send_onward) {
             int bytes_written = write(to_sock, buf, rc);
@@ -44,7 +44,7 @@ static int proxy_data(int from_sock, int to_sock, line_proc_fn_t line_proc, void
 }
 
 void proxy_lines_until_closed(int client_fd, int server_fd, 
-                              line_proc_fn_t line_proc, void *proc_arg)
+                              chunk_proc_fn_t chunk_proc, void *proc_arg)
 {
     fd_set all_fds;
     FD_ZERO(&all_fds);
@@ -59,13 +59,13 @@ void proxy_lines_until_closed(int client_fd, int server_fd,
         int rc = select(nfds, &readable, NULL, NULL, NULL);
         if (rc > 0) {
             if (FD_ISSET(client_fd, &readable)) {
-                rc = proxy_data(client_fd, server_fd, line_proc, proc_arg);
+                rc = proxy_data(client_fd, server_fd, chunk_proc, proc_arg);
                 if (rc <= 0) {
                     FD_CLR(client_fd, &all_fds);
                 }
             }
             if (FD_ISSET(server_fd, &readable)) {
-                rc = proxy_data(server_fd, client_fd, line_proc, proc_arg);
+                rc = proxy_data(server_fd, client_fd, chunk_proc, proc_arg);
                 if (rc <= 0) {
                     FD_CLR(server_fd, &all_fds);
                 }
@@ -85,7 +85,7 @@ void proxy_lines_until_closed(int client_fd, int server_fd,
 struct proxy_args {
     short proxy_port;
     short server_port;
-    line_proc_fn_t line_proc;
+    chunk_proc_fn_t chunk_proc;
     void *proc_arg;
 };
 
@@ -93,7 +93,7 @@ static void ProxyThread(struct proxy_args *args)
 {
     short proxy_port = args->proxy_port;
     short server_port = args->server_port;
-    line_proc_fn_t line_proc = args->line_proc;
+    chunk_proc_fn_t chunk_proc = args->chunk_proc;
     void *proc_arg = args->proc_arg;
 
     int client_proxy_listen_sock = make_listening_socket(proxy_port);
@@ -117,7 +117,7 @@ static void ProxyThread(struct proxy_args *args)
     int rc = connect(server_proxy_sock, (struct sockaddr *) &addr, addrlen);
     handle_error(rc < 0, "connecting server proxy socket");
 
-    proxy_lines_until_closed(client_proxy_sock, server_proxy_sock, line_proc, proc_arg);
+    proxy_lines_until_closed(client_proxy_sock, server_proxy_sock, chunk_proc, proc_arg);
 
     close(server_proxy_sock);
     close(client_proxy_sock);
@@ -126,9 +126,9 @@ static void ProxyThread(struct proxy_args *args)
 
 
 int start_proxy_thread(pthread_t *proxy_thread, short proxy_port, short server_port,
-                       line_proc_fn_t line_proc, void *proc_arg)
+                       chunk_proc_fn_t chunk_proc, void *proc_arg)
 {
-    struct proxy_args args = {proxy_port, server_port, line_proc, proc_arg};
+    struct proxy_args args = {proxy_port, server_port, chunk_proc, proc_arg};
 
     pthread_mutex_lock(&proxy_started_lock);
     int rc = pthread_create(proxy_thread, NULL, (thread_func_t) ProxyThread, &args);

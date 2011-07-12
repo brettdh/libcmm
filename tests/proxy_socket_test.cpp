@@ -15,7 +15,7 @@ using std::max;
 
 typedef void * (*thread_func_t)(void *);
 
-static bool print_first_lines(int to_fd, char *line, void *unused)
+static bool print_first_lines(int to_fd, char *line, size_t len, void *unused)
 {
     static int max_lines_proxied = 10;
     static int lines_proxied = 0;
@@ -50,7 +50,7 @@ static void ServerThread(int listen_sock)
     close(sock);
 }
 
-static bool suppress_downstream(int to_fd, char *line, void *unused)
+static bool suppress_downstream(int to_fd, char *line, size_t len, void *unused)
 {
     return (to_fd != STDIN_FILENO);
 }
