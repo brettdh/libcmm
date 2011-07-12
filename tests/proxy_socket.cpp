@@ -85,16 +85,16 @@ void proxy_lines_until_closed(int client_fd, int server_fd,
 struct proxy_args {
     short proxy_port;
     short server_port;
+    int client_sock;
     chunk_proc_fn_t chunk_proc;
     void *proc_arg;
 };
 
-static void ProxyThread(struct proxy_args *args)
+static void ProxyThread(struct proxy_args *args);
+
+static void ProxyServerThread(struct proxy_args *args)
 {
     short proxy_port = args->proxy_port;
-    short server_port = args->server_port;
-    chunk_proc_fn_t chunk_proc = args->chunk_proc;
-    void *proc_arg = args->proc_arg;
 
     int client_proxy_listen_sock = make_listening_socket(proxy_port);
     assert(client_proxy_listen_sock >= 0);
@@ -103,8 +103,32 @@ static void ProxyThread(struct proxy_args *args)
     pthread_cond_signal(&proxy_started_cv);
     pthread_mutex_unlock(&proxy_started_lock);
 
-    int client_proxy_sock =  accept(client_proxy_listen_sock, NULL, NULL);
-    handle_error(client_proxy_sock < 0, "accepting proxy socket");
+    while (true) {
+        // TODO: bail out of loop if listening socket is closed
+        int client_proxy_sock = accept(client_proxy_listen_sock, NULL, NULL);
+        handle_error(client_proxy_sock < 0, "accepting proxy socket");
+        
+        struct proxy_args *child_args = (struct proxy_args *) malloc(sizeof(struct proxy_args));
+        memcpy(child_args, args, sizeof(struct proxy_args));
+        child_args->client_sock = client_proxy_sock;
+        
+        pthread_t tid;
+        pthread_create(&tid, NULL, (thread_func_t) ProxyThread, child_args);
+        // TODO: keep track of children
+    }
+    // TODO: wait for children
+
+    close(client_proxy_listen_sock);
+    free(args);
+}
+
+static void ProxyThread(struct proxy_args *args)
+{
+    short server_port = args->server_port;
+    chunk_proc_fn_t chunk_proc = args->chunk_proc;
+    void *proc_arg = args->proc_arg;
+
+    int client_proxy_sock = args->client_sock;
 
     int server_proxy_sock = socket(PF_INET, SOCK_STREAM, 0);
     handle_error(server_proxy_sock < 0, "creating client proxy socket");
@@ -121,17 +145,20 @@ static void ProxyThread(struct proxy_args *args)
 
     close(server_proxy_sock);
     close(client_proxy_sock);
-    close(client_proxy_listen_sock);
+
+    free(args);
 }
 
 
 int start_proxy_thread(pthread_t *proxy_thread, short proxy_port, short server_port,
                        chunk_proc_fn_t chunk_proc, void *proc_arg)
 {
-    struct proxy_args args = {proxy_port, server_port, chunk_proc, proc_arg};
+    struct proxy_args args = {proxy_port, server_port, -1, chunk_proc, proc_arg};
+    struct proxy_args *th_args = (struct proxy_args *) malloc(sizeof(struct proxy_args));
+    memcpy(th_args, &args, sizeof(struct proxy_args));
 
     pthread_mutex_lock(&proxy_started_lock);
-    int rc = pthread_create(proxy_thread, NULL, (thread_func_t) ProxyThread, &args);
+    int rc = pthread_create(proxy_thread, NULL, (thread_func_t) ProxyServerThread, th_args);
     pthread_cond_wait(&proxy_started_cv, &proxy_started_lock);
     pthread_mutex_unlock(&proxy_started_lock);
     return rc;
