@@ -15,7 +15,7 @@ using std::max;
 
 typedef void * (*thread_func_t)(void *);
 
-static bool print_first_lines(int to_fd, char *line)
+static bool print_first_lines(int to_fd, char *line, void *unused)
 {
     static int max_lines_proxied = 10;
     static int lines_proxied = 0;
@@ -50,7 +50,7 @@ static void ServerThread(int listen_sock)
     close(sock);
 }
 
-static bool suppress_downstream(int to_fd, char *line)
+static bool suppress_downstream(int to_fd, char *line, void *unused)
 {
     return (to_fd != STDIN_FILENO);
 }
@@ -65,7 +65,7 @@ int main()
     pthread_t server_thread, proxy_thread;
     pthread_create(&server_thread, NULL, (thread_func_t) ServerThread, (void *) listen_sock);
 
-    start_proxy_thread(&proxy_thread, LISTEN_PORT, LISTEN_PORT + 1, print_first_lines);
+    start_proxy_thread(&proxy_thread, LISTEN_PORT, LISTEN_PORT + 1, print_first_lines, NULL);
 
     int client_sock = socket(PF_INET, SOCK_STREAM, 0);
     handle_error(client_sock < 0, "socket");
@@ -79,7 +79,7 @@ int main()
     int rc = connect(client_sock, (struct sockaddr *) &addr, (socklen_t) sizeof(addr));
     handle_error(rc < 0, "connecting client socket");
 
-    proxy_lines_until_closed(STDIN_FILENO, client_sock, suppress_downstream);
+    proxy_lines_until_closed(STDIN_FILENO, client_sock, suppress_downstream, NULL);
     close(client_sock);
 
     pthread_join(proxy_thread, NULL);
