@@ -228,7 +228,14 @@ SpottyNetworkFailureTest::testOneNetworkFails()
     memset(buf, 0, sizeof(buf));
 
     if (isReceiver()) {
-        int rc = cmm_read(data_sock, buf, len, NULL);
+        fd_set readable;
+        FD_ZERO(&readable);
+        FD_SET(data_sock, &readable);
+        struct timeval timeout = {4, 0};
+        int rc = cmm_select(data_sock + 1, &readable, NULL, NULL, &timeout);
+        CPPUNIT_ASSERT_EQUAL(1, rc);
+        
+        rc = cmm_read(data_sock, buf, len, NULL);
         CPPUNIT_ASSERT_EQUAL((int)len, rc);
         CPPUNIT_ASSERT_EQUAL(string(expected_str), string(buf));
 
