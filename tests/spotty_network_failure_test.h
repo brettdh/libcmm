@@ -5,6 +5,7 @@
 #include <cppunit/extensions/HelperMacros.h>
 #include "end_to_end_tests_remote.h"
 #include <pthread.h>
+#include <netinet/in.h>
 #include <set>
 
 /*
@@ -59,18 +60,10 @@ class SpottyNetworkFailureTest :  public EndToEndTestsRemote {
   protected:
     virtual void setupReceiver();
 
-    static const short PROXY_PORT;
-    static const short INTNW_LISTEN_PORT;
+    static const in_port_t PROXY_PORT;
+    static const in_port_t INTNW_LISTEN_PORT;
 
   private:
-    int intnw_listen_sock;
-    int steady_csock;
-    int intermittent_csock;
-
-    void doFakeIntNWSetup(int bootstrap_sock);
-    void acceptCsocks();
-    void exchangeNetworkInterfaces(int bootstrap_sock);
-
     bool processBootstrap(int to_sock, char *chunk, size_t len);
     bool processData(int to_sock, char *chunk, size_t len);
 

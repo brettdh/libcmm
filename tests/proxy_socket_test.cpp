@@ -55,7 +55,7 @@ static bool suppress_downstream(int to_fd, char *line, size_t len, void *unused)
     return (to_fd != STDIN_FILENO);
 }
 
-const short LISTEN_PORT = 4210;
+const in_port_t LISTEN_PORT = 4210;
 
 int main()
 {

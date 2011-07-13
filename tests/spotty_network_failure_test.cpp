@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <limits.h>
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <sys/socket.h>
@@ -56,8 +57,8 @@ CPPUNIT_TEST_SUITE_REGISTRATION(SpottyNetworkFailureTest);
  *  6) Try to send/receive FG data.
  */
 
-const short SpottyNetworkFailureTest::PROXY_PORT = 4243;
-const short SpottyNetworkFailureTest::INTNW_LISTEN_PORT = 42424;
+const in_port_t SpottyNetworkFailureTest::PROXY_PORT = 4243;
+const in_port_t SpottyNetworkFailureTest::INTNW_LISTEN_PORT = 42424;
 
 bool process_chunk(int to_sock, char *chunk, size_t len, 
                    SpottyNetworkFailureTest *test,
@@ -84,13 +85,15 @@ void
 SpottyNetworkFailureTest::setupReceiver()
 {
     bootstrap_done = false;
+    fg_socket_rtt = INT_MAX;
+    fg_proxy_thread = (pthread_t) -1;
     pthread_mutex_init(&proxy_threads_lock, NULL);
     
     setListenPort(PROXY_PORT);
     start_proxy_thread(&bootstrap_proxy_thread, TEST_PORT, PROXY_PORT, 
                        (chunk_proc_fn_t) process_bootstrap, this);
     start_proxy_thread(&internal_data_proxy_thread, 
-                       INTNW_LISTEN_PORT, INTNW_LISTEN_PORT + 1,
+                       INTNW_LISTEN_PORT + 1, INTNW_LISTEN_PORT,
                        (chunk_proc_fn_t) process_data, this);
 
     EndToEndTestsBase::setupReceiver();
@@ -109,10 +112,10 @@ SpottyNetworkFailureTest::processBootstrap(int to_sock, char *chunk, size_t len)
         // only modify the hello response, not the request
         struct CMMSocketControlHdr *hdr = (struct CMMSocketControlHdr *) chunk;
         if (ntohs(hdr->type) == CMM_CONTROL_MSG_HELLO) {
-            short listener_port = ntohs(hdr->op.hello.listen_port);
-            printf("Overwriting listener port %d in hello response with proxy port %d\n",
-                   listener_port, INTNW_LISTEN_PORT);
-            hdr->op.hello.listen_port = htons(INTNW_LISTEN_PORT);
+            in_port_t listener_port = ntohs(hdr->op.hello.listen_port);
+            printf("Overwriting listener port %hu in hello response with proxy port %hu\n",
+                   listener_port, INTNW_LISTEN_PORT + 1);
+            hdr->op.hello.listen_port = htons(INTNW_LISTEN_PORT + 1);
             bootstrap_done = true;
         }
     }
@@ -126,11 +129,20 @@ SpottyNetworkFailureTest::processData(int to_sock, char *chunk, size_t len)
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     socklen_t addrlen = sizeof(addr);
+
+    int rc = getpeername(to_sock, (struct sockaddr *) &addr, &addrlen);
+    if (rc != 0) {
+        fprintf(stderr, "Error: getpeername failed: %s\n", strerror(errno));
+    } else {
+        printf("In processData: checking message heading for %s:%hu\n",
+               inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+    }
     
     pthread_mutex_lock(&proxy_threads_lock);
     if (proxy_threads.size() < 2 &&
-        getsockname(to_sock, (struct sockaddr *) &addr, &addrlen) == 0 &&
         ntohs(addr.sin_port) == INTNW_LISTEN_PORT) {
+        
+        printf("Looking for new_interface message\n");
         struct CMMSocketControlHdr *hdr = (struct CMMSocketControlHdr *) chunk;
         // XXX: make sure this is in fact the new_interface message for the new csocket
         // XXX:  (probably not strictly necessary, since that message
@@ -140,6 +152,8 @@ SpottyNetworkFailureTest::processData(int to_sock, char *chunk, size_t len)
             if (ntohl(hdr->op.new_interface.RTT) < fg_socket_rtt) {
                 fg_socket_rtt = ntohl(hdr->op.new_interface.RTT);
                 fg_proxy_thread = pthread_self();
+                printf("Now treating iface with RTT %d (%s) as FG\n",
+                       (int) fg_socket_rtt, inet_ntoa(hdr->op.new_interface.ip_addr));
             }
             proxy_threads.insert(pthread_self());
         }
