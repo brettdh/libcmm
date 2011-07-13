@@ -81,7 +81,7 @@ bool process_data(int to_sock, char *chunk, size_t len,
 }
 
 void
-SpottyNetworkFailureTest::startReceiver()
+SpottyNetworkFailureTest::setupReceiver()
 {
     bootstrap_done = false;
     pthread_mutex_init(&proxy_threads_lock, NULL);
@@ -93,7 +93,7 @@ SpottyNetworkFailureTest::startReceiver()
                        INTNW_LISTEN_PORT, INTNW_LISTEN_PORT + 1,
                        (chunk_proc_fn_t) process_data, this);
 
-    EndToEndTestsBase::startReceiver();
+    EndToEndTestsBase::setupReceiver();
 }
 
 bool
