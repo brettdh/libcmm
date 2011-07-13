@@ -8,6 +8,10 @@
 #include <netinet/in.h>
 #include <set>
 
+#ifdef ANDROID
+typedef uint16_t in_port_t;
+#endif
+
 /*
 Failure scenario:
 
