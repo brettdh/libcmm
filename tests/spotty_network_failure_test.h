@@ -57,7 +57,7 @@ class SpottyNetworkFailureTest :  public EndToEndTestsRemote {
     void testOneNetworkFails();
 
   protected:
-    virtual void startReceiver();
+    virtual void setupReceiver();
 
     static const short PROXY_PORT;
     static const short INTNW_LISTEN_PORT;
