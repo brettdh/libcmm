@@ -122,33 +122,5 @@ LOCAL_SHARED_LIBRARIES := $(SHLIBS)
 include $(BUILD_EXECUTABLE)
 
 
-# spotty network failure test
-
-include $(CLEAR_VARS)
-SPOTTYTEST_SRCS:=spotty_network_failure_test.cpp end_to_end_tests_base.cpp end_to_end_tests_remote.cpp \
-                 $(addprefix ../, net_interface.cpp cmm_socket_control.cpp)
-LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests
-LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE := fake_intnw_test
-LOCAL_SRC_FILES := $(TESTSUITE_SRCS) $(SPOTTYTEST_SRCS)
-LOCAL_C_INCLUDES := $(common_C_INCLUDES)
-LOCAL_CFLAGS := $(common_CFLAGS)
-LOCAL_STATIC_LIBRARIES := $(common_STATIC_LIBRARIES)
-LOCAL_SHARED_LIBRARIES := $(SHLIBS)
-include $(BUILD_EXECUTABLE)
-
-# spotty network failure test runner
-
-include $(CLEAR_VARS)
-RUNNER_SRCS:=run_spotty_network_failure_test.cpp
-LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests
-LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE := run_spotty_network_failure_test
-LOCAL_SRC_FILES := $(RUNNER_SRCS)
-LOCAL_C_INCLUDES := $(common_C_INCLUDES)
-LOCAL_CFLAGS := $(common_CFLAGS)
-include $(BUILD_EXECUTABLE)
-
-
 
 endif # BDH_FULL_LIBSTDCXX
