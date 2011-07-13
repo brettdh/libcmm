@@ -8,15 +8,22 @@
 #include <string.h>
 #include <assert.h>
 #include <algorithm>
-using std::max;
+#include <map>
+using std::max; using std::map;
 
 #include "test_common.h"
 #include "proxy_socket.h"
 
 typedef void * (*thread_func_t)(void *);
 
-static pthread_mutex_t proxy_started_lock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t proxy_started_cv = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t proxy_threads_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t proxy_threads_cv = PTHREAD_COND_INITIALIZER;
+
+struct proxy_thread_info {
+    int listen_sock;
+};
+
+static map<pthread_t, struct proxy_thread_info> proxy_threads;
 
 static int proxy_data(int from_sock, int to_sock, chunk_proc_fn_t chunk_proc, void *proc_arg)
 {
@@ -99,14 +106,16 @@ static void ProxyServerThread(struct proxy_args *args)
     int client_proxy_listen_sock = make_listening_socket(proxy_port);
     assert(client_proxy_listen_sock >= 0);
 
-    pthread_mutex_lock(&proxy_started_lock);
-    pthread_cond_signal(&proxy_started_cv);
-    pthread_mutex_unlock(&proxy_started_lock);
+    pthread_mutex_lock(&proxy_threads_lock);
+    proxy_threads[pthread_self()].listen_sock = client_proxy_listen_sock;
+    pthread_cond_signal(&proxy_threads_cv);
+    pthread_mutex_unlock(&proxy_threads_lock);
 
     while (true) {
-        // TODO: bail out of loop if listening socket is closed
         int client_proxy_sock = accept(client_proxy_listen_sock, NULL, NULL);
-        handle_error(client_proxy_sock < 0, "accepting proxy socket");
+        if (client_proxy_sock < 0) {
+            break;
+        }
         
         struct proxy_args *child_args = (struct proxy_args *) malloc(sizeof(struct proxy_args));
         memcpy(child_args, args, sizeof(struct proxy_args));
@@ -114,10 +123,10 @@ static void ProxyServerThread(struct proxy_args *args)
         
         pthread_t tid;
         pthread_create(&tid, NULL, (thread_func_t) ProxyThread, child_args);
-        // TODO: keep track of children
+        // TODO: keep track of children (unnecessary?)
     }
     // TODO: wait for children
-
+    
     close(client_proxy_listen_sock);
     free(args);
 }
@@ -157,9 +166,20 @@ int start_proxy_thread(pthread_t *proxy_thread, short proxy_port, short server_p
     struct proxy_args *th_args = (struct proxy_args *) malloc(sizeof(struct proxy_args));
     memcpy(th_args, &args, sizeof(struct proxy_args));
 
-    pthread_mutex_lock(&proxy_started_lock);
+    pthread_mutex_lock(&proxy_threads_lock);
     int rc = pthread_create(proxy_thread, NULL, (thread_func_t) ProxyServerThread, th_args);
-    pthread_cond_wait(&proxy_started_cv, &proxy_started_lock);
-    pthread_mutex_unlock(&proxy_started_lock);
+    pthread_cond_wait(&proxy_threads_cv, &proxy_threads_lock);
+    pthread_mutex_unlock(&proxy_threads_lock);
     return rc;
+}
+
+void stop_proxy_thread(pthread_t tid)
+{
+    pthread_mutex_lock(&proxy_threads_lock);
+    if (proxy_threads.count(tid) > 0) {
+        int listen_sock = proxy_threads[tid].listen_sock;
+        close(listen_sock);
+        proxy_threads.erase(tid);
+    }
+    pthread_mutex_unlock(&proxy_threads_lock);
 }

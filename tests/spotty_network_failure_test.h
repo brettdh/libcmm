@@ -4,6 +4,8 @@
 #include <cppunit/TestFixture.h>
 #include <cppunit/extensions/HelperMacros.h>
 #include "end_to_end_tests_remote.h"
+#include <pthread.h>
+#include <set>
 
 /*
 Failure scenario:
@@ -55,11 +57,10 @@ class SpottyNetworkFailureTest :  public EndToEndTestsRemote {
     void testOneNetworkFails();
 
   protected:
-    virtual void setupReceiver();
     virtual void startReceiver();
-    virtual void startSender();
 
     static const short PROXY_PORT;
+    static const short INTNW_LISTEN_PORT;
 
   private:
     int intnw_listen_sock;
@@ -70,7 +71,8 @@ class SpottyNetworkFailureTest :  public EndToEndTestsRemote {
     void acceptCsocks();
     void exchangeNetworkInterfaces(int bootstrap_sock);
 
-    bool processLine(int to_sock, char *line);
+    bool processBootstrap(int to_sock, char *chunk, size_t len);
+    bool processData(int to_sock, char *chunk, size_t len);
 
     typedef bool
         (SpottyNetworkFailureTest::*chunk_proc_method_t)(int, char *, size_t);
@@ -78,10 +80,19 @@ class SpottyNetworkFailureTest :  public EndToEndTestsRemote {
     friend bool process_chunk(int to_sock, char *chunk, size_t len,
                               SpottyNetworkFailureTest *test,
                               chunk_proc_method_t processMethod);
+    friend bool process_bootstrap(int to_sock, char *chunk, size_t len, 
+                                  SpottyNetworkFailureTest *test);
+    friend bool process_data(int to_sock, char *chunk, size_t len, 
+                             SpottyNetworkFailureTest *test);
 
     pthread_t bootstrap_proxy_thread;
     pthread_t internal_data_proxy_thread;
     bool bootstrap_done;
+
+    pthread_mutex_t proxy_threads_lock;
+    std::set<pthread_t> proxy_threads;
+    u_long fg_socket_rtt;
+    pthread_t fg_proxy_thread;
 };
 
 #endif

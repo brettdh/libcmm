@@ -24,6 +24,8 @@
 #include <vector>
 using std::string; using std::vector;
 
+#include "proxy_socket.h"
+
 CPPUNIT_TEST_SUITE_REGISTRATION(SpottyNetworkFailureTest);
 
 /* In the process of revising this test as follows.
@@ -54,25 +56,25 @@ CPPUNIT_TEST_SUITE_REGISTRATION(SpottyNetworkFailureTest);
  *  6) Try to send/receive FG data.
  */
 
-short SpottyNetworkFailureTest::PROXY_PORT = 4243;
-short SpottyNetworkFailureTest::INTNW_LISTEN_PORT = 42424;
+const short SpottyNetworkFailureTest::PROXY_PORT = 4243;
+const short SpottyNetworkFailureTest::INTNW_LISTEN_PORT = 42424;
 
-static bool process_chunk(int to_sock, char *chunk, size_t len, 
-                          SpottyNetworkFailureTest *test,
-                          SpottyNetworkFailureTest::chunk_proc_method_t processMethod)
+bool process_chunk(int to_sock, char *chunk, size_t len, 
+                   SpottyNetworkFailureTest *test,
+                   SpottyNetworkFailureTest::chunk_proc_method_t processMethod)
 {
     return (test->*processMethod)(to_sock, chunk, len);
 }
 
-static bool process_bootstrap(int to_sock, char *chunk, size_t len, 
-                              SpottyNetworkFailureTest *test)
+bool process_bootstrap(int to_sock, char *chunk, size_t len, 
+                       SpottyNetworkFailureTest *test)
 {
     return process_chunk(to_sock, chunk, len, test, 
                          &SpottyNetworkFailureTest::processBootstrap);
 }
 
-static bool process_data(int to_sock, char *chunk, size_t len, 
-                         SpottyNetworkFailureTest *test)
+bool process_data(int to_sock, char *chunk, size_t len, 
+                  SpottyNetworkFailureTest *test)
 {
     return process_chunk(to_sock, chunk, len, test, 
                          &SpottyNetworkFailureTest::processData);
@@ -82,6 +84,7 @@ void
 SpottyNetworkFailureTest::startReceiver()
 {
     bootstrap_done = false;
+    pthread_mutex_init(&proxy_threads_lock, NULL);
     
     setListenPort(PROXY_PORT);
     start_proxy_thread(&bootstrap_proxy_thread, TEST_PORT, PROXY_PORT, 
@@ -104,7 +107,7 @@ SpottyNetworkFailureTest::processBootstrap(int to_sock, char *chunk, size_t len)
         getsockname(to_sock, (struct sockaddr *) &addr, &addrlen) == 0 &&
         ntohs(addr.sin_port) == TEST_PORT) {
         // only modify the hello response, not the request
-        struct CMMSocketControlhdr *hdr = (void *) chunk;
+        struct CMMSocketControlHdr *hdr = (struct CMMSocketControlHdr *) chunk;
         if (ntohs(hdr->type) == CMM_CONTROL_MSG_HELLO) {
             short listener_port = ntohs(hdr->op.hello.listen_port);
             printf("Overwriting listener port %d in hello response with proxy port %d\n",
@@ -120,30 +123,33 @@ SpottyNetworkFailureTest::processBootstrap(int to_sock, char *chunk, size_t len)
 bool
 SpottyNetworkFailureTest::processData(int to_sock, char *chunk, size_t len)
 {
-    // TODO: sniff out the RTT info to decide whether the socket is FG
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     socklen_t addrlen = sizeof(addr);
-    if (getsockname(to_sock, (struct sockaddr *) &addr, &addrlen) == 0 &&
+    
+    pthread_mutex_lock(&proxy_threads_lock);
+    if (proxy_threads.size() < 2 &&
+        getsockname(to_sock, (struct sockaddr *) &addr, &addrlen) == 0 &&
         ntohs(addr.sin_port) == INTNW_LISTEN_PORT) {
-        struct CMMSocketControlHdr *hdr = (void *) chunk;
+        struct CMMSocketControlHdr *hdr = (struct CMMSocketControlHdr *) chunk;
         // XXX: make sure this is in fact the new_interface message for the new csocket
         // XXX:  (probably not strictly necessary, since that message
         // XXX:   is the first message on the csocket, but still
         // XXX:   a good sanity check.)
         if (ntohs(hdr->type) == CMM_CONTROL_MSG_NEW_INTERFACE) {
             if (ntohl(hdr->op.new_interface.RTT) < fg_socket_rtt) {
-                fg_socket = to_sock;
+                fg_socket_rtt = ntohl(hdr->op.new_interface.RTT);
                 fg_proxy_thread = pthread_self();
             }
+            proxy_threads.insert(pthread_self());
         }
     }
 
-    // TODO: stop passing data after a certain time
-    if (fg_proxy_thread == pthread_self() && 
-        false /* TODO: actual pause condition */) {
+    if (fg_proxy_thread == pthread_self()) {
+        pthread_mutex_unlock(&proxy_threads_lock);
         return false;
     }
+    pthread_mutex_unlock(&proxy_threads_lock);
     return true;
 }
 
@@ -153,7 +159,8 @@ SpottyNetworkFailureTest::tearDown()
 {
     if (isReceiver()) {
         EndToEndTestsBase::tearDown();
-        // TODO: shutdown proxy threads
+        stop_proxy_thread(internal_data_proxy_thread);
+        stop_proxy_thread(bootstrap_proxy_thread);
     } else {
         EndToEndTestsBase::tearDown();
     }
@@ -193,8 +200,9 @@ SpottyNetworkFailureTest::testOneNetworkFails()
         CPPUNIT_ASSERT_EQUAL((int)len, rc);
         resp_data[rc] = '\0';
 
-        rc = cmm_write(data_sock, expected_str, len);
-        CPPUNIT_ASSERT_EQUAL((int) sizeof(response), rc);
+        rc = cmm_write(data_sock, expected_str, len,
+                       CMM_LABEL_ONDEMAND, NULL, NULL);
+        CPPUNIT_ASSERT_EQUAL((int) len, rc);
     } else {
         int scout_control_sock = connect_to_scout_control();
         
