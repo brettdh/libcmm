@@ -17,7 +17,7 @@ int main()
         if (execlp("conn_scout", 
                    "conn_scout", "socket_control",
                    "rmnet0", "12500", "100",
-                   "tiwlan0", "125000", "1",
+                   "eth0", "125000", "1",
                    NULL) < 0) {
             perror("execlp");
             exit(1);
