@@ -209,10 +209,9 @@ SpottyNetworkFailureTest::testOneNetworkFails()
     memset(buf, 0, sizeof(buf));
 
     if (isReceiver()) {
-        char resp_data[len + 1];
-        int rc = cmm_read(data_sock, resp_data, len, NULL);
+        int rc = cmm_read(data_sock, buf, len, NULL);
         CPPUNIT_ASSERT_EQUAL((int)len, rc);
-        resp_data[rc] = '\0';
+        CPPUNIT_ASSERT_EQUAL(string(expected_str), string(buf));
 
         rc = cmm_write(data_sock, expected_str, len,
                        CMM_LABEL_ONDEMAND, NULL, NULL);

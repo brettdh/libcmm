@@ -1,6 +1,11 @@
 #ifndef proxy_socket_h_incl_iaguveoruwvheb
 #define proxy_socket_h_incl_iaguveoruwvheb
 
+#include <netinet/in.h>
+#ifdef ANDROID
+typedef uint16_t in_port_t;
+#endif
+
 typedef bool (*chunk_proc_fn_t)(int, char *, size_t, void *);
 
 void proxy_lines_until_closed(int client_fd, int server_fd, 
