@@ -47,8 +47,8 @@ LOCAL_SRC_FILES := \
 			end_to_end_tests_remote.cpp \
 			test_common.cpp) \
 	$(addprefix ../../../, net_interface.cpp cmm_socket_control.cpp debug.cpp) \
-	$(addprefix ../../, spotty_network_failure_test.cpp)
-#	$(addprefix ../../, remote_tests.cpp socket_api_tests.cpp)
+	$(addprefix ../../, remote_tests.cpp socket_api_tests.cpp)
+#	$(addprefix ../../, spotty_network_failure_test.cpp)
 
 
 LOCAL_C_INCLUDES := $(common_C_INCLUDES)
@@ -66,6 +66,32 @@ LOCAL_MODULE := proxy_socket_test
 LOCAL_C_INCLUDES := $(common_C_INCLUDES)
 LOCAL_CFLAGS := $(common_CFLAGS)
 LOCAL_SRC_FILES := \
-	$(addprefix ../../, proxy_socket_test.cpp test_common.cpp) \
+	$(addprefix ../../, proxy_socket_test.cpp proxy_socket.cpp test_common.cpp) \
 	$(addprefix ../../../, debug.cpp timeops.cpp)
+include $(BUILD_EXECUTABLE)
+
+# spotty network failure test
+
+include $(CLEAR_VARS)
+TESTSUITE_SRCS := $(addprefix ../../, run_all_tests.cpp test_common.cpp StdioOutputter.cpp)
+SPOTTYTEST_SRCS:= \
+	$(addprefix ../../, spotty_network_failure_test.cpp end_to_end_tests_base.cpp \
+				        end_to_end_tests_remote.cpp proxy_socket.cpp) \
+    $(addprefix ../../../, net_interface.cpp cmm_socket_control.cpp)
+LOCAL_MODULE := fake_intnw_test
+LOCAL_SRC_FILES := $(TESTSUITE_SRCS) $(SPOTTYTEST_SRCS)
+LOCAL_C_INCLUDES := $(common_C_INCLUDES)
+LOCAL_CFLAGS := $(common_CFLAGS)
+LOCAL_STATIC_LIBRARIES := libcppunit
+LOCAL_SHARED_LIBRARIES := libcmm
+include $(BUILD_EXECUTABLE)
+
+# spotty network failure test runner
+
+include $(CLEAR_VARS)
+RUNNER_SRCS:=../../run_spotty_network_failure_test.cpp
+LOCAL_MODULE := run_spotty_network_failure_test
+LOCAL_SRC_FILES := $(RUNNER_SRCS)
+LOCAL_C_INCLUDES := $(common_C_INCLUDES)
+LOCAL_CFLAGS := $(common_CFLAGS)
 include $(BUILD_EXECUTABLE)

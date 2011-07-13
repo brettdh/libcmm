@@ -1,7 +1,5 @@
 LOCAL_PATH := $(call my-dir)
 
-#ifneq ($(BDH_FULL_LIBSTDCXX),)
-
 include $(CLEAR_VARS)
 
 LOCAL_MODULE=boost_thread
@@ -149,5 +147,3 @@ LOCAL_SHARED_LIBRARIES := liblog
 LOCAL_LDLIBS := -llog
 
 include $(BUILD_EXECUTABLE)
-
-#endif
