@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
+#include <errno.h>
 #include <assert.h>
 #include <algorithm>
 #include <map>
@@ -140,15 +141,23 @@ static void ProxyThread(struct proxy_args *args)
 
     int client_proxy_sock = args->client_sock;
 
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    socklen_t addrlen = sizeof(addr);
+    int rc = getsockname(client_proxy_sock, (struct sockaddr *) &addr, &addrlen);
+    if (rc == 0) {
+        printf("ProxyThread: connecting client proxy to %s:%hu\n",
+               inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+    } else {
+        fprintf(stderr, "ProxyThread: getsockname failed: %s\n", strerror(errno));
+    }
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(server_port);
+
     int server_proxy_sock = socket(PF_INET, SOCK_STREAM, 0);
     handle_error(server_proxy_sock < 0, "creating client proxy socket");
 
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(server_port);
-    socklen_t addrlen = sizeof(addr);
-    int rc = connect(server_proxy_sock, (struct sockaddr *) &addr, addrlen);
+    rc = connect(server_proxy_sock, (struct sockaddr *) &addr, addrlen);
     handle_error(rc < 0, "connecting server proxy socket");
 
     proxy_lines_until_closed(client_proxy_sock, server_proxy_sock, chunk_proc, proc_arg);

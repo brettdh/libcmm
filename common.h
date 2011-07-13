@@ -13,7 +13,7 @@
 #include <string.h>
 
 #ifdef ANDROID
-typedef short in_port_t;
+typedef uint16_t in_port_t;
 #endif
 
 template <typename IntegerType>
