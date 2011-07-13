@@ -7,6 +7,7 @@
 #include <pthread.h>
 #include <netinet/in.h>
 #include <set>
+#include <sys/time.h>
 
 #ifdef ANDROID
 typedef uint16_t in_port_t;
@@ -90,6 +91,7 @@ class SpottyNetworkFailureTest :  public EndToEndTestsRemote {
     std::set<pthread_t> proxy_threads;
     u_long fg_socket_rtt;
     pthread_t fg_proxy_thread;
+    struct timeval fg_proxy_start_time;
 };
 
 #endif

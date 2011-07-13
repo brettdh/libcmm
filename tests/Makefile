@@ -94,7 +94,7 @@ multi_app_test: multi_app_test.o multi_app_test_helper.o test_common.o
 
 fake_intnw_test: run_all_tests.o spotty_network_failure_test.o proxy_socket.o \
 			     end_to_end_tests_base.o end_to_end_tests_remote.o \
-			     net_interface.o test_common.o cmm_socket_control.o StdioOutputter.o
+			     net_interface.o test_common.o cmm_socket_control.o StdioOutputter.o timeops.o
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
 
 run_spotty_network_failure_test:: run_spotty_network_failure_test.o

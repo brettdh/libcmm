@@ -20,6 +20,7 @@
 #include "test_common.h"
 #include "cmm_socket_control.h"
 #include "libcmm_ipc.h"
+#include "timeops.h"
 
 #include <string>
 #include <vector>
@@ -152,19 +153,37 @@ SpottyNetworkFailureTest::processData(int to_sock, char *chunk, size_t len)
             if (ntohl(hdr->op.new_interface.RTT) < fg_socket_rtt) {
                 fg_socket_rtt = ntohl(hdr->op.new_interface.RTT);
                 fg_proxy_thread = pthread_self();
+                TIME(fg_proxy_start_time);
                 printf("Now treating iface with RTT %d (%s) as FG\n",
                        (int) fg_socket_rtt, inet_ntoa(hdr->op.new_interface.ip_addr));
             }
             proxy_threads.insert(pthread_self());
         }
     }
-
+    
+    bool ret = true;
     if (fg_proxy_thread == pthread_self()) {
+        struct timeval now, diff;
+        TIME(now);
+        TIMEDIFF(fg_proxy_start_time, now, diff);
         pthread_mutex_unlock(&proxy_threads_lock);
-        return false;
+
+        if (diff.tv_sec >= 1) {
+            ret = false;
+        } else {
+            ret = true;
+        }
+    } else {
+        pthread_mutex_unlock(&proxy_threads_lock);
+        ret = true;
     }
-    pthread_mutex_unlock(&proxy_threads_lock);
-    return true;
+
+    printf("%s a %d-byte message to %s:%hu\n", 
+           ret ? "Proxying" : "Suppressing", 
+           (int) len,
+           inet_ntoa(addr.sin_addr),
+           ntohs(addr.sin_port));
+    return ret;
 }
 
 
