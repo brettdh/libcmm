@@ -28,16 +28,28 @@ So, I need to check whether there are any ACKs arriving at all, using the
 last-ack-received timestamp.
 
 First pass:
-  ack_timeout = max(DELAYED_ACK_TIMEOUT, 2*RTT)
+  ack_timeout = 2 * max(DELAYED_ACK_TIMEOUT, RTT)
   if ( there is at least one unacked packet; and
        the time since the last ack received is greater than ack_timeout) {
       declare network troubled
   }
 
-  /* 
+The right timeout threshold is the tricky bit.  Too high, and we'll
+stall communication; too low, and we'll retransmit wastefully.
+Another approach could incorporate the RTT variance, which might give
+me a probabalistic bound on the chance of spurious retransmission.
+For steady-state bulk TCP transfer, an ACK should arrive every RTT
+unless delayed ACKing is going on (i.e. many small uni-directional
+transmissions).  So, waiting 2x the max of those delays should avoid
+spurious retransmissions while still starting redundant retransmission
+in under a second.  Incorporating the variance might allow a tighter
+bound.
 
-The right timeout threshold is the tricky bit.  Too high, and we'll stall communication;
-too low, and we'll retransmit wastefully.  Another approach could incorporate the RTT variance,
-which might give me a probabalistic bound on the chance of spurious retransmission.
-For steady-state bulk TCP transfer, an ACK should arrive every RTT unless delayed ACKing is going on
-(i.e. many small uni-directional transmissions).
+Given any timeout and method for declaring a network troubled,
+the IntNW sender threads will check the TCP state at the earliest
+expected timeout expiration.  There will be data structures keeping
+track of which IROBs were sent on which networks, and if a network is
+declared troubled, the sender thread will signal another sender thread
+(if another network is available) to retransmit any missing data.
+It does this by using the existing mechanism, which asks the receiver
+to request retransmission of any missing IROB data or metadata.
