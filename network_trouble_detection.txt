@@ -1,0 +1,43 @@
+A network is "troubled" when a TCP socket on that network stops making forward progress for too long.
+A TCP socket has stopped making forward progress when unACKed data remains in the socket buffer.
+-OR-
+A TCP socket has stopped making forward progress when the window remains full; i.e. the kernel stops sending more data because it's waiting for the last window to be ACKed.
+-OR-
+A TCP socket has stopped making forward progress when there is unACKed data sent and no ACKs arriving.
+
+From the TCP socket, I can get this information:
+  - The amount of data in the send buffer
+  - The timestamp of the last data sent
+  - The timestamp of the last ack received
+  - The smoothed RTT estimate
+  - The RTT variance
+  - The number of unACKed packets
+
+Problems with socket-buffer-based approach:
+  - Bytes in socket buffer may not have been sent yet
+
+Problems with the window-based approach:
+  - If the app isn't sending at least a full window, I won't detect a stall
+  - Even if I know the number of bytes in flight hasn't changed, I don't know
+    whether those are the same bytes that were in flight the last time I checked.
+  - Could check whether the next-seqno-to-be-acked is increasing, but
+    kernel doesn't expose that value, except indirectly through the
+    number of bytes in the socket buffer (SIOCOUTQ ioctl).
+
+So, I need to check whether there are any ACKs arriving at all, using the
+last-ack-received timestamp.
+
+First pass:
+  ack_timeout = max(DELAYED_ACK_TIMEOUT, 2*RTT)
+  if ( there is at least one unacked packet; and
+       the time since the last ack received is greater than ack_timeout) {
+      declare network troubled
+  }
+
+  /* 
+
+The right timeout threshold is the tricky bit.  Too high, and we'll stall communication;
+too low, and we'll retransmit wastefully.  Another approach could incorporate the RTT variance,
+which might give me a probabalistic bound on the chance of spurious retransmission.
+For steady-state bulk TCP transfer, an ACK should arrive every RTT unless delayed ACKing is going on
+(i.e. many small uni-directional transmissions).
