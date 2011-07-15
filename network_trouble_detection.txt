@@ -53,3 +53,48 @@ declared troubled, the sender thread will signal another sender thread
 (if another network is available) to retransmit any missing data.
 It does this by using the existing mechanism, which asks the receiver
 to request retransmission of any missing IROB data or metadata.
+It could inform the remote side that the other network is troubled,
+but the remote sender could decide that independently.
+
+
+Back-of-the-envelope characterization of this algorithm
+---
+
+The RTT for wifi often stays in the range of 25-70ms, though as the
+client moves and the connection quality changes, the RTT can jump up 
+into the hundreds and even over 1 second occasionally.
+
+For all of these, assume that the maximum delayed ACK timeout is 200ms
+(defined in Linux kernel as TCP_DELACK_MAX, though the kernel also
+max-bounds this by its own RTT estimate).
+
+First, let's consider normal operation at a RTT of 50ms.  
+    The desired result is that the algorithm would not mark the wifi
+    as troubled during successful data transfer.  Assume that the TCP
+    RTT estimates for a socket on the wifi are stable (this assumption
+    should be tested, but the stable EWMA filter should help ensure
+    this).  Even if the RTT transiently becomes as large as ~100ms
+    (unlikely in normal operation), we will continue trying to use the
+    network.  
+
+    It's conceivable that the RTT might spike this much
+    during normal operation, so I ran a simple experiment to check
+    whether it does.  Using wifi on the Nexus One, I connected a
+    socket to the speedtest server and uploaded bytes as fast as
+    possible.  Every 50ms, I sampled the RTT and the time since the
+    last ACK.  I ran the test for 30 seconds.  If a sample reported
+    that the above algorithm would mark the network troubled, I
+    recorded it.  Running this experiment a few times, I observe
+    that the network is marked troubled in 0.0-0.6% of the ~600 samples.
+    Though small, this number should really be zero.
+
+    Thus, it should be likely that an ACK timeout represents 
+    a real network failure.  Finally, the ACK timeout is short enough
+    to trigger in less than a second, ensuring quick recovery.
+
+Next, let's consider normal operation on a 3G network, at an RTT of 250ms.
+
+
+
+Missing:
+  - How to remove a recovered network from trouble mode.
