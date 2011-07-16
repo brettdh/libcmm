@@ -60,11 +60,12 @@ but the remote sender could decide that independently.
 Back-of-the-envelope characterization of this algorithm
 ---
 
-The RTT for wifi often stays in the range of 25-70ms, though as the
+Looking over the Ann Arbor and Ypsi traces from the IntNW paper, 
+the RTT for wifi often stays in the range of 25-70ms, though as the
 client moves and the connection quality changes, the RTT can jump up 
 into the hundreds and even over 1 second occasionally.
 
-For all of these, assume that the maximum delayed ACK timeout is 200ms
+For the below, assume that the maximum delayed ACK timeout is 200ms
 (defined in Linux kernel as TCP_DELACK_MAX, though the kernel also
 max-bounds this by its own RTT estimate).
 
@@ -86,13 +87,14 @@ First, let's consider normal operation at a RTT of 50ms.
     that the above algorithm would mark the network troubled, I
     recorded it.  Running this experiment a few times, I observe
     that the network is marked troubled in 0.0-0.6% of the ~600 samples.
-    Though small, this number should really be zero.
+    Though small, this number should really be zero, indicating that
+    the algorithm might need to be more conservative.
 
-    Thus, it should be likely that an ACK timeout represents 
+    Nevertheless, it should be likely that an ACK timeout represents 
     a real network failure.  Finally, the ACK timeout is short enough
     to trigger in less than a second, ensuring quick recovery.
 
-Next, let's consider normal operation on a 3G network, at an RTT of 250ms.
+Next, let's consider normal operation on a 3G network, at an RTT of 200ms.
 
 
 
