@@ -95,8 +95,66 @@ First, let's consider normal operation at a RTT of 50ms.
     to trigger in less than a second, ensuring quick recovery.
 
 Next, let's consider normal operation on a 3G network, at an RTT of 200ms.
+    Desired result is the same as above.  The upper bound on transient
+    RTT spikes is 400ms.  For this experiment, the variance is
+    enormous. In many runs, 2-3% of the ~600 samples are marked as
+    troubled, but I also see runs in which zero samples are in
+    trouble, runs with 6-12% trouble, and runs in which 45% (!) of
+    samples are in trouble.  I also notice that the smoothed RTT estimate
+    reported by the kernel swells to over 2-3 seconds during the test
+    runs.  It looks like the runs with large trouble percentages are
+    due to the RTT estimate being lower even though there are
+    sometimes significant ACK delays.
+
+    Then again, since we'll only be running trouble-checks on FG
+    traffic, and since 3G is rarely the FG network, perhaps this won't
+    really come up much in practice.
+
+Next, let's consider operation on wifi with a link failure; i.e. 
+how quickly does the algorithm recognize the failure?
+    To test this, I ran the above experiment and turned off the wifi
+    radio in the middle.  I kept the sample period of 50ms and printed
+    out a message at the first sample deemed to be in trouble.  The
+    reaction is practically immediate, as expected, since the time
+    since the last ack increases much more rapidly than the relatively
+    stable TCP RTT estimate.
+
+    To test the recovery of a network from trouble mode back to normal
+    operation, I did the same experiment, but I turned the wifi radio
+    back on after a couple seconds.  The recovery is a little slower,
+    since it depends on the TCP retransmission timeout, which
+    increases exponentially in the backoff period.  Since the total
+    RTO growth is proportional to the length of the transient
+    connection interruption, the interruptions that are more likely to
+    be real trouble are also more likely to be marked as trouble by
+    the algorithm, at which point the recovery matters less, since the
+    network is probably going away.
+
+Finally, let's look at what happens with natural wifi fading.
+    To test this, I ran the experiment while walking away from the
+    AP.  As expected, there's a point after which the signal strength
+    is so low that the TCP connection isn't able to make any
+    progress.  The interesting thing is that this occurs many seconds
+    before the Android system decides that the wifi is gone, making
+    for much faster recovery.
+
+    As above, the reactivity is biased towards quickly deciding that
+    the wifi is in trouble and more slowly deciding that it has
+    recovered, due again to the quickly increasing RTO.  Near the
+    boundary of the AP's coverage, then, there's a critical point at
+    which the algorithm will report trouble.
 
 
+This approach, then, though simple, looks like it will significantly
+improve the usage of wifi over the current approach of waiting for an
+Android notification before retransmitting potentially lost data.
+Further, in normal wifi usage, it seems unlikely that false positives
+in the trouble detection will have a significant impact.  However, to
+be a touch more conservative, we could impose a floor of 200ms on the
+ACK timeout, similar to how the Linux kernel lower-bounds the TCP RTO
+at 200ms.  This would get rid of all the spurious trouble markings
+that I've seen in my working wifi experiments while still being very
+responsive to true failures.
 
-Missing:
-  - How to remove a recovered network from trouble mode.
+At this point, I think it's reasonable to move on to adding this
+detection to IntNW and testing it out.
