@@ -408,6 +408,11 @@ CSockMapping::connected_csock_with_labels(u_long send_label, bool locked)
 bool
 CSockMapping::csock_matches(CSocket *csock, u_long send_label)
 {
+    if (send_label & CMM_LABEL_ONDEMAND &&
+        csock->is_in_trouble() && count() > 1) {
+        return false;
+    }
+
     if (send_label == 0) {
         return true;
     }

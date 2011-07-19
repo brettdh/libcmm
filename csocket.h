@@ -122,6 +122,20 @@ class CSocket {
 
     // to distinguish between connecting and accepting sockets
     bool accepting;
+    
+    // returns true iff FG traffic shouldn't be sent on this network
+    //  because we think it might be disconnected, but
+    //  we haven't been notified as such by the scout yet.
+    bool is_in_trouble();
+    
+    // return true if this CSocket's TCP connection has
+    //  unACKed bytes in flight.
+    bool data_inflight();
+
+    // return a relative timeout representing
+    // the earliest time that you'd want to check 
+    // whether this network is in trouble.
+    struct timespec trouble_check_timeout();
 
     // only valid until the worker threads are created;
     // ensures that all CSocket pointers are shared

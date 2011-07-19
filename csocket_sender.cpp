@@ -161,29 +161,6 @@ CSocketSender::Run()
                 dropped_lock = true;
             }
 
-            // resend End_IROB messages for all unACK'd IROBs whose
-            //   ack timeouts have expired.
-            // this will cause the receiver to send ACKs or
-            //   Resend_Requests for each of them.
-            vector<irob_id_t> unacked_irobs = sk->ack_timeouts.remove_expired();
-            for (size_t i = 0; i < unacked_irobs.size(); ++i) {
-                PendingIROB *pirob = sk->outgoing_irobs.find(unacked_irobs[i]);
-                if (pirob != NULL) {
-                    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
-                    assert(psirob);
-                    dbgprintf("ACK timeout expired for IROB %ld, resending End_IROB\n",
-                              unacked_irobs[i]);
-                    IROBSchedulingData refinished_irob(unacked_irobs[i], false);
-                    sk->irob_indexes.finished_irobs.insert(refinished_irob);
-                    pthread_cond_broadcast(&sk->scheduling_state_cv);
-                }
-            }
-            if (!unacked_irobs.empty()) {
-                // loop back around and check whether I should 
-                //  resend some of those End_IROB messages
-                continue;
-            }
-            
             if (dropped_lock) {
                 // I dropped the lock, so I should re-check the 
                 // IROB scheduling indexes.
@@ -194,9 +171,8 @@ CSocketSender::Run()
             }
             
             struct timespec timeout = {-1, 0};
-            struct timespec first_ack_timeout;
-            if (sk->ack_timeouts.get_earliest(first_ack_timeout)) {
-                timeout = first_ack_timeout;
+            if (csock->data_inflight()) {
+                timeout = csock->trouble_check_timeout();
             }
             if (trickle_timeout.tv_sec > 0) {
                 if (timeout.tv_sec > 0) {
@@ -216,7 +192,6 @@ CSocketSender::Run()
             // 11ms so I can tell between the two.
             struct timespec rel_thunk_timeout = { 0, 11 * 1000 * 1000 };
             struct timespec thunk_timeout = abs_time(rel_thunk_timeout);
-            //if (get_unsent_bytes(csock->osfd) > 0) {
             if (ipc_total_bytes_inflight(csock) > 0 &&
                 count_thunks(sk->sock) > 0) {
                 timeout = thunk_timeout;
@@ -244,6 +219,11 @@ CSocketSender::Run()
             }
             if (!timercmp(&timeout, &thunk_timeout, ==)) {
                 dbgprintf("Woke up; maybe I can do some work?\n");
+            }
+
+            if (csock->data_inflight() &&
+                csock->is_in_trouble() && !sk->csock_map->count() > 1) {
+                sk->data_check_all_irobs();
             }
             // something happened; we might be able to do some work
         }
@@ -493,6 +473,12 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
 
     u_long send_labels = pirob->send_labels;
 
+    if (send_labels & CMM_LABEL_ONDEMAND &&
+        csock->is_in_trouble() && sk->csock_map->count() > 1) {
+        // I'm in trouble and there's another sender that could send this
+        return true;
+    }
+
     pthread_mutex_unlock(&sk->scheduling_state_lock);
 
     if (csock->matches(send_labels)) {
@@ -514,7 +500,7 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
     if (!pirob) {
         // just kidding; the ACK arrived while I wasn't holding the lock
         // no need to send this message after all
-        return true;        
+        return true;
     }
     psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
@@ -869,8 +855,6 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         psirob->announced = true;
         if (sending_all_irob_info) {
             if (psirob->is_complete() && psirob->all_chunks_sent()) {
-                sk->ack_timeouts.update(id, csock->retransmission_timeout());
-                
                 if (!psirob->end_announced) {
                     psirob->end_announced = true;
                     //csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
@@ -932,9 +916,6 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
     
     pirob = sk->outgoing_irobs.find(data.id);
     psirob = dynamic_cast<PendingSenderIROB*>(pirob);
-    if (psirob && psirob->is_complete()) {
-        sk->ack_timeouts.update(data.id, csock->retransmission_timeout());
-    }
 }
 
 /* returns true if I actually sent it; false if not */
@@ -1173,8 +1154,6 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     if (psirob) {
         //psirob->mark_sent(chunksize);
         if (psirob->is_complete() && psirob->all_chunks_sent()) {
-            sk->ack_timeouts.update(id, csock->retransmission_timeout());
-
             if (!psirob->end_announced) {
                 psirob->end_announced = true;
                 csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));

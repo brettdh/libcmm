@@ -1659,27 +1659,6 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
             ipc_add_iface_pair(ifaces);
         }
     }
-
-    if (need_data_check) {
-        dbgprintf("Zero-bandwidth period over\n");
-        return;
-        // try leaving this particular bit of retransmission to TCP.
-        
-        //  Potential performance improvement: When a new network becomes 
-        //  available, do Data_Checks for all unACKed IROBS, hopefully 
-        //  proactively retransmitting some data on the new socket,
-        //  which has no queued data that TCP is waiting to retransmit.
-
-        /*
-        dbgprintf("Recovering from 0-bandwidth period; issuing data-check\n");
-        vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
-        outgoing_irobs.data_check_all();
-        for (size_t i = 0; i < ids.size(); ++i) {
-            IROBSchedulingData data_check(ids[i], false);
-            irob_indexes.waiting_data_checks.insert(data_check);
-        }
-        */
-    }
 }
 
 void
@@ -1717,8 +1696,13 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
             ipc_remove_iface_pair(ifaces);
         }
     }
-
+    
     PthreadScopedLock lock(&scheduling_state_lock);
+    data_check_all_irobs();
+}
+
+void CMMSocketImpl::data_check_all_irobs()
+{
     vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
     outgoing_irobs.data_check_all();
     for (size_t i = 0; i < ids.size(); ++i) {
@@ -2432,13 +2416,7 @@ CMMSocketImpl::goodbye(bool remote_initiated)
     if (remote_initiated) {
         // remote side thinks it's sent all ACKs;
         //  if I haven't received them all, ask for them again.
-        vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
-        outgoing_irobs.data_check_all();
-        for (size_t i = 0; i < ids.size(); ++i) {
-            IROBSchedulingData data_check(ids[i], false);
-            irob_indexes.waiting_data_checks.insert(data_check);
-        }
-
+        data_check_all_irobs();
         remote_shutdown = true;
     }
 

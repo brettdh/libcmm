@@ -123,6 +123,10 @@ class CMMSocketImpl : public CMMSocket {
     static void cleanup();
     
   private:
+    // XXX: WHAT.  this is kind of silly.
+    // TODO: refactor the boundaries between these classes
+    // TODO:  to obviate the need for all these, and/or
+    // TODO:  figure out which ones are already unneeded.
     friend class CSocket;
     friend class CSockMapping;
     friend class CSocketSender;
@@ -143,6 +147,8 @@ class CMMSocketImpl : public CMMSocket {
 
     virtual void setup(struct net_interface iface, bool local);
     virtual void teardown(struct net_interface iface, bool local);
+
+    void data_check_all_irobs();
     
     int set_all_sockopts(int osfd);
 
@@ -340,8 +346,6 @@ class CMMSocketImpl : public CMMSocket {
                               const mcSocketOsfdPairList &osfd_list);
 
     bool net_available(u_long send_labels);
-
-    /* shortcut utility functions for hashtable-based rwlocking.  */
 
     class static_destroyer {
       public:
