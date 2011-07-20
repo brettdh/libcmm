@@ -9,7 +9,6 @@
 #include "pending_irob.h"
 #include "pending_receiver_irob.h"
 #include "irob_scheduling.h"
-#include "ack_timeouts.h"
 
 #include <map>
 #include <vector>
@@ -320,8 +319,6 @@ class CMMSocketImpl : public CMMSocket {
 
     PendingIROBLattice outgoing_irobs;
     PendingReceiverIROBLattice incoming_irobs;
-
-    AckTimeouts ack_timeouts;
 
     // unlabeled IROB actions; can be picked up by any csocket
     IROBSchedulingIndexes irob_indexes;

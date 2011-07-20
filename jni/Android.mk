@@ -12,7 +12,6 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libcmm
 LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -O0 -I$(LOCAL_PATH)/..
 LOCAL_SRC_FILES := $(addprefix ../, \
-	ack_timeouts.cpp \
 	cmm_conn_bootstrapper.cpp \
 	cmm_internal_listener.cpp \
 	cmm_socket.cpp \

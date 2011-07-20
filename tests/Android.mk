@@ -13,10 +13,10 @@ TESTSUITE_SRCS := run_all_tests.cpp test_common.cpp StdioOutputter.cpp
 include $(CLEAR_VARS)
 TEST_SRCS := pending_irob_test.cpp lattice_test.cpp intset_test.cpp \
 	    receiver_lattice_test.cpp pending_sender_irob_test.cpp \
-	    ack_timeouts_test.cpp pending_receiver_irob_test.cpp \
+	    pending_receiver_irob_test.cpp \
 	    estimation_test.cpp pthread_util_test.cpp
 SUPPORT_SRCS := pending_irob.cpp intset.cpp debug.cpp pending_receiver_irob.cpp \
-	       pending_sender_irob.cpp timeops.cpp ack_timeouts.cpp net_stats.cpp \
+	       pending_sender_irob.cpp timeops.cpp net_stats.cpp \
 	       net_interface.cpp irob_scheduling.cpp
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests

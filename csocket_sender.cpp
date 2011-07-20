@@ -223,6 +223,8 @@ CSocketSender::Run()
 
             if (csock->data_inflight() &&
                 csock->is_in_trouble() && !sk->csock_map->count() > 1) {
+                // XXX: we only want to do fast-recovery for FG IROBs
+                // XXX: we don't want to do this check for the 3G network
                 sk->data_check_all_irobs();
             }
             // something happened; we might be able to do some work
@@ -240,7 +242,6 @@ CSocketSender::Run()
         pthread_cond_broadcast(&sk->scheduling_state_cv);
         throw;
     } catch (CMMControlException& e) {
-        //pthread_mutex_unlock(&sk->scheduling_state_lock); // no longer held here
         sk->csock_map->remove_csock(csock);
         if (sk->accepting_side) {
             // don't try to make a new connection; 
@@ -260,22 +261,6 @@ CSocketSender::Run()
             throw;
         }
         CSocketPtr replacement = sk->csock_map->new_csock_with_labels(0);
-        /*
-        while (replacement && replacement->wait_until_connected() < 0) {
-            if (replacement->oserr == ECONNREFUSED) {
-                dbgprintf("Failed to connect replacement csocket; "
-                          "connection refused, giving up\n");
-                sk->csock_map->remove_csock(replacement);
-                replacement.reset();
-            } else {
-                dbgprintf("Failed to connect replacement csocket; "
-                          " %s; trying again\n",
-                          strerror(replacement->oserr));
-                sk->csock_map->remove_csock(replacement);
-                replacement = sk->csock_map->new_csock_with_labels(0);
-            }
-        }
-        */
 
         PthreadScopedLock lock(&sk->scheduling_state_lock);
         if (replacement) {

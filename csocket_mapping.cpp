@@ -441,23 +441,12 @@ CSockMapping::get_iface_pair(u_long send_label,
         lock_ptr.reset(new PthreadScopedRWLock(&skp->my_lock, false));
     }
 
-    {
-        // WTF?  This would grab the lock twice when locked=false.
-        // locked=false means that the caller is already
-        // holding the lock.
-//         auto_ptr<PthreadScopedRWLock> short_lock_ptr;
-//         if (!locked) {
-//             short_lock_ptr.reset(new PthreadScopedRWLock(&skp->my_lock, 
-//                                                          false));
-//         }
-
-        if (skp->isLoopbackOnly(false)) {
-            // only ever use one interface pair, 
-            //  so it's the one for all labels.
-            local_iface = *skp->local_ifaces.begin();
-            remote_iface = *skp->remote_ifaces.begin();
-            return true;
-        }
+    if (skp->isLoopbackOnly(false)) {
+        // only ever use one interface pair, 
+        //  so it's the one for all labels.
+        local_iface = *skp->local_ifaces.begin();
+        remote_iface = *skp->remote_ifaces.begin();
+        return true;
     }
     
     LabelMatcher matcher;
