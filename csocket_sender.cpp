@@ -220,12 +220,19 @@ CSocketSender::Run()
             if (!timercmp(&timeout, &thunk_timeout, ==)) {
                 dbgprintf("Woke up; maybe I can do some work?\n");
             }
-
-            if (csock->data_inflight() &&
-                csock->is_in_trouble() && !sk->csock_map->count() > 1) {
-                // XXX: we only want to do fast-recovery for FG IROBs
-                // XXX: we don't want to do this check for the 3G network
-                sk->data_check_all_irobs();
+            
+            pthread_mutex_unlock(&sk->scheduling_state_lock);
+            bool is_fg = csock->is_fg_ignore_trouble();
+            pthread_mutex_lock(&sk->scheduling_state_lock);
+            if (is_fg) {
+                if (csock->data_inflight() &&
+                    csock->is_in_trouble() && !sk->csock_map->count() > 1) {
+                    // XXX: we only want to do fast-recovery for FG IROBs
+                    //    ...but the impact of doing it for them all will be small
+                    // XXX: we don't want to do this check for the 3G network
+                    //   ...but we probably usually won't, since it's not FG
+                    sk->data_check_all_irobs();
+                }
             }
             // something happened; we might be able to do some work
         }

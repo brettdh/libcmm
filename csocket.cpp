@@ -349,6 +349,12 @@ bool CSocket::is_fg()
             matches(CMM_LABEL_ONDEMAND|CMM_LABEL_LARGE));
 }
 
+bool CSocket::is_fg_ignore_trouble()
+{
+    return (sk->csock_map->csock_matches_ignore_trouble(this, CMM_LABEL_ONDEMAND|CMM_LABEL_SMALL) ||
+            sk->csock_map->csock_matches_ignore_trouble(this, CMM_LABEL_ONDEMAND|CMM_LABEL_LARGE));
+}
+
 // must be holding scheduling_state_lock
 // return true iff the csocket is busy sending app data
 bool CSocket::is_busy()

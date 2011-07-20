@@ -28,7 +28,10 @@ class CSockMapping {
     // return true iff csock is suitable for these labels.
     /* must not be holding sk->scheduling_state_lock. */
     bool csock_matches(CSocket *csock, 
-                       u_long send_label);
+                       u_long send_label,
+                       bool ignore_trouble=false);
+    bool csock_matches_ignore_trouble(CSocket *csock, 
+                                      u_long send_label);
 
     CSocketPtr csock_with_labels(u_long send_label);
     CSocketPtr connected_csock_with_labels(u_long send_label, bool locked=true);
@@ -42,8 +45,11 @@ class CSockMapping {
     bool get_iface_pair(u_long send_label,
                         struct net_interface& local_iface,
                         struct net_interface& remote_iface,
-                        bool locked=true);
-
+                        bool ignore_trouble=false);
+    bool get_iface_pair_locked(u_long send_label,
+                               struct net_interface& local_iface,
+                               struct net_interface& remote_iface,
+                               bool ignore_trouble=false);
 
     size_t count();
     bool empty();

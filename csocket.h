@@ -62,6 +62,7 @@ class CSocket {
      *               matches(CMM_LABEL_ONDEMAND|CMM_LABEL_LARGE))
      * must not be holding sk->scheduling_state_lock. */
     bool is_fg();
+    bool is_fg_ignore_trouble();
 
     // return true iff the csocket is busy sending app data
     bool is_busy();
