@@ -47,6 +47,14 @@ class PendingIROB {
     template <typename Predicate>
     void remove_deps_if(Predicate pred);
 
+    // stores the dependencies of this IROB into a new[]-allocated array
+    //  and stores the start of that array at *deps.
+    // returns the number of deps stored into the array.
+    //  if this returns 0, *deps was not modified.
+    // since this function is used for formatting network messages,
+    //  the integer IDs are stored in network byte order.
+    size_t PendingIROB::copy_deps_htonl(irob_id_t **deps);
+
     void add_dependent(irob_id_t id);
     
     /* returns true if this IROB directly
