@@ -262,10 +262,11 @@ CSockMapping::csock_by_ifaces(struct net_interface local_iface,
 struct LabelMatcher {
     u_long max_bw;
     u_long min_RTT;
+    bool has_match;
     pair<struct net_interface, struct net_interface> max_bw_iface_pair;
     pair<struct net_interface, struct net_interface> min_RTT_iface_pair;
 
-    LabelMatcher() : max_bw(0), min_RTT(ULONG_MAX) {}
+    LabelMatcher() : max_bw(0), min_RTT(ULONG_MAX), has_match(false) {}
 
     // for use with CSockMapping::for_each_by_ref
     void consider(CSocketPtr csock) {
@@ -301,6 +302,9 @@ struct LabelMatcher {
             min_RTT = RTT;
             min_RTT_iface_pair = make_pair(local_iface, remote_iface);
         }
+
+        // we have a match after we've considered at least one.
+        has_match = true;
     }
     
     bool pick_label_match(u_long send_label,
@@ -309,6 +313,11 @@ struct LabelMatcher {
 
         const u_long LABELMASK_FGBG = CMM_LABEL_ONDEMAND | CMM_LABEL_BACKGROUND;
         
+        if (!has_match) {
+            return false;
+        }
+
+        // TODO: try to check based on the actual size
         if (send_label & CMM_LABEL_SMALL &&
             min_RTT < ULONG_MAX) {
             local_iface = min_RTT_iface_pair.first;
@@ -320,43 +329,14 @@ struct LabelMatcher {
             return true;
         } else if (send_label & CMM_LABEL_ONDEMAND ||
                    !(send_label & LABELMASK_FGBG)) {
-//             if (send_label & CMM_LABEL_SMALL &&
-//                 min_RTT < ULONG_MAX) {
-//                 local_iface = min_RTT_iface_pair.first;
-//                 remote_iface = min_RTT_iface_pair.second;
-//                 return true;
-//             } else if (send_label & CMM_LABEL_LARGE) {
-//                 local_iface = max_bw_iface_pair.first;
-//                 remote_iface = max_bw_iface_pair.second;
-//                 return true;
-//             } else {
-                // TODO: try to check based on the actual size
             local_iface = min_RTT_iface_pair.first;
             remote_iface = min_RTT_iface_pair.second;
             return true;            
-//            }
         } else if (send_label & CMM_LABEL_BACKGROUND ||
                    send_label == 0) {
-//             if (send_label & CMM_LABEL_SMALL &&
-//                 min_RTT < ULONG_MAX) {
-//                 local_iface = min_RTT_iface_pair.first;
-//                 remote_iface = min_RTT_iface_pair.second;
-//                 return true;
-//             } else if (send_label & CMM_LABEL_LARGE) {
-//                 local_iface = max_bw_iface_pair.first;
-//                 remote_iface = max_bw_iface_pair.second;
-//                 return true;
-//             } else {
-                // TODO: try to check based on the actual size
             local_iface = max_bw_iface_pair.first;
             remote_iface = max_bw_iface_pair.second;
             return true;            
-//            }
-            /*
-            local_iface = max_bw_iface_pair.first;
-            remote_iface = max_bw_iface_pair.second;
-            return true;
-            */
         } else {
             local_iface = max_bw_iface_pair.first;
             remote_iface = max_bw_iface_pair.second;
