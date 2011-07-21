@@ -467,7 +467,7 @@ CSockMapping::get_iface_pair_locked(u_long send_label,
                 get_ip_string(i->ip_addr, local_ip);
                 get_ip_string(j->ip_addr, remote_ip);
                 dbgprintf("Not considering (%s -> %s) for labels %d; csock is troubled\n",
-                          local_ip, remote_ip);
+                          local_ip, remote_ip, send_label);
             }
         }
     }
