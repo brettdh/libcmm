@@ -443,7 +443,7 @@ CSockMapping::get_iface_pair_locked(u_long send_label,
     }
     
     LabelMatcher matcher;
-    vector<CSocketPtr> csocks;
+    vector<CSocketPtr> csocks; // only one per iface pair
     for (NetInterfaceSet::iterator i = skp->local_ifaces.begin();
          i != skp->local_ifaces.end(); ++i) {
         for (NetInterfaceSet::iterator j = skp->remote_ifaces.begin();
@@ -452,7 +452,15 @@ CSockMapping::get_iface_pair_locked(u_long send_label,
             if (!ignore_trouble) {
                 for_each(get_matching_csocks(&*i, &*j, csocks));
             }
-            if (csocks.empty() || csocks[0]->is_in_trouble()) {
+            CSocketPtr existing_csock;
+            if (!csocks.empty()) {
+                existing_csock = csocks[0];
+            }
+            if (!existing_csock ||
+                !existing_csock->is_in_trouble()// ||
+                //existing_csock->is_only_csock() ||
+                //existing_csock->is_not_default_fg_but_default_fg_is_in_trouble_and_this_is_the_only_other_csock()) { // XXX: bleah!
+                ) {
                 matcher.consider(*i, *j);
             }
         }
