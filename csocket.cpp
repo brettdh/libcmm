@@ -391,6 +391,7 @@ bool CSocket::data_inflight()
                   strerror(errno));
         return -1;
     }
+    dbgprintf("data_inflight: unacked: %d pkts\n", info.tcpi_unacked);
     return (info.tcpi_unacked > 0);
 }
 

@@ -148,33 +148,45 @@ CSocketSender::Run()
                 }
             }
 
-            if (schedule_work(csock->irob_indexes) ||
-                schedule_work(sk->irob_indexes)) {
-                continue;
-            }
-
-            bool dropped_lock = false;
-            if (!csock->is_busy()) {
-                pthread_mutex_unlock(&sk->scheduling_state_lock);
-                fire_thunks();
-                pthread_mutex_lock(&sk->scheduling_state_lock);
-                dropped_lock = true;
-            }
-
-            if (dropped_lock) {
-                // I dropped the lock, so I should re-check the 
-                // IROB scheduling indexes.
+            pthread_mutex_unlock(&sk->scheduling_state_lock);
+            bool is_fg = csock->is_fg_ignore_trouble();
+            pthread_mutex_lock(&sk->scheduling_state_lock);
+            if (is_fg && csock->is_in_trouble()) {
+                char local_ip[16], remote_ip[16];
+                get_ip_string(csock->local_iface.ip_addr, local_ip);
+                get_ip_string(csock->remote_iface.ip_addr, remote_ip);
+                dbgprintf("Network (%s -> %s) is in trouble; not trying to send anything\n",
+                          local_ip, remote_ip);
+            } else {
                 if (schedule_work(csock->irob_indexes) ||
                     schedule_work(sk->irob_indexes)) {
                     continue;
+                }
+
+                bool dropped_lock = false;
+                if (!csock->is_busy()) {
+                    pthread_mutex_unlock(&sk->scheduling_state_lock);
+                    fire_thunks();
+                    pthread_mutex_lock(&sk->scheduling_state_lock);
+                    dropped_lock = true;
+                }
+
+                if (dropped_lock) {
+                    // I dropped the lock, so I should re-check the 
+                    // IROB scheduling indexes.
+                    if (schedule_work(csock->irob_indexes) ||
+                        schedule_work(sk->irob_indexes)) {
+                        continue;
+                    }
                 }
             }
             
             struct timespec timeout = {-1, 0};
             if (csock->data_inflight()) {
-                timeout = csock->trouble_check_timeout();
+                struct timespec rel_trouble_timeout = csock->trouble_check_timeout();
+                timeout = abs_time(rel_trouble_timeout);
                 dbgprintf("Data in flight; trouble-check timeout in %lu.%09lu sec\n",
-                          timeout.tv_sec, timeout.tv_nsec);
+                          rel_trouble_timeout.tv_sec, rel_trouble_timeout.tv_nsec);
             }
             if (trickle_timeout.tv_sec > 0) {
                 if (timeout.tv_sec > 0) {
@@ -194,11 +206,9 @@ CSocketSender::Run()
             // 11ms so I can tell between the two.
             struct timespec rel_thunk_timeout = { 0, 11 * 1000 * 1000 };
             struct timespec thunk_timeout = abs_time(rel_thunk_timeout);
-            if (ipc_total_bytes_inflight(csock) > 0 &&
-                count_thunks(sk->sock) > 0) {
+            if (ipc_total_bytes_inflight(csock) > 0 && count_thunks(sk->sock) > 0) {
                 timeout = thunk_timeout;
             }
-
 
             if (timeout.tv_sec > 0) {
                 if (!timercmp(&timeout, &trickle_timeout, ==) &&
@@ -224,11 +234,11 @@ CSocketSender::Run()
             }
             
             pthread_mutex_unlock(&sk->scheduling_state_lock);
-            bool is_fg = csock->is_fg_ignore_trouble();
+            is_fg = csock->is_fg_ignore_trouble();
             pthread_mutex_lock(&sk->scheduling_state_lock);
             if (is_fg) {
                 if (csock->data_inflight() &&
-                    csock->is_in_trouble() && !sk->csock_map->count() > 1) {
+                    csock->is_in_trouble() && sk->csock_map->count() > 1) {
                     // XXX: we only want to do fast-recovery for FG IROBs
                     //    ...but the impact of doing it for them all will be small
                     // XXX: we don't want to do this check for the 3G network
@@ -579,70 +589,48 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 
     struct timeval rel_timeout;
     
-    // Removing the wait duration, in hope that the small chunksize
-    //  is sufficient to limit interference with FG traffic
-    if (false) {//!sk->okay_to_send_bg(time_since_last_fg)) {
-        /*
-        dbgprintf("     ...too soon after last FG transmission\n");
+    chunksize = csock->trickle_chunksize();
+
+    struct timeval time_since_last_fg, now;
+    struct timeval iface_last_fg;
+
+    // get last_fg value
+    iface_last_fg.tv_sec = ipc_last_fg_tv_sec(csock);
+    iface_last_fg.tv_usec = 0;
+        
+    TIME(now);
+        
+    TIMEDIFF(iface_last_fg, now, time_since_last_fg);
+    if (time_since_last_fg.tv_sec > 5) {
+        chunksize = csock->bandwidth();
+    }
+        
+    // Avoid sending tiny chunks and thereby killing throughput with
+    //  header overhead
+    ssize_t MIN_CHUNKSIZE = 1500; // one Ethernet MTU
+    chunksize = max(chunksize, MIN_CHUNKSIZE);
+        
+    int unsent_bytes = ipc_total_bytes_inflight(csock);//->local_iface.ip_addr);
+    if (unsent_bytes < 0) {
+        //dbgprintf("     ...failed to check socket send buffer: %s\n",
+        //strerror(errno));
         do_trickle = false;
-        struct timeval wait_time = bg_wait_time();
-        timersub(&wait_time, &time_since_last_fg, 
-                 &rel_timeout);
-        */
+    } else if (unsent_bytes >= chunksize) {
+        /*dbgprintf("     ...socket buffer has %d bytes left; more than %d\n",
+          unsent_bytes, csock->trickle_chunksize());*/
+        do_trickle = false;
     } else {
-        chunksize = csock->trickle_chunksize();
-
-        struct timeval time_since_last_fg, now;
-        struct timeval iface_last_fg;
-
-        // get last_fg value
-        iface_last_fg.tv_sec = ipc_last_fg_tv_sec(csock); //->local_iface.ip_addr);
-        iface_last_fg.tv_usec = 0;
-        
-        TIME(now);
-        
-        TIMEDIFF(iface_last_fg, now, time_since_last_fg);
-        if (time_since_last_fg.tv_sec > 5) {
-            chunksize = csock->bandwidth();
-        }
-        
-        // Avoid sending tiny chunks and thereby killing throughput with
-        //  header overhead
-        ssize_t MIN_CHUNKSIZE = 1500; // one Ethernet MTU
-        chunksize = max(chunksize, MIN_CHUNKSIZE);
-        
-        int unsent_bytes = ipc_total_bytes_inflight(csock);//->local_iface.ip_addr);
-        if (unsent_bytes < 0) {
-            //dbgprintf("     ...failed to check socket send buffer: %s\n",
-            //strerror(errno));
-            do_trickle = false;
-            //rel_timeout = bg_wait_time();
-        } else if (unsent_bytes >= chunksize) {
-            /*dbgprintf("     ...socket buffer has %d bytes left; more than %d\n",
-              unsent_bytes, csock->trickle_chunksize());*/
-            do_trickle = false;
-
-            /*
-            u_long clear_time = (u_long)((unsent_bytes * (1000000.0 / csock->bandwidth()))
-                                         + (csock->RTT() * 1000.0));
-            rel_timeout.tv_sec = clear_time / 1000000;
-            rel_timeout.tv_usec = clear_time - (rel_timeout.tv_sec * 1000000);
-            */
-        } else {
 #ifdef CMM_TIMING
-            {
-                PthreadScopedLock lock(&timing_mutex);
-                if (timing_file) {
-                    struct timeval now;
-                    TIME(now);
-                    fprintf(timing_file, "%lu.%06lu  bw est %lu trickle size %d   %d bytes in all buffers\n",
-                            now.tv_sec, now.tv_usec, csock->bandwidth(), (int)chunksize, unsent_bytes);
-                }
+        {
+            PthreadScopedLock lock(&timing_mutex);
+            if (timing_file) {
+                struct timeval now;
+                TIME(now);
+                fprintf(timing_file, "%lu.%06lu  bw est %lu trickle size %d   %d bytes in all buffers\n",
+                        now.tv_sec, now.tv_usec, csock->bandwidth(), (int)chunksize, unsent_bytes);
             }
-#endif
-            
-            //chunksize = chunksize - unsent_bytes;
         }
+#endif
     }
     
     if (do_trickle) {
