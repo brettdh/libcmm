@@ -173,6 +173,8 @@ CSocketSender::Run()
             struct timespec timeout = {-1, 0};
             if (csock->data_inflight()) {
                 timeout = csock->trouble_check_timeout();
+                dbgprintf("Data in flight; trouble-check timeout in %lu.%09lu sec\n",
+                          timeout.tv_sec, timeout.tv_nsec);
             }
             if (trickle_timeout.tv_sec > 0) {
                 if (timeout.tv_sec > 0) {
@@ -231,6 +233,11 @@ CSocketSender::Run()
                     //    ...but the impact of doing it for them all will be small
                     // XXX: we don't want to do this check for the 3G network
                     //   ...but we probably usually won't, since it's not FG
+                    char local_ip[16], remote_ip[16];
+                    get_ip_string(csock->local_iface.ip_addr, local_ip);
+                    get_ip_string(csock->remote_iface.ip_addr, remote_ip);
+                    dbgprintf("Network (%s -> %s) is in trouble; data-checking all IROBs\n",
+                              local_ip, remote_ip);
                     sk->data_check_all_irobs();
                 }
             }
@@ -468,6 +475,11 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
     if (send_labels & CMM_LABEL_ONDEMAND &&
         csock->is_in_trouble() && sk->csock_map->count() > 1) {
         // I'm in trouble and there's another sender that could send this
+        char local_ip[16], remote_ip[16];
+        get_ip_string(csock->local_iface.ip_addr, local_ip);
+        get_ip_string(csock->remote_iface.ip_addr, remote_ip);
+        dbgprintf("Network (%s -> %s) is in trouble; delegating IROB op\n",
+                  local_ip, remote_ip);
         return true;
     }
 

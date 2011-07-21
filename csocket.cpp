@@ -405,7 +405,7 @@ static struct timespec
 get_trouble_check_timeout(struct tcp_info *info)
 {
     uint32_t trouble_timeout_ms = get_trouble_timeout_ms(info);
-    struct timespec timeout = {0, trouble_timeout_ms};
+    struct timespec timeout = {0, trouble_timeout_ms * 1000 * 1000};
     return timeout;
 }
 
@@ -433,13 +433,21 @@ bool CSocket::is_in_trouble()
     }
 
     uint32_t trouble_timeout_ms = get_trouble_timeout_ms(&info);
-    return (/* if there's data in flight... */
-            info.tcpi_unacked > 0 &&
-            /* ...and it's been long enough since I sent the data... */
-            info.tcpi_last_data_sent > trouble_timeout_ms &&
-            /* ...and there hasn't been an ACK in a while... */
-            ((int)info.tcpi_last_ack_recv) > 0 && /* workaround for possible kernel bug */
-            info.tcpi_last_ack_recv > trouble_timeout_ms);
+    bool trouble = 
+        (/* if there's data in flight... */
+         info.tcpi_unacked > 0 &&
+         /* ...and it's been long enough since I sent the data... */
+         info.tcpi_last_data_sent > trouble_timeout_ms &&
+         /* ...and there hasn't been an ACK in a while... */
+         ((int)info.tcpi_last_ack_recv) > 0 && /* workaround for possible kernel bug */
+         info.tcpi_last_ack_recv > trouble_timeout_ms);
+
+    dbgprintf("is_in_trouble: "
+              "unacked: %d pkts  last_data_sent: %d ms ago  "
+              "last_ack: %d ms ago  trouble_timeout: %d ms  trouble: %s\n",
+              info.tcpi_unacked, info.tcpi_last_data_sent, 
+              info.tcpi_last_ack_recv, trouble_timeout_ms, trouble ? "yes" : "no");
+    return trouble;
 }
 
 u_long
