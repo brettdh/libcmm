@@ -434,11 +434,27 @@ bool CSocket::is_in_trouble()
     }
 
     uint32_t trouble_timeout_ms = get_trouble_timeout_ms(&info);
+
+    /* The "last data sent" timestamp needs to be app-level.
+     *   otherwise, TCP rexmits will cause the network to falsely drop
+     *   out of trouble mode.
+     *  Using the last FG timestamp is a simple way to get this,
+     *   since we're only doing trouble-checking for FG traffic/networks.
+     */
+    //uint32_t last_data_sent_ms = info.tcpi_last_data_sent;
+    uint32_t last_data_sent_ms = 0;
+    struct timeval now, diff;
+    TIME(now);
+    TIMEDIFF(last_fg, now, diff);
+    if (timercmp(&last_fg, &now, <)) {
+        last_data_sent_ms = convert_to_useconds(diff) / 1000;
+    }
+    
     bool trouble = 
         (/* if there's data in flight... */
          info.tcpi_unacked > 0 &&
          /* ...and it's been long enough since I sent the data... */
-         info.tcpi_last_data_sent > trouble_timeout_ms &&
+         last_data_sent_ms > trouble_timeout_ms && 
          /* ...and there hasn't been an ACK in a while... */
          ((int)info.tcpi_last_ack_recv) > 0 && /* workaround for possible kernel bug */
          info.tcpi_last_ack_recv > trouble_timeout_ms);

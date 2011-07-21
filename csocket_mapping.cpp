@@ -462,6 +462,12 @@ CSockMapping::get_iface_pair_locked(u_long send_label,
                 //existing_csock->is_not_default_fg_but_default_fg_is_in_trouble_and_this_is_the_only_other_csock()) { // XXX: bleah!
                 ) {
                 matcher.consider(*i, *j);
+            } else {
+                char local_ip[16], remote_ip[16];
+                get_ip_string(i->ip_addr, local_ip);
+                get_ip_string(j->ip_addr, remote_ip);
+                dbgprintf("Not considering (%s -> %s) for labels %d; csock is troubled\n",
+                          local_ip, remote_ip);
             }
         }
     }

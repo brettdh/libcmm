@@ -812,6 +812,12 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         dbgprintf_plain("]");
     }
     dbgprintf_plain("\n");
+
+    if (data.send_labels & CMM_LABEL_ONDEMAND) {
+        sk->update_last_fg();
+        csock->update_last_fg();
+    }
+
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     csock->stats.report_send_event(id, bytes);
     csock->print_tcp_rto();
@@ -834,11 +840,6 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
                       rc, bytes);
         }
         throw CMMControlException("Socket error", hdr);
-    }
-
-    if (data.send_labels & CMM_LABEL_ONDEMAND) {
-        sk->update_last_fg();
-        csock->update_last_fg();
     }
 
     pirob = sk->outgoing_irobs.find(id);
@@ -954,30 +955,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
     assert(psirob);
 
-    /*
-    if (psirob->chunk_in_flight) {
-        // another thread is sending a chunk; it will
-        // signal for the next chunk to be sent when it is done
-        // XXX: this will need to be changed to enable striping.
-        //return true;
-        dbgprintf("Sending a chunk in parallel\n");
-    }
-    */
-
     if (psirob->needs_data_check()) {
-//         struct CMMSocketControlHdr data_check_hdr;
-//         memset(&data_check_hdr, 0, sizeof(data_check_hdr));
-//         data_check_hdr.type = htons(CMM_CONTROL_MSG_DATA_CHECK);
-//         data_check_hdr.send_labels = htonl(pirob->send_labels);
-//         data_check_hdr.op.data_check.id = htonl(id);
-//         pthread_mutex_unlock(&sk->scheduling_state_lock);
-//         int rc = write(csock->osfd, &data_check_hdr, sizeof(data_check_hdr));
-//         pthread_mutex_lock(&sk->scheduling_state_lock);
-//         if (rc != sizeof(data_check_hdr)) {
-//             sk->irob_indexes.new_chunks.insert(data);
-//             pthread_cond_broadcast(&sk->scheduling_state_cv);
-//             throw CMMControlException("Socket error", data_check_hdr);
-//         }
         dbgprintf("Data check in progress for IROB %ld; waiting for response\n",
                   id);
 
@@ -995,9 +973,8 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     u_long seqno = 0;
     size_t offset = 0;
 
-    vector<struct iovec> irob_vecs = psirob->get_ready_bytes(chunksize, 
-                                                             seqno,
-                                                             offset);
+    vector<struct iovec> irob_vecs = 
+        psirob->get_ready_bytes(chunksize, seqno, offset);
     if (chunksize == 0) {
         return true;
     }
@@ -1061,14 +1038,18 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
 #endif
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
-    //if (!psirob->chunk_in_flight) {
     if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND &&
         sk->csock_map->count() > 1) {
         // let other threads try to send this chunk too
         sk->irob_indexes.new_chunks.insert(data);
         pthread_cond_broadcast(&sk->scheduling_state_cv);
     }
-    //psirob->chunk_in_flight = true;
+
+    if (data.send_labels & CMM_LABEL_ONDEMAND) {
+        sk->update_last_fg();
+        csock->update_last_fg();
+    }
+
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     if (waiting_ack_irob != -1) {
         csock->stats.report_send_event(sizeof(ack_hdr), &ack_hdr.op.ack.qdelay);
@@ -1100,8 +1081,6 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     // It might've been ACK'd and removed, so check first
     psirob = dynamic_cast<PendingSenderIROB*>(sk->outgoing_irobs.find(id));
     if (psirob) {
-        //psirob->chunk_in_flight = false;
-
         size_t total_header_size = sizeof(hdr);
         if (waiting_ack_irob != -1) {
             total_header_size += sizeof(ack_hdr);
@@ -1134,11 +1113,6 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
                       rc, (int)(sizeof(hdr) + chunksize));
         }
         throw CMMControlException("Socket error", hdr);
-    }
-
-    if (data.send_labels & CMM_LABEL_ONDEMAND) {
-        sk->update_last_fg();
-        csock->update_last_fg();
     }
 
     // It might've been ACK'd and removed, so check first
