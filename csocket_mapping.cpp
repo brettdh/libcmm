@@ -89,7 +89,6 @@ struct get_matching_csocks {
     int operator()(CSocketPtr csock) {
         assert(csock);
 
-        struct net_interface *candidate = NULL;
         if (iface_matches(local_iface, &csock->local_iface) &&
             iface_matches(remote_iface, &csock->remote_iface)) {
             matches.push_back(csock);
