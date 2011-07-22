@@ -1482,6 +1482,9 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
         // This data-check probably doesn't need to be sent at all,
         //  but I'm not 100% sure about that, so I'll leave it
         //  alone for now.  The effect will be a harmless dup-ack.
+
+        assert(vecs_count == 0);
+        vecs = new struct iovec[1];
     }
     vecs[vecs_count].iov_base = &data_check_hdr;
     vecs[vecs_count].iov_len = sizeof(data_check_hdr);
