@@ -1474,7 +1474,7 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
     vecs_count++;
     
     size_t expected_bytes = 0;
-    for (int i = 0; i < vecs_count; ++i) {
+    for (size_t i = 0; i < vecs_count; ++i) {
         expected_bytes += vecs[i].iov_len;
     }
 
@@ -1486,7 +1486,7 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
     delete [] deps;
     delete [] vecs;
     pthread_mutex_lock(&sk->scheduling_state_lock);
-    if (rc != expected_bytes) {
+    if (rc != (int)expected_bytes) {
         dbgprintf("CSocketSender: write error: %s\n",
                   strerror(errno));
         sk->irob_indexes.waiting_data_checks.insert(data);
