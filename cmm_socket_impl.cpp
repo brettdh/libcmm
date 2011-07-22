@@ -1703,6 +1703,8 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
 
 void CMMSocketImpl::data_check_all_irobs()
 {
+    // TODO-OPTI: Only data-check IROBs that might have actually been lost
+    // TODO-OPTI:  (i.e. IROBs not yet sent couldn't have been lost)
     vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
     outgoing_irobs.data_check_all();
     for (size_t i = 0; i < ids.size(); ++i) {

@@ -1451,6 +1451,7 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
             vecs_count++;
         }
         
+        // TODO-OPTI: if there's no chunk to re-send, send the NEXT chunk.
         if (!chunk_vecs.empty()) {
             irob_chunk_hdr.type = htons(CMM_CONTROL_MSG_IROB_CHUNK);
             irob_chunk_hdr.op.irob_chunk = chunk;
