@@ -1464,7 +1464,7 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
             }
         }
         
-        if (psirob->all_chunks_sent()) {
+        if (psirob->is_complete() && psirob->all_chunks_sent()) {
             // TODO: make this a function.
             end_irob_hdr.type = htons(CMM_CONTROL_MSG_END_IROB);
             end_irob_hdr.op.end_irob.id = htonl(data.id);
