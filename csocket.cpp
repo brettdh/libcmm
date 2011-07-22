@@ -401,16 +401,16 @@ bool CSocket::data_inflight()
 }
 
 static uint32_t
-get_trouble_timeout_ms(struct tcp_info *info)
+get_trouble_timeout_ms(uint32_t rtt_ms)
 {
     uint32_t ack_timeout_floor_ms = 200; // same as minimum TCP RTO on Linux
-    return max(ack_timeout_floor_ms, (2 * info->tcpi_rtt / 1000));
+    return max(ack_timeout_floor_ms, (2 * rtt_ms));
 }
 
 static struct timespec
-get_trouble_check_timeout(struct tcp_info *info)
+get_trouble_check_timeout(uint32_t rtt_ms)
 {
-    uint32_t trouble_timeout_ms = get_trouble_timeout_ms(info);
+    uint32_t trouble_timeout_ms = get_trouble_timeout_ms(rtt_ms);
     struct timespec timeout;
     timeout.tv_sec = trouble_timeout_ms / 1000;
     timeout.tv_nsec = (trouble_timeout_ms % 1000) * 1000 * 1000;
@@ -430,9 +430,10 @@ CSocket::trouble_check_timeout()
 
     u_long intnw_rtt = 0;
     stats.get_estimate(NET_STATS_LATENCY, intnw_rtt);
+    intnw_rtt *= 2;
     dbgprintf("IntNW RTT estimate: %d ms     TCP RTT estimate: %d ms\n",
               (int) intnw_rtt, (int) info.tcpi_rtt / 1000);
-    return get_trouble_check_timeout(&info);
+    return get_trouble_check_timeout(intnw_rtt);
 }
 
 bool CSocket::is_in_trouble()
@@ -444,7 +445,10 @@ bool CSocket::is_in_trouble()
         return false;
     }
 
-    uint32_t trouble_timeout_ms = get_trouble_timeout_ms(&info);
+    u_long intnw_rtt = 0;
+    stats.get_estimate(NET_STATS_LATENCY, intnw_rtt);
+    intnw_rtt *= 2;
+    uint32_t trouble_timeout_ms = get_trouble_timeout_ms(intnw_rtt);
 
     /* The "last data sent" timestamp needs to be app-level.
      *   otherwise, TCP rexmits will cause the network to falsely drop
