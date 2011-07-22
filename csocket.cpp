@@ -411,7 +411,9 @@ static struct timespec
 get_trouble_check_timeout(struct tcp_info *info)
 {
     uint32_t trouble_timeout_ms = get_trouble_timeout_ms(info);
-    struct timespec timeout = {0, trouble_timeout_ms * 1000 * 1000};
+    struct timespec timeout;
+    timeout.tv_sec = trouble_timeout_ms / 1000;
+    timeout.tv_nsec = (trouble_timeout_ms % 1000) * 1000 * 1000;
     return timeout;
 }
 
