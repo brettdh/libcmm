@@ -52,6 +52,7 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
 
     //TIME(last_fg);
     last_fg.tv_sec = last_fg.tv_usec = 0;
+    last_app_data_sent.tv_sec = last_app_data_sent.tv_usec = 0;
 
     assert(sk);
     if (accepted_sock == -1) {
@@ -215,6 +216,8 @@ CSocket::phys_connect()
                   osfd, inet_ntoa(remote_addr.sin_addr), 
                   ntohs(remote_addr.sin_port));
 
+        update_last_app_data_sent();
+        
         struct CMMSocketControlHdr hdr;
         memset(&hdr, 0, sizeof(hdr));
         hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
@@ -276,6 +279,8 @@ CSocket::phys_connect()
 int
 CSocket::send_confirmation()
 {
+    update_last_app_data_sent();
+
     struct CMMSocketControlHdr hdr;
     memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_HELLO);
@@ -396,17 +401,19 @@ bool CSocket::data_inflight()
 }
 
 static uint32_t
-get_trouble_timeout_ms(struct tcp_info *info)
+get_trouble_timeout_ms(uint32_t rtt_ms)
 {
     uint32_t ack_timeout_floor_ms = 200; // same as minimum TCP RTO on Linux
-    return max(ack_timeout_floor_ms, (2 * info->tcpi_rtt / 1000));
+    return max(ack_timeout_floor_ms, (2 * rtt_ms));
 }
 
 static struct timespec
-get_trouble_check_timeout(struct tcp_info *info)
+get_trouble_check_timeout(uint32_t rtt_ms)
 {
-    uint32_t trouble_timeout_ms = get_trouble_timeout_ms(info);
-    struct timespec timeout = {0, trouble_timeout_ms * 1000 * 1000};
+    uint32_t trouble_timeout_ms = get_trouble_timeout_ms(rtt_ms);
+    struct timespec timeout;
+    timeout.tv_sec = trouble_timeout_ms / 1000;
+    timeout.tv_nsec = (trouble_timeout_ms % 1000) * 1000 * 1000;
     return timeout;
 }
 
@@ -421,7 +428,12 @@ CSocket::trouble_check_timeout()
         return failed;
     }
 
-    return get_trouble_check_timeout(&info);
+    u_long intnw_rtt = 0;
+    stats.get_estimate(NET_STATS_LATENCY, intnw_rtt);
+    intnw_rtt *= 2;
+    dbgprintf("IntNW RTT estimate: %d ms     TCP RTT estimate: %d ms\n",
+              (int) intnw_rtt, (int) info.tcpi_rtt / 1000);
+    return get_trouble_check_timeout(intnw_rtt);
 }
 
 bool CSocket::is_in_trouble()
@@ -433,20 +445,21 @@ bool CSocket::is_in_trouble()
         return false;
     }
 
-    uint32_t trouble_timeout_ms = get_trouble_timeout_ms(&info);
+    u_long intnw_rtt = 0;
+    stats.get_estimate(NET_STATS_LATENCY, intnw_rtt);
+    intnw_rtt *= 2;
+    uint32_t trouble_timeout_ms = get_trouble_timeout_ms(intnw_rtt);
 
     /* The "last data sent" timestamp needs to be app-level.
      *   otherwise, TCP rexmits will cause the network to falsely drop
      *   out of trouble mode.
-     *  Using the last FG timestamp is a simple way to get this,
-     *   since we're only doing trouble-checking for FG traffic/networks.
      */
     //uint32_t last_data_sent_ms = info.tcpi_last_data_sent;
     uint32_t last_data_sent_ms = 0;
     struct timeval now, diff;
     TIME(now);
-    TIMEDIFF(last_fg, now, diff);
-    if (timercmp(&last_fg, &now, <)) {
+    TIMEDIFF(last_app_data_sent, now, diff);
+    if (timercmp(&last_app_data_sent, &now, <)) {
         last_data_sent_ms = convert_to_useconds(diff) / 1000;
     }
     
@@ -462,7 +475,7 @@ bool CSocket::is_in_trouble()
     dbgprintf("is_in_trouble: "
               "unacked: %d pkts  last_data_sent: %d ms ago  "
               "last_ack: %d ms ago  trouble_timeout: %d ms  trouble: %s\n",
-              info.tcpi_unacked, info.tcpi_last_data_sent, 
+              info.tcpi_unacked, last_data_sent_ms, 
               info.tcpi_last_ack_recv, trouble_timeout_ms, trouble ? "yes" : "no");
     return trouble;
 }
@@ -589,15 +602,16 @@ CSocket::trickle_chunksize()/*struct timeval time_since_last_fg,
 void
 CSocket::update_last_fg()
 {
-    //struct timeval now;
-    //struct timeval diff;
-    //TIME(now);
-
-    //TIMEDIFF(last_fg, now, diff);
-    //last_fg = now;
     TIME(last_fg);
     ipc_update_fg_timestamp(iface_pair(local_iface.ip_addr,
                                        remote_iface.ip_addr));
+}
+
+
+void
+CSocket::update_last_app_data_sent()
+{
+    TIME(last_app_data_sent);
 }
 
 struct net_interface

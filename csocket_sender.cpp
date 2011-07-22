@@ -701,8 +701,6 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     memset(&hdr, 0, sizeof(hdr));
     hdr.send_labels = htonl(pirob->send_labels);
 
-    irob_id_t *deps = NULL;
-
     struct iovec vec[6];
     vec[0].iov_base = &hdr;
     vec[0].iov_len = sizeof(hdr);
@@ -723,15 +721,9 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     struct iovec *vecs_to_send = vec;
 
     size_t count = 1;
-    int numdeps = pirob->deps.size();
-    if (numdeps > 0) {
-        deps = new irob_id_t[numdeps];
-        int i = 0;
-        for (irob_id_set::iterator it = pirob->deps.begin();
-             it != pirob->deps.end(); it++) {
-            deps[i++] = htonl(*it);
-        }
-    }
+
+    irob_id_t *deps = NULL;
+    int numdeps = pirob->copy_deps_htonl(&deps);
     
     hdr.type = htons(CMM_CONTROL_MSG_BEGIN_IROB);
     hdr.op.begin_irob.id = htonl(id);
@@ -763,9 +755,8 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         ssize_t chunksize = psirob->expected_bytes();
         u_long seqno = 0;
         size_t offset = 0;
-        vector<struct iovec> irob_vecs = psirob->get_ready_bytes(chunksize, 
-                                                                 seqno,
-                                                                 offset);
+        vector<struct iovec> irob_vecs = 
+            psirob->get_ready_bytes(chunksize, seqno, offset);
         if (chunksize > 0) {
             chunk_hdr.op.irob_chunk.id = htonl(id);
             chunk_hdr.op.irob_chunk.seqno = htonl(seqno);
@@ -817,6 +808,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         sk->update_last_fg();
         csock->update_last_fg();
     }
+    csock->update_last_app_data_sent();
 
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     csock->stats.report_send_event(id, bytes);
@@ -850,14 +842,12 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
             if (psirob->is_complete() && psirob->all_chunks_sent()) {
                 if (!psirob->end_announced) {
                     psirob->end_announced = true;
-                    //csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
                 }
             }
         } else {
             IROBSchedulingData new_chunk(id, true, data.send_labels);
             if (pirob->is_anonymous()) {
                 csock->irob_indexes.new_chunks.insert(new_chunk);
-                //csock->irob_indexes.finished_irobs.insert(data);
             } else if (pirob->chunks.size() > 0) {
                 csock->irob_indexes.new_chunks.insert(new_chunk);
             }
@@ -886,6 +876,8 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
     hdr.op.end_irob.expected_bytes = htonl(psirob->expected_bytes());
     hdr.op.end_irob.expected_chunks = htonl(psirob->sent_chunks.size());
     hdr.send_labels = htonl(pirob->send_labels);
+
+    csock->update_last_app_data_sent();
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
@@ -956,13 +948,16 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     assert(psirob);
 
     if (psirob->needs_data_check()) {
-        dbgprintf("Data check in progress for IROB %ld; waiting for response\n",
-                  id);
+        dbgprintf("Data check in progress for IROB %ld\n", id);
 
         // when the response arrives, we'll begin sending again on this IROB.
         // until then, this thread might send data from other IROBs if there's
         //  data to send.
-        return true;
+        // Update:  no reason not to continue sending data.  I'll still get
+        //  resend requests for whatever's missing, but it's better to continue
+        //  making forward progress in the meantime.  If I have nothing else to send,
+        //  I'll bail out below after psirob->get_ready_bytes() returns 0.
+        //return true;
     }
 
     struct CMMSocketControlHdr hdr;
@@ -1049,6 +1044,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
         sk->update_last_fg();
         csock->update_last_fg();
     }
+    csock->update_last_app_data_sent();
 
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     if (waiting_ack_irob != -1) {
@@ -1158,6 +1154,8 @@ CSocketSender::new_interface(struct net_interface iface)
 
     hdr.send_labels = htonl(0);
 
+    csock->update_last_app_data_sent();
+
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     csock->stats.report_send_event(sizeof(hdr));
@@ -1263,6 +1261,8 @@ CSocketSender::send_acks(const IROBSchedulingData& data,
     size_t datalen = vec[0].iov_len + vec[1].iov_len;
     dbgprintf("About to send %zu ACKs\n", ack_count + 1);
 
+    csock->update_last_app_data_sent();
+
     pthread_mutex_unlock(&sk->scheduling_state_lock);
 
     csock->stats.report_send_event(datalen, &hdr.op.ack.qdelay);
@@ -1296,6 +1296,8 @@ CSocketSender::goodbye()
     memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_GOODBYE);
     hdr.send_labels = 0;
+
+    csock->update_last_app_data_sent();
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
@@ -1376,6 +1378,8 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
         hdrs[i].send_labels = 0;
     }
 
+    csock->update_last_app_data_sent();
+
     size_t bytes = sizeof(hdrs[0]) * hdrcount;
     dbgprintf("About to send message: %s (and %d more)\n", 
               hdrs[0].describe().c_str(), hdrcount - 1);
@@ -1411,13 +1415,100 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
     data_check_hdr.send_labels = 0;
     data_check_hdr.op.data_check.id = htonl(data.id);
 
+    // prepend the metadata and last data chunk for this IROB,
+    //  so as to avoid incurring an extra RTT for small losses.
+    struct iovec *vecs = NULL;
+    struct CMMSocketControlHdr begin_irob_hdr, irob_chunk_hdr, end_irob_hdr;
+    memset(&begin_irob_hdr, 0, sizeof(begin_irob_hdr));
+    memset(&irob_chunk_hdr, 0, sizeof(irob_chunk_hdr));
+    memset(&end_irob_hdr, 0, sizeof(end_irob_hdr));
+    size_t vecs_count = 0;
+    irob_id_t *deps = NULL;
+    struct irob_chunk_data chunk;
+    memset(&chunk, 0, sizeof(chunk));
+    
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(sk->outgoing_irobs.find(data.id));
+    if (psirob) {
+        vector<struct iovec> chunk_vecs = psirob->get_last_sent_chunk_htonl(&chunk);
+
+        // (begin, deps, chunk_hdr), data, (end, data_check)
+        vecs = new struct iovec[3 + chunk_vecs.size() + 2];
+
+        int numdeps = psirob->copy_deps_htonl(&deps);
+
+        // TODO: make this all a function.
+        begin_irob_hdr.type = htons(CMM_CONTROL_MSG_BEGIN_IROB);
+        begin_irob_hdr.op.begin_irob.id = htonl(data.id);
+        begin_irob_hdr.op.begin_irob.numdeps = htonl(numdeps);
+        begin_irob_hdr.send_labels = htonl(psirob->send_labels);
+        vecs[vecs_count].iov_base = &begin_irob_hdr;
+        vecs[vecs_count].iov_len = sizeof(begin_irob_hdr);
+        vecs_count++;
+
+        if (deps) {
+            vecs[vecs_count].iov_base = deps;
+            vecs[vecs_count].iov_len = numdeps * sizeof(irob_id_t);
+            vecs_count++;
+        }
+        
+        if (!chunk_vecs.empty()) {
+            irob_chunk_hdr.type = htons(CMM_CONTROL_MSG_IROB_CHUNK);
+            irob_chunk_hdr.op.irob_chunk = chunk;
+            irob_chunk_hdr.op.irob_chunk.data = NULL;
+            irob_chunk_hdr.send_labels = htonl(psirob->send_labels);
+            
+            vecs[vecs_count].iov_base = &irob_chunk_hdr;
+            vecs[vecs_count].iov_len = sizeof(irob_chunk_hdr);
+            vecs_count++;
+
+            for (size_t i = 0; i < chunk_vecs.size(); ++i) {
+                vecs[vecs_count] = chunk_vecs[i];
+                vecs_count++;
+            }
+        }
+        
+        if (psirob->is_complete() && psirob->all_chunks_sent()) {
+            // TODO: make this a function.
+            end_irob_hdr.type = htons(CMM_CONTROL_MSG_END_IROB);
+            end_irob_hdr.op.end_irob.id = htonl(data.id);
+            end_irob_hdr.op.end_irob.expected_bytes = htonl(psirob->expected_bytes());
+            end_irob_hdr.op.end_irob.expected_chunks = htonl(psirob->sent_chunks.size());
+            end_irob_hdr.send_labels = htonl(psirob->send_labels);
+            
+            vecs[vecs_count].iov_base = &end_irob_hdr;
+            vecs[vecs_count].iov_len = sizeof(end_irob_hdr);
+            vecs_count++;
+        }
+    } else {
+        // must have been ACKed, sometime between enqueuing a
+        //  data-check and now.
+        // This data-check probably doesn't need to be sent at all,
+        //  but I'm not 100% sure about that, so I'll leave it
+        //  alone for now.  The effect will be a harmless dup-ack.
+
+        assert(vecs_count == 0);
+        vecs = new struct iovec[1];
+    }
+    vecs[vecs_count].iov_base = &data_check_hdr;
+    vecs[vecs_count].iov_len = sizeof(data_check_hdr);
+    vecs_count++;
+    
+    size_t expected_bytes = 0;
+    for (size_t i = 0; i < vecs_count; ++i) {
+        expected_bytes += vecs[i].iov_len;
+    }
+
+    csock->update_last_app_data_sent();
+
     dbgprintf("About to send message: %s\n", 
               data_check_hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     csock->print_tcp_rto();
-    int rc = write(csock->osfd, &data_check_hdr, sizeof(data_check_hdr));
+    int rc = writev(csock->osfd, vecs, vecs_count);
+    delete [] deps;
+    delete [] vecs;
     pthread_mutex_lock(&sk->scheduling_state_lock);
-    if (rc != sizeof(data_check_hdr)) {
+    if (rc != (int)expected_bytes) {
         dbgprintf("CSocketSender: write error: %s\n",
                   strerror(errno));
         sk->irob_indexes.waiting_data_checks.insert(data);

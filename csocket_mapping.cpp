@@ -457,8 +457,8 @@ CSockMapping::get_iface_pair_locked(u_long send_label,
                 existing_csock = csocks[0];
             }
             if (!existing_csock ||
-                !existing_csock->is_in_trouble()// ||
-                //existing_csock->is_only_csock() ||
+                !existing_csock->is_in_trouble() ||
+                count() == 1// ||
                 //existing_csock->is_not_default_fg_but_default_fg_is_in_trouble_and_this_is_the_only_other_csock()) { // XXX: bleah!
                 ) {
                 matcher.consider(*i, *j);

@@ -116,6 +116,9 @@ class CSocket {
     struct timeval last_fg;
     void update_last_fg();
 
+    struct timeval last_app_data_sent;
+    void update_last_app_data_sent();
+
     // for coordination between this CSocket's worker threads
     pthread_mutex_t csock_lock;
     pthread_cond_t csock_cv;

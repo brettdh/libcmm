@@ -228,6 +228,24 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno,
     return data;
 }
 
+vector<struct iovec>
+PendingSenderIROB::get_last_sent_chunk_htonl(struct irob_chunk_data *chunk)
+{
+    assert(chunk);
+    if (sent_chunks.empty()) {
+        return vector<struct iovec>();
+    }
+
+    struct irob_chunk_data last_chunk = sent_chunks.back();
+    chunk->id = htonl(last_chunk.id);
+    chunk->seqno = htonl(last_chunk.seqno);
+    chunk->offset = htonl(last_chunk.offset);
+    chunk->datalen = htonl(last_chunk.datalen);
+    chunk->data = NULL;
+    
+    ssize_t len = last_chunk.datalen;
+    return get_bytes_internal(last_chunk.offset, len);
+}
 
 // return true iff the data specified by the chunk has been marked sent.
 // bool

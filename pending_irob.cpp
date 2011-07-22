@@ -107,6 +107,21 @@ PendingIROB::add_dep(irob_id_t id)
     deps.insert(id);
 }
 
+size_t
+PendingIROB::copy_deps_htonl(irob_id_t **deps_array)
+{
+    assert(deps_array);
+    int i = 0;
+    for (irob_id_set::iterator it = deps.begin();
+         it != deps.end(); it++) {
+        if (!*deps_array) {
+            *deps_array = new irob_id_t[deps.size()];
+        }
+        (*deps_array)[i++] = htonl(*it);
+    }
+    return deps.size();
+}
+
 void 
 PendingIROB::dep_satisfied(irob_id_t id)
 {
