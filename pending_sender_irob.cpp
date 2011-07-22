@@ -237,6 +237,7 @@ PendingSenderIROB::get_last_sent_chunk_htonl(struct irob_chunk_data *chunk)
     }
 
     struct irob_chunk_data last_chunk = sent_chunks.back();
+    chunk->id = htonl(last_chunk.id);
     chunk->seqno = htonl(last_chunk.seqno);
     chunk->offset = htonl(last_chunk.offset);
     chunk->datalen = htonl(last_chunk.datalen);

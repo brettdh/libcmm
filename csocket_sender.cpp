@@ -1425,6 +1425,7 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
         begin_irob_hdr.type = htons(CMM_CONTROL_MSG_BEGIN_IROB);
         begin_irob_hdr.op.begin_irob.id = htonl(data.id);
         begin_irob_hdr.op.begin_irob.numdeps = htonl(numdeps);
+        begin_irob_hdr.send_labels = htonl(psirob->send_labels);
         vecs[vecs_count].iov_base = &begin_irob_hdr;
         vecs[vecs_count].iov_len = sizeof(begin_irob_hdr);
         vecs_count++;
@@ -1439,6 +1440,7 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
             irob_chunk_hdr.type = htons(CMM_CONTROL_MSG_IROB_CHUNK);
             irob_chunk_hdr.op.irob_chunk = chunk;
             irob_chunk_hdr.op.irob_chunk.data = NULL;
+            irob_chunk_hdr.send_labels = htonl(psirob->send_labels);
             
             vecs[vecs_count].iov_base = &irob_chunk_hdr;
             vecs[vecs_count].iov_len = sizeof(irob_chunk_hdr);
