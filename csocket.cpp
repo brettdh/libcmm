@@ -428,6 +428,10 @@ CSocket::trouble_check_timeout()
         return failed;
     }
 
+    u_long intnw_rtt = 0;
+    stats.get_estimate(NET_STATS_LATENCY, intnw_rtt);
+    dbgprintf("IntNW RTT estimate: %d ms     TCP RTT estimate: %d ms\n",
+              intnw_rtt, info.tcpi_rtt);
     return get_trouble_check_timeout(&info);
 }
 
