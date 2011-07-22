@@ -808,6 +808,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         sk->update_last_fg();
         csock->update_last_fg();
     }
+    csock->update_last_app_data_sent();
 
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     csock->stats.report_send_event(id, bytes);
@@ -875,6 +876,8 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
     hdr.op.end_irob.expected_bytes = htonl(psirob->expected_bytes());
     hdr.op.end_irob.expected_chunks = htonl(psirob->sent_chunks.size());
     hdr.send_labels = htonl(pirob->send_labels);
+
+    csock->update_last_app_data_sent();
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
@@ -1038,6 +1041,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
         sk->update_last_fg();
         csock->update_last_fg();
     }
+    csock->update_last_app_data_sent();
 
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     if (waiting_ack_irob != -1) {
@@ -1147,6 +1151,8 @@ CSocketSender::new_interface(struct net_interface iface)
 
     hdr.send_labels = htonl(0);
 
+    csock->update_last_app_data_sent();
+
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     csock->stats.report_send_event(sizeof(hdr));
@@ -1252,6 +1258,8 @@ CSocketSender::send_acks(const IROBSchedulingData& data,
     size_t datalen = vec[0].iov_len + vec[1].iov_len;
     dbgprintf("About to send %zu ACKs\n", ack_count + 1);
 
+    csock->update_last_app_data_sent();
+
     pthread_mutex_unlock(&sk->scheduling_state_lock);
 
     csock->stats.report_send_event(datalen, &hdr.op.ack.qdelay);
@@ -1285,6 +1293,8 @@ CSocketSender::goodbye()
     memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_GOODBYE);
     hdr.send_labels = 0;
+
+    csock->update_last_app_data_sent();
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
@@ -1364,6 +1374,8 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
         //hdrs[i].op.resend_request.len = htonl(missing_chunks[i].datalen);
         hdrs[i].send_labels = 0;
     }
+
+    csock->update_last_app_data_sent();
 
     size_t bytes = sizeof(hdrs[0]) * hdrcount;
     dbgprintf("About to send message: %s (and %d more)\n", 
@@ -1479,6 +1491,8 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
     for (size_t i = 0; i < vecs_count; ++i) {
         expected_bytes += vecs[i].iov_len;
     }
+
+    csock->update_last_app_data_sent();
 
     dbgprintf("About to send message: %s\n", 
               data_check_hdr.describe().c_str());
