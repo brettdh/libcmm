@@ -948,13 +948,16 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     assert(psirob);
 
     if (psirob->needs_data_check()) {
-        dbgprintf("Data check in progress for IROB %ld; waiting for response\n",
-                  id);
+        dbgprintf("Data check in progress for IROB %ld\n", id);
 
         // when the response arrives, we'll begin sending again on this IROB.
         // until then, this thread might send data from other IROBs if there's
         //  data to send.
-        return true;
+        // Update:  no reason not to continue sending data.  I'll still get
+        //  resend requests for whatever's missing, but it's better to continue
+        //  making forward progress in the meantime.  If I have nothing else to send,
+        //  I'll bail out below after psirob->get_ready_bytes() returns 0.
+        //return true;
     }
 
     struct CMMSocketControlHdr hdr;
