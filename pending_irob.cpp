@@ -108,16 +108,16 @@ PendingIROB::add_dep(irob_id_t id)
 }
 
 size_t
-PendingIROB::copy_deps_htonl(irob_id_t **deps)
+PendingIROB::copy_deps_htonl(irob_id_t **deps_array)
 {
-    irob_id_t deps = NULL;
+    assert(deps_array);
     int i = 0;
-    for (irob_id_set::iterator it = pirob->deps.begin();
-         it != pirob->deps.end(); it++) {
-        if (!deps) {
-            deps = new irob_id_t[deps.size()];
+    for (irob_id_set::iterator it = deps.begin();
+         it != deps.end(); it++) {
+        if (!*deps_array) {
+            *deps_array = new irob_id_t[deps.size()];
         }
-        deps[i++] = htonl(*it);
+        (*deps_array)[i++] = htonl(*it);
     }
     return deps.size();
 }

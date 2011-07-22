@@ -53,7 +53,7 @@ class PendingIROB {
     //  if this returns 0, *deps was not modified.
     // since this function is used for formatting network messages,
     //  the integer IDs are stored in network byte order.
-    size_t PendingIROB::copy_deps_htonl(irob_id_t **deps);
+    size_t copy_deps_htonl(irob_id_t **deps);
 
     void add_dependent(irob_id_t id);
     

@@ -52,6 +52,8 @@ class PendingSenderIROB : public PendingIROB {
                                               u_long& seqno,
                                               size_t& offset);
 
+    std::vector<struct iovec> get_last_sent_chunk_htonl(struct irob_chunk_data *chunk);
+
     /* Marks the next bytes_sent bytes as sent.  This in essence advances the
      * pointer that get_ready_bytes provides into this IROB's data. 
      * If the modified bytes_requested parameter from get_ready_bytes is passed
