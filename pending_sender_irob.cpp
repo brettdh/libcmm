@@ -219,6 +219,7 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno,
 
     struct irob_chunk_data sent_chunk;
     memset(&sent_chunk, 0, sizeof(sent_chunk));
+    sent_chunk.id = id;
     sent_chunk.seqno = seqno;
     sent_chunk.offset = offset_;
     sent_chunk.datalen = bytes_requested;
