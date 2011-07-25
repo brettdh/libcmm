@@ -1659,27 +1659,6 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
             ipc_add_iface_pair(ifaces);
         }
     }
-
-    if (need_data_check) {
-        dbgprintf("Zero-bandwidth period over\n");
-        return;
-        // try leaving this particular bit of retransmission to TCP.
-        
-        //  Potential performance improvement: When a new network becomes 
-        //  available, do Data_Checks for all unACKed IROBS, hopefully 
-        //  proactively retransmitting some data on the new socket,
-        //  which has no queued data that TCP is waiting to retransmit.
-
-        /*
-        dbgprintf("Recovering from 0-bandwidth period; issuing data-check\n");
-        vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
-        outgoing_irobs.data_check_all();
-        for (size_t i = 0; i < ids.size(); ++i) {
-            IROBSchedulingData data_check(ids[i], false);
-            irob_indexes.waiting_data_checks.insert(data_check);
-        }
-        */
-    }
 }
 
 void
@@ -1717,8 +1696,15 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
             ipc_remove_iface_pair(ifaces);
         }
     }
-
+    
     PthreadScopedLock lock(&scheduling_state_lock);
+    data_check_all_irobs();
+}
+
+void CMMSocketImpl::data_check_all_irobs()
+{
+    // TODO-OPTI: Only data-check IROBs that might have actually been lost
+    // TODO-OPTI:  (i.e. IROBs not yet sent couldn't have been lost)
     vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
     outgoing_irobs.data_check_all();
     for (size_t i = 0; i < ids.size(); ++i) {
@@ -1736,8 +1722,7 @@ bool
 CMMSocketImpl::net_available(u_long send_labels)
 {
     struct net_interface local_dummy, remote_dummy;
-    return csock_map->get_iface_pair(send_labels, local_dummy, remote_dummy,
-                                     false);
+    return csock_map->get_iface_pair_locked(send_labels, local_dummy, remote_dummy);
 }
 
 bool 
@@ -2241,7 +2226,6 @@ void
 CMMSocketImpl::ack_received(irob_id_t id)
 {
     PthreadScopedLock lock(&scheduling_state_lock);
-    ack_timeouts.remove(id);
     PendingIROB *pirob = outgoing_irobs.find(id);
     if (!pirob) {
         if (outgoing_irobs.past_irob_exists(id)) {
@@ -2267,16 +2251,16 @@ void
 CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t request,
                                        u_long seqno, int next_chunk)//, size_t offset, size_t len)
 {
-    {
-        // try to make sure there's a socket to do the resending
-        PthreadScopedRWLock sock_lock(&my_lock, false);
-        CSocket *csock = NULL;
-        int ret = get_csock(0, NULL, NULL, csock, false);
-        if (ret < 0) {
-            goodbye(false);
-            return;
-        }
-    }
+    // {
+    //     // try to make sure there's a socket to do the resending
+    //     PthreadScopedRWLock sock_lock(&my_lock, false);
+    //     CSocket *csock = NULL;
+    //     int ret = get_csock(0, NULL, NULL, csock, false);
+    //     if (ret < 0) {
+    //         goodbye(false);
+    //         return;
+    //     }
+    // }
 
     PthreadScopedLock lock(&scheduling_state_lock);
     PendingIROB *pirob = outgoing_irobs.find(id);
@@ -2336,16 +2320,16 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
 void
 CMMSocketImpl::data_check_requested(irob_id_t id)
 {
-    {
-        // try to make sure there's a socket to do the resending
-        PthreadScopedRWLock sock_lock(&my_lock, false);
-        CSocket *csock = NULL;
-        int ret = get_csock(0, NULL, NULL, csock, false);
-        if (ret < 0) {
-            goodbye(false);
-            return;
-        }
-    }
+    // {
+    //     // try to make sure there's a socket to do the resending
+    //     PthreadScopedRWLock sock_lock(&my_lock, false);
+    //     CSocket *csock = NULL;
+    //     int ret = get_csock(0, NULL, NULL, csock, false);
+    //     if (ret < 0) {
+    //         goodbye(false);
+    //         return;
+    //     }
+    // }
 
     PthreadScopedLock lock(&scheduling_state_lock);
     PendingIROB *pirob = incoming_irobs.find(id);
@@ -2432,13 +2416,7 @@ CMMSocketImpl::goodbye(bool remote_initiated)
     if (remote_initiated) {
         // remote side thinks it's sent all ACKs;
         //  if I haven't received them all, ask for them again.
-        vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
-        outgoing_irobs.data_check_all();
-        for (size_t i = 0; i < ids.size(); ++i) {
-            IROBSchedulingData data_check(ids[i], false);
-            irob_indexes.waiting_data_checks.insert(data_check);
-        }
-
+        data_check_all_irobs();
         remote_shutdown = true;
     }
 

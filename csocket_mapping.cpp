@@ -71,23 +71,26 @@ CSockMapping::get_real_fds(mcSocketOsfdPairList &osfd_list)
 }
 
 struct get_matching_csocks {
-    const struct net_interface& iface;
+    const struct net_interface *local_iface;
+    const struct net_interface *remote_iface;
     vector<CSocketPtr>& matches;
     bool local;
-    get_matching_csocks(const struct net_interface& iface_,
-                        vector<CSocketPtr>& matches_, bool local_)
-        : iface(iface_), matches(matches_), local(local_) {}
+    get_matching_csocks(const struct net_interface *local_iface_,
+                        const struct net_interface *remote_iface_,
+                        vector<CSocketPtr>& matches_)
+        : local_iface(local_iface_), remote_iface(remote_iface_), 
+          matches(matches_) {}
+
+    bool iface_matches(const struct net_interface *ref, 
+                       const struct net_interface *candidate) {
+        return (!ref || ref->ip_addr.s_addr == candidate->ip_addr.s_addr);
+    }
 
     int operator()(CSocketPtr csock) {
         assert(csock);
 
-        struct net_interface *candidate = NULL;
-        if (local) {
-            candidate = &csock->local_iface;
-        } else {
-            candidate = &csock->remote_iface;
-        }
-        if (candidate->ip_addr.s_addr == iface.ip_addr.s_addr) {
+        if (iface_matches(local_iface, &csock->local_iface) &&
+            iface_matches(remote_iface, &csock->remote_iface)) {
             matches.push_back(csock);
         }
         return 0;
@@ -100,7 +103,9 @@ CSockMapping::setup(struct net_interface iface, bool local,
                     bool make_connection, bool need_data_check)
 {
     vector<CSocketPtr> matches;
-    (void)for_each(get_matching_csocks(iface, matches, local));
+    struct net_interface *local_iface = local ? &iface : NULL;
+    struct net_interface *remote_iface = local ? NULL : &iface;
+    (void)for_each(get_matching_csocks(local_iface, remote_iface, matches));
 
     for (size_t i = 0; i < matches.size(); ++i) {
         // replace connection stats with updated numbers
@@ -183,7 +188,9 @@ void
 CSockMapping::teardown(struct net_interface iface, bool local)
 {
     vector<CSocketPtr> victims;
-    (void)for_each(get_matching_csocks(iface, victims, local));
+    struct net_interface *local_iface = local ? &iface : NULL;
+    struct net_interface *remote_iface = local ? NULL : &iface;
+    (void)for_each(get_matching_csocks(local_iface, remote_iface, victims));
 
     PthreadScopedRWLock lock(&sockset_mutex, true);
     while (!victims.empty()) {
@@ -255,10 +262,11 @@ CSockMapping::csock_by_ifaces(struct net_interface local_iface,
 struct LabelMatcher {
     u_long max_bw;
     u_long min_RTT;
+    bool has_match;
     pair<struct net_interface, struct net_interface> max_bw_iface_pair;
     pair<struct net_interface, struct net_interface> min_RTT_iface_pair;
 
-    LabelMatcher() : max_bw(0), min_RTT(ULONG_MAX) {}
+    LabelMatcher() : max_bw(0), min_RTT(ULONG_MAX), has_match(false) {}
 
     // for use with CSockMapping::for_each_by_ref
     void consider(CSocketPtr csock) {
@@ -294,6 +302,9 @@ struct LabelMatcher {
             min_RTT = RTT;
             min_RTT_iface_pair = make_pair(local_iface, remote_iface);
         }
+
+        // we have a match after we've considered at least one.
+        has_match = true;
     }
     
     bool pick_label_match(u_long send_label,
@@ -302,6 +313,11 @@ struct LabelMatcher {
 
         const u_long LABELMASK_FGBG = CMM_LABEL_ONDEMAND | CMM_LABEL_BACKGROUND;
         
+        if (!has_match) {
+            return false;
+        }
+
+        // TODO: try to check based on the actual size
         if (send_label & CMM_LABEL_SMALL &&
             min_RTT < ULONG_MAX) {
             local_iface = min_RTT_iface_pair.first;
@@ -313,43 +329,14 @@ struct LabelMatcher {
             return true;
         } else if (send_label & CMM_LABEL_ONDEMAND ||
                    !(send_label & LABELMASK_FGBG)) {
-//             if (send_label & CMM_LABEL_SMALL &&
-//                 min_RTT < ULONG_MAX) {
-//                 local_iface = min_RTT_iface_pair.first;
-//                 remote_iface = min_RTT_iface_pair.second;
-//                 return true;
-//             } else if (send_label & CMM_LABEL_LARGE) {
-//                 local_iface = max_bw_iface_pair.first;
-//                 remote_iface = max_bw_iface_pair.second;
-//                 return true;
-//             } else {
-                // TODO: try to check based on the actual size
             local_iface = min_RTT_iface_pair.first;
             remote_iface = min_RTT_iface_pair.second;
             return true;            
-//            }
         } else if (send_label & CMM_LABEL_BACKGROUND ||
                    send_label == 0) {
-//             if (send_label & CMM_LABEL_SMALL &&
-//                 min_RTT < ULONG_MAX) {
-//                 local_iface = min_RTT_iface_pair.first;
-//                 remote_iface = min_RTT_iface_pair.second;
-//                 return true;
-//             } else if (send_label & CMM_LABEL_LARGE) {
-//                 local_iface = max_bw_iface_pair.first;
-//                 remote_iface = max_bw_iface_pair.second;
-//                 return true;
-//             } else {
-                // TODO: try to check based on the actual size
             local_iface = max_bw_iface_pair.first;
             remote_iface = max_bw_iface_pair.second;
             return true;            
-//            }
-            /*
-            local_iface = max_bw_iface_pair.first;
-            remote_iface = max_bw_iface_pair.second;
-            return true;
-            */
         } else {
             local_iface = max_bw_iface_pair.first;
             remote_iface = max_bw_iface_pair.second;
@@ -406,16 +393,22 @@ CSockMapping::connected_csock_with_labels(u_long send_label, bool locked)
 
 /* must not be holding sk->scheduling_state_lock. */
 bool
-CSockMapping::csock_matches(CSocket *csock, u_long send_label)
+CSockMapping::csock_matches_ignore_trouble(CSocket *csock, u_long send_label)
+{
+    return csock_matches(csock, send_label, true);
+}
+
+/* must not be holding sk->scheduling_state_lock. */
+bool CSockMapping::csock_matches(CSocket *csock, u_long send_label, bool ignore_trouble)
 {
     if (send_label == 0) {
         return true;
     }
 
     struct net_interface local_iface, remote_iface;
-    if (!get_iface_pair(send_label, local_iface, remote_iface, true)) {
-        // there is no interface pair that suits these labels, 
-        // so therefore csock must not be suitable!
+    if (!get_iface_pair(send_label, local_iface, remote_iface, ignore_trouble)) {
+        // there is no interface pair that suits these labels;
+        // therefore, csock must not be suitable!
         return false;
     }
 
@@ -426,41 +419,56 @@ CSockMapping::csock_matches(CSocket *csock, u_long send_label)
 bool
 CSockMapping::get_iface_pair(u_long send_label,
                              struct net_interface& local_iface,
-                             struct net_interface& remote_iface, 
-                             bool locked)
+                             struct net_interface& remote_iface,
+                             bool ignore_trouble)
 {
     CMMSocketImplPtr skp(sk);
+    PthreadScopedRWLock lock(&skp->my_lock, false);
+    return get_iface_pair_locked(send_label, local_iface, remote_iface, ignore_trouble);
+}
 
-    auto_ptr<PthreadScopedRWLock> lock_ptr;
-    if (locked) {
-        lock_ptr.reset(new PthreadScopedRWLock(&skp->my_lock, false));
-    }
-
-    {
-        // WTF?  This would grab the lock twice when locked=false.
-        // locked=false means that the caller is already
-        // holding the lock.
-//         auto_ptr<PthreadScopedRWLock> short_lock_ptr;
-//         if (!locked) {
-//             short_lock_ptr.reset(new PthreadScopedRWLock(&skp->my_lock, 
-//                                                          false));
-//         }
-
-        if (skp->isLoopbackOnly(false)) {
-            // only ever use one interface pair, 
-            //  so it's the one for all labels.
-            local_iface = *skp->local_ifaces.begin();
-            remote_iface = *skp->remote_ifaces.begin();
-            return true;
-        }
+bool
+CSockMapping::get_iface_pair_locked(u_long send_label,
+                                    struct net_interface& local_iface,
+                                    struct net_interface& remote_iface,
+                                    bool ignore_trouble)
+{
+    CMMSocketImplPtr skp(sk);
+    if (skp->isLoopbackOnly(false)) {
+        // only ever use one interface pair, 
+        //  so it's the one for all labels.
+        local_iface = *skp->local_ifaces.begin();
+        remote_iface = *skp->remote_ifaces.begin();
+        return true;
     }
     
     LabelMatcher matcher;
+    vector<CSocketPtr> csocks; // only one per iface pair
     for (NetInterfaceSet::iterator i = skp->local_ifaces.begin();
          i != skp->local_ifaces.end(); ++i) {
         for (NetInterfaceSet::iterator j = skp->remote_ifaces.begin();
              j != skp->remote_ifaces.end(); ++j) {
-            matcher.consider(*i, *j);
+            csocks.clear();
+            if (!ignore_trouble) {
+                for_each(get_matching_csocks(&*i, &*j, csocks));
+            }
+            CSocketPtr existing_csock;
+            if (!csocks.empty()) {
+                existing_csock = csocks[0];
+            }
+            if (!existing_csock ||
+                !existing_csock->is_in_trouble() ||
+                count() == 1// ||
+                //existing_csock->is_not_default_fg_but_default_fg_is_in_trouble_and_this_is_the_only_other_csock()) { // XXX: bleah!
+                ) {
+                matcher.consider(*i, *j);
+            } else {
+                char local_ip[16], remote_ip[16];
+                get_ip_string(i->ip_addr, local_ip);
+                get_ip_string(j->ip_addr, remote_ip);
+                dbgprintf("Not considering (%s -> %s) for labels %d; csock is troubled\n",
+                          local_ip, remote_ip, (int) send_label);
+            }
         }
     }
 
@@ -498,7 +506,7 @@ CSockMapping::make_new_csocket(struct net_interface local_iface,
 }
 
 CSocketPtr 
-CSockMapping::new_csock_with_labels(u_long send_label, bool locked)
+CSockMapping::new_csock_with_labels(u_long send_label, bool grab_lock)
 {
     {
         CSocketPtr csock = csock_with_labels(send_label);
@@ -508,7 +516,13 @@ CSockMapping::new_csock_with_labels(u_long send_label, bool locked)
     }
     
     struct net_interface local_iface, remote_iface;
-    if (!get_iface_pair(send_label, local_iface, remote_iface, locked)) {
+    bool result;
+    if (grab_lock) {
+        result = get_iface_pair(send_label, local_iface, remote_iface);
+    } else {
+        result = get_iface_pair_locked(send_label, local_iface, remote_iface);
+    }
+    if (!result) {
         /* Can't make a suitable connection for this send label */
         return CSocketPtr();
     }

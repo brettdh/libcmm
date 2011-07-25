@@ -52,6 +52,7 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
 
     //TIME(last_fg);
     last_fg.tv_sec = last_fg.tv_usec = 0;
+    last_app_data_sent.tv_sec = last_app_data_sent.tv_usec = 0;
 
     assert(sk);
     if (accepted_sock == -1) {
@@ -215,6 +216,8 @@ CSocket::phys_connect()
                   osfd, inet_ntoa(remote_addr.sin_addr), 
                   ntohs(remote_addr.sin_port));
 
+        update_last_app_data_sent();
+        
         struct CMMSocketControlHdr hdr;
         memset(&hdr, 0, sizeof(hdr));
         hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
@@ -276,6 +279,8 @@ CSocket::phys_connect()
 int
 CSocket::send_confirmation()
 {
+    update_last_app_data_sent();
+
     struct CMMSocketControlHdr hdr;
     memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_HELLO);
@@ -349,6 +354,12 @@ bool CSocket::is_fg()
             matches(CMM_LABEL_ONDEMAND|CMM_LABEL_LARGE));
 }
 
+bool CSocket::is_fg_ignore_trouble()
+{
+    return (sk->csock_map->csock_matches_ignore_trouble(this, CMM_LABEL_ONDEMAND|CMM_LABEL_SMALL) ||
+            sk->csock_map->csock_matches_ignore_trouble(this, CMM_LABEL_ONDEMAND|CMM_LABEL_LARGE));
+}
+
 // must be holding scheduling_state_lock
 // return true iff the csocket is busy sending app data
 bool CSocket::is_busy()
@@ -364,6 +375,109 @@ bool CSocket::is_busy()
         return true;
     }
     return false;
+}
+
+static int get_tcp_info(int sock, struct tcp_info *info)
+{
+    memset(info, 0, sizeof(*info));
+    socklen_t len = sizeof(*info);
+    
+    // not implemented on Android, so we may as well just skip it
+    //struct protoent *pe = getprotobyname("TCP");
+    int tcp_proto = 6;
+    return getsockopt(sock, tcp_proto, TCP_INFO, info, &len);
+}
+
+bool CSocket::data_inflight()
+{
+    struct tcp_info info;
+    if (get_tcp_info(osfd, &info) < 0) {
+        dbgprintf("data_inflight: unable to read tcp state: %s\n",
+                  strerror(errno));
+        return -1;
+    }
+    dbgprintf("data_inflight: unacked: %d pkts\n", info.tcpi_unacked);
+    return (info.tcpi_unacked > 0);
+}
+
+static uint32_t
+get_trouble_timeout_ms(uint32_t rtt_ms)
+{
+    uint32_t ack_timeout_floor_ms = 200; // same as minimum TCP RTO on Linux
+    return max(ack_timeout_floor_ms, (2 * rtt_ms));
+}
+
+static struct timespec
+get_trouble_check_timeout(uint32_t rtt_ms)
+{
+    uint32_t trouble_timeout_ms = get_trouble_timeout_ms(rtt_ms);
+    struct timespec timeout;
+    timeout.tv_sec = trouble_timeout_ms / 1000;
+    timeout.tv_nsec = (trouble_timeout_ms % 1000) * 1000 * 1000;
+    return timeout;
+}
+
+struct timespec
+CSocket::trouble_check_timeout()
+{
+    struct tcp_info info;
+    if (get_tcp_info(osfd, &info) < 0) {
+        dbgprintf("trouble_check_timeout: unable to read tcp state: %s\n",
+                  strerror(errno));
+        struct timespec failed = {-1, 0};
+        return failed;
+    }
+
+    u_long intnw_rtt = 0;
+    stats.get_estimate(NET_STATS_LATENCY, intnw_rtt);
+    intnw_rtt *= 2;
+    dbgprintf("IntNW RTT estimate: %d ms     TCP RTT estimate: %d ms\n",
+              (int) intnw_rtt, (int) info.tcpi_rtt / 1000);
+    return get_trouble_check_timeout(intnw_rtt);
+}
+
+bool CSocket::is_in_trouble()
+{
+    struct tcp_info info;
+    if (get_tcp_info(osfd, &info) < 0) {
+        dbgprintf("is_in_trouble: unable to read tcp state: %s\n", 
+                  strerror(errno));
+        return false;
+    }
+
+    u_long intnw_rtt = 0;
+    stats.get_estimate(NET_STATS_LATENCY, intnw_rtt);
+    intnw_rtt *= 2;
+    uint32_t trouble_timeout_ms = get_trouble_timeout_ms(intnw_rtt);
+
+    /* The "last data sent" timestamp needs to be app-level.
+     *   otherwise, TCP rexmits will cause the network to falsely drop
+     *   out of trouble mode.
+     */
+    //uint32_t last_data_sent_ms = info.tcpi_last_data_sent;
+    uint32_t last_data_sent_ms = 0;
+    struct timeval now, diff;
+    TIME(now);
+    TIMEDIFF(last_app_data_sent, now, diff);
+    if (timercmp(&last_app_data_sent, &now, <)) {
+        last_data_sent_ms = convert_to_useconds(diff) / 1000;
+    }
+    
+    bool trouble = 
+        (/* if there's data in flight... */
+         info.tcpi_unacked > 0 &&
+         /* ...and it's been long enough since I sent the data... */
+         last_data_sent_ms > trouble_timeout_ms && 
+         /* ...and there hasn't been an ACK in a while... */
+         ((int)info.tcpi_last_ack_recv) > 0 && /* workaround for possible kernel bug */
+         info.tcpi_last_ack_recv > trouble_timeout_ms);
+
+    dbgprintf("is_in_trouble: "
+              "unacked: %d pkts  last_data_sent: %d ms ago  "
+              "last_ack: %d ms ago  trouble_timeout: %d ms  trouble: %s\n",
+              info.tcpi_unacked, last_data_sent_ms, 
+              info.tcpi_last_ack_recv, trouble_timeout_ms, trouble ? "yes" : "no");
+    return trouble;
 }
 
 u_long
@@ -488,15 +602,16 @@ CSocket::trickle_chunksize()/*struct timeval time_since_last_fg,
 void
 CSocket::update_last_fg()
 {
-    //struct timeval now;
-    //struct timeval diff;
-    //TIME(now);
-
-    //TIMEDIFF(last_fg, now, diff);
-    //last_fg = now;
     TIME(last_fg);
     ipc_update_fg_timestamp(iface_pair(local_iface.ip_addr,
                                        remote_iface.ip_addr));
+}
+
+
+void
+CSocket::update_last_app_data_sent()
+{
+    TIME(last_app_data_sent);
 }
 
 struct net_interface

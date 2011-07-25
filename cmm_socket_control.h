@@ -150,6 +150,7 @@ struct CMMSocketControlHdr {
     std::string describe() const;
   private:
     const char *type_str() const;
+    std::string resend_request_type_str() const;
 };
 
 class CMMControlException : public std::runtime_error {

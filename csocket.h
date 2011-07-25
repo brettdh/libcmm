@@ -62,6 +62,7 @@ class CSocket {
      *               matches(CMM_LABEL_ONDEMAND|CMM_LABEL_LARGE))
      * must not be holding sk->scheduling_state_lock. */
     bool is_fg();
+    bool is_fg_ignore_trouble();
 
     // return true iff the csocket is busy sending app data
     bool is_busy();
@@ -115,6 +116,9 @@ class CSocket {
     struct timeval last_fg;
     void update_last_fg();
 
+    struct timeval last_app_data_sent;
+    void update_last_app_data_sent();
+
     // for coordination between this CSocket's worker threads
     pthread_mutex_t csock_lock;
     pthread_cond_t csock_cv;
@@ -122,6 +126,20 @@ class CSocket {
 
     // to distinguish between connecting and accepting sockets
     bool accepting;
+    
+    // returns true iff FG traffic shouldn't be sent on this network
+    //  because we think it might be disconnected, but
+    //  we haven't been notified as such by the scout yet.
+    bool is_in_trouble();
+    
+    // return true if this CSocket's TCP connection has
+    //  unACKed bytes in flight.
+    bool data_inflight();
+
+    // return a relative timeout representing
+    // the earliest time that you'd want to check 
+    // whether this network is in trouble.
+    struct timespec trouble_check_timeout();
 
     // only valid until the worker threads are created;
     // ensures that all CSocket pointers are shared

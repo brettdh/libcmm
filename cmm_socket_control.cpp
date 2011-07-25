@@ -40,6 +40,28 @@ CMMSocketControlHdr::type_str() const
     return strs[my_type];
 }
 
+std::string
+CMMSocketControlHdr::resend_request_type_str() const
+{
+    static const char *strs[] = {
+        "deps", "data", "end"
+    };
+
+    std::ostringstream msg;
+    int request = ntohl(op.resend_request.request);
+    for (int i = 0; i < 3; ++i) {
+        int bitmask = 1 << i;
+        if (request & bitmask) {
+            msg << strs[i];
+            request &= ~bitmask;
+            if (request) {
+                msg << ",";
+            }
+        }
+    }
+    return msg.str();
+}
+
 static std::string nodebug_description = "(no debugging)";
 
 std::string
@@ -110,10 +132,9 @@ CMMSocketControlHdr::describe() const
         break;
     case CMM_CONTROL_MSG_RESEND_REQUEST:
         stream << "IROB: " << ntohl(op.resend_request.id) << " ";
-        stream << "request: " << ntohl(op.resend_request.request) << " ";
+        stream << "request: " 
+               << ntohl(op.resend_request.request) << " ";
         stream << "seqno: " << ntohl(op.resend_request.seqno) << " ";
-        //stream << "offset: " << ntohl(op.resend_request.offset) << " ";
-        //stream << "len: " << ntohl(op.resend_request.len);
         stream << "next_chunk: " << ntohl(op.resend_request.next_chunk);
         break;
     case CMM_CONTROL_MSG_DATA_CHECK:
