@@ -38,14 +38,14 @@ CSockMapping::~CSockMapping()
 size_t
 CSockMapping::count()
 {
-    PthreadScopedRWLock lock(&sockset_mutex, true);
+    PthreadScopedRWLock lock(&sockset_mutex, false);
     return available_csocks.size();
 }
 
 bool
 CSockMapping::empty()
 {
-    PthreadScopedRWLock lock(&sockset_mutex, true);
+    PthreadScopedRWLock lock(&sockset_mutex, false);
     return available_csocks.empty();
 }
 
@@ -211,7 +211,8 @@ struct GlobalLabelMatch {
         : cskmap(cskmap_), send_label(send_label_) {}
 
     bool operator()(CSocketPtr csock) {
-        return cskmap->csock_matches(get_pointer(csock), send_label);
+        // already locked the sockset_mutex here, since I'm inside find_csock
+        return cskmap->csock_matches_internal(get_pointer(csock), send_label, false, true);
     }
 };
 
@@ -401,12 +402,19 @@ CSockMapping::csock_matches_ignore_trouble(CSocket *csock, u_long send_label)
 /* must not be holding sk->scheduling_state_lock. */
 bool CSockMapping::csock_matches(CSocket *csock, u_long send_label, bool ignore_trouble)
 {
+    return csock_matches_internal(csock, send_label, ignore_trouble, false);
+}
+
+bool CSockMapping::csock_matches_internal(CSocket *csock, u_long send_label, bool ignore_trouble, 
+                                          bool sockset_already_locked)
+{
     if (send_label == 0) {
         return true;
     }
-
+    
     struct net_interface local_iface, remote_iface;
-    if (!get_iface_pair(send_label, local_iface, remote_iface, ignore_trouble)) {
+    if (!get_iface_pair_internal(send_label, local_iface, remote_iface,
+                                 ignore_trouble, sockset_already_locked)) {
         // there is no interface pair that suits these labels;
         // therefore, csock must not be suitable!
         return false;
@@ -422,9 +430,21 @@ CSockMapping::get_iface_pair(u_long send_label,
                              struct net_interface& remote_iface,
                              bool ignore_trouble)
 {
+    return get_iface_pair_internal(send_label, local_iface, remote_iface, 
+                                   ignore_trouble, false);
+}
+
+bool
+CSockMapping::get_iface_pair_internal(u_long send_label, 
+                                      struct net_interface& local_iface,
+                                      struct net_interface& remote_iface,
+                                      bool ignore_trouble,
+                                      bool sockset_already_locked)
+{
     CMMSocketImplPtr skp(sk);
     PthreadScopedRWLock lock(&skp->my_lock, false);
-    return get_iface_pair_locked(send_label, local_iface, remote_iface, ignore_trouble);
+    return get_iface_pair_locked_internal(send_label, local_iface, remote_iface,
+                                          ignore_trouble, sockset_already_locked);
 }
 
 bool
@@ -432,6 +452,17 @@ CSockMapping::get_iface_pair_locked(u_long send_label,
                                     struct net_interface& local_iface,
                                     struct net_interface& remote_iface,
                                     bool ignore_trouble)
+{
+    return get_iface_pair_locked_internal(send_label, local_iface, remote_iface,
+                                          ignore_trouble, false);
+}
+
+bool
+CSockMapping::get_iface_pair_locked_internal(u_long send_label,
+                                             struct net_interface& local_iface,
+                                             struct net_interface& remote_iface,
+                                             bool ignore_trouble,
+                                             bool sockset_already_locked)
 {
     CMMSocketImplPtr skp(sk);
     if (skp->isLoopbackOnly(false)) {
@@ -450,7 +481,11 @@ CSockMapping::get_iface_pair_locked(u_long send_label,
              j != skp->remote_ifaces.end(); ++j) {
             csocks.clear();
             if (!ignore_trouble) {
-                for_each(get_matching_csocks(&*i, &*j, csocks));
+                if (sockset_already_locked) {
+                    for_each_locked(get_matching_csocks(&*i, &*j, csocks));
+                } else {
+                    for_each(get_matching_csocks(&*i, &*j, csocks));
+                }
             }
             CSocketPtr existing_csock;
             if (!csocks.empty()) {

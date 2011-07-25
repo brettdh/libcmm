@@ -84,6 +84,25 @@ class CSockMapping {
     template <typename Functor>
     int for_each(Functor f);
   private:
+    template <typename Functor>
+    int for_each_locked(Functor f);
+
+    bool get_iface_pair_internal(u_long send_label, 
+                                 struct net_interface& local_iface,
+                                 struct net_interface& remote_iface,
+                                 bool ignore_trouble,
+                                 bool sockset_already_locked);
+    bool get_iface_pair_locked_internal(u_long send_label, 
+                                        struct net_interface& local_iface,
+                                        struct net_interface& remote_iface,
+                                        bool ignore_trouble,
+                                        bool sockset_already_locked);
+
+    bool csock_matches_internal(CSocket *csock, 
+                                u_long send_label,
+                                bool ignore_trouble,
+                                bool sockset_already_locked);
+
     //CSockLabelMap csocks_by_send_label;
     boost::weak_ptr<CMMSocketImpl> sk;  /* XXX: janky.  Remove later? */
     CSockSet available_csocks;
@@ -106,6 +125,8 @@ class CSockMapping {
 
     template <typename Predicate>
     CSocketPtr find_csock(Predicate pred, bool grab_lock=true);
+
+    friend struct GlobalLabelMatch;
 };
 
 template <typename Functor>
@@ -127,14 +148,20 @@ template <typename Functor>
 int CSockMapping::for_each(Functor f)
 {
     PthreadScopedRWLock lock(&sockset_mutex, false);
+    return for_each_locked(f);
+}
+
+template <typename Functor>
+int CSockMapping::for_each_locked(Functor f)
+{
     CSockSet::iterator it = available_csocks.begin();
     while (it != available_csocks.end()) {
         CSocketPtr csock = *it++;
-        lock.release();
+        RWLOCK_RDUNLOCK(&sockset_mutex);
         // add/erase doesn't invalidate iterators, 
         //   so it's okay to drop the lock here.
         int rc = f(csock);
-        lock.acquire(&sockset_mutex, false);
+        RWLOCK_RDLOCK(&sockset_mutex);
         if (rc < 0) {
             return rc;
         }
