@@ -581,6 +581,8 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
     return false;
 }
 
+static ssize_t MIN_CHUNKSIZE = 1500; // one Ethernet MTU
+
 bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 {
     bool do_trickle = true;
@@ -607,7 +609,6 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
         
     // Avoid sending tiny chunks and thereby killing throughput with
     //  header overhead
-    ssize_t MIN_CHUNKSIZE = 1500; // one Ethernet MTU
     chunksize = max(chunksize, MIN_CHUNKSIZE);
         
     int unsent_bytes = ipc_total_bytes_inflight(csock);//->local_iface.ip_addr);
@@ -741,7 +742,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     struct CMMSocketControlHdr end_irob_hdr;
     bool sending_all_irob_info = false;
     if (psirob->is_complete() &&
-        psirob->expected_bytes() < 1500 &&
+        psirob->expected_bytes() < MIN_CHUNKSIZE &&
         psirob->send_labels & CMM_LABEL_ONDEMAND &&
         !psirob->announced) {
         // XXX: this code is begging to be put in a function.
@@ -792,7 +793,6 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     for (size_t i = 0; i < count; ++i) {
         bytes += vecs_to_send[i].iov_len;
     }
-    //vec[0].iov_len + vec[1].iov_len + vec[2].iov_len;
 
     dbgprintf("About to send message: %s", hdr.describe().c_str());
     if (deps) {
@@ -992,7 +992,6 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
         ack_hdr.type = htons(CMM_CONTROL_MSG_ACK);
         ack_hdr.send_labels = 0;
         ack_hdr.op.ack.id = htonl(waiting_ack_irob);
-
     }
 
     struct iovec *vec = new struct iovec[veccount];
@@ -1430,6 +1429,19 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(sk->outgoing_irobs.find(data.id));
     if (psirob) {
         vector<struct iovec> chunk_vecs = psirob->get_last_sent_chunk_htonl(&chunk);
+        if (chunk_vecs.empty()) {
+            // if there's no chunk to re-send, send the NEXT chunk.
+            ssize_t chunksize = MIN_CHUNKSIZE;
+            u_long seqno = 0;
+            size_t offset = 0;
+            chunk_vecs = psirob->get_ready_bytes(chunksize, seqno, offset);
+            if (!chunk_vecs.empty()) {
+                chunk.id = htonl(data.id);
+                chunk.seqno = htonl(seqno);
+                chunk.offset = htonl(offset);
+                chunk.datalen = htonl(chunksize);
+            }
+        }
 
         // (begin, deps, chunk_hdr), data, (end, data_check)
         vecs = new struct iovec[3 + chunk_vecs.size() + 2];
@@ -1451,7 +1463,6 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
             vecs_count++;
         }
         
-        // TODO-OPTI: if there's no chunk to re-send, send the NEXT chunk.
         if (!chunk_vecs.empty()) {
             irob_chunk_hdr.type = htons(CMM_CONTROL_MSG_IROB_CHUNK);
             irob_chunk_hdr.op.irob_chunk = chunk;
