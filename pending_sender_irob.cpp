@@ -185,25 +185,6 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno,
         return data;
     }
 
-//     ssize_t bytes_gathered = 0;
-//     size_t chunk_index = next_chunk;
-//     size_t cur_chunk_offset = chunk_offset;
-//     while (bytes_gathered < bytes_requested && chunk_index < chunks.size()) {
-//         struct iovec next_buf;
-
-//         ssize_t bytes = chunks[chunk_index].datalen - cur_chunk_offset;
-//         if ((bytes + bytes_gathered) > bytes_requested) {
-//             bytes = bytes_requested - bytes_gathered;
-//         }
-//         next_buf.iov_len = bytes;
-//         next_buf.iov_base = chunks[chunk_index].data + cur_chunk_offset;
-//         data.push_back(next_buf);
-//         bytes_gathered += bytes;
-
-//         cur_chunk_offset = 0;
-//         chunk_index++;
-//     }
-
     data = get_bytes_internal(irob_offset, bytes_requested);
     if (bytes_requested == 0) {
         dbgprintf("...no bytes ready\n");
@@ -219,6 +200,7 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno,
 
     struct irob_chunk_data sent_chunk;
     memset(&sent_chunk, 0, sizeof(sent_chunk));
+    sent_chunk.id = id;
     sent_chunk.seqno = seqno;
     sent_chunk.offset = offset_;
     sent_chunk.datalen = bytes_requested;
