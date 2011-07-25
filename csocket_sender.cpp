@@ -249,6 +249,8 @@ CSocketSender::Run()
                     dbgprintf("Network (%s -> %s) is in trouble; data-checking all IROBs\n",
                               local_ip, remote_ip);
                     sk->data_check_all_irobs();
+                    // XXX: problem: this won't get called on receiver error, which I've seen happen.
+                    // TODO: add a data_check call to the shutdown catch block?
                 }
             }
             // something happened; we might be able to do some work
@@ -272,6 +274,7 @@ CSocketSender::Run()
             //  the connecting side will do it
             PthreadScopedLock lock(&sk->scheduling_state_lock);
             sk->irob_indexes.add(csock->irob_indexes);
+            sk->data_check_all_irobs();
             if (sk->csock_map->empty()) {
                 // no more connections; kill the multisocket
                 dbgprintf("Multisocket %d has no more csockets and I'm the accepting side; "
@@ -296,6 +299,7 @@ CSocketSender::Run()
             } else {
                 sk->irob_indexes.add(csock->irob_indexes);
             }
+            sk->data_check_all_irobs();
         } else {
             // this connection is hosed, so make sure everything
             // gets cleaned up as if we had done a graceful shutdown
