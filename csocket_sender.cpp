@@ -742,7 +742,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     struct CMMSocketControlHdr end_irob_hdr;
     bool sending_all_irob_info = false;
     if (psirob->is_complete() &&
-        psirob->expected_bytes() < MIN_CHUNKSIZE &&
+        psirob->expected_bytes() < (size_t) MIN_CHUNKSIZE &&
         psirob->send_labels & CMM_LABEL_ONDEMAND &&
         !psirob->announced) {
         // XXX: this code is begging to be put in a function.
