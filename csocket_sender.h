@@ -58,5 +58,21 @@ class CSocketSender : public CMMThread {
             }
         };
     };
+
+    struct DataInFlight {
+        bool data_inflight;
+        struct timespec rel_trouble_timeout;
+        DataInFlight();
+        int operator()(CSocketPtr csock);
+    };
+
+    struct TroubleChecker {
+        CMMSocketImpl *sk;
+        bool trouble_exists;
+        TroubleChecker(CMMSocketImpl *skp) : sk(skp), trouble_exists(false) {}
+        
+        int operator()(CSocketPtr csock);
+    };
+    
 };
 #endif

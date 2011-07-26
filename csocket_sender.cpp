@@ -43,6 +43,47 @@ CSocketSender::CSocketSender(CSocketPtr csock_)
     trickle_timeout.tv_nsec = 0;
 }
 
+CSocketSender::DataInFlight::DataInFlight()
+{
+    data_inflight = false;
+    rel_trouble_timeout.tv_sec = INT_MAX;
+    rel_trouble_timeout.tv_nsec = 0;
+}
+int 
+CSocketSender::DataInFlight::operator()(CSocketPtr csock)
+{
+    if (csock->data_inflight()) {
+        struct timespec csock_rel_timeout = csock->trouble_check_timeout();
+        if (timercmp(&csock_rel_timeout, &rel_trouble_timeout, <)) {
+            rel_trouble_timeout = csock_rel_timeout;
+        }
+    }
+}
+
+int CSocketSender::TroubleChecker::operator()(CSocketPtr csock)
+{
+    pthread_mutex_unlock(&sk->scheduling_state_lock);
+    bool is_fg = csock->is_fg_ignore_trouble();
+    pthread_mutex_lock(&sk->scheduling_state_lock);
+    if (is_fg) {
+        if (csock->data_inflight() &&
+            csock->is_in_trouble() && sk->csock_map->count() > 1) {
+            // XXX: we only want to do fast-recovery for FG IROBs
+            //    ...but the impact of doing it for them all will be small
+            // XXX: we don't want to do this check for the 3G network
+            //   ...but we probably usually won't, since it's not FG
+            char local_ip[16], remote_ip[16];
+            get_ip_string(csock->local_iface.ip_addr, local_ip);
+            get_ip_string(csock->remote_iface.ip_addr, remote_ip);
+            dbgprintf("Network (%s -> %s) is in trouble; data-checking all IROBs\n",
+                      local_ip, remote_ip);
+            trouble_exists = true;
+            return -1; // "fail" in order to bail out of the for_each
+        }
+    }
+    return 0;
+}
+
 void
 CSocketSender::Run()
 {
@@ -182,11 +223,17 @@ CSocketSender::Run()
             }
             
             struct timespec timeout = {-1, 0};
-            if (csock->data_inflight()) {
-                struct timespec rel_trouble_timeout = csock->trouble_check_timeout();
-                timeout = abs_time(rel_trouble_timeout);
+
+            //if (csock->data_inflight()) {
+            DataInFlight inflight;
+            sk->csock_map->for_each_by_ref(inflight);
+            if (inflight.data_inflight) {
+                //struct timespec rel_trouble_timeout = csock->trouble_check_timeout();
+                //timeout = abs_time(rel_trouble_timeout);
+                timeout = abs_time(inflight.rel_trouble_timeout);
                 dbgprintf("Data in flight; trouble-check timeout in %lu.%09lu sec\n",
-                          rel_trouble_timeout.tv_sec, rel_trouble_timeout.tv_nsec);
+                          inflight.rel_trouble_timeout.tv_sec,
+                          inflight.rel_trouble_timeout.tv_nsec);
             }
             if (trickle_timeout.tv_sec > 0) {
                 if (timeout.tv_sec > 0) {
@@ -232,26 +279,11 @@ CSocketSender::Run()
             if (!timercmp(&timeout, &thunk_timeout, ==)) {
                 dbgprintf("Woke up; maybe I can do some work?\n");
             }
-            
-            pthread_mutex_unlock(&sk->scheduling_state_lock);
-            is_fg = csock->is_fg_ignore_trouble();
-            pthread_mutex_lock(&sk->scheduling_state_lock);
-            if (is_fg) {
-                if (csock->data_inflight() &&
-                    csock->is_in_trouble() && sk->csock_map->count() > 1) {
-                    // XXX: we only want to do fast-recovery for FG IROBs
-                    //    ...but the impact of doing it for them all will be small
-                    // XXX: we don't want to do this check for the 3G network
-                    //   ...but we probably usually won't, since it's not FG
-                    char local_ip[16], remote_ip[16];
-                    get_ip_string(csock->local_iface.ip_addr, local_ip);
-                    get_ip_string(csock->remote_iface.ip_addr, remote_ip);
-                    dbgprintf("Network (%s -> %s) is in trouble; data-checking all IROBs\n",
-                              local_ip, remote_ip);
-                    sk->data_check_all_irobs();
-                    // XXX: problem: this won't get called on receiver error, which I've seen happen.
-                    // TODO: add a data_check call to the shutdown catch block?
-                }
+
+            TroubleChecker checker(sk);
+            sk->csock_map->for_each_by_ref(checker);
+            if (checker.trouble_exists) {
+                sk->data_check_all_irobs();
             }
             // something happened; we might be able to do some work
         }
