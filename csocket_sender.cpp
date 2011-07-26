@@ -448,7 +448,7 @@ void resume_operation_thunk(ResumeOperation *op)
     }
 
     CSocketPtr csock;
-    if (sk->accepting_side) {
+    if (op->sk->accepting_side) {
         csock = op->sk->csock_map->connected_csock_with_labels(send_labels);
     } else {
         csock = op->sk->csock_map->new_csock_with_labels(send_labels);
