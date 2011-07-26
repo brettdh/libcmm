@@ -58,6 +58,7 @@ CSocketSender::DataInFlight::operator()(CSocketPtr csock)
             rel_trouble_timeout = csock_rel_timeout;
         }
     }
+    return 0;
 }
 
 int CSocketSender::TroubleChecker::operator()(CSocketPtr csock)
