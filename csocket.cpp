@@ -473,10 +473,13 @@ bool CSocket::is_in_trouble()
          ((int)info.tcpi_last_ack_recv) > 0 && /* workaround for possible kernel bug */
          info.tcpi_last_ack_recv > trouble_timeout_ms);
 
-    dbgprintf("is_in_trouble: "
+    char local_ip[16], remote_ip[16];
+    get_ip_string(local_iface.ip_addr, local_ip);
+    get_ip_string(remote_iface.ip_addr, remote_ip);
+    dbgprintf("is_in_trouble: csock %d  (%s -> %s)"
               "unacked: %d pkts  last_data_sent: %d ms ago  "
               "last_ack: %d ms ago  trouble_timeout: %d ms  trouble: %s\n",
-              info.tcpi_unacked, last_data_sent_ms, 
+              osfd, local_ip, remote_ip, info.tcpi_unacked, last_data_sent_ms, 
               info.tcpi_last_ack_recv, trouble_timeout_ms, trouble ? "yes" : "no");
     return trouble;
 }

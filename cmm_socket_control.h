@@ -97,14 +97,7 @@ typedef enum {
 
 /* sender requesting the receiver to resend data associated
  * with this IROB. request is one of the above
- * CMM_RESEND_REQUEST_* enums; 
- *    CMM_RESEND_REQUEST_DEPS
- *       -Receiver will resend the Begin_IROB message.
- *    CMM_RESEND_REQUEST_DATA
- *       -Receiver will resend IROB_Chunk messages comprising 
- *        the IROB's data.
- *    CMM_RESEND_REQUEST_BOTH
- *       -Er, both.
+ * CMM_RESEND_REQUEST_* enums.
  */
 struct resend_request_data {
     irob_id_t id;
@@ -150,6 +143,7 @@ struct CMMSocketControlHdr {
     std::string describe() const;
   private:
     const char *type_str() const;
+    std::string labels_str() const;
     std::string resend_request_type_str() const;
 };
 

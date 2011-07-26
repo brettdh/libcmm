@@ -447,8 +447,12 @@ void resume_operation_thunk(ResumeOperation *op)
         send_labels = psirob->send_labels;
     }
 
-    CSocketPtr csock =
-        op->sk->csock_map->new_csock_with_labels(send_labels);
+    CSocketPtr csock;
+    if (sk->accepting_side) {
+        csock = op->sk->csock_map->connected_csock_with_labels(send_labels);
+    } else {
+        csock = op->sk->csock_map->new_csock_with_labels(send_labels);
+    }
     
     PthreadScopedLock lock(&op->sk->scheduling_state_lock);
     IROBSchedulingIndexes& indexes = (csock && csock->is_connected()
@@ -509,8 +513,12 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
         return false;
     }
     
-    CSocketPtr match = 
-        sk->csock_map->new_csock_with_labels(send_labels);
+    CSocketPtr match;
+    if (sk->accepting_side) {
+        match = sk->csock_map->connected_csock_with_labels(send_labels);
+    } else {
+        match = sk->csock_map->new_csock_with_labels(send_labels);
+    }
 
     pthread_mutex_lock(&sk->scheduling_state_lock);
 
@@ -1431,20 +1439,19 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
     memset(&chunk, 0, sizeof(chunk));
     
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(sk->outgoing_irobs.find(data.id));
-    if (psirob) {
-        vector<struct iovec> chunk_vecs = psirob->get_last_sent_chunk_htonl(&chunk);
+    if (psirob) { 
+        ssize_t chunksize = MIN_CHUNKSIZE;
+        u_long seqno = 0;
+        size_t offset = 0;
+        vector<struct iovec> chunk_vecs = psirob->get_ready_bytes(chunksize, seqno, offset);
         if (chunk_vecs.empty()) {
-            // if there's no chunk to re-send, send the NEXT chunk.
-            ssize_t chunksize = MIN_CHUNKSIZE;
-            u_long seqno = 0;
-            size_t offset = 0;
-            chunk_vecs = psirob->get_ready_bytes(chunksize, seqno, offset);
-            if (!chunk_vecs.empty()) {
-                chunk.id = htonl(data.id);
-                chunk.seqno = htonl(seqno);
-                chunk.offset = htonl(offset);
-                chunk.datalen = htonl(chunksize);
-            }
+            // if there's no next chunk to send, re-send the last sent chunk.
+            chunk_vecs = psirob->get_last_sent_chunk_htonl(&chunk);
+        } else {
+            chunk.id = htonl(data.id);
+            chunk.seqno = htonl(seqno);
+            chunk.offset = htonl(offset);
+            chunk.datalen = htonl(chunksize);
         }
 
         // (begin, deps, chunk_hdr), data, (end, data_check)

@@ -40,6 +40,35 @@ CMMSocketControlHdr::type_str() const
     return strs[my_type];
 }
 
+int
+modify_bits_string(int value, int mask, const char *str,
+                   std::ostringstream& msg)
+{
+    if (value & mask) {
+        msg << str;
+        value &= ~mask;
+        if (value) {
+            msg << ",";
+        }
+    }
+    return value;
+}
+
+std::string
+CMMSocketControlHdr::labels_str() const
+{
+    static const char *strs[] = {
+        "FG", "BG", "SMALL", "LARGE"
+    };
+    std::ostringstream msg;
+    int h_labels = ntohl(send_labels);
+    for (int i = 0; i < 4; ++i) {
+        int label_mask = 1 << (i + 2); // labels are 4, 8, 16, 32
+        h_labels = modify_bits_string(h_labels, label_mask, strs[i], msg);
+    }
+    return msg.str();
+}
+
 std::string
 CMMSocketControlHdr::resend_request_type_str() const
 {
@@ -51,13 +80,7 @@ CMMSocketControlHdr::resend_request_type_str() const
     int request = ntohl(op.resend_request.request);
     for (int i = 0; i < 3; ++i) {
         int bitmask = 1 << i;
-        if (request & bitmask) {
-            msg << strs[i];
-            request &= ~bitmask;
-            if (request) {
-                msg << ",";
-            }
-        }
+        request = modify_bits_string(request, bitmask, strs[i], msg);
     }
     return msg.str();
 }
@@ -74,7 +97,7 @@ CMMSocketControlHdr::describe() const
     std::ostringstream stream;
     stream << " Type: " << type_str() << "("  << ntohs(type) << ") ";
     
-    stream << "Send labels: " << ntohl(send_labels) << " ";
+    stream << "Send labels: " << labels_str() << " ";
 
     switch (ntohs(type)) {
     case CMM_CONTROL_MSG_HELLO:
@@ -96,16 +119,8 @@ CMMSocketControlHdr::describe() const
         stream << "offset: " << ntohl(op.irob_chunk.offset) << " ";
         stream << "datalen: " << ntohl(op.irob_chunk.datalen);
         break;
-#if 0
-    case CMM_CONTROL_MSG_DEFAULT_IROB:
-        stream << "IROB: " << ntohl(op.default_irob.id) << " ";
-        stream << "numdeps: " << ntohl(op.default_irob.numdeps);
-        stream << "datalen: " << ntohl(op.default_irob.datalen);
-        break;
-#endif
     case CMM_CONTROL_MSG_NEW_INTERFACE:
         stream << "IP: " << inet_ntoa(op.new_interface.ip_addr) << " ";
-        stream << "labels: " << ntohl(op.new_interface.labels) << " ";
         stream << "bandwidth_down: " << ntohl(op.new_interface.bandwidth_down) << " bytes/sec, ";
         stream << "bandwidth_up: " << ntohl(op.new_interface.bandwidth_up) << " bytes/sec, ";
         stream << "RTT: " << ntohl(op.new_interface.RTT) << " ms";
@@ -133,7 +148,7 @@ CMMSocketControlHdr::describe() const
     case CMM_CONTROL_MSG_RESEND_REQUEST:
         stream << "IROB: " << ntohl(op.resend_request.id) << " ";
         stream << "request: " 
-               << ntohl(op.resend_request.request) << " ";
+               << resend_request_type_str() << " ";
         stream << "seqno: " << ntohl(op.resend_request.seqno) << " ";
         stream << "next_chunk: " << ntohl(op.resend_request.next_chunk);
         break;
