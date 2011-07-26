@@ -193,12 +193,17 @@ CSocketSender::Run()
             pthread_mutex_unlock(&sk->scheduling_state_lock);
             bool is_fg = csock->is_fg_ignore_trouble();
             pthread_mutex_lock(&sk->scheduling_state_lock);
-            if (is_fg && csock->is_in_trouble()) {
+            if (is_fg && csock->is_in_trouble() &&
+                sk->csock_map->count() > 1) {
                 char local_ip[16], remote_ip[16];
                 get_ip_string(csock->local_iface.ip_addr, local_ip);
                 get_ip_string(csock->remote_iface.ip_addr, remote_ip);
                 dbgprintf("Network (%s -> %s) is in trouble; not trying to send anything\n",
                           local_ip, remote_ip);
+
+                // pass off my scheduling data while I'm troubled.
+                sk->irob_indexes.add(csock->irob_indexes);
+                pthread_cond_broadcast(&sk->scheduling_state_cv);
             } else {
                 if (schedule_work(csock->irob_indexes) ||
                     schedule_work(sk->irob_indexes)) {
@@ -225,12 +230,9 @@ CSocketSender::Run()
             
             struct timespec timeout = {-1, 0};
 
-            //if (csock->data_inflight()) {
             DataInFlight inflight;
             sk->csock_map->for_each_by_ref(inflight);
             if (inflight.data_inflight) {
-                //struct timespec rel_trouble_timeout = csock->trouble_check_timeout();
-                //timeout = abs_time(rel_trouble_timeout);
                 timeout = abs_time(inflight.rel_trouble_timeout);
                 dbgprintf("Data in flight; trouble-check timeout in %lu.%09lu sec\n",
                           inflight.rel_trouble_timeout.tv_sec,
