@@ -456,10 +456,11 @@ bool CSocket::is_in_trouble()
      */
     //uint32_t last_data_sent_ms = info.tcpi_last_data_sent;
     uint32_t last_data_sent_ms = 0;
-    struct timeval now, diff;
+    struct timeval last, now, diff;
+    last = last_app_data_sent;
     TIME(now);
-    TIMEDIFF(last_app_data_sent, now, diff);
-    if (timercmp(&last_app_data_sent, &now, <)) {
+    if (timercmp(&last, &now, <)) {
+        TIMEDIFF(last, now, diff);
         last_data_sent_ms = convert_to_useconds(diff) / 1000;
     }
     
