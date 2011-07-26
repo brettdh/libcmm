@@ -490,17 +490,6 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
 
     u_long send_labels = pirob->send_labels;
 
-    if (send_labels & CMM_LABEL_ONDEMAND &&
-        csock->is_in_trouble() && sk->csock_map->count() > 1) {
-        // I'm in trouble and there's another sender that could send this
-        char local_ip[16], remote_ip[16];
-        get_ip_string(csock->local_iface.ip_addr, local_ip);
-        get_ip_string(csock->remote_iface.ip_addr, remote_ip);
-        dbgprintf("Network (%s -> %s) is in trouble; delegating IROB op\n",
-                  local_ip, remote_ip);
-        return true;
-    }
-
     pthread_mutex_unlock(&sk->scheduling_state_lock);
 
     if (csock->matches(send_labels)) {
