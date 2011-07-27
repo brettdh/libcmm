@@ -134,6 +134,28 @@ IROBSchedulingIndexes::add(const IROBSchedulingIndexes& other)
                                      other.waiting_data_checks.end());
 }
 
+void
+IROBSchedulingIndexes::clear()
+{
+    new_irobs.clear();
+    new_chunks.clear();
+    finished_irobs.clear();
+    waiting_acks.clear();
+    resend_requests.clear();
+    waiting_data_checks.clear();
+}
+
+size_t
+IROBSchedulingIndexes::size() const
+{
+    return (new_irobs.size() +
+            new_chunks.size() +
+            finished_irobs.size() +
+            waiting_acks.size() +
+            resend_requests.size() +
+            waiting_data_checks.size());
+}
+
 /* transfer the IROB from this to other, giving it the new labels.
  * this and other may be the same object. */
 void

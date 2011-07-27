@@ -42,7 +42,10 @@ class IROBPrioritySet {
     void insert(IROBSchedulingData data);
     bool pop(IROBSchedulingData& data);
     bool remove(irob_id_t id, IROBSchedulingData& data);
+    void clear() { tasks.clear(); }
+    
     bool empty() const { return tasks.empty(); }
+    size_t size() const { return tasks.size(); }
 
     typedef TaskSet::iterator iterator;
     iterator begin() const { return tasks.begin(); }
@@ -70,7 +73,11 @@ class IROBPrioritySet {
 struct IROBSchedulingIndexes {
     IROBSchedulingIndexes(u_long send_labels_);
 
+    // Copy all of other's data items to this.
     void add(const IROBSchedulingIndexes& other);
+    void clear();
+
+    size_t size() const;
 
     IROBPrioritySet new_irobs;
     IROBPrioritySet new_chunks;
