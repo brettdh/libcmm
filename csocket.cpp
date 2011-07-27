@@ -396,7 +396,11 @@ bool CSocket::data_inflight()
                   strerror(errno));
         return -1;
     }
-    dbgprintf("data_inflight: unacked: %d pkts\n", info.tcpi_unacked);
+    char local_ip[16], remote_ip[16];
+    get_ip_string(local_iface.ip_addr, local_ip);
+    get_ip_string(remote_iface.ip_addr, remote_ip);
+    dbgprintf("data_inflight: csock %d (%s -> %s): unacked: %d pkts\n", 
+              osfd, local_ip, remote_ip, info.tcpi_unacked);
     return (info.tcpi_unacked > 0);
 }
 

@@ -53,6 +53,7 @@ int
 CSocketSender::DataInFlight::operator()(CSocketPtr csock)
 {
     if (csock->data_inflight()) {
+        data_inflight = true;
         struct timespec csock_rel_timeout = csock->trouble_check_timeout();
         if (timercmp(&csock_rel_timeout, &rel_trouble_timeout, <)) {
             rel_trouble_timeout = csock_rel_timeout;
