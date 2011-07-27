@@ -63,10 +63,10 @@ CSocketSender::DataInFlight::operator()(CSocketPtr csock)
 
 int CSocketSender::TroubleChecker::operator()(CSocketPtr csock)
 {
-    pthread_mutex_unlock(&sk->scheduling_state_lock);
-    bool is_fg = csock->is_fg_ignore_trouble();
-    pthread_mutex_lock(&sk->scheduling_state_lock);
-    if (is_fg) {
+    // pthread_mutex_unlock(&sk->scheduling_state_lock);
+    // bool is_fg = csock->is_fg_ignore_trouble();
+    // pthread_mutex_lock(&sk->scheduling_state_lock);
+    if (true /*is_fg*/) {
         if (csock->data_inflight() &&
             csock->is_in_trouble() && sk->csock_map->count() > 1) {
             // XXX: we only want to do fast-recovery for FG IROBs
@@ -190,10 +190,10 @@ CSocketSender::Run()
                 }
             }
 
-            pthread_mutex_unlock(&sk->scheduling_state_lock);
-            bool is_fg = csock->is_fg_ignore_trouble();
-            pthread_mutex_lock(&sk->scheduling_state_lock);
-            if (is_fg && csock->is_in_trouble() &&
+            // pthread_mutex_unlock(&sk->scheduling_state_lock);
+            // bool is_fg = csock->is_fg_ignore_trouble();
+            // pthread_mutex_lock(&sk->scheduling_state_lock);
+            if (/* is_fg && */ csock->is_in_trouble() &&
                 sk->csock_map->count() > 1) {
                 char local_ip[16], remote_ip[16];
                 get_ip_string(csock->local_iface.ip_addr, local_ip);
