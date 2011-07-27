@@ -74,13 +74,28 @@ int CSocketSender::TroubleChecker::operator()(CSocketPtr csock)
             //    ...but the impact of doing it for them all will be small
             // XXX: we don't want to do this check for the 3G network
             //   ...but we probably usually won't, since it's not FG
-            char local_ip[16], remote_ip[16];
-            get_ip_string(csock->local_iface.ip_addr, local_ip);
-            get_ip_string(csock->remote_iface.ip_addr, remote_ip);
-            dbgprintf("Network (%s -> %s) is in trouble; data-checking all IROBs\n",
-                      local_ip, remote_ip);
-            trouble_exists = true;
-            return -1; // "fail" in order to bail out of the for_each
+            
+            struct timespec last, now, diff, timeout;
+            timeout = csock->trouble_check_timeout();
+            last = csock->last_trouble_check;
+            TIME(now);
+            if (timercmp(&last, &now, <)) {
+                TIMEDIFF(csock->last_trouble_check, now, diff);
+                if (timercmp(&diff, &timeout, >)) {
+                    // only trigger a trouble check if it's been long enough since the last one
+                    csock->last_trouble_check = now;
+                    trouble_exists = true;
+                }
+            }
+
+            if (trouble_exists) {
+                char local_ip[16], remote_ip[16];
+                get_ip_string(csock->local_iface.ip_addr, local_ip);
+                get_ip_string(csock->remote_iface.ip_addr, remote_ip);
+                dbgprintf("Network (%s -> %s) is in trouble; data-checking all IROBs\n",
+                          local_ip, remote_ip);
+                return -1; // "fail" in order to bail out of the for_each
+            }
         }
     }
     return 0;
@@ -203,8 +218,12 @@ CSocketSender::Run()
                           local_ip, remote_ip);
 
                 // pass off my scheduling data while I'm troubled.
-                sk->irob_indexes.add(csock->irob_indexes);
-                pthread_cond_broadcast(&sk->scheduling_state_cv);
+                if (csock->irob_indexes.size() > 0) {
+                    sk->irob_indexes.add(csock->irob_indexes);
+                    csock->irob_indexes.clear();
+
+                    pthread_cond_broadcast(&sk->scheduling_state_cv);
+                }
             } else {
                 if (schedule_work(csock->irob_indexes) ||
                     schedule_work(sk->irob_indexes)) {

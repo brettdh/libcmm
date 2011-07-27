@@ -53,6 +53,7 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
     //TIME(last_fg);
     last_fg.tv_sec = last_fg.tv_usec = 0;
     last_app_data_sent.tv_sec = last_app_data_sent.tv_usec = 0;
+    last_trouble_check.tv_sec = last_trouble_check.tv_nsec = 0;
 
     assert(sk);
     if (accepted_sock == -1) {
