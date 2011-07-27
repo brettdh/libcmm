@@ -1081,6 +1081,10 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     }
     csock->update_last_app_data_sent();
 
+    // wake up other sleeping threads to check whether I might be in trouble
+    //  (just in case I block on the writev and don't wake up for a while)
+    pthread_cond_broadcast(&sk->scheduling_state_cv);
+    
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     if (waiting_ack_irob != -1) {
         csock->stats.report_send_event(sizeof(ack_hdr), &ack_hdr.op.ack.qdelay);
