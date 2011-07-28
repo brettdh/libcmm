@@ -1159,7 +1159,6 @@ CMMSocketImpl::mc_shutdown(int how)
         shutdown(write_ready_pipe[0], SHUT_RDWR);
         shutdown(write_ready_pipe[1], SHUT_RDWR);
     }
-    //rc = csock_map->for_each(shutdown_each(how));
 
     return rc;
 }
@@ -1517,7 +1516,8 @@ CMMSocketImpl::mc_setsockopt(int level, int optname,
                       "dummy socket\n");
         }
 
-        rc = csock_map->for_each(set_sock_opt(level, optname, optval, optlen));
+        set_sock_opt setter(level, optname, optval, optlen);
+        rc = csock_map->for_each(setter);
         if (rc < 0) {
             return rc;
         }

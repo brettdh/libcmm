@@ -76,16 +76,13 @@ class CSockMapping {
     CSockMapping(CMMSocketImplPtr sk);
     ~CSockMapping();
 
-    template <typename Functor>
-    void for_each_by_ref(Functor& f);
-
     /* Functor must define int operator()(CSocketPtr), 
      * a function that returns -1 on error or >=0 on success */
     template <typename Functor>
-    int for_each(Functor f);
+    int for_each(Functor& f);
   private:
     template <typename Functor>
-    int for_each_locked(Functor f);
+    int for_each_locked(Functor& f);
 
     bool get_iface_pair_internal(u_long send_label, 
                                  struct net_interface& local_iface,
@@ -130,38 +127,19 @@ class CSockMapping {
 };
 
 template <typename Functor>
-void CSockMapping::for_each_by_ref(Functor& f)
-{
-    PthreadScopedRWLock lock(&sockset_mutex, false);
-    CSockSet::iterator it = available_csocks.begin();
-    while (it != available_csocks.end()) {
-        CSocketPtr csock = *it++;
-        lock.release();
-        // add/erase doesn't invalidate iterators, 
-        //   so it's okay to drop the lock here.
-        f(csock);
-        lock.acquire(&sockset_mutex, false);
-    }
-}
-
-template <typename Functor>
-int CSockMapping::for_each(Functor f)
+int CSockMapping::for_each(Functor& f)
 {
     PthreadScopedRWLock lock(&sockset_mutex, false);
     return for_each_locked(f);
 }
 
 template <typename Functor>
-int CSockMapping::for_each_locked(Functor f)
+int CSockMapping::for_each_locked(Functor& f)
 {
     CSockSet::iterator it = available_csocks.begin();
     while (it != available_csocks.end()) {
         CSocketPtr csock = *it++;
-        RWLOCK_RDUNLOCK(&sockset_mutex);
-        // add/erase doesn't invalidate iterators, 
-        //   so it's okay to drop the lock here.
         int rc = f(csock);
-        RWLOCK_RDLOCK(&sockset_mutex);
         if (rc < 0) {
             return rc;
         }

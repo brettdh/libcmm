@@ -142,15 +142,6 @@ CSocketSender::Run()
 
         PthreadScopedLock lock(&sk->scheduling_state_lock);
 
-        // on startup, find all IROBs that might benefit from me sending
-        //  some data on the new network.
-//         NotCompletelySent obj;
-//         sk->outgoing_irobs.for_each_by_ref(obj);
-//         for (size_t i = 0; i < obj.matches.size(); ++i) {
-//             IROBSchedulingData data(obj.matches[i], false);
-//             csock->irob_indexes.waiting_data_checks.insert(data);
-//         }
-
         while (1) {
             if (sk->shutting_down) {
                  if (csock->irob_indexes.waiting_acks.empty()
@@ -251,7 +242,7 @@ CSocketSender::Run()
             struct timespec timeout = {-1, 0};
 
             DataInFlight inflight;
-            sk->csock_map->for_each_by_ref(inflight);
+            sk->csock_map->for_each(inflight);
             if (inflight.data_inflight) {
                 timeout = abs_time(inflight.rel_trouble_timeout);
                 dbgprintf("Data in flight; trouble-check timeout in %lu.%09lu sec\n",
@@ -304,7 +295,7 @@ CSocketSender::Run()
             }
 
             TroubleChecker checker(sk);
-            sk->csock_map->for_each_by_ref(checker);
+            sk->csock_map->for_each(checker);
             if (checker.trouble_exists) {
                 sk->data_check_all_irobs();
             }

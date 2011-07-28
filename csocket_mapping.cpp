@@ -67,7 +67,8 @@ struct push_osfd {
 void
 CSockMapping::get_real_fds(mcSocketOsfdPairList &osfd_list)
 {
-    (void)for_each(push_osfd(CMMSocketImplPtr(sk)->sock, osfd_list));
+    push_osfd pusher(CMMSocketImplPtr(sk)->sock, osfd_list);
+    (void)for_each(pusher);
 }
 
 struct get_matching_csocks {
@@ -105,7 +106,9 @@ CSockMapping::setup(struct net_interface iface, bool local,
     vector<CSocketPtr> matches;
     struct net_interface *local_iface = local ? &iface : NULL;
     struct net_interface *remote_iface = local ? NULL : &iface;
-    (void)for_each(get_matching_csocks(local_iface, remote_iface, matches));
+
+    get_matching_csocks getter(local_iface, remote_iface, matches);
+    (void)for_each(getter);
 
     for (size_t i = 0; i < matches.size(); ++i) {
         // replace connection stats with updated numbers
@@ -159,7 +162,7 @@ CSockMapping::setup(struct net_interface iface, bool local,
 struct WaitForConnection {
     int num_connections;
     WaitForConnection() : num_connections(0) {}
-    void operator()(CSocketPtr csock) {
+    int operator()(CSocketPtr csock) {
         int rc = csock->wait_until_connected();
         if (rc < 0) {
             // print, but don't fail the for_each
@@ -169,6 +172,7 @@ struct WaitForConnection {
         } else {
             num_connections++;
         }
+        return 0;
     }
 };
 
@@ -177,7 +181,7 @@ CSockMapping::wait_for_connections()
 {
     // only called on bootstrapping.
     WaitForConnection obj;
-    for_each_by_ref(obj);
+    for_each(obj);
     if (obj.num_connections == 0) {
         dbgprintf("All connection attempts on bootstrap failed!\n");
         throw -1;
@@ -190,7 +194,8 @@ CSockMapping::teardown(struct net_interface iface, bool local)
     vector<CSocketPtr> victims;
     struct net_interface *local_iface = local ? &iface : NULL;
     struct net_interface *remote_iface = local ? NULL : &iface;
-    (void)for_each(get_matching_csocks(local_iface, remote_iface, victims));
+    get_matching_csocks getter(local_iface, remote_iface, victims);
+    (void)for_each(getter);
 
     PthreadScopedRWLock lock(&sockset_mutex, true);
     while (!victims.empty()) {
@@ -269,7 +274,7 @@ struct LabelMatcher {
 
     LabelMatcher() : max_bw(0), min_RTT(ULONG_MAX), has_match(false) {}
 
-    // for use with CSockMapping::for_each_by_ref
+    // for use with CSockMapping::for_each
     void consider(CSocketPtr csock) {
         consider(csock->local_iface, csock->remote_iface);
     }
@@ -481,10 +486,11 @@ CSockMapping::get_iface_pair_locked_internal(u_long send_label,
              j != skp->remote_ifaces.end(); ++j) {
             csocks.clear();
             if (!ignore_trouble) {
+                get_matching_csocks getter(&*i, &*j, csocks);
                 if (sockset_already_locked) {
-                    for_each_locked(get_matching_csocks(&*i, &*j, csocks));
+                    for_each_locked(getter);
                 } else {
-                    for_each(get_matching_csocks(&*i, &*j, csocks));
+                    for_each(getter);
                 }
             }
             CSocketPtr existing_csock;
@@ -493,9 +499,7 @@ CSockMapping::get_iface_pair_locked_internal(u_long send_label,
             }
             if (!existing_csock ||
                 !existing_csock->is_in_trouble() ||
-                count() == 1// ||
-                //existing_csock->is_not_default_fg_but_default_fg_is_in_trouble_and_this_is_the_only_other_csock()) { // XXX: bleah!
-                ) {
+                count() == 1) {
                 matcher.consider(*i, *j);
             } else {
                 char local_ip[16], remote_ip[16];
@@ -679,7 +683,8 @@ void
 CSockMapping::join_to_all_workers()
 {
     vector<pthread_t> workers;
-    (void)for_each(get_worker_tids(workers));
+    get_worker_tids getter(workers);
+    (void)for_each(getter);
 
     void **ret = NULL;
     std::for_each(workers.begin(), workers.end(),
