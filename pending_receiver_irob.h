@@ -112,7 +112,7 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
     /* Hard rule: this won't ever return a non-ready IROB. */
     // also, if the socket is in blocking mode and block_for_data == true,
     //  this will block if no IROBs are ready.
-    PendingReceiverIROB *get_ready_irob(bool block_for_data);
+    PendingIROBPtr get_ready_irob(bool block_for_data);
 
     bool data_is_ready();
 
@@ -120,8 +120,6 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
     template <typename Predicate>
     void release_if_ready(PendingReceiverIROB *pirob, Predicate is_ready);
 
-    void partially_read(PendingReceiverIROB *pirob);
-    
     /* signify that the socket has been shut down for reading. */
     void shutdown();
 
@@ -141,23 +139,23 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
     template <typename Predicate>
     void release_dependents(PendingReceiverIROB *pirob, Predicate is_ready);
 
-    PendingReceiverIROB *partially_read_irob;
+    PendingIROBPtr partially_read_irob;
 
     // get_ready_irob will return &empty_sentinel_irob if the
     //  socket is non-blocking and there are no more IROBs
     //  ready.
-    static PendingReceiverIROB empty_sentinel_irob;
+    static PendingIROBPtr empty_sentinel_irob;
 };
 
 template <typename Predicate>
 void
-PendingReceiverIROBLattice::release_if_ready(PendingReceiverIROB *pirob,
+PendingReceiverIROBLattice::release_if_ready(PendingReceiverIROB *prirob,
                                              Predicate is_ready)
 {
-    if (is_ready(pirob)) {
+    if (is_ready(prirob)) {
         /* TODO: smarter strategy for ordering ready IROBs. */
-        dbgprintf("Releasing IROB %ld\n", pirob->id);
-        release(pirob->id, pirob->send_labels);
+        dbgprintf("Releasing IROB %ld\n", prirob->id);
+        release(prirob->id, prirob->send_labels);
     }
 }
 
@@ -170,11 +168,11 @@ PendingReceiverIROBLattice::release_dependents(PendingReceiverIROB *pirob,
     for (irob_id_set::iterator it = pirob->dependents.begin();
          it != pirob->dependents.end(); it++) {
         
-        PendingIROB *pi = this->find(*it);
+        PendingIROBPtr pi = this->find(*it);
         if (pi == NULL) {
             continue;
         }
-        PendingReceiverIROB *dependent = dynamic_cast<PendingReceiverIROB*>(pi);
+        PendingReceiverIROB *dependent = dynamic_cast<PendingReceiverIROB*>(get_pointer(pi));
         assert(dependent);
         //dependent->dep_satisfied(pirob->id); // now done in erase()
         release_if_ready(dependent, is_ready);

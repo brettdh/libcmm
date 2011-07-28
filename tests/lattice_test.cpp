@@ -29,11 +29,7 @@ LatticeTest::setUp()
 void
 LatticeTest::tearDown()
 {
-    for (int i = 0; i < 10; i++) {
-        delete pirob_array[i];
-    }
-
-    pirobs->clear(false);
+    pirobs->clear();
     delete pirobs;
 }
 
@@ -41,7 +37,7 @@ void
 LatticeTest::assert_insert(irob_id_t id, PendingIROB *pirob)
 {
     CPPUNIT_ASSERT(pirobs->insert(pirob) == true);
-    CPPUNIT_ASSERT(pirobs->find(id) == pirob);
+    CPPUNIT_ASSERT(get_pointer(pirobs->find(id)) == pirob);
 }
 
 void 

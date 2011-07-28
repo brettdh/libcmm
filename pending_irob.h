@@ -9,7 +9,7 @@
 #include "intset.h"
 #include <functional>
 #include <string.h>
-//#include <boost/pool/pool_alloc.hpp>
+#include <boost/shared_ptr.hpp>
 
 #include "pthread_util.h"
 
@@ -25,10 +25,10 @@
 
 struct ResumeOperation;
 
-/* typedef std::set<irob_id_t, std::less<irob_id_t>, */
-/*                  boost::fast_pool_allocator<irob_id_t> > irob_id_set; */
-
 typedef std::set<irob_id_t> irob_id_set;
+
+class PendingIROB;
+typedef boost::shared_ptr<PendingIROB> PendingIROBPtr;
 
 class PendingIROB {
   public:
@@ -156,14 +156,14 @@ class PendingIROBLattice {
     // XXX: these default args are really describing what happens at the sender.
     //  maybe these should be moved into a PendingSenderIROBLattice.
     bool insert(PendingIROB *pirob, bool infer_deps = true);
-    PendingIROB * find(irob_id_t id);
+    PendingIROBPtr find(irob_id_t id);
     bool erase(irob_id_t id, bool at_receiver = false);
 
     bool past_irob_exists(irob_id_t id);
 
     bool empty();// { return pending_irobs.empty(); }
     size_t size();
-    void clear(bool delete_members);
+    void clear();
     
     /* returns true if first depends on second. */
     //bool depends_on(PendingIROB *first, PendingIROB *second);
@@ -186,13 +186,13 @@ class PendingIROBLattice {
   private:
     // must hold membership_lock
     bool insert_locked(PendingIROB *pirob, bool infer_deps = true);
-    PendingIROB *find_locked(irob_id_t id);
+    PendingIROBPtr find_locked(irob_id_t id);
     
     // Invariant: pending_irobs.empty() || 
     //            (pending_irobs[0] != NULL &&
     //             forall_i>0(pending_irobs[i] == NULL || 
     //                        pending_irobs[i]->id == i + offset))
-    std::deque<PendingIROB *> pending_irobs;
+    std::deque<PendingIROBPtr> pending_irobs;
     size_t offset;
     pthread_mutex_t membership_lock;
 
@@ -215,11 +215,11 @@ class PendingIROBLattice {
     /* 1) If pirob is anonymous, add deps on all pending IROBs.
      * 2) Otherwise, add deps on all pending anonymous IROBs.
      * 3) Remove already-satisfied deps. */
-    void correct_deps(PendingIROB *pirob, bool infer_deps);
+    void correct_deps(PendingIROBPtr pirob, bool infer_deps);
 
     struct GetIDs {
         std::vector<irob_id_t> ids;
-        void operator()(PendingIROB *pirob) {
+        void operator()(PendingIROBPtr pirob) {
             ids.push_back(pirob->id);
         }
     };

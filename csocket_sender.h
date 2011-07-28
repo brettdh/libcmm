@@ -30,7 +30,7 @@ class CSocketSender : public CMMThread {
     // call all these below with the scheduling_state_lock held
 
     bool schedule_work(IROBSchedulingIndexes& indexes);
-    bool delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
+    bool delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
                                const IROBSchedulingData& data);
 
     bool okay_to_send_bg(ssize_t& chunksize);
@@ -48,8 +48,8 @@ class CSocketSender : public CMMThread {
 
     struct NotCompletelySent {
         std::vector<irob_id_t> matches;
-        void operator()(PendingIROB* pirob) {
-            PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+        void operator()(PendingIROBPtr pirob) {
+            PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
             assert(psirob);
             if (psirob->is_complete() && 
                 psirob->all_chunks_sent()) {

@@ -298,7 +298,7 @@ class CMMSocketImpl : public CMMSocket {
                   resume_handler_t resume_handler, void *rh_arg,
                   CSocket *& csock, bool blocking);
 
-    void remove_if_unneeded(PendingIROB *pirob);
+    void remove_if_unneeded(PendingIROBPtr pirob);
 
     /* true iff the socket has begun shutting down 
      * via shutdown() or close(). */

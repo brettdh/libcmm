@@ -301,14 +301,14 @@ PendingReceiverIROB::recvdbytes()
 }
 
 PendingReceiverIROBLattice::PendingReceiverIROBLattice(CMMSocketImpl *sk_)
-    : sk(sk_), partially_read_irob(NULL)
+    : sk(sk_), partially_read_irob()
 {
 }
 
 PendingReceiverIROBLattice::~PendingReceiverIROBLattice()
 {
     // XXX: make sure there are no races here
-    delete partially_read_irob;
+    //delete partially_read_irob; // smart ptr will clean up
 }
 
 PendingIROB *
@@ -325,7 +325,7 @@ PendingReceiverIROBLattice::data_is_ready()
     return (partially_read_irob || !ready_irobs.empty());
 }
 
-PendingReceiverIROB PendingReceiverIROBLattice::empty_sentinel_irob(-1);
+PendingIROBPtr PendingReceiverIROBLattice::empty_sentinel_irob(new PendingReceiverIROB(-1));
 
 /* REQ: call with scheduling_state_lock held
  *
@@ -339,26 +339,28 @@ PendingReceiverIROB PendingReceiverIROBLattice::empty_sentinel_irob(-1);
  *  the socket is blocking, this allows us to return however many
  *  bytes are ready, as blocking recv should do.
  */
-PendingReceiverIROB *
+PendingIROBPtr
 PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
 {
     //irob_id_t ready_irob_id = -1;
     IROBSchedulingData ready_irob_data;
-    PendingIROB *pi = NULL;
+    PendingIROBPtr pi;
     PendingReceiverIROB *pirob = NULL;
     if (partially_read_irob) {
-        if (!partially_read_irob->is_complete()) {
+        PendingReceiverIROB *partial_prirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(partially_read_irob));
+        if (!partial_prirob->is_complete()) {
             /* TODO: block until more bytes are available */
             assert(0);
         }
-        pirob = partially_read_irob;
-        partially_read_irob = NULL;
+        pirob = partial_prirob;
+        pi = partially_read_irob;
+        partially_read_irob.reset();
         dbgprintf("get_ready_irob: returning partially-read IROB %ld\n", 
                   pirob->id);
     } else {
         struct timeval begin, end, diff;
         TIME(begin);
-        while (pi == NULL) {
+        while (!pi) {
 #ifndef CMM_UNIT_TESTING
             while (ready_irobs.empty()) {
                 assert(sk);
@@ -366,7 +368,7 @@ PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
                     if (sk->remote_shutdown && sk->csock_map->empty()) {
                         dbgprintf("get_ready_irob: socket shutting down; "
                                   "returning NULL\n");
-                        return NULL;
+                        return PendingIROBPtr();
                     }
                 }
                 if (!block_for_data || sk->is_non_blocking()) {
@@ -375,7 +377,7 @@ PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
                               sk->is_non_blocking()
                               ? "socket is non-blocking"
                               : "bytes previously returned");
-                    return &empty_sentinel_irob;
+                    return empty_sentinel_irob;
                 }
                 pthread_cond_wait(&sk->scheduling_state_cv, &sk->scheduling_state_lock);
             }
@@ -396,13 +398,13 @@ PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
                   diff.tv_sec, diff.tv_usec);
 
         assert(pi);
-        pirob = dynamic_cast<PendingReceiverIROB*>(pi);
+        pirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(pi));
         assert(pirob);
 
         dbgprintf("get_ready_irob: returning IROB %ld\n", 
                   pirob->id);
     }
-    return pirob;
+    return pi;
 }
 
 // must call with scheduling_state_lock held
@@ -452,7 +454,8 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
         // if the socket is in blocking mode, this will block
         //    if bytes_passed == 0
         bool block_for_data = ((bytes_passed == 0) || (flags & MSG_WAITALL));
-        PendingReceiverIROB *pirob = get_ready_irob(block_for_data);
+        PendingIROBPtr pi = get_ready_irob(block_for_data);
+        PendingReceiverIROB *pirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(pi));
         TIME(one_end);
         TIMEDIFF(one_begin, one_end, one_diff);
         dbgprintf("Getting one ready IROB took %lu.%06lu seconds\n",
@@ -476,7 +479,7 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
 #ifndef CMM_UNIT_TESTING
         if (pirob->numbytes() == 0) {
             // sentinel; no more bytes are ready
-            assert(pirob == &empty_sentinel_irob);
+            assert(pirob == get_pointer(empty_sentinel_irob));
             if (bytes_passed == 0) {
                 if (!sk->is_non_blocking()) {
                     // impossible; get_ready_irob would have blocked
@@ -515,10 +518,10 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
         if (pirob->is_complete() && pirob->numbytes() == 0) {
             erase(pirob->id, true);
             release_dependents(pirob, ReadyIROB());
-            delete pirob;
+            //delete pirob; shared ptr will clean up
         } else {
-            assert(partially_read_irob == NULL);
-            partially_read_irob = pirob;
+            assert(!partially_read_irob);
+            partially_read_irob = pi;
         }
     }
     TIME(end);

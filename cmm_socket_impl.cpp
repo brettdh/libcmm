@@ -1911,7 +1911,7 @@ CMMSocketImpl::end_irob(irob_id_t id)
     TIME(begin);
 
     CSocket *csock;
-    PendingIROB *pirob = NULL;
+    PendingIROBPtr pirob;
     u_long send_labels = 0;
     {
         PthreadScopedLock lock(&scheduling_state_lock);
@@ -1950,7 +1950,7 @@ CMMSocketImpl::end_irob(irob_id_t id)
              * for some reason, we can still block, thunk or fail. */
             if (pirob->status == CMM_DEFERRED) {
                 outgoing_irobs.erase(id);
-                delete pirob;
+                //delete pirob;  // smart ptr will clean up
                 return CMM_DEFERRED;
             } else {
                 pthread_mutex_unlock(&scheduling_state_lock);
@@ -1959,14 +1959,14 @@ CMMSocketImpl::end_irob(irob_id_t id)
                 if (ret < 0) {
                     /* timeout; inform the app that the IROB failed */
                     outgoing_irobs.erase(id);
-                    delete pirob;
+                    //delete pirob; // smart ptr will clean up
                     return ret;
                 }
             }
         }
         pirob->finish();
 
-        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
         assert(psirob);
         if (psirob->announced && !psirob->end_announced &&
             psirob->is_complete() && psirob->all_chunks_sent()) {
@@ -2011,7 +2011,7 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
     CSocket *csock;
 
     struct irob_chunk_data chunk;
-    PendingIROB *pirob = NULL;
+    PendingIROBPtr pirob;
     PendingSenderIROB *psirob = NULL;
     {
         PthreadScopedLock lock(&scheduling_state_lock);
@@ -2027,7 +2027,7 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
             throw CMMException();
         }
 
-        psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+        psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
         assert(psirob);
         send_labels = psirob->send_labels;
         resume_handler = psirob->resume_handler;
@@ -2226,7 +2226,7 @@ void
 CMMSocketImpl::ack_received(irob_id_t id)
 {
     PthreadScopedLock lock(&scheduling_state_lock);
-    PendingIROB *pirob = outgoing_irobs.find(id);
+    PendingIROBPtr pirob = outgoing_irobs.find(id);
     if (!pirob) {
         if (outgoing_irobs.past_irob_exists(id)) {
             dbgprintf("Duplicate ack received for IROB %ld; ignoring\n",
@@ -2238,7 +2238,7 @@ CMMSocketImpl::ack_received(irob_id_t id)
         }
     }
 
-    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
     assert(psirob);
 
     psirob->ack();
@@ -2263,7 +2263,7 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
     // }
 
     PthreadScopedLock lock(&scheduling_state_lock);
-    PendingIROB *pirob = outgoing_irobs.find(id);
+    PendingIROBPtr pirob = outgoing_irobs.find(id);
     if (!pirob) {
         if (outgoing_irobs.past_irob_exists(id)) {
             dbgprintf("Post-ACK resend request received for IROB %ld; "
@@ -2290,7 +2290,7 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
         }
 
     }
-    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
     assert(psirob);
     u_long send_labels = psirob->send_labels;
 
@@ -2332,7 +2332,7 @@ CMMSocketImpl::data_check_requested(irob_id_t id)
     // }
 
     PthreadScopedLock lock(&scheduling_state_lock);
-    PendingIROB *pirob = incoming_irobs.find(id);
+    PendingIROBPtr pirob = incoming_irobs.find(id);
     if (!pirob) {
         if (incoming_irobs.past_irob_exists(id)) {
             // already received, passed to application; just (re)send the ACK
@@ -2357,7 +2357,7 @@ CMMSocketImpl::data_check_requested(irob_id_t id)
             reqtype = resend_request_type_t(reqtype |
                                             CMM_RESEND_REQUEST_DEPS);
         }
-        PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
+        PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(pirob));
         assert(prirob);
         if (!prirob->get_missing_chunks().empty()) {
             reqtype = resend_request_type_t(reqtype
@@ -2381,14 +2381,14 @@ CMMSocketImpl::data_check_requested(irob_id_t id)
 }
 
 /* call only with scheduling_state_lock held */
-void CMMSocketImpl::remove_if_unneeded(PendingIROB *pirob)
+void CMMSocketImpl::remove_if_unneeded(PendingIROBPtr pirob)
 {
     assert(pirob);
-    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
     assert(psirob);
     if (psirob->is_acked() && psirob->is_complete()) {
         outgoing_irobs.erase(pirob->id);
-        delete pirob;
+        //delete pirob;  // not needed; smart ptr will clean up
 
         if (outgoing_irobs.empty()) {
             if (shutting_down) {

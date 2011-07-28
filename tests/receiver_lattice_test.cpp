@@ -32,7 +32,7 @@ ReceiverLatticeTest::setUp()
 void
 ReceiverLatticeTest::tearDown()
 {
-    pirobs->clear(true);
+    pirobs->clear();
     delete pirobs;
 }
 
@@ -40,7 +40,7 @@ void
 ReceiverLatticeTest::assert_insert(irob_id_t id, PendingReceiverIROB *pirob)
 {
     CPPUNIT_ASSERT(pirobs->insert(pirob) == true);
-    CPPUNIT_ASSERT(pirobs->find(id) == pirob);
+    CPPUNIT_ASSERT(get_pointer(pirobs->find(id)) == pirob);
 }
 
 void 

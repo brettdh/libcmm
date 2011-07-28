@@ -31,7 +31,6 @@ PendingReceiverIROBTest::setUp()
 void 
 PendingReceiverIROBTest::tearDown()
 {
-    delete prirob;
 }
 
 // XXX: disabled this test for now since it conflicts with the new approach

@@ -173,7 +173,7 @@ PendingIROBLattice::PendingIROBLattice()
 
 PendingIROBLattice::~PendingIROBLattice()
 {
-    clear(true);
+    clear();
     pthread_mutex_destroy(&membership_lock);
 }
 
@@ -206,53 +206,55 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
         return false;
     }
     while (index < 0) {
-        pending_irobs.push_front(NULL);
+        pending_irobs.push_front(PendingIROBPtr());
         --offset;
         index = pirob->id - offset;
     }
     if ((int)pending_irobs.size() <= index) {
-        pending_irobs.resize(index+1, NULL);
+        pending_irobs.resize(index+1, PendingIROBPtr());
     }
+
+    PendingIROBPtr pirob_ptr(pirob);
     if (pending_irobs[index]) {
         // grab the placeholder's dependents and replace it
         // with the real PendingIROB
         assert(!pirob->placeholder);
         assert(pending_irobs[index]->placeholder);
         assert(pending_irobs[index]->id == pirob->id);
-        pirob->subsume(pending_irobs[index]);
+        pirob->subsume(get_pointer(pending_irobs[index]));
         
-        delete pending_irobs[index];
-        pending_irobs[index] = pirob;
+        //delete pending_irobs[index]; // shared ptr will clean up
+        pending_irobs[index] = pirob_ptr;
     } else {
-        pending_irobs[index] = pirob;
+        pending_irobs[index] = pirob_ptr;
     }
 
-    if (pirob->placeholder) {
+    if (pirob_ptr->placeholder) {
         // pirob only exists to hold dependents until
         // its replacement arrives.
         return true;
     }
 
-    correct_deps(pirob, infer_deps);
+    correct_deps(pirob_ptr, infer_deps);
 
-    dbgprintf("Adding IROB %ld as dependent of: [ ", pirob->id);
-    for (irob_id_set::iterator it = pirob->deps.begin();
-         it != pirob->deps.end(); it++) {
+    dbgprintf("Adding IROB %ld as dependent of: [ ", pirob_ptr->id);
+    for (irob_id_set::iterator it = pirob_ptr->deps.begin();
+         it != pirob_ptr->deps.end(); it++) {
         if (past_irobs.contains(*it)) {
             dbgprintf_plain("(%ld) ", *it);
             continue;
         }
 
-        PendingIROB *dep = find_locked(*it);
+        PendingIROBPtr dep = find_locked(*it);
         if (dep) {
             dbgprintf_plain("%ld ", dep->id);
-            dep->add_dependent(pirob->id);
+            dep->add_dependent(pirob_ptr->id);
         } else {
             dbgprintf_plain("P%ld ", *it);
-            dep = make_placeholder(*it);
-            bool ret = insert_locked(dep);
+            PendingIROB *placeholder = make_placeholder(*it);
+            bool ret = insert_locked(placeholder);
             assert(ret);
-            dep->add_dependent(pirob->id);
+            placeholder->add_dependent(pirob_ptr->id);
         }
     }
     dbgprintf_plain("]\n");
@@ -269,15 +271,16 @@ PendingIROBLattice::make_placeholder(irob_id_t id)
 }
 
 void
-PendingIROBLattice::clear(bool delete_members)
+PendingIROBLattice::clear()
 {
     PthreadScopedLock lock(&membership_lock);
 
-    if (delete_members) {
-        for (size_t i = 0; i < pending_irobs.size(); i++) {
-            delete pending_irobs[i];
-        }
-    }
+    // shared ptrs will clean up
+    // if (delete_members) {
+    //     for (size_t i = 0; i < pending_irobs.size(); i++) {
+    //         delete pending_irobs[i];
+    //     }
+    // }
     pending_irobs.clear();
     offset = 0;
 
@@ -288,7 +291,7 @@ PendingIROBLattice::clear(bool delete_members)
 }
 
 void
-PendingIROBLattice::correct_deps(PendingIROB *pirob, bool infer_deps)
+PendingIROBLattice::correct_deps(PendingIROBPtr pirob, bool infer_deps)
 {
     /* 1) If pirob is anonymous, add deps on all pending IROBs. */
     /* 2) Otherwise, add deps on all pending anonymous IROBs. */
@@ -346,7 +349,7 @@ PendingIROBLattice::correct_deps(PendingIROB *pirob, bool infer_deps)
     }
 }
 
-PendingIROB *
+PendingIROBPtr
 PendingIROBLattice::find(irob_id_t id)
 {
     PthreadScopedLock lock(&membership_lock);
@@ -354,13 +357,13 @@ PendingIROBLattice::find(irob_id_t id)
     return find_locked(id);
 }
 
-PendingIROB *
+PendingIROBPtr
 PendingIROBLattice::find_locked(irob_id_t id)
 {
     //TimeFunctionBody timer("pending_irobs.find(accessor)");
     int index = id - offset;
     if (index < 0 || index >= (int)pending_irobs.size()) {
-        return NULL;
+        return PendingIROBPtr();
     }
     return pending_irobs[index];
 }
@@ -382,8 +385,8 @@ PendingIROBLattice::erase(irob_id_t id, bool at_receiver)
         min_dominator_set.erase(id);
     }
 
-    PendingIROB *victim = pending_irobs[index];
-    pending_irobs[index] = NULL; // caller must free it
+    PendingIROBPtr victim = pending_irobs[index];
+    pending_irobs[index].reset(); // shared ptr will clean up
     while (!pending_irobs.empty() && pending_irobs[0] == NULL) {
         pending_irobs.pop_front();
         offset++;
@@ -396,8 +399,8 @@ PendingIROBLattice::erase(irob_id_t id, bool at_receiver)
         for (irob_id_set::iterator it = victim->dependents.begin();
              it != victim->dependents.end(); it++) {
             
-            PendingIROB *dependent = this->find_locked(*it);
-            if (dependent == NULL) {
+            PendingIROBPtr dependent = this->find_locked(*it);
+            if (!dependent) {
                 dbgprintf_plain("(%ld) ", *it);
                 continue;
             }
@@ -442,8 +445,8 @@ PendingIROBLattice::get_all_ids()
 }
 
 struct DataCheckIROB {
-    void operator()(PendingIROB *pirob) {
-        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    void operator()(PendingIROBPtr pirob) {
+        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
         if (psirob) {
             psirob->request_data_check();
         }

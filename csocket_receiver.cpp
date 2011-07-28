@@ -260,7 +260,7 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
         bool resend_request = false;
         resend_request_type_t req_type = CMM_RESEND_REQUEST_NONE;
 
-        PendingIROB *pirob = sk->incoming_irobs.find(id);
+        PendingIROBPtr pirob = sk->incoming_irobs.find(id);
         if (!pirob) {
             if (sk->incoming_irobs.past_irob_exists(id)) {
                 //throw CMMFatalError("Tried to end committed IROB", hdr);
@@ -280,9 +280,10 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
                 //throw CMMFatalError("Tried to end nonexistent IROB", hdr);
                 dbgprintf("Receiver got End_IROB for IROB %ld; "
                           "creating placeholder\n", id);
-                pirob = sk->incoming_irobs.make_placeholder(id);
-                bool ret = sk->incoming_irobs.insert(pirob, false);
+                PendingIROB *placeholder = sk->incoming_irobs.make_placeholder(id);
+                bool ret = sk->incoming_irobs.insert(placeholder, false);
                 assert(ret); // since it was absent before now
+                pirob = sk->incoming_irobs.find(id);
                 
                 resend_request = true;
                 req_type = resend_request_type_t(CMM_RESEND_REQUEST_DEPS
@@ -294,7 +295,7 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
         int expected_chunks = ntohl(hdr.op.end_irob.expected_chunks);
 
         assert(pirob);
-        PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
+        PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(pirob));
         if (!prirob->finish(expected_bytes, expected_chunks)) {
             //throw CMMFatalError("Tried to end already-done IROB", hdr);
             dbgprintf("do_end_irob: already-finished IROB %ld, ", id);
@@ -374,7 +375,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     {
         PthreadScopedLock lock(&sk->scheduling_state_lock);
         
-        PendingIROB *pirob = sk->incoming_irobs.find(id);
+        PendingIROBPtr pirob = sk->incoming_irobs.find(id);
         if (!pirob) {
             if (sk->incoming_irobs.past_irob_exists(id)) {
                 //throw CMMFatalError("Tried to add to committed IROB", hdr);
@@ -386,9 +387,10 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
                 //throw CMMFatalError("Tried to add to nonexistent IROB", hdr);
                 dbgprintf("Receiver got IROB_chunk for IROB %ld; "
                           "creating placeholder\n", id);
-                pirob = sk->incoming_irobs.make_placeholder(id);
-                bool ret = sk->incoming_irobs.insert(pirob, false);
+                PendingIROB *placeholder = sk->incoming_irobs.make_placeholder(id);
+                bool ret = sk->incoming_irobs.insert(placeholder, false);
                 assert(ret); // since it was absent before now
+                pirob = sk->incoming_irobs.find(id);
 
                 /* Sender sends Data_Check when a network goes down;
                  * so this is redundant
@@ -406,7 +408,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         chunk.data = hdr.op.irob_chunk.data;
         
         assert(pirob);
-        PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
+        PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(pirob));
         assert(prirob);
         if (!prirob->add_chunk(chunk)) {
             if (prirob->is_complete()) {

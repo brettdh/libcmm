@@ -495,9 +495,9 @@ void resume_operation_thunk(ResumeOperation *op)
     u_long send_labels = 0;
     {
         PthreadScopedLock lock(&op->sk->scheduling_state_lock);
-        PendingIROB *pirob = op->sk->outgoing_irobs.find(op->data.id);
+        PendingIROBPtr pirob = op->sk->outgoing_irobs.find(op->data.id);
         assert(pirob);
-        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
         assert(psirob);
         send_labels = psirob->send_labels;
     }
@@ -531,7 +531,7 @@ void resume_operation_thunk(ResumeOperation *op)
  * 
  */
 bool
-CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob, 
+CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob, 
                                      const IROBSchedulingData& data)
 {
     pirob = sk->outgoing_irobs.find(id);
@@ -540,7 +540,7 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
         return true;
     }
     assert(pirob);
-    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
     assert(psirob);
 
     u_long send_labels = pirob->send_labels;
@@ -572,7 +572,7 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
         // no need to send this message after all
         return true;
     }
-    psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
     assert(psirob);
 
     if (!match) {
@@ -606,8 +606,8 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROB *& pirob,
             dbgprintf("Warning: silently dropping IROB %ld after failing to send it.\n",
                       pirob->id);
             sk->outgoing_irobs.erase(pirob->id);
-            delete pirob;
-            pirob = NULL;
+            //delete pirob; // smart ptr will clean up
+            pirob.reset();
         }
         return true;
     } else {
@@ -711,13 +711,13 @@ bool CSocketSender::okay_to_send_bg(ssize_t& chunksize)
 bool
 CSocketSender::begin_irob(const IROBSchedulingData& data)
 {
-    PendingIROB *pirob = sk->outgoing_irobs.find(data.id);
+    PendingIROBPtr pirob = sk->outgoing_irobs.find(data.id);
     if (!pirob) {
         // This is probably a retransmission; must have already been ACK'd
         // Just ignore it
         return true;
     }
-    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
     assert(psirob);
 
     irob_id_t id = data.id;
@@ -740,7 +740,6 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
             // BG BEGIN_IROB message on the FG socket.
         }
     
-        //PendingIROB *pirob = NULL;
         if (delegate_if_necessary(id, pirob, data)) {
             // we passed it off, so make sure that we don't
             // try to re-insert data into the IROBSchedulingIndexes.
@@ -891,7 +890,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     }
 
     pirob = sk->outgoing_irobs.find(id);
-    psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
     if (psirob) {
         psirob->announced = true;
         if (sending_all_irob_info) {
@@ -916,13 +915,13 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
 void
 CSocketSender::end_irob(const IROBSchedulingData& data)
 {
-    PendingIROB *pirob = sk->outgoing_irobs.find(data.id);
+    PendingIROBPtr pirob = sk->outgoing_irobs.find(data.id);
     if (!pirob) {
         // This is probably a retransmission; must have already been ACK'd
         // Just ignore it
         return;
     }
-    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
     assert(psirob);
 
     struct CMMSocketControlHdr hdr;
@@ -956,7 +955,7 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
     }
     
     pirob = sk->outgoing_irobs.find(data.id);
-    psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
 }
 
 /* returns true if I actually sent it; false if not */
@@ -989,7 +988,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     }
 
     irob_id_t id = data.id;
-    PendingIROB *pirob = NULL;
+    PendingIROBPtr pirob;
 
     if (delegate_if_necessary(id, pirob, data)) {
         return true;
@@ -1000,7 +999,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
         /* must've been ACK'd already */
         return true;
     }
-    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob);
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
     assert(psirob);
 
     if (psirob->needs_data_check()) {
@@ -1134,7 +1133,8 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
 #endif
 
     // It might've been ACK'd and removed, so check first
-    psirob = dynamic_cast<PendingSenderIROB*>(sk->outgoing_irobs.find(id));
+    pirob = sk->outgoing_irobs.find(id);
+    psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
     if (psirob) {
         size_t total_header_size = sizeof(hdr);
         if (waiting_ack_irob != -1) {
@@ -1387,8 +1387,8 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
 {
     resend_request_type_t req_type = data.resend_request;
     vector<struct irob_chunk_data> missing_chunks;
-    PendingIROB *pirob = sk->incoming_irobs.find(data.id);
-    PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob);
+    PendingIROBPtr pirob = sk->incoming_irobs.find(data.id);
+    PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(pirob));
     if (req_type & CMM_RESEND_REQUEST_DATA) {
         if (prirob) {
             // tell the remote sender which bytes we need
@@ -1485,8 +1485,9 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
     irob_id_t *deps = NULL;
     struct irob_chunk_data chunk;
     memset(&chunk, 0, sizeof(chunk));
-    
-    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(sk->outgoing_irobs.find(data.id));
+
+    PendingIROBPtr pirob = sk->outgoing_irobs.find(data.id);
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
     if (psirob) { 
         ssize_t chunksize = MIN_CHUNKSIZE;
         u_long seqno = 0;
