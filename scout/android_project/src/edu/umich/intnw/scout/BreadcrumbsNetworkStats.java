@@ -37,7 +37,7 @@ class BreadcrumbsNetworkStats {
         Cursor c = null;
         try {
             db = SQLiteDatabase.openDatabase(
-                    dbFilename, null, SQLiteDatabase.OPEN_READONLY
+                    dbFilename, null, SQLiteDatabase.OPEN_READONLY | SQLiteDatabase.NO_LOCALIZED_COLLATORS
             );
             if (db == null) {
                 Log.e(TAG, "Couldn't open db file " + dbFilename);
