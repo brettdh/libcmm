@@ -115,7 +115,11 @@ class PendingSenderIROB : public PendingIROB {
     //size_t chunk_offset;
 
     std::deque<struct irob_chunk_data> sent_chunks;
-    std::deque<struct irob_chunk_data> resend_chunks;
+
+    // make this a set so we don't have duplicate chunk-resend requests.
+    typedef std::set<struct irob_chunk_data> ResendChunkSet;
+    ResendChunkSet resend_chunks;
+    // std::deque<struct irob_chunk_data> resend_chunks;
 
     size_t num_bytes; // number of bytes added by the application
     size_t irob_offset;  // number of bytes given to senders

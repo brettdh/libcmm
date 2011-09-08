@@ -150,8 +150,9 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno,
     
     if (!resend_chunks.empty()) {
         // 1) Grab a chunk
-        struct irob_chunk_data chunk = resend_chunks.front();
-        resend_chunks.pop_front();
+        ResendChunkSet::iterator front = resend_chunks.begin();
+        struct irob_chunk_data chunk = *front;
+        resend_chunks.erase(front);
         
         // 2) Find its data + copy it to an iovec
         //   (Don't return data that pertains to more than one seqno.)
@@ -229,47 +230,14 @@ PendingSenderIROB::get_last_sent_chunk_htonl(struct irob_chunk_data *chunk)
     return get_bytes_internal(last_chunk.offset, len);
 }
 
-// return true iff the data specified by the chunk has been marked sent.
-// bool
-// PendingSenderIROB::sent(struct irob_chunk_data chunk)
-// {
-    
-// }
-
-/*
-void 
-PendingSenderIROB::mark_sent(struct irob_chunk_data sent_chunk)
-{
-    dbgprintf("Marking bytes %zu-%zu sent for IROB %ld\n", 
-              seht_chunk.offset, sent_chunk.offset + sent_chunk.datalen, id);
-    dbgprintf("   (%d chunks total; next_chunk %d chunk_offset %d irob_offset %d\n",
-              (int)chunks.size(), next_chunk, chunk_offset, irob_offset);
-
-    assert (next_chunk < chunks.size());
-    while (bytes_sent > 0) {
-        ssize_t chunk_bytes_left = chunks[next_chunk].datalen - chunk_offset;
-        ssize_t bytes = min(chunk_bytes_left, bytes_sent);
-        bytes_sent -= bytes;
-        chunk_offset += bytes;
-        irob_offset += bytes;
-        
-        if (chunk_offset == chunks[next_chunk].datalen) {
-            next_chunk++;
-            chunk_offset = 0;
-        }
-    }
-    next_seqno_to_send++;
-}
-*/
-
 void
-PendingSenderIROB::mark_not_received(u_long seqno)//, size_t offset, size_t len)
+PendingSenderIROB::mark_not_received(u_long seqno)
 {
     if (seqno > sent_chunks.size()) {
         dbgprintf("ERROR: resend requested for seqno %lu, but IROB %ld "
                   "only has %zu sent chunks\n", seqno, id, sent_chunks.size());
     } else {
-        resend_chunks.push_back(sent_chunks[seqno]);
+        resend_chunks.insert(sent_chunks[seqno]);
     }
 }
 
@@ -292,21 +260,3 @@ PendingSenderIROB::needs_data_check()
 {
     return data_check;
 }
-
-/*
-void
-PendingSenderIROB::rewind(size_t pos)
-{
-    dbgprintf("Resetting send pointer for IROB %ld\n", id);
-    next_seqno_to_send = 0;
-    next_chunk = 0;
-    chunk_offset = 0;
-    offset = 0;
-
-    // a call to rewind() means that the sender and receiver
-    //  agree about the amount of remaining data
-    data_check = false;
-
-    mark_sent(pos);
-}
-*/

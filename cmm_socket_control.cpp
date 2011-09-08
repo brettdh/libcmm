@@ -40,6 +40,13 @@ CMMSocketControlHdr::type_str() const
     return strs[my_type];
 }
 
+bool
+irob_chunk_data::operator<(const struct irob_chunk_data& other) const
+{
+    return (id < other.id ||
+            (id == other.id && seqno < other.seqno));
+}
+
 int
 modify_bits_string(int value, int mask, const char *str,
                    std::ostringstream& msg)

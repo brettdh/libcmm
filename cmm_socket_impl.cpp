@@ -2251,17 +2251,6 @@ void
 CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t request,
                                        u_long seqno, int next_chunk)//, size_t offset, size_t len)
 {
-    // {
-    //     // try to make sure there's a socket to do the resending
-    //     PthreadScopedRWLock sock_lock(&my_lock, false);
-    //     CSocket *csock = NULL;
-    //     int ret = get_csock(0, NULL, NULL, csock, false);
-    //     if (ret < 0) {
-    //         goodbye(false);
-    //         return;
-    //     }
-    // }
-
     PthreadScopedLock lock(&scheduling_state_lock);
     PendingIROBPtr pirob = outgoing_irobs.find(id);
     if (!pirob) {
@@ -2300,7 +2289,7 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
     }
     if (request & CMM_RESEND_REQUEST_DATA) {
         dbgprintf("Enqueuing resend of chunk %lu for IROB %ld\n", seqno, id);
-        psirob->mark_not_received(seqno);//, offset, len);
+        psirob->mark_not_received(seqno);
         irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));
     }
     if (request & CMM_RESEND_REQUEST_END) {

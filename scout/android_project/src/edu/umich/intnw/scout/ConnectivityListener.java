@@ -29,11 +29,15 @@ public class ConnectivityListener extends BroadcastReceiver {
     private Map<Integer, NetUpdate> ifaces = 
         Collections.synchronizedMap(new HashMap<Integer, NetUpdate>());
     
+    private NetUpdate lastMobileStats;
+
     public ConnectivityListener(ConnScoutService service) {
         mScoutService = service;
         
         NetUpdate wifiNetwork = null;
         NetUpdate cellularNetwork = null;
+        
+        lastMobileStats = new NetUpdate();
         
         WifiManager wifi = 
             (WifiManager) mScoutService.getSystemService(Context.WIFI_SERVICE);
@@ -204,7 +208,7 @@ public class ConnectivityListener extends BroadcastReceiver {
     }
     
     private Thread measurementThread = null;
-    
+
     public boolean measurementInProgress() {
         synchronized (this) {
             return measurementThread != null;
@@ -271,6 +275,8 @@ public class ConnectivityListener extends BroadcastReceiver {
                     }
                     if (prevNet != null && prevNet.ipAddr.equals(ipAddr)) {
                         // preserve existing stats
+                    } else if (networkInfo.getType() == ConnectivityManager.TYPE_MOBILE) {
+                        network.setStats(lastMobileStats);
                     } else {
                         BreadcrumbsNetworkStats bcStats = null;
                         if (networkInfo.getType() == ConnectivityManager.TYPE_WIFI) {
@@ -326,6 +332,10 @@ public class ConnectivityListener extends BroadcastReceiver {
                                             network.rtt_ms,
                                             false);
                 mScoutService.logUpdate(network);
+                
+                if (network.type == ConnectivityManager.TYPE_MOBILE) {
+                    lastMobileStats.setStats(network);
+                }
             }
         } else if (action.equals(ACTION_START_MEASUREMENT)) {
             Log.d(TAG, "Got start-measurement intent; starting measurement");

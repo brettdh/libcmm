@@ -130,4 +130,12 @@ public final class NetUpdate implements Parcelable, Cloneable {
              rtt_ms = stats.rtt_ms;
          }
      }
+     
+     public void setStats(NetUpdate other) {
+         if (other != null) {
+             bw_down_Bps = other.bw_down_Bps;
+             bw_up_Bps = other.bw_up_Bps;
+             rtt_ms = other.rtt_ms;
+         }
+     }
 };

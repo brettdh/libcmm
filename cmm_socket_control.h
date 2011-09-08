@@ -39,6 +39,8 @@ struct end_irob_data {
 };
 
 struct irob_chunk_data {
+    bool operator<(const struct irob_chunk_data& other) const;
+
     irob_id_t id;
     u_long seqno; /* starting at 0. */
     size_t offset; // offset in this IROB at which this chunk's data begins
