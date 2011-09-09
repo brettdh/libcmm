@@ -22,11 +22,13 @@ typedef enum {
     CMM_MSG_UNSUBSCRIBE,
     CMM_MSG_IFACE_LABELS, /* add/update an interface */
     CMM_MSG_IFACE_DOWN, /* remove an interface */
-    CMM_MSG_GET_IFACES /* get all interfaces plus a sentinel */
+    CMM_MSG_GET_IFACES, /* get all interfaces plus a sentinel */
+    CMM_IS_IP_CONNECTED /* check whether an IP is usable */
 } MsgOpcode;
 
 struct cmm_msg {
     MsgOpcode opcode;
+    int rc;
     union {
         pid_t pid;
         struct net_interface iface;
