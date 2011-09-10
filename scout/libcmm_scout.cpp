@@ -326,8 +326,6 @@ int notify_subscriber_of_event(pid_t pid, int ipc_sock,
             LOG_PERROR("write");
         }
         DEBUG_LOG("Failed to notify subscriber proc %d\n", pid);
-    } else {
-        DEBUG_LOG("Sent notification to process %d\n", pid);
     }
     return rc;
 }
