@@ -252,6 +252,13 @@ public class ConnectivityListener extends BroadcastReceiver {
         if (action.equals(ConnectivityManager.CONNECTIVITY_ACTION)) {
             NetworkInfo networkInfo = 
                 (NetworkInfo) extras.get(ConnectivityManager.EXTRA_NETWORK_INFO);
+            if (networkInfo.getType() != ConnectivityManager.TYPE_MOBILE &&
+                networkInfo.getType() != ConnectivityManager.TYPE_WIFI) {
+                // ignore unknown network types.  this includes weird
+                //  duplicate types like TYPE_MOBILE_SUPL.
+                return;
+            }
+            
             try {
                 int bw_down_Bps = 0;
                 int bw_up_Bps = 0;
