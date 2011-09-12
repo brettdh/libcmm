@@ -190,10 +190,9 @@ CSocket::phys_connect()
                       sizeof(local_addr));
         if (rc < 0) {
             oserr = errno;
-            perror("bind");
-            dbgprintf("Failed to bind osfd %d to %s:%d\n",
+            dbgprintf("Failed to bind osfd %d to %s:%d (%s)\n",
                       osfd, inet_ntoa(local_addr.sin_addr), 
-                      ntohs(local_addr.sin_port));
+                      ntohs(local_addr.sin_port), strerror(oserr));
             close(osfd);
             throw -1;
         }
@@ -205,10 +204,9 @@ CSocket::phys_connect()
                      sizeof(remote_addr));
         if (rc < 0) {
             oserr = errno;
-            perror("connect");
-            dbgprintf("Failed to connect osfd %d to %s:%d\n",
+            dbgprintf("Failed to connect osfd %d to %s:%d (%s)\n",
                       osfd, inet_ntoa(remote_addr.sin_addr), 
-                      ntohs(remote_addr.sin_port));
+                      ntohs(remote_addr.sin_port), strerror(oserr));
             close(osfd);
             throw -1;
         }
@@ -231,8 +229,7 @@ CSocket::phys_connect()
         rc = send(osfd, &hdr, sizeof(hdr), 0);
         if (rc != sizeof(hdr)) {
             oserr = errno;
-            perror("send");
-            dbgprintf("Failed to send interface info\n");
+            dbgprintf("Failed to send interface info: %s\n", strerror(oserr));
             close(osfd);
             throw -1;
         }
@@ -242,8 +239,8 @@ CSocket::phys_connect()
         rc = recv(osfd, &hdr, sizeof(hdr), 0);
         if (rc != sizeof(hdr)) {
             if (rc < 0) {
-                perror("recv");
                 oserr = errno;
+                dbgprintf("Socket error: %s\n", strerror(oserr));
             } else {
                 dbgprintf("Connection shutdown.\n");
                 oserr = ECONNRESET;
