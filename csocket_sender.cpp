@@ -69,7 +69,7 @@ int CSocketSender::TroubleChecker::operator()(CSocketPtr csock)
     // pthread_mutex_lock(&sk->scheduling_state_lock);
     if (true /*is_fg*/) {
         if (csock->data_inflight() &&
-            csock->is_in_trouble() && sk->csock_map->count() > 1) {
+            csock->is_in_trouble() && sk->csock_map->count_locked() > 1) {
             // XXX: we only want to do fast-recovery for FG IROBs
             //    ...but the impact of doing it for them all will be small
             // XXX: we don't want to do this check for the 3G network

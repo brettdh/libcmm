@@ -39,6 +39,12 @@ size_t
 CSockMapping::count()
 {
     PthreadScopedRWLock lock(&sockset_mutex, false);
+    return count_locked();
+}
+
+size_t
+CSockMapping::count_locked()
+{
     return available_csocks.size();
 }
 
