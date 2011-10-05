@@ -29,8 +29,10 @@ class CMMThread {
 
     bool running;
     bool exiting;
+    bool start_has_returned;
     pthread_mutex_t starter_mutex;
     pthread_cond_t starter_cv;
+    pthread_cond_t start_return_cv;
 
     friend void *ThreadFn(void *);
     friend void ThreadCleanup(void *);
