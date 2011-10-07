@@ -19,7 +19,7 @@ public class NetworkTest {
     public int rtt_ms;
 
     public NetworkTest(String local) {
-        init(local, "141.212.110.132");
+        init(local, "141.212.110.115");
     }
     
     public NetworkTest(String local, String remote) {
