@@ -243,7 +243,7 @@ CSocketSender::Run()
 
             DataInFlight inflight;
             sk->csock_map->for_each(inflight);
-            if (inflight.data_inflight) {
+            if (inflight.data_inflight && inflight.rel_trouble_timeout.tv_sec != -1) {
                 timeout = abs_time(inflight.rel_trouble_timeout);
                 dbgprintf("Data in flight; trouble-check timeout in %lu.%09lu sec\n",
                           inflight.rel_trouble_timeout.tv_sec,

@@ -392,7 +392,7 @@ bool CSocket::data_inflight()
     if (get_tcp_info(osfd, &info) < 0) {
         dbgprintf("data_inflight: unable to read tcp state: %s\n",
                   strerror(errno));
-        return -1;
+        return false;
     }
     char local_ip[16], remote_ip[16];
     get_ip_string(local_iface.ip_addr, local_ip);
