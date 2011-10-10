@@ -80,7 +80,27 @@ bool CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
         dbgprintf("Done receiving remote interfaces\n");
         return true;
     } else {
-        {
+        // For now, we don't deal with multi-homed "servers,"
+        //  which would come up most often with mobile-to-mobile
+        //  multisockets.  For now we'll just assume that the 
+        //  IP address we connect to is the only one available
+        //  at the remote side.
+        // This is a hackish workaround for an issue that comes up
+        //  with my current testbed setup, which uses port forwarding
+        //  from the emulation box to the server to allow the 
+        //  path from the phone's 3G interface to the server to be this:
+        //    [3G radio] -> [microcell] -> [AT&T] -> [throttlebox] -> [server]
+        //  instead of throttling bandwidth between the microcell and AT&T,
+        //  which causes lots of connection drops and failed experiments.
+        // When the IntNW bootstrapper on the accepting end sends its hello
+        //  response, it sends the real server's IP as its only listener IP,
+        //  causing IntNW to connect to that IP (in addition to the IP of the
+        //  throttlebox) from all its interfaces.  This results in double the 
+        //  expected number of sockets, half of which bypass the throttlebox.
+        // So, for now, the quickest fix is to just disable the multi-server
+        //  support and only connect to the IP address given with cmm_connect().
+        // TODO: fix the real issue, perhaps by inserting a proxy at the throttlebox.
+        if (accepting_side) {
             PthreadScopedRWLock sock_lock(&my_lock, true);
             remote_ifaces.erase(new_listener); // make sure the values update
             remote_ifaces.insert(new_listener);
@@ -90,6 +110,17 @@ bool CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
                  it != local_ifaces.end(); it++) {
                 struct iface_pair ifaces(it->ip_addr, new_listener.ip_addr);
                 ipc_add_iface_pair(ifaces);
+            }
+        } else {
+            dbgprintf("I'm the connecting side, so I'm ignoring remote listener %s\n",
+                      inet_ntoa(new_listener.ip_addr));
+            
+            struct sockaddr_in addr;
+            memset(&addr, 0, sizeof(addr));
+            socklen_t addrlen = sizeof(addr);
+            if (getpeername(bootstrap_sock, (struct sockaddr *)&addr, &addrlen) == 0) {
+                dbgprintf("(Sticking with %s, from cmm_connect()\n",
+                          inet_ntoa(addr.sin_addr));
             }
         }
     }
