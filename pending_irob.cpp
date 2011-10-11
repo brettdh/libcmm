@@ -36,7 +36,7 @@ PendingIROB::PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array
       status(0)
 {
     if (numdeps > 0) {
-        assert(deps_array);
+        ASSERT(deps_array);
     }
     for (int i = 0; i < numdeps; i++) {
         deps.insert(deps_array[i]);
@@ -44,7 +44,7 @@ PendingIROB::PendingIROB(irob_id_t id_, int numdeps, const irob_id_t *deps_array
 
     if (datalen > 0) {
         anonymous = true;
-        assert(data);
+        ASSERT(data);
         struct irob_chunk_data chunk;
         chunk.id = id;
         chunk.seqno = 0;
@@ -110,7 +110,7 @@ PendingIROB::add_dep(irob_id_t id)
 size_t
 PendingIROB::copy_deps_htonl(irob_id_t **deps_array)
 {
-    assert(deps_array);
+    ASSERT(deps_array);
     int i = 0;
     for (irob_id_set::iterator it = deps.begin();
          it != deps.end(); it++) {
@@ -187,7 +187,7 @@ PendingIROBLattice::insert(PendingIROB *pirob, bool infer_deps)
 bool
 PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
 {
-    assert(pirob);
+    ASSERT(pirob);
     if (past_irobs.contains(pirob->id)) {
         dbgprintf("Inserting IROB %ld failed; it's in past_irobs\n", pirob->id);
         return false;
@@ -218,9 +218,9 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
     if (pending_irobs[index]) {
         // grab the placeholder's dependents and replace it
         // with the real PendingIROB
-        assert(!pirob->placeholder);
-        assert(pending_irobs[index]->placeholder);
-        assert(pending_irobs[index]->id == pirob->id);
+        ASSERT(!pirob->placeholder);
+        ASSERT(pending_irobs[index]->placeholder);
+        ASSERT(pending_irobs[index]->id == pirob->id);
         pirob->subsume(get_pointer(pending_irobs[index]));
         
         //delete pending_irobs[index]; // shared ptr will clean up
@@ -253,7 +253,7 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
             dbgprintf_plain("P%ld ", *it);
             PendingIROB *placeholder = make_placeholder(*it);
             bool ret = insert_locked(placeholder);
-            assert(ret);
+            ASSERT(ret);
             placeholder->add_dependent(pirob_ptr->id);
         }
     }

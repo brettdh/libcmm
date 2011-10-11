@@ -393,7 +393,7 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
                 (req_size >= MIN_SIZE_FOR_BW_ESTIMATE ||
                  last_req_size >= MIN_SIZE_FOR_BW_ESTIMATE)) {
                 if (req_size < MIN_SIZE_FOR_BW_ESTIMATE) {
-                    assert (last_req_size >= MIN_SIZE_FOR_BW_ESTIMATE);
+                    ASSERT(last_req_size >= MIN_SIZE_FOR_BW_ESTIMATE);
                     double bw = 0.0, latency = 0.0;
                     calculate_bw_latency(RTT, last_RTT, srv_time, last_srv_time,
                                          last_req_size, bw, latency);
@@ -404,7 +404,7 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
                     lat_valid = (latency > 0.0);
                     valid_result = (bw_valid || lat_valid);
                 } else if (last_req_size < MIN_SIZE_FOR_BW_ESTIMATE) {
-                    assert (req_size >= MIN_SIZE_FOR_BW_ESTIMATE);
+                    ASSERT(req_size >= MIN_SIZE_FOR_BW_ESTIMATE);
                     double bw = 0.0, latency = 0.0;
                     calculate_bw_latency(last_RTT, RTT, last_srv_time, srv_time,
                                          req_size, bw, latency);
@@ -443,7 +443,7 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
                         timersub(&RTT_diff, &srv_time_diff, &denominator);
                     } else if (srv_time_diff_pos) {
                         timersub(&RTT_diff, &srv_time_diff, &denominator);
-                    } else assert(0);
+                    } else ASSERT(0);
                     
                     // get bandwidth estimate in bytes/sec, rather than bytes/usec
                     double bw = ((double)numerator / convert_to_useconds(denominator)) * 1000000.0;
@@ -614,8 +614,8 @@ IROBMeasurement::add_delay(struct timeval delay)
 struct timeval
 IROBMeasurement::RTT()
 {
-    assert(ack_time.tv_sec != -1);
-    assert(timercmp(&arrival_time, &ack_time, <));
+    ASSERT(ack_time.tv_sec != -1);
+    ASSERT(timercmp(&arrival_time, &ack_time, <));
 
     struct timeval rtt;
     TIMEDIFF(arrival_time, ack_time, rtt);

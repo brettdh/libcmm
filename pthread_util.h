@@ -17,7 +17,7 @@
         if (rc != 0) {                                  \
             fprintf(stderr, "PTHREAD ERROR: %s\n",      \
                     strerror(rc));                      \
-            assert(0);                                  \
+            ASSERT(0);                                  \
         }                                               \
     } while (0)
 
@@ -48,8 +48,8 @@ class PthreadScopedLock {
     }
 
     void acquire(pthread_mutex_t *mutex_) {
-        assert(mutex == NULL);
-        assert(mutex_);
+        ASSERT(!mutex);
+        ASSERT(mutex_);
         mutex = mutex_;
         int rc = pthread_mutex_lock(mutex);
         PTHREAD_ASSERT_SUCCESS(rc);
@@ -80,8 +80,8 @@ class PthreadScopedRWLock {
     }
 
     void acquire(RWLOCK_T *mutex_, bool writer_) {
-        assert(mutex == NULL);
-        assert(mutex_);
+        ASSERT(!mutex);
+        ASSERT(mutex_);
         mutex = mutex_;
         int rc = 0;
         writer = writer_;
@@ -272,7 +272,7 @@ class LockingMap {
               writer = false;
           }
         pair_type* operator->() {
-            assert(my_node);
+            ASSERT(my_node);
             return &my_node->val;
         }
         pair_type& operator*() {
@@ -337,7 +337,7 @@ class LockingMap {
 
       public:
         pair_type* operator->() {
-            assert(valid);
+            ASSERT(valid);
             return &item->val;
         }
         pair_type& operator*() {
@@ -423,7 +423,7 @@ void LockingMap<KeyType,ValueType,ordering>::iterator::update()
 {
     if (my_iter != my_map->the_map.end()) {
         item = my_iter->second;
-        assert(my_iter->second);
+        ASSERT(my_iter->second);
         valid = true;
     }
 }

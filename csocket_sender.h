@@ -50,7 +50,7 @@ class CSocketSender : public CMMThread {
         std::vector<irob_id_t> matches;
         void operator()(PendingIROBPtr pirob) {
             PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
-            assert(psirob);
+            ASSERT(psirob);
             if (psirob->is_complete() && 
                 psirob->all_chunks_sent()) {
                 psirob->request_data_check();

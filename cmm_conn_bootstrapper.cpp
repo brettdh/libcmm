@@ -88,7 +88,7 @@ void ConnBootstrapper::Run()
                 sk->send_local_listeners(bootstrap_sock);
             } else {
                 /* we are connecting */
-                assert(remote_addr);
+                ASSERT(remote_addr);
             
                 {
                     PthreadScopedRWLock sock_lock(&sk->my_lock, false);
@@ -112,7 +112,7 @@ void ConnBootstrapper::Run()
                     //   Right way to do this: somehow make bootstrapping reliable.
                     // if (sk->local_ifaces.size() > 1) {
                     //     int ip_rc = inet_aton("10.0.0.42", &local_addr.sin_addr);
-                    //     assert(ip_rc != 0);
+                    //     ASSERT(ip_rc != 0);
                     // } else {
                     memcpy(&local_addr.sin_addr, &sk->local_ifaces.begin()->ip_addr, 
                            sizeof(local_addr.sin_addr));
@@ -188,7 +188,7 @@ void ConnBootstrapper::Run()
 
     char ch = 42;
     int rc = write(sk->write_ready_pipe[1], &ch, 1);
-    assert(rc == 1);
+    ASSERT(rc == 1);
 }
 
 void

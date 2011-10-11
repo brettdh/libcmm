@@ -34,7 +34,7 @@ void TIME(struct timespec& tv);
 /* tve should be >= tvb. */
 #define TIMEDIFF(tvb,tve,tvr)                                    \
 do {                                                             \
-    assert(((tve).tv_sec > (tvb).tv_sec)                         \
+    ASSERT(((tve).tv_sec > (tvb).tv_sec)                         \
            || (((tve).tv_sec == (tvb).tv_sec)                    \
                && (subseconds(tve) >= subseconds(tvb))));             \
     if (subseconds(tve) < subseconds(tvb)) {                         \

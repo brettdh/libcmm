@@ -56,7 +56,7 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
     last_app_data_sent.tv_sec = last_app_data_sent.tv_usec = 0;
     last_trouble_check.tv_sec = last_trouble_check.tv_nsec = 0;
 
-    assert(sk);
+    ASSERT(sk);
     if (accepted_sock == -1) {
         osfd = socket(sk->sock_family, sk->sock_type, sk->sock_protocol);
         if (osfd < 0) {
@@ -159,7 +159,7 @@ CSocket::~CSocket()
     dbgprintf("CSocket %d is being destroyed\n", osfd);
     if (osfd > 0) {
         /* if it's a real open socket */
-        assert(csock_sendr == NULL && csock_recvr == NULL);
+        ASSERT(!csock_sendr && !csock_recvr);
         ipc_remove_csocket(iface_pair(local_iface.ip_addr,
                                       remote_iface.ip_addr), osfd);
         close(osfd);

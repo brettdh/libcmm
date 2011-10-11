@@ -41,7 +41,7 @@ void set_thread_name(const char *name)
 {
     (void) pthread_once(&key_once, make_key);
 
-    assert(name);
+    ASSERT(name);
     char *old_name = (char*)pthread_getspecific(thread_name_key);
     delete [] old_name;
 

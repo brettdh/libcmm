@@ -67,7 +67,7 @@ struct labeled_thunk_queue {
         while (!thunk_queue.empty()) {
             struct thunk *th = NULL;
             thunk_queue.pop(th);
-            assert(th);
+            ASSERT(th);
             /* XXX: this leaks any outstanding thunk args.
              * maybe we can assume that a thunk queue being destroyed means
              * that the program is exiting. */
@@ -141,8 +141,8 @@ static void fire_one_thunk(struct thunk *th)
 {
     // TODO: pool of thunk worker threads?
     // TODO: or maybe pass many thunks to one new thread?
-    assert(th);
-    assert(th->fn);
+    ASSERT(th);
+    ASSERT(th->fn);
     
     th->fn(th->arg);
 
@@ -153,20 +153,20 @@ static void fire_one_thunk(struct thunk *th)
 static void *ThunkThreadFn(void *arg)
 {
     struct labeled_thunk_queue *tq = (struct labeled_thunk_queue*)arg;
-    assert(tq);
+    ASSERT(tq);
 
     ThunkQueue q_copy;
     while (!tq->thunk_queue.empty()) {
         struct thunk *th = NULL;
         tq->thunk_queue.pop(th);
-        assert(th);
+        ASSERT(th);
         q_copy.push(th);
     }
 
     while (!q_copy.empty()) {
         struct thunk *th = NULL;
         q_copy.pop(th);
-        assert(th);
+        ASSERT(th);
         /* No worries if the app cancels the thunk after 
          * it is fired; this can happen even if we 
          * mutex'd the thunk here */

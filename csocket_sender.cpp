@@ -483,14 +483,14 @@ struct ResumeOperation {
 
 void resume_operation_thunk(ResumeOperation *op)
 {
-    assert(op);
+    ASSERT(op);
     u_long send_labels = 0;
     {
         PthreadScopedLock lock(&op->sk->scheduling_state_lock);
         PendingIROBPtr pirob = op->sk->outgoing_irobs.find(op->data.id);
-        assert(pirob);
+        ASSERT(pirob);
         PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
-        assert(psirob);
+        ASSERT(psirob);
         send_labels = psirob->send_labels;
     }
 
@@ -531,9 +531,9 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
         // already ACK'd; don't send anything for it
         return true;
     }
-    assert(pirob);
+    ASSERT(pirob);
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
-    assert(psirob);
+    ASSERT(psirob);
 
     u_long send_labels = pirob->send_labels;
 
@@ -565,7 +565,7 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
         return true;
     }
     psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
-    assert(psirob);
+    ASSERT(psirob);
 
     if (!match) {
         if (send_labels & CMM_LABEL_BACKGROUND) {
@@ -711,7 +711,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         return true;
     }
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
-    assert(psirob);
+    ASSERT(psirob);
 
     irob_id_t id = data.id;
 
@@ -917,7 +917,7 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
         return;
     }
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
-    assert(psirob);
+    ASSERT(psirob);
 
     struct CMMSocketControlHdr hdr;
     memset(&hdr, 0, sizeof(hdr));
@@ -995,7 +995,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
         return true;
     }
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
-    assert(psirob);
+    ASSERT(psirob);
 
     if (psirob->needs_data_check()) {
         dbgprintf("Data check in progress for IROB %ld\n", id);
@@ -1558,7 +1558,7 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
         //  but I'm not 100% sure about that, so I'll leave it
         //  alone for now.  The effect will be a harmless dup-ack.
 
-        assert(vecs_count == 0);
+        ASSERT(vecs_count == 0);
         vecs = new struct iovec[1];
     }
     vecs[vecs_count].iov_base = &data_check_hdr;

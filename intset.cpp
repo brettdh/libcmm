@@ -1,5 +1,5 @@
 #include "intset.h"
-#include <assert.h>
+#include "debug.h"
 
 IntSet::IntSet()
     : size_(0)
@@ -19,11 +19,11 @@ void IntSet::insert(long num)
 }
 void IntSet::insert_vec(boost::dynamic_bitset<>& vec, long num)
 {
-    assert(num >= 0);
+    ASSERT(num >= 0);
     if ((size_t)num >= vec.size()) {
         vec.resize(num);
         vec.push_back(true);
-        assert(vec.size() == ((size_t)num + 1));
+        ASSERT(vec.size() == ((size_t)num + 1));
     } else {
         vec[num] = true;
     }
@@ -40,7 +40,7 @@ bool IntSet::contains(long num) const
 
 bool IntSet::contains_vec(const boost::dynamic_bitset<>& vec, long num) const
 {
-    assert(num >= 0);
+    ASSERT(num >= 0);
     if ((size_t)num >= vec.size()) {
         return false;
     } else {

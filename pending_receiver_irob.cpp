@@ -25,7 +25,7 @@ PendingReceiverIROB::PendingReceiverIROB(irob_id_t id, int numdeps, irob_id_t *d
         expected_bytes = recvd_bytes = datalen;
         expected_chunks = recvd_chunks = 1;
     }
-    assert(datalen == 0 || is_complete());
+    ASSERT(datalen == 0 || is_complete());
 }
 
 PendingReceiverIROB::PendingReceiverIROB(irob_id_t id_)
@@ -45,7 +45,7 @@ PendingReceiverIROB::subsume(PendingIROB *other)
     PendingIROB::subsume(other);
 
     PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(other);
-    assert(prirob);
+    ASSERT(prirob);
 
     offset = prirob->offset; // should be zero
     num_bytes = prirob->num_bytes;
@@ -66,7 +66,7 @@ PendingReceiverIROB::~PendingReceiverIROB()
 void
 PendingReceiverIROB::assert_valid()
 {
-    assert(recvd_bytes >= 0);
+    ASSERT(recvd_bytes >= 0);
     //struct irob_chunk_data *prev_chunk = NULL;
     //struct irob_chunk_data *cur_chunk = NULL;
     std::deque<irob_chunk_data>::iterator prev_chunk;
@@ -86,7 +86,7 @@ PendingReceiverIROB::assert_valid()
                           id, i-1, prev_chunk->offset, prev_chunk->datalen);
                 dbgprintf("IROB %ld chunk %zu offset %zu datalen %zu\n",
                           id, i, cur_chunk->offset, cur_chunk->datalen);
-                assert(0);
+                ASSERT(0);
             }
         }
         ++prev_chunk;
@@ -100,7 +100,7 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
 {
     if (!is_complete()) {
         // since we don't release bytes until the IROB is complete
-        assert(num_bytes == recvd_bytes);
+        ASSERT(num_bytes == recvd_bytes);
 
         u_long seqno = chunk.seqno;
         if (expected_chunks != -1 && seqno >= (u_long)expected_chunks) {
@@ -189,8 +189,8 @@ PendingReceiverIROB::next_chunk_seqno()
 bool 
 PendingReceiverIROB::is_complete(void)
 {
-    assert(recvd_bytes <= expected_bytes || expected_bytes == -1);
-    assert(expected_chunks == -1 || recvd_chunks <= expected_chunks);
+    ASSERT(recvd_bytes <= expected_bytes || expected_bytes == -1);
+    ASSERT(expected_chunks == -1 || recvd_chunks <= expected_chunks);
     if (expected_bytes != recvd_bytes) {
         dbgprintf("IROB %ld not complete; expected %d bytes, recvd %d so far\n",
                   id, (int)expected_bytes, (int)recvd_bytes);
@@ -215,7 +215,7 @@ PendingReceiverIROB::finish(ssize_t expected_bytes_, int num_chunks)
     complete = true;
 
     if (expected_bytes == -1 || expected_chunks == -1) {
-        assert(expected_bytes == -1 && expected_chunks == -1);
+        ASSERT(expected_bytes == -1 && expected_chunks == -1);
         expected_bytes = expected_bytes_;
         expected_chunks = num_chunks;
         if (chunks.size() > (size_t)expected_chunks) {
@@ -228,7 +228,7 @@ PendingReceiverIROB::finish(ssize_t expected_bytes_, int num_chunks)
         // otherwise, we've already set it;
         // we better not be trying to set it to something
         // different
-        assert(expected_bytes == expected_bytes_ &&
+        ASSERT(expected_bytes == expected_bytes_ &&
                expected_chunks == num_chunks);
         return false;
     }
@@ -248,7 +248,7 @@ PendingReceiverIROB::read_data(void *buf, size_t len)
         dbgprintf("Copying first from partial chunk; offset=%d, datalen=%d\n",
                   offset, partial_chunk.datalen);
         ssize_t bytes = min(len, partial_chunk.datalen - offset);
-        assert(bytes > 0);
+        ASSERT(bytes > 0);
         memcpy(buf, partial_chunk.data + offset, bytes);
         if (len >= (partial_chunk.datalen - offset)) {
             delete [] partial_chunk.data;
@@ -350,7 +350,7 @@ PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
         PendingReceiverIROB *partial_prirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(partially_read_irob));
         if (!partial_prirob->is_complete()) {
             /* TODO: block until more bytes are available */
-            assert(0);
+            ASSERT(0);
         }
         pirob = partial_prirob;
         pi = partially_read_irob;
@@ -363,7 +363,7 @@ PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
         while (!pi) {
 #ifndef CMM_UNIT_TESTING
             while (ready_irobs.empty()) {
-                assert(sk);
+                ASSERT(sk);
                 {
                     if (sk->remote_shutdown && sk->csock_map->empty()) {
                         dbgprintf("get_ready_irob: socket shutting down; "
@@ -384,7 +384,7 @@ PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
 #endif
 
             if (!ready_irobs.pop(ready_irob_data)) {
-                assert(0);
+                ASSERT(0);
             }
             pi = find(ready_irob_data.id);
             if (!pi) {
@@ -397,9 +397,9 @@ PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
         dbgprintf("recv: spent %lu.%06lu seconds waiting for a ready IROB\n",
                   diff.tv_sec, diff.tv_usec);
 
-        assert(pi);
+        ASSERT(pi);
         pirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(pi));
-        assert(pirob);
+        ASSERT(pirob);
 
         dbgprintf("get_ready_irob: returning IROB %ld\n", 
                   pirob->id);
@@ -467,11 +467,11 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
 #ifdef CMM_UNIT_TESTING
             return bytes_passed;
 #else
-            assert(sk);
+            ASSERT(sk);
             if (sk->shutting_down) {
                 return bytes_passed;
             } else {
-                assert(0); /* XXX: nonblocking case may return NULL */
+                ASSERT(0); /* XXX: nonblocking case may return NULL */
             }
 #endif
         }
@@ -479,12 +479,12 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
 #ifndef CMM_UNIT_TESTING
         if (pirob->numbytes() == 0) {
             // sentinel; no more bytes are ready
-            assert(pirob == get_pointer(empty_sentinel_irob));
+            ASSERT(pirob == (PendingReceiverIROB*)get_pointer(empty_sentinel_irob));
             if (bytes_passed == 0) {
                 if (!sk->is_non_blocking()) {
                     // impossible; get_ready_irob would have blocked
                     //  until there was data ready to return
-                    assert(0);
+                    ASSERT(0);
                 }
 
                 bytes_passed = -1;
@@ -501,8 +501,8 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
          * We could fix that by simply having a sentinel chunk
          * on the queue of chunks. */
 
-        assert(pirob->is_ready());
-        assert(pirob->is_complete()); /* XXX: see get_next_irob */
+        ASSERT(pirob->is_ready());
+        ASSERT(pirob->is_complete()); /* XXX: see get_next_irob */
 
         if (bytes_passed == 0) {
             if (recv_labels) {
@@ -520,7 +520,7 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
             release_dependents(pirob, ReadyIROB());
             //delete pirob; shared ptr will clean up
         } else {
-            assert(!partially_read_irob);
+            ASSERT(!partially_read_irob);
             partially_read_irob = pi;
         }
     }
