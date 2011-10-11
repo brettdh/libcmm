@@ -32,6 +32,7 @@ using std::vector; using std::max; using std::min;
 #include "cmm_timing.h"
 #include "libcmm_shmem.h"
 #include "common.h"
+#include "libcmm_net_preference.h"
 
 // easy handle to enable/disable striping.
 static bool striping = true;
@@ -615,7 +616,8 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
                 match->irob_indexes.new_irobs.insert(data);
             } else {
                 match->irob_indexes.new_chunks.insert(data);
-                if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND) {
+                if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND &&
+                    !has_network_preference(psirob->send_labels)) {
                     //  Try to send this chunk in parallel
                     ret = false;
                 }
@@ -811,6 +813,8 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
             chunk_hdr.op.irob_chunk.datalen = htonl(chunksize);
             chunk_hdr.op.irob_chunk.data = NULL;
             count++;
+
+            csock->update_net_pref_stats(pirob->send_labels, chunksize, 0);
 
             // begin_irob hdr, deps array, irob_chunk hdr, data, end_irob hdr
             vecs_to_send = new struct iovec[2 + 1 + irob_vecs.size() + 1];
@@ -1079,12 +1083,15 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND &&
+        !has_network_preference(psirob->send_labels) &&
         sk->csock_map->count() > 1) {
         // let other threads try to send this chunk too
         sk->irob_indexes.new_chunks.insert(data);
         pthread_cond_broadcast(&sk->scheduling_state_cv);
     }
 
+    csock->update_net_pref_stats(psirob->send_labels, chunksize, 0);
+    
     if (data.send_labels & CMM_LABEL_ONDEMAND) {
         sk->update_last_fg();
         csock->update_last_fg();
@@ -1174,6 +1181,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
 
         // more chunks to send, potentially, so make sure someone sends them.
         if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND &&
+            !has_network_preference(psirob->send_labels) &&
             sk->csock_map->count() > 1) {
             // already inserted it into sk->irob_indexes.new_chunks,
             //  letting another thread try to jump in.

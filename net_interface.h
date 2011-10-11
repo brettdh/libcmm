@@ -41,6 +41,13 @@ u_long iface_bandwidth(const struct net_interface& local_iface,
 u_long iface_RTT(const struct net_interface& local_iface,
                  const struct net_interface& remote_iface);
 
+bool matches_type(int type, 
+                  struct net_interface local_iface,
+                  struct net_interface remote_iface);
+bool network_fits_preference(int labels, 
+                             struct net_interface local_iface,
+                             struct net_interface remote_iface);
+
 typedef std::set<struct net_interface> NetInterfaceSet;
 
 #endif

@@ -259,14 +259,6 @@ CSockMapping::csock_by_ifaces(struct net_interface local_iface,
     return find_csock(IfaceMatcher(local_iface, remote_iface), grab_lock);
 }
 
-static bool matches_type(int type, 
-                         struct net_interface local_iface,
-                         struct net_interface remote_iface)
-{
-    return ((local_iface.type == type || remote_iface.type == type) ||
-            (local_iface.type == 0 && remote_iface.type == 0));
-}
-
 // Call consider() with several different label pairs, then
 //  call pick_label_match to get the local and remote
 //  interfaces among the pairs considered that best match

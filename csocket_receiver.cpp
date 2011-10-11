@@ -353,6 +353,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     TIME(begin);
 
     assert(ntohs(hdr.type) == CMM_CONTROL_MSG_IROB_CHUNK);
+    u_long labels = ntohl(hdr.send_labels);
     irob_id_t id = ntohl(hdr.op.irob_chunk.id);
     int datalen = ntohl(hdr.op.irob_chunk.datalen);
     char *buf = NULL;
@@ -374,6 +375,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
 
     {
         PthreadScopedLock lock(&sk->scheduling_state_lock);
+        csock->update_net_pref_stats(labels, 0, datalen);
         
         PendingIROBPtr pirob = sk->incoming_irobs.find(id);
         if (!pirob) {

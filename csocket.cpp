@@ -14,6 +14,7 @@
 #include "libcmm_shmem.h"
 #include <functional>
 #include "common.h"
+#include "net_interface.h"
 using std::max;
 
 #ifdef CMM_UNIT_TESTING
@@ -628,6 +629,15 @@ CSocket::bottleneck_iface()
         return remote_iface;
     } else {
         return local_iface;
+    }
+}
+
+// must hold sk->scheduling_state_lock.
+void
+CSocket::update_net_pref_stats(int labels, size_t bytes_sent, size_t bytes_recvd)
+{
+    if (!network_fits_preference(labels, local_iface, remote_iface)) {
+        sk->update_net_pref_stats(labels, bytes_sent, bytes_recvd);
     }
 }
 #endif

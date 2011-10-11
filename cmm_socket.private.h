@@ -120,7 +120,7 @@ class CMMSocketImpl : public CMMSocket {
 
     // cmm_close all remaining mc_sockets.
     static void cleanup();
-    
+
   private:
     // XXX: WHAT.  this is kind of silly.
     // TODO: refactor the boundaries between these classes
@@ -349,6 +349,16 @@ class CMMSocketImpl : public CMMSocket {
         ~static_destroyer();
     };
     static static_destroyer destroyer;
+
+    struct NetPrefStats {
+        size_t bytes_sent;
+        size_t bytes_recvd;
+        NetPrefStats() : bytes_sent(0), bytes_recvd(0) {}
+    };
+    std::map<int, NetPrefStats> net_pref_stats;
+
+    // must hold scheduling_state_lock
+    void update_net_pref_stats(int labels, size_t bytes_sent, size_t bytes_recvd);
 };
 
 class CMMSocketPassThrough : public CMMSocket {

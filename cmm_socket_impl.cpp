@@ -8,6 +8,7 @@
 #include "net_interface.h"
 #include "libcmm.h"
 #include "libcmm_ipc.h"
+#include "libcmm_net_preference.h"
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -33,6 +34,8 @@ using std::auto_ptr;
 #include <vector>
 #include <set>
 #include <utility>
+#include <string>
+using std::string;
 using std::multimap; using std::make_pair;
 using std::map; using std::vector;
 using std::set; using std::pair;
@@ -2647,4 +2650,21 @@ void
 CMMSocketImpl::update_last_fg()
 {
     TIME(last_fg);
+}
+
+
+// must hold scheduling_state_lock.
+void
+CMMSocketImpl::update_net_pref_stats(int labels, size_t bytes_sent, size_t bytes_recvd)
+{
+    int pref_labels = (labels & ALL_NETWORK_PREFS);
+    NetPrefStats& stats = net_pref_stats[pref_labels];
+    stats.bytes_sent += bytes_sent;
+    stats.bytes_recvd += bytes_recvd;
+
+    string pref_desc = describe_network_preferences(labels);
+    dbgprintf("Bytes transferred on multisocket %d contrary to net pref labels [%s]: sent %zu  recvd %zu\n",
+              sock, pref_desc.c_str(), bytes_sent, bytes_recvd);
+    dbgprintf("New totals for [%s] preference: %zu sent  %zu recvd\n",
+              pref_desc.c_str(), stats.bytes_sent, stats.bytes_recvd);
 }
