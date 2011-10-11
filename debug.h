@@ -32,7 +32,7 @@ CDECL void dbgprintf_plain(const char *format, ...)
 #define ASSERT(cond)                                                    \
     do {                                                                \
         if (!(cond)) {                                                  \
-            dbgprintf_always("ASSERT failed at %s:%s\n", __FILE__, __LINE__); \
+            dbgprintf_always("ASSERT '" #cond "' failed at %s:%d\n", __FILE__, __LINE__); \
             sleep(60);                                                 \
             *((char*) 0) = 1;                                        \
         }                                                              \
