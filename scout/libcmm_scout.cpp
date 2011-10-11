@@ -622,6 +622,7 @@ Java_edu_umich_intnw_scout_ConnScoutService_updateNetwork(JNIEnv *env,
                                                           jint networkType)
 {
     struct net_interface iface;
+    memset(&iface, 0, sizeof(iface));
     iface.bandwidth_down = (u_long)bw_down;
     iface.bandwidth_up = (u_long)bw_up;
     iface.RTT = (u_long)rtt;
@@ -769,8 +770,8 @@ int main(int argc, char *argv[])
     
     /* Add the interfaces, wizard-of-oz-style */
     struct net_interface ifs[2] = {
-        {{0}, CMM_LABEL_ONDEMAND, fg_bandwidth, fg_bandwidth,  fg_RTT},
-        {{0}, CMM_LABEL_BACKGROUND, bg_bandwidth, bg_bandwidth, bg_RTT}
+        {{0}, CMM_LABEL_ONDEMAND, fg_bandwidth, fg_bandwidth,  fg_RTT, 0},
+        {{0}, CMM_LABEL_BACKGROUND, bg_bandwidth, bg_bandwidth, bg_RTT, 0}
     };
     const char *ifnames[2] = {fg_iface_name, bg_iface_name};
 
