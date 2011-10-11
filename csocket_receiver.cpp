@@ -459,6 +459,7 @@ CSocketReceiver::do_new_interface(struct CMMSocketControlHdr hdr)
     iface.bandwidth_down = ntohl(hdr.op.new_interface.bandwidth_down);
     iface.bandwidth_up = ntohl(hdr.op.new_interface.bandwidth_up);
     iface.RTT = ntohl(hdr.op.new_interface.RTT);
+    iface.type = ntohl(hdr.op.new_interface.type);
 
     sk->setup(iface, false);
 }

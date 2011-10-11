@@ -1201,6 +1201,7 @@ CSocketSender::new_interface(struct net_interface iface)
     hdr.op.new_interface.bandwidth_down = htonl(iface.bandwidth_down);
     hdr.op.new_interface.bandwidth_up = htonl(iface.bandwidth_up);
     hdr.op.new_interface.RTT = htonl(iface.RTT);
+    hdr.op.new_interface.type = htonl(iface.type);
 
     hdr.send_labels = htonl(0);
 

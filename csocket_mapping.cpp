@@ -15,6 +15,7 @@ using std::ptr_fun;
 using std::make_pair;
 
 #include "cmm_socket.private.h"
+#include "libcmm_net_preference.h"
 
 using std::auto_ptr;
 using std::pair;
@@ -145,19 +146,10 @@ CSockMapping::setup(struct net_interface iface, bool local,
     if (local) { // try this out to avoid some of the contention.
         it = skp->remote_ifaces.begin();
         end = skp->remote_ifaces.end();
-        //     } else {
-        //         it = skp->local_ifaces.begin();
-        //         end = skp->local_ifaces.end();
-        //     }
         for (; it != end; ++it) {
             struct net_interface local_iface, remote_iface;
-            //        if (local) {
             local_iface = iface;
             remote_iface = *it;
-            //         } else {
-            //             local_iface = *it;
-            //             remote_iface = iface;
-            //         }
             if (need_data_check || !csock_by_ifaces(local_iface, remote_iface)) {
                 (void)make_new_csocket(local_iface, remote_iface);
             }
@@ -267,6 +259,14 @@ CSockMapping::csock_by_ifaces(struct net_interface local_iface,
     return find_csock(IfaceMatcher(local_iface, remote_iface), grab_lock);
 }
 
+static bool matches_type(int type, 
+                         struct net_interface local_iface,
+                         struct net_interface remote_iface)
+{
+    return ((local_iface.type == type || remote_iface.type == type) ||
+            (local_iface.type == 0 && remote_iface.type == 0));
+}
+
 // Call consider() with several different label pairs, then
 //  call pick_label_match to get the local and remote
 //  interfaces among the pairs considered that best match
@@ -275,10 +275,16 @@ struct LabelMatcher {
     u_long max_bw;
     u_long min_RTT;
     bool has_match;
+    bool has_wifi_match;
+    bool has_threeg_match;
     pair<struct net_interface, struct net_interface> max_bw_iface_pair;
     pair<struct net_interface, struct net_interface> min_RTT_iface_pair;
 
-    LabelMatcher() : max_bw(0), min_RTT(ULONG_MAX), has_match(false) {}
+    pair<struct net_interface, struct net_interface> wifi_pair;
+    pair<struct net_interface, struct net_interface> threeg_pair;
+
+    LabelMatcher() : max_bw(0), min_RTT(ULONG_MAX), 
+                     has_match(false), has_wifi_match(false), has_threeg_match(false) {}
 
     // for use with CSockMapping::for_each
     void consider(CSocketPtr csock) {
@@ -288,8 +294,6 @@ struct LabelMatcher {
     // Call this on each pair to be considered
     void consider(struct net_interface local_iface, 
                   struct net_interface remote_iface) {
-        //u_long bw = iface_bandwidth(*i, *j);
-        //u_long RTT = iface_RTT(*i, *j);
         u_long bw, RTT;
         if (!NetStats::get_estimate(local_iface, remote_iface, NET_STATS_BW_UP, bw)) {
             bw = iface_bandwidth(local_iface, remote_iface);
@@ -317,17 +321,38 @@ struct LabelMatcher {
 
         // we have a match after we've considered at least one.
         has_match = true;
+
+        if (!has_wifi_match || matches_type(NET_TYPE_WIFI, local_iface, remote_iface)) {
+            wifi_pair = make_pair(local_iface, remote_iface);
+            has_wifi_match = true;
+        }
+        if (!has_threeg_match || matches_type(NET_TYPE_THREEG, local_iface, remote_iface)) {
+            threeg_pair = make_pair(local_iface, remote_iface);
+            has_threeg_match = true;
+        }
+
     }
     
     bool pick_label_match(u_long send_label,
                           struct net_interface& local_iface,
                           struct net_interface& remote_iface) {
-
-        const u_long LABELMASK_FGBG = CMM_LABEL_ONDEMAND | CMM_LABEL_BACKGROUND;
-        
         if (!has_match) {
             return false;
         }
+
+        // first, check net type preference labels, since they take precedence
+        if (send_label & CMM_LABEL_WIFI_PREFERRED) {
+            local_iface = wifi_pair.first;
+            remote_iface = wifi_pair.second;
+            return true;
+        } else if (send_label & CMM_LABEL_THREEG_PREFERRED) {
+            local_iface = threeg_pair.first;
+            remote_iface = threeg_pair.second;
+            return true;
+        }
+        // else: no net type preference; carry on with other label matching
+
+        const u_long LABELMASK_FGBG = CMM_LABEL_ONDEMAND | CMM_LABEL_BACKGROUND;
 
         // TODO: try to check based on the actual size
         if (send_label & CMM_LABEL_SMALL &&

@@ -74,6 +74,7 @@ bool CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
     new_listener.bandwidth_down = ntohl(hdr.op.new_interface.bandwidth_down);
     new_listener.bandwidth_up = ntohl(hdr.op.new_interface.bandwidth_up);
     new_listener.RTT = ntohl(hdr.op.new_interface.RTT);
+    new_listener.type = ntohl(hdr.op.new_interface.type);
     
     if (new_listener.ip_addr.s_addr == 0) {
         // no more remote interfaces
@@ -189,6 +190,7 @@ void CMMSocketImpl::send_local_listener(int bootstrap_sock,
     hdr.op.new_interface.bandwidth_down = htonl(iface.bandwidth_down);
     hdr.op.new_interface.bandwidth_up = htonl(iface.bandwidth_up);
     hdr.op.new_interface.RTT = htonl(iface.RTT);
+    hdr.op.new_interface.type = htonl(iface.type);
     dbgprintf("Sending local interface info: %s with labels %lu\n",
               inet_ntoa(iface.ip_addr), iface.labels);
     int rc = send(bootstrap_sock, &hdr, sizeof(hdr), 0);
@@ -1664,8 +1666,9 @@ CMMSocketImpl::setup(struct net_interface iface, bool local)
             local_ifaces.erase(iface);
             changed_local_ifaces.erase(iface);
 
-            // in fact, only send a New_Interface message if this
-            //  interface is not new.
+            // in fact, only send a New_Interface (update) message if this
+            //  interface is not new (since the connection of the socket
+            //  is the announcement of the new interface)
             changed_local_ifaces.insert(iface);
             pthread_cond_broadcast(&scheduling_state_cv);
         }

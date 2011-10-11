@@ -26,6 +26,7 @@ struct net_interface {
     u_long bandwidth_down; // bytes/sec
     u_long bandwidth_up; // bytes/sec
     u_long RTT; // milliseconds
+    int type; // NET_TYPE_WIFI or NET_TYPE_THREEG, currently.
 
     bool operator<(const struct net_interface& other) const {
         return ip_addr.s_addr < other.ip_addr.s_addr;

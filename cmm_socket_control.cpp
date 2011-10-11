@@ -5,6 +5,7 @@
 #include <sstream>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "libcmm_net_preference.h"
 
 #include <iomanip>
 using std::setfill; using std::setw;
@@ -73,6 +74,14 @@ CMMSocketControlHdr::labels_str() const
         int label_mask = 1 << (i + 2); // labels are 4, 8, 16, 32
         h_labels = modify_bits_string(h_labels, label_mask, strs[i], msg);
     }
+    
+    static const char *net_pref_strs[] = {
+        "PREFER_WIFI", "PREFER_3G"
+    };
+    for (int i = 0; i < 2; ++i) {
+        int label_mask = 1 << (NET_PREF_LABEL_SHIFT + i);
+        h_labels = modify_bits_string(h_labels, label_mask, net_pref_strs[i], msg);
+    }
     return msg.str();
 }
 
@@ -130,7 +139,8 @@ CMMSocketControlHdr::describe() const
         stream << "IP: " << inet_ntoa(op.new_interface.ip_addr) << " ";
         stream << "bandwidth_down: " << ntohl(op.new_interface.bandwidth_down) << " bytes/sec, ";
         stream << "bandwidth_up: " << ntohl(op.new_interface.bandwidth_up) << " bytes/sec, ";
-        stream << "RTT: " << ntohl(op.new_interface.RTT) << " ms";
+        stream << "RTT: " << ntohl(op.new_interface.RTT) << " ms, ";
+        stream << "type: " << ntohl(op.new_interface.type);
         break;
     case CMM_CONTROL_MSG_DOWN_INTERFACE:
         stream << "IP: " << inet_ntoa(op.down_interface.ip_addr);        

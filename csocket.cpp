@@ -226,6 +226,7 @@ CSocket::phys_connect()
         hdr.op.new_interface.bandwidth_down = htonl(local_iface.bandwidth_down);
         hdr.op.new_interface.bandwidth_up = htonl(local_iface.bandwidth_up);
         hdr.op.new_interface.RTT = htonl(local_iface.RTT);
+        hdr.op.new_interface.type = htonl(local_iface.type);
         rc = send(osfd, &hdr, sizeof(hdr), 0);
         if (rc != sizeof(hdr)) {
             oserr = errno;

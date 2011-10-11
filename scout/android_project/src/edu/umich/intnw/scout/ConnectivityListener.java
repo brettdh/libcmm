@@ -77,7 +77,8 @@ public class ConnectivityListener extends BroadcastReceiver {
                 mScoutService.updateNetwork(network.ipAddr, 
                                             network.bw_down_Bps,
                                             network.bw_up_Bps, 
-                                            network.rtt_ms, true);
+                                            network.rtt_ms, false,
+                                            Constants.netTypeFromAndroidType(type));
                 mScoutService.logUpdate(network.ipAddr, type, true);
             }
         }
@@ -269,7 +270,8 @@ public class ConnectivityListener extends BroadcastReceiver {
                 NetUpdate prevNet = ifaces.get(networkInfo.getType());
                 if (prevNet != null && !prevNet.ipAddr.equals(ipAddr)) {
                     // put down the old network's IP addr
-                    mScoutService.updateNetwork(prevNet.ipAddr, 0, 0, 0, true);
+                    mScoutService.updateNetwork(prevNet.ipAddr, 0, 0, 0, true,
+                                                Constants.netTypeFromAndroidType(networkInfo.getType()));
                 }
                 
                 NetUpdate network;
@@ -314,7 +316,8 @@ public class ConnectivityListener extends BroadcastReceiver {
                 // TODO: real network measurements here
                 mScoutService.updateNetwork(ipAddr, 
                                             bw_down_Bps, bw_up_Bps, rtt_ms,
-                                            !networkInfo.isConnected());
+                                            !networkInfo.isConnected(),
+                                            Constants.netTypeFromAndroidType(networkInfo.getType()));
                 mScoutService.logUpdate(network);
                 
             } catch (NetworkStatusException e) {
@@ -333,11 +336,12 @@ public class ConnectivityListener extends BroadcastReceiver {
                 targetNet.bw_up_Bps = network.bw_up_Bps;
                 targetNet.rtt_ms = network.rtt_ms;
                 
+                int intnwNetType = Constants.netTypeFromAndroidType(network.type);
                 mScoutService.updateNetwork(network.ipAddr, 
                                             network.bw_down_Bps,
                                             network.bw_up_Bps,
                                             network.rtt_ms,
-                                            false);
+                                            false, intnwNetType);
                 mScoutService.logUpdate(network);
                 
                 if (network.type == ConnectivityManager.TYPE_MOBILE) {

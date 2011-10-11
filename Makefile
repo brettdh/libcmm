@@ -49,14 +49,15 @@ vanilla_throughput_test: vanilla_throughput_test.o timeops.o debug.o
 vanilla_%.o: libcmm_%.cpp
 	$(CXX) $(CXXFLAGS) -DNOMULTISOCK $(LDFLAGS) -c -o $@ $<
 
-libcmm.so: libcmm.o libcmm_ipc.o libcmm_external_ipc.o cmm_socket.o cmm_socket_impl.o \
-	   cmm_socket_passthrough.o thunks.o cmm_timing.o csocket.o \
+libcmm.so: libcmm.o libcmm_ipc.o libcmm_external_ipc.o libcmm_net_preference.o \
+	       cmm_socket.o cmm_socket_impl.o \
+	       cmm_socket_passthrough.o thunks.o cmm_timing.o csocket.o \
            csocket_mapping.o csocket_sender.o csocket_receiver.o \
            pending_irob.o pending_sender_irob.o pending_receiver_irob.o \
            cmm_thread.o cmm_internal_listener.o libcmm_irob.o debug.o \
            intset.o cmm_socket_control.o irob_scheduling.o timeops.o \
-	    net_interface.o net_stats.o cmm_conn_bootstrapper.o \
-	   libcmm_shmem.o common.o libancillary/libancillary.a
+           net_interface.o net_stats.o cmm_conn_bootstrapper.o \
+           libcmm_shmem.o common.o libancillary/libancillary.a
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -shared -o $@ $^
 
 .PHONY: libcmm.tgz
