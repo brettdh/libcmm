@@ -17,7 +17,7 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := conn_scout
 LOCAL_SRC_FILES := \
     ../../libcmm_scout.cpp \
-    $(addprefix ../../../, debug.cpp cmm_thread.cpp timeops.cpp)
+    $(addprefix ../../../, debug.cpp cmm_thread.cpp timeops.cpp libcmm_net_preference.cpp)
 LOCAL_CFLAGS += -DBUILDING_SCOUT_SHLIB -DBUILDING_SCOUT -DNDK_BUILD -g -ggdb
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/../../../
 LOCAL_LDLIBS := -L$(LOCAL_PATH)/../../../android_libs -lboost_thread -llog

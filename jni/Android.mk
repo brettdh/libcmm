@@ -32,6 +32,7 @@ LOCAL_SRC_FILES := $(addprefix ../, \
 	libcmm_external_ipc.cpp \
 	libcmm_ipc.cpp \
 	libcmm_irob.cpp \
+	libcmm_net_preference.cpp \
 	libcmm_shmem.cpp \
 	net_interface.cpp \
 	net_stats.cpp \

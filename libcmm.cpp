@@ -23,6 +23,7 @@ using std::auto_ptr;
 
 #include "libcmm.h"
 #include "libcmm_ipc.h"
+#include "libcmm_net_preference.h"
 #include "pending_irob.h"
 #include "debug.h"
 
@@ -135,9 +136,11 @@ void process_interface_update(struct net_interface iface, bool down)
     //dbgprintf_always("Signalled by scout\n");
     
     /* bitmask of all available bit labels ORed together */
-    dbgprintf("Got update from scout: %s is %s, bandwidth_down %lu bandwidth_up %lu bytes/sec RTT %lu ms\n",
+    dbgprintf("Got update from scout: %s is %s, bandwidth_down %lu bandwidth_up %lu bytes/sec "
+              "RTT %lu ms type %s\n",
               inet_ntoa(iface.ip_addr), down?"down":"up",
-              iface.bandwidth_down, iface.bandwidth_up, iface.RTT);
+              iface.bandwidth_down, iface.bandwidth_up, iface.RTT,
+              net_type_name(iface.type));
 
     //dbgprintf_always("Before:\n---\n");
     //print_thunks();

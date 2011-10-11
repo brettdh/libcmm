@@ -25,6 +25,7 @@ using std::queue; using std::deque;
 #include "libcmm.h"
 #include "libcmm_ipc.h"
 #include "libcmm_shmem.h"
+#include "libcmm_net_preference.h"
 #include "pthread_util.h"
 #include "common.h"
 #include "net_interface.h"
@@ -617,12 +618,14 @@ Java_edu_umich_intnw_scout_ConnScoutService_updateNetwork(JNIEnv *env,
                                                           jint bw_down, 
                                                           jint bw_up, 
                                                           jint rtt,
-                                                          jboolean down)
+                                                          jboolean down,
+                                                          jint networkType)
 {
     struct net_interface iface;
     iface.bandwidth_down = (u_long)bw_down;
     iface.bandwidth_up = (u_long)bw_up;
     iface.RTT = (u_long)rtt;
+    iface.type = networkType;
     const char *str = env->GetStringUTFChars(ip_addr, NULL);
     if (str == NULL) {
         DEBUG_LOG("Got null IP address string in updateNetwork!\n");
@@ -641,12 +644,13 @@ Java_edu_umich_intnw_scout_ConnScoutService_updateNetwork(JNIEnv *env,
     
     pthread_mutex_lock(&ifaces_lock);
     if (down) {
-        DEBUG_LOG("updateNetwork: bringing down iface %s\n", str);
+        DEBUG_LOG("updateNetwork: bringing down iface %s type %s\n", 
+                  str, net_type_name(networkType));
         net_interfaces.erase(iface.ip_addr.s_addr);
         changed_ifaces.push_back(iface);
     } else {
-        DEBUG_LOG("updateNetwork: updating iface %s bw_down %d bw_up %d rtt %d\n",
-            str, bw_down, bw_up, rtt);
+        DEBUG_LOG("updateNetwork: updating iface %s bw_down %d bw_up %d rtt %d type %d (%s)\n",
+                  str, bw_down, bw_up, rtt, networkType, net_type_name(networkType));
         net_interfaces[iface.ip_addr.s_addr] = iface;
         changed_ifaces.push_back(iface);
     }

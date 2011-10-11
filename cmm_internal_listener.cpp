@@ -5,6 +5,7 @@
 #include "cmm_internal_listener.h"
 #include "cmm_socket.private.h"
 #include "csocket_mapping.h"
+#include "libcmm_net_preference.h"
 #include "debug.h"
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -208,13 +209,15 @@ ListenerThread::Run()
         remote_iface.bandwidth_down = ntohl(hdr.op.new_interface.bandwidth_down);
         remote_iface.bandwidth_up = ntohl(hdr.op.new_interface.bandwidth_up);
         remote_iface.RTT = ntohl(hdr.op.new_interface.RTT);
+        remote_iface.type = ntohl(hdr.op.new_interface.type);
             
         struct sockaddr_in internal_remote_addr;
         memcpy(&internal_remote_addr.sin_addr, &hdr.op.new_interface.ip_addr, 
                sizeof(struct in_addr));
-        dbgprintf("Adding connection %d from %s bw_down %lu bw_up %lu RTT %lu ",
+        dbgprintf("Adding connection %d from %s bw_down %lu bw_up %lu RTT %lu type %s",
                   sock, inet_ntoa(internal_remote_addr.sin_addr),
-                  remote_iface.bandwidth_down, remote_iface.bandwidth_up, remote_iface.RTT);
+                  remote_iface.bandwidth_down, remote_iface.bandwidth_up, remote_iface.RTT,
+                  net_type_name(remote_iface.type));
         dbgprintf_plain("(peername %s)\n",
                         inet_ntoa(remote_addr.sin_addr));
 //        }
