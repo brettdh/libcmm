@@ -126,6 +126,10 @@ bool CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
                 dbgprintf("(Sticking with %s, from cmm_connect()\n",
                           inet_ntoa(addr.sin_addr));
             }
+
+            // TODO: fill in the iface type from the remote listener if it matches
+            // TODO:  the one I already have?  
+            // For now we just consider it 'unknown.'
         }
     }
     dbgprintf("Got new remote interface %s with labels %lu, "
@@ -273,6 +277,7 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
                 localhost.bandwidth_down = 100000000;
                 localhost.bandwidth_up = 100000000;
                 localhost.RTT = 0;
+                localhost.type = 0;
 
                 local_ifaces.insert(localhost);
                 remote_ifaces.insert(localhost);
@@ -288,6 +293,7 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
                     bootstrap_iface.bandwidth_up = 1250000;
                     bootstrap_iface.RTT = 0;
                     bootstrap_iface.labels = 0;
+                    bootstrap_iface.type = 0;
                     remote_ifaces.insert(bootstrap_iface);
                 }
             }
