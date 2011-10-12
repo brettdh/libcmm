@@ -62,7 +62,7 @@ bool pop_item(ContainerType& container, ItemType& item)
         int fd = fd_arg;                                        \
         int flags = fcntl(fd, F_GETFL);                         \
         int rc = fcntl(fd, F_SETFL, flags | O_NONBLOCK);        \
-        assert(rc == 0);                                        \
+        ASSERT(rc == 0);                                        \
     } while (0)
 
 #ifndef handle_error

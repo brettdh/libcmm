@@ -69,7 +69,7 @@ void usage()
 
 void calc_avg_time(struct timeval total_time, int count, struct timeval *avg_time)
 {
-    assert(avg_time);
+    ASSERT(avg_time);
     avg_time->tv_sec = total_time.tv_sec / count;
     avg_time->tv_usec = total_time.tv_usec / count;
 
@@ -132,9 +132,9 @@ void send_bytes_by_chunk(int sock, char *buf, size_t bytes, size_t chunksize,
         }
     }
 
-    assert(avg_time);
+    ASSERT(avg_time);
     calc_avg_time(total_time, count, avg_time);
-    assert(avg_stutter_time);
+    ASSERT(avg_stutter_time);
     calc_avg_time(total_stutter_time, count, avg_stutter_time);
 }
 
@@ -185,9 +185,9 @@ void send_bytes_by_chunk_one_irob(int sock, char *buf, size_t bytes, size_t chun
         exit(-1);
     }
 
-    assert(avg_time);
+    ASSERT(avg_time);
     calc_avg_time(total_time, count, avg_time);
-    assert(avg_stutter_time);
+    ASSERT(avg_stutter_time);
     calc_avg_time(total_stutter_time, count, avg_stutter_time);
 }
 #endif
@@ -426,7 +426,7 @@ int main(int argc, char *argv[])
             dbgprintf_always("Sending %dKB\n", kbytes);
         } else if (bytes > 0) {
             dbgprintf_always("Sending %d bytes\n", bytes);
-        } else assert(0);
+        } else ASSERT(0);
         
         run_all_chunksizes(argv[optind], minchunksize, buf, bytes,
                            stutter_ms, send_bytes_by_chunk);

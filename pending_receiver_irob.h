@@ -164,7 +164,7 @@ void
 PendingReceiverIROBLattice::release_dependents(PendingReceiverIROB *pirob,
                                                Predicate is_ready)
 {
-    assert(pirob);
+    ASSERT(pirob);
     for (irob_id_set::iterator it = pirob->dependents.begin();
          it != pirob->dependents.end(); it++) {
         
@@ -173,7 +173,7 @@ PendingReceiverIROBLattice::release_dependents(PendingReceiverIROB *pirob,
             continue;
         }
         PendingReceiverIROB *dependent = dynamic_cast<PendingReceiverIROB*>(get_pointer(pi));
-        assert(dependent);
+        ASSERT(dependent);
         //dependent->dep_satisfied(pirob->id); // now done in erase()
         release_if_ready(dependent, is_ready);
     }
@@ -182,7 +182,7 @@ PendingReceiverIROBLattice::release_dependents(PendingReceiverIROB *pirob,
 class ReadyIROB {
   public:
     bool operator()(PendingReceiverIROB *pirob) {
-        assert(pirob);
+        ASSERT(pirob);
         return (pirob->is_complete() && pirob->is_ready());
     }
 };

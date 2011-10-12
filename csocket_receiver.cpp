@@ -192,7 +192,7 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     struct timeval begin, end, diff;
     TIME(begin);
 
-    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_BEGIN_IROB);
+    ASSERT(ntohs(hdr.type) == CMM_CONTROL_MSG_BEGIN_IROB);
     irob_id_t id = ntohl(hdr.op.begin_irob.id);
     int numdeps = ntohl(hdr.op.begin_irob.numdeps);
     irob_id_t *deps = NULL;
@@ -251,7 +251,7 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
 {
     struct timeval begin, end, diff;
     TIME(begin);
-    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_END_IROB);
+    ASSERT(ntohs(hdr.type) == CMM_CONTROL_MSG_END_IROB);
 
     irob_id_t id = ntohl(hdr.op.end_irob.id);
     {
@@ -282,7 +282,7 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
                           "creating placeholder\n", id);
                 PendingIROB *placeholder = sk->incoming_irobs.make_placeholder(id);
                 bool ret = sk->incoming_irobs.insert(placeholder, false);
-                assert(ret); // since it was absent before now
+                ASSERT(ret); // since it was absent before now
                 pirob = sk->incoming_irobs.find(id);
                 
                 resend_request = true;
@@ -294,7 +294,7 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
         ssize_t expected_bytes = ntohl(hdr.op.end_irob.expected_bytes);
         int expected_chunks = ntohl(hdr.op.end_irob.expected_chunks);
 
-        assert(pirob);
+        ASSERT(pirob);
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(pirob));
         if (!prirob->finish(expected_bytes, expected_chunks)) {
             //throw CMMFatalError("Tried to end already-done IROB", hdr);
@@ -352,7 +352,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
     struct timeval begin, end, diff;
     TIME(begin);
 
-    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_IROB_CHUNK);
+    ASSERT(ntohs(hdr.type) == CMM_CONTROL_MSG_IROB_CHUNK);
     u_long labels = ntohl(hdr.send_labels);
     irob_id_t id = ntohl(hdr.op.irob_chunk.id);
     int datalen = ntohl(hdr.op.irob_chunk.datalen);
@@ -391,7 +391,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
                           "creating placeholder\n", id);
                 PendingIROB *placeholder = sk->incoming_irobs.make_placeholder(id);
                 bool ret = sk->incoming_irobs.insert(placeholder, false);
-                assert(ret); // since it was absent before now
+                ASSERT(ret); // since it was absent before now
                 pirob = sk->incoming_irobs.find(id);
 
                 /* Sender sends Data_Check when a network goes down;
@@ -409,9 +409,9 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         chunk.datalen = ntohl(hdr.op.irob_chunk.datalen);
         chunk.data = hdr.op.irob_chunk.data;
         
-        assert(pirob);
+        ASSERT(pirob);
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(pirob));
-        assert(prirob);
+        ASSERT(prirob);
         if (!prirob->add_chunk(chunk)) {
             if (prirob->is_complete()) {
                 //throw CMMFatalError("Tried to add to completed IROB", hdr);
@@ -455,7 +455,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
 void
 CSocketReceiver::do_new_interface(struct CMMSocketControlHdr hdr)
 {
-    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_NEW_INTERFACE);
+    ASSERT(ntohs(hdr.type) == CMM_CONTROL_MSG_NEW_INTERFACE);
     struct net_interface iface = hdr.op.new_interface;
     iface.labels = ntohl(hdr.op.new_interface.labels);
     iface.bandwidth_down = ntohl(hdr.op.new_interface.bandwidth_down);
@@ -469,7 +469,7 @@ CSocketReceiver::do_new_interface(struct CMMSocketControlHdr hdr)
 void
 CSocketReceiver::do_down_interface(struct CMMSocketControlHdr hdr)
 {
-    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_DOWN_INTERFACE);
+    ASSERT(ntohs(hdr.type) == CMM_CONTROL_MSG_DOWN_INTERFACE);
     struct net_interface iface = {hdr.op.down_interface.ip_addr, 0, 0, 0, 0};
     sk->teardown(iface, false);
 }
@@ -480,7 +480,7 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
     struct timeval begin, end, diff;
     TIME(begin);
 
-    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_ACK);
+    ASSERT(ntohs(hdr.type) == CMM_CONTROL_MSG_ACK);
 
     irob_id_t id = ntohl(hdr.op.ack.id);
     struct timeval srv_time = {
@@ -559,7 +559,7 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
 void
 CSocketReceiver::do_goodbye(struct CMMSocketControlHdr hdr)
 {
-    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_GOODBYE);
+    ASSERT(ntohs(hdr.type) == CMM_CONTROL_MSG_GOODBYE);
     if (sk->is_shutting_down()) {
         /* I initiated the shutdown; this is the "FIN/ACK" */
         /* at this point, both sides have stopped sending. */
@@ -582,7 +582,7 @@ CSocketReceiver::do_goodbye(struct CMMSocketControlHdr hdr)
 void
 CSocketReceiver::do_request_resend(struct CMMSocketControlHdr hdr)
 {
-    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_RESEND_REQUEST);
+    ASSERT(ntohs(hdr.type) == CMM_CONTROL_MSG_RESEND_REQUEST);
     irob_id_t id = ntohl(hdr.op.resend_request.id);
     resend_request_type_t request = (resend_request_type_t)ntohl(hdr.op.resend_request.request);
     u_long seqno = ntohl(hdr.op.resend_request.seqno);
@@ -597,7 +597,7 @@ CSocketReceiver::do_request_resend(struct CMMSocketControlHdr hdr)
 void
 CSocketReceiver::do_data_check(struct CMMSocketControlHdr hdr)
 {
-    assert(ntohs(hdr.type) == CMM_CONTROL_MSG_DATA_CHECK);
+    ASSERT(ntohs(hdr.type) == CMM_CONTROL_MSG_DATA_CHECK);
     irob_id_t id = ntohl(hdr.op.data_check.id);
     sk->data_check_requested(id);
 }

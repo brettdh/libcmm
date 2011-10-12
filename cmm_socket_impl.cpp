@@ -174,7 +174,7 @@ CMMSocketImpl::send_hello(int bootstrap_sock)
     hdr.type = htons(CMM_CONTROL_MSG_HELLO);
 
     PthreadScopedRWLock sock_lock(&my_lock, false);
-    assert(listener_thread);
+    ASSERT(listener_thread);
     hdr.op.hello.listen_port = listener_thread->port();
     hdr.op.hello.num_ifaces = htonl(local_ifaces.size());
     
@@ -211,7 +211,7 @@ void CMMSocketImpl::send_local_listener(int bootstrap_sock,
 void CMMSocketImpl::send_local_listeners(int bootstrap_sock)
 {
     PthreadScopedRWLock sock_lock(&my_lock, false);
-    assert(listener_thread);
+    ASSERT(listener_thread);
     
     for (NetInterfaceSet::iterator it = local_ifaces.begin();
          it != local_ifaces.end(); it++) {
@@ -337,7 +337,7 @@ int
 CMMSocketImpl::connect_status()
 {
     PthreadScopedRWLock sock_lock(&my_lock, false);
-    assert(bootstrapper);
+    ASSERT(bootstrapper);
     return bootstrapper->status();
 }
 
@@ -379,7 +379,7 @@ CMMSocketImpl::create(int family, int type, int protocol)
     if (!cmm_sock_hash.insert(new_sock, new_sk)) {
         dbgprintf_always("Error: new socket %d is already in hash!  WTF?\n", 
                 new_sock);
-        assert(0);
+        ASSERT(0);
     }
 
     return new_sock;
@@ -423,7 +423,7 @@ CMMSocketImpl::lookup(mc_socket_t sock)
         return CMMSocketPtr(new CMMSocketPassThrough(sock));
     } else {
         int rc = sanity_check(sock);
-        assert(rc == 0);
+        ASSERT(rc == 0);
         return sk;
     }
 }
@@ -582,7 +582,7 @@ CMMSocketImpl::mc_connect(const struct sockaddr *serv_addr,
     {    
         CMMSocketImplPtr sk;
         if (!cmm_sock_hash.find(sock, sk)) {
-            assert(0);
+            ASSERT(0);
         }
     }
 
@@ -641,7 +641,7 @@ CMMSocketImpl::get_fds_for_select(mcSocketOsfdPairList &osfd_list,
 {
     if (reading) {
         PthreadScopedRWLock lock(&my_lock, true);
-        assert(!writing);
+        ASSERT(!writing);
         osfd_list.push_back(make_pair(sock, select_pipe[0]));
         clear_select_pipe(select_pipe[0], true);
         if (incoming_irobs.data_is_ready()) {
@@ -660,7 +660,7 @@ CMMSocketImpl::get_fds_for_select(mcSocketOsfdPairList &osfd_list,
                   sock, select_pipe[0]);
     } else if (writing) {
         PthreadScopedRWLock lock(&my_lock, true);
-        assert(!reading);
+        ASSERT(!reading);
         osfd_list.push_back(make_pair(sock, write_ready_pipe[0]));
         if (bootstrapper->status() != EINPROGRESS) {
             char c = 42;
@@ -702,7 +702,7 @@ CMMSocketImpl::make_real_fd_set(int nfds, fd_set *fds,
             }
 
             FD_CLR(s, fds);
-            assert(sk);
+            ASSERT(sk);
             // lock only needed for get_fds_for_select, which now
             //   does its own locking
             //PthreadScopedRWLock lock(&sk->my_lock, false);
@@ -716,7 +716,7 @@ CMMSocketImpl::make_real_fd_set(int nfds, fd_set *fds,
         return 0;
     }
 
-    assert (maxosfd);
+    ASSERT(maxosfd);
     for (size_t i = 0; i < osfd_list.size(); i++) {
         FD_CLR(osfd_list[i].first, fds);
         FD_SET(osfd_list[i].second, fds);
@@ -805,7 +805,7 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
     // (they'll be mapped back to writefds afterwards)
     for (size_t i = 0; i < writeosfd_list.size(); ++i) {
         int fd = writeosfd_list[i].second;
-        assert(FD_ISSET(fd, &tmp_writefds));
+        ASSERT(FD_ISSET(fd, &tmp_writefds));
         FD_CLR(fd, &tmp_writefds);
         FD_SET(fd, &tmp_readfds);
     }
@@ -846,7 +846,7 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
                 continue;
             }
             
-            assert(sk);
+            ASSERT(sk);
 
             if (FD_ISSET(i, &tmp_readfds)) {
                 dbgprintf("SELECT_DEBUG fd %d is set in tmp_readfds\n", i);
@@ -916,7 +916,7 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
             osfds_to_pollfds[fds[i].fd] = &fds[i];
             continue; //this is a non mc_socket
         } else {
-            assert(sk);
+            ASSERT(sk);
             // lock only needed for get_fds_for_select, which now
             //   does its own locking
             //PthreadScopedRWLock lock(&sk->my_lock, false); 
@@ -954,11 +954,11 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
                 //  (and back again later)
                 if (real_fd.fd == sk->select_pipe[0]) {
                     // strip flags that are not POLLIN
-                    assert(real_fd.events & POLLIN);
+                    ASSERT(real_fd.events & POLLIN);
                     real_fd.events = POLLIN;
                 } else if (real_fd.fd == sk->write_ready_pipe[0]) { 
                     //write_fds.count(real_fd.fd) == 1) {
-                    assert(real_fd.events & POLLOUT);
+                    ASSERT(real_fd.events & POLLOUT);
                     //real_fd.events &= ~POLLOUT;
                     //real_fd.events |= POLLIN;
                     real_fd.events = POLLIN;
@@ -998,13 +998,13 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
     set<int> orig_fds;
     for (nfds_t i = 0; i < real_nfds; i++) {
         struct pollfd *origfd = osfds_to_pollfds[realfds[i].fd];
-        assert(origfd);
+        ASSERT(origfd);
         CMMSocketImplPtr sk;
         if(!cmm_sock_hash.find(fds[i].fd, sk)) {
             origfd->revents = realfds[i].revents;
         } else {
             //CMMSocketImplPtr sk = ac->second;
-            //assert(sk);
+            //ASSERT(sk);
             //sk->poll_map_back(origfd, &realfds[i]);
 
             // if a read event happened on write_ready_pipe[0],
@@ -1181,8 +1181,8 @@ struct shutdown_each {
     shutdown_each(int how_) : how(how_) {}
 
     int operator()(CSocketPtr csock) {
-        assert(csock);
-        assert(csock->osfd >= 0);
+        ASSERT(csock);
+        ASSERT(csock->osfd >= 0);
         return shutdown(csock->osfd, how);
     }
 };
@@ -1224,7 +1224,7 @@ CMMSocketImpl::mc_begin_irob(int numdeps, const irob_id_t *deps,
     }
     IROBSockHash::accessor ac;
     if (!irob_sock_hash.insert(ac, id)) {
-        assert(0);
+        ASSERT(0);
     }
     ac->second = sock;
 
@@ -1275,7 +1275,7 @@ CMMSocketImpl::mc_irob_writev(irob_id_t id,
         memcpy(buf + bytes_copied, vec[i].iov_base, vec[i].iov_len);
         bytes_copied += vec[i].iov_len;
     }
-    assert(bytes_copied == buflen);
+    ASSERT(bytes_copied == buflen);
 
     long rc = mc_irob_send(id, buf, buflen, 0);
     delete [] buf;
@@ -1309,7 +1309,7 @@ CMMSocketImpl::interface_up(struct net_interface up_iface)
     for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
          sk_iter != cmm_sock_hash.end(); sk_iter++) {
         CMMSocketImplPtr sk = sk_iter->second;
-        assert(sk);
+        ASSERT(sk);
 
         sk->setup(up_iface, true);
     }
@@ -1341,7 +1341,7 @@ CMMSocketImpl::interface_down(struct net_interface down_iface)
     for (CMMSockHash::iterator sk_iter = cmm_sock_hash.begin();
          sk_iter != cmm_sock_hash.end(); sk_iter++) {
         CMMSocketImplPtr sk = sk_iter->second;
-        assert(sk);
+        ASSERT(sk);
 
         sk->teardown(down_iface, true);
     }
@@ -1421,7 +1421,7 @@ CMMSocketImpl::mc_accept(int listener_sock,
     mc_socket_t mc_sock = CMMSocketImpl::create(PF_INET, SOCK_STREAM, 0);
     CMMSocketPtr sk = CMMSocketImpl::lookup(mc_sock);
     CMMSocketImpl *sk_impl = dynamic_cast<CMMSocketImpl*>(get_pointer(sk));
-    assert(sk_impl);
+    ASSERT(sk_impl);
     int rc = sk_impl->connection_bootstrap((struct sockaddr *)&ip_sockaddr,
                                            len, sock);
     //close(sock);
@@ -1514,8 +1514,8 @@ struct set_sock_opt {
         : level(l), optname(0), optval(v), optlen(len) {}
 
     int operator()(CSocketPtr csock) {
-        assert(csock);
-        assert(csock->osfd >= 0);
+        ASSERT(csock);
+        ASSERT(csock->osfd >= 0);
 
         if (optname == O_NONBLOCK) {
             int flags;
@@ -1572,7 +1572,7 @@ CMMSocketImpl::mc_setsockopt(int level, int optname,
         }
         opt.optlen = optlen;
         opt.optval = malloc(optlen);
-        assert(opt.optval);
+        ASSERT(opt.optval);
         memcpy(opt.optval, optval, optlen);
     } else {
         // don't call setsockopt for the real sockets; the library
@@ -1776,7 +1776,7 @@ CMMSocketImpl::net_available(mc_socket_t sock,
     if (!cmm_sock_hash.find(sock, sk)) {
         return false;
     }
-    assert(sk);
+    ASSERT(sk);
     
     PthreadScopedRWLock lock(&sk->my_lock, false);
     return sk->net_available(send_labels);
@@ -1800,7 +1800,7 @@ struct BlockingRequest {
 
 void unblock_thread_thunk(BlockingRequest *breq)
 {
-    assert(breq && breq->sk);
+    ASSERT(breq && breq->sk);
     breq->sk->signal_completion(breq->tid, 0);
     delete breq;
 }
@@ -1922,7 +1922,7 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
         PthreadScopedLock lock(&scheduling_state_lock);
         
         bool success = outgoing_irobs.insert(pirob);
-        assert(success);
+        ASSERT(success);
 
         if (csock->is_connected()) {
             csock->irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
@@ -2010,7 +2010,7 @@ CMMSocketImpl::end_irob(irob_id_t id)
         pirob->finish();
 
         PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
-        assert(psirob);
+        ASSERT(psirob);
         if (psirob->announced && !psirob->end_announced &&
             psirob->is_complete() && psirob->all_chunks_sent()) {
             psirob->end_announced = true;
@@ -2071,7 +2071,7 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
         }
 
         psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
-        assert(psirob);
+        ASSERT(psirob);
         send_labels = psirob->send_labels;
         resume_handler = psirob->resume_handler;
         rh_arg = psirob->rh_arg;
@@ -2084,7 +2084,7 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
     if (ret < 0) {
         return ret;
     }
-    assert(csock);
+    ASSERT(csock);
     
     {
         PthreadScopedLock lock(&scheduling_state_lock);
@@ -2187,9 +2187,9 @@ CMMSocketImpl::default_irob_writev(irob_id_t next_irob,
     for (int i = 0; i < count; ++i) {
         memcpy(data + bytes_copied, vec[i].iov_base, vec[i].iov_len);
         bytes_copied += vec[i].iov_len;
-        assert(bytes_copied <= total_bytes);
+        ASSERT(bytes_copied <= total_bytes);
     }
-    assert(bytes_copied == total_bytes);
+    ASSERT(bytes_copied == total_bytes);
 
     dbgprintf("Calling send_default_irob with %d bytes\n", (int)total_bytes);
     rc = send_default_irob(next_irob, csock, data, total_bytes, 
@@ -2221,7 +2221,7 @@ CMMSocketImpl::validate_default_irob(u_long send_labels,
     if (ret < 0) {
         return ret;
     }
-    assert(csock);
+    ASSERT(csock);
 
     return 0;
 }
@@ -2239,7 +2239,7 @@ CMMSocketImpl::send_default_irob(irob_id_t id, CSocket *csock,
         
         PthreadScopedLock lock(&scheduling_state_lock);
         bool success = outgoing_irobs.insert(pirob);
-        assert(success);
+        ASSERT(success);
 
         if (csock->is_connected()) {
             csock->irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
@@ -2282,7 +2282,7 @@ CMMSocketImpl::ack_received(irob_id_t id)
     }
 
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
-    assert(psirob);
+    ASSERT(psirob);
 
     psirob->ack();
     remove_if_unneeded(pirob);
@@ -2323,7 +2323,7 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
 
     }
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
-    assert(psirob);
+    ASSERT(psirob);
     u_long send_labels = psirob->send_labels;
 
     if (request & CMM_RESEND_REQUEST_DEPS) {
@@ -2390,7 +2390,7 @@ CMMSocketImpl::data_check_requested(irob_id_t id)
                                             CMM_RESEND_REQUEST_DEPS);
         }
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(pirob));
-        assert(prirob);
+        ASSERT(prirob);
         if (!prirob->get_missing_chunks().empty()) {
             reqtype = resend_request_type_t(reqtype
                                             | CMM_RESEND_REQUEST_DATA);
@@ -2415,9 +2415,9 @@ CMMSocketImpl::data_check_requested(irob_id_t id)
 /* call only with scheduling_state_lock held */
 void CMMSocketImpl::remove_if_unneeded(PendingIROBPtr pirob)
 {
-    assert(pirob);
+    ASSERT(pirob);
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
-    assert(psirob);
+    ASSERT(psirob);
     if (psirob->is_acked() && psirob->is_complete()) {
         outgoing_irobs.erase(pirob->id);
         //delete pirob;  // not needed; smart ptr will clean up
@@ -2477,7 +2477,7 @@ void
 CMMSocketImpl::goodbye_acked(void)
 {
     PthreadScopedLock lock(&scheduling_state_lock);
-    assert(shutting_down);
+    ASSERT(shutting_down);
     remote_shutdown = true;
     pthread_cond_broadcast(&scheduling_state_cv);
 }

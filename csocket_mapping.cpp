@@ -62,9 +62,9 @@ struct push_osfd {
     push_osfd(mc_socket_t mcs, mcSocketOsfdPairList& list) 
         : mc_sock(mcs), osfd_list(list) {}
     int operator()(CSocketPtr csock) {
-        assert(csock);
+        ASSERT(csock);
         int osfd = csock->osfd;
-        assert(osfd > 0);
+        ASSERT(osfd > 0);
 
         osfd_list.push_back(pair<mc_socket_t,int>(mc_sock,osfd));
         return 0;
@@ -95,7 +95,7 @@ struct get_matching_csocks {
     }
 
     int operator()(CSocketPtr csock) {
-        assert(csock);
+        ASSERT(csock);
 
         if (iface_matches(local_iface, &csock->local_iface) &&
             iface_matches(remote_iface, &csock->remote_iface)) {
@@ -595,7 +595,7 @@ CSockMapping::new_csock_with_labels(u_long send_label, bool grab_lock)
 void 
 CSockMapping::remove_csock(CSocketPtr victim)
 {
-    assert(victim);
+    ASSERT(victim);
     PthreadScopedRWLock lock(&sockset_mutex, true);
     available_csocks.erase(victim);
     // CSockets are reference-counted by the 
@@ -668,7 +668,7 @@ CSockMapping::add_connection(int sock,
 
         /* should always know about my own interfaces
          * before anyone else does */
-        //assert(0);
+        //ASSERT(0);
 
         local_iface.ip_addr = local_addr;
         local_iface.labels = 0; /* will get updated by the scout */

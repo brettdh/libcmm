@@ -18,7 +18,7 @@ void
 ThreadCleanup(void * arg)
 {
     CMMThread *thread = (CMMThread *)arg;
-    assert(thread);
+    ASSERT(thread);
     pthread_mutex_lock(&thread->starter_mutex);
     thread->running = false;
     thread->exiting = true;
@@ -42,7 +42,7 @@ ThreadFn(void * arg)
     (void)get_thread_name();
 
     CMMThread *thread = (CMMThread*)arg;
-    assert(thread);
+    ASSERT(thread);
     try {
         pthread_mutex_lock(&thread->starter_mutex);
         thread->running = true;
@@ -154,7 +154,7 @@ CMMThread::join()
 void
 CMMThread::detach()
 {
-    assert(tid == pthread_self());
+    ASSERT(tid == pthread_self());
     {
         PthreadScopedLock j_lock(&joinable_lock);
         joinable_threads.erase(tid);

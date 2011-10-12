@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <signal.h>
-#include <assert.h>
+//#include <assert.h>
 #include <math.h>
 #include <sys/socket.h>
 #include <linux/un.h>
@@ -53,6 +53,18 @@ static void DEBUG_LOG(const char *fmt, ...)
 #else
 #define DEBUG_LOG dbgprintf_always
 #endif
+
+#include "debug.h"
+//#define ASSERT assert
+// #define ASSERT(cond)                                                   \
+//     do {                                                               \
+//         if (!cond) {                                                   \
+//             DEBUG_LOG("ASSERT failed at %s:%s\n", __FILE__, __LINE__); \
+//             sleep(60);                                                 \
+//             *((char*)0xdeadbaad) = 1;                                        \
+//         }                                                              \
+//     } while (0)
+
 
 static void LOG_PERROR(const char *str)
 {
@@ -219,7 +231,8 @@ void * IPC_Listener(void *)
                     if (rc < 0) {
                         LOG_PERROR("read");
                     }
-                    DEBUG_LOG("Failed to receive subscribe message\n");
+                    DEBUG_LOG("Failed to receive subscribe message: got %d bytes, expected %d\n",
+                              rc, (int) sizeof(msg));
                     close(ipc_sock);
                 } else {
                     if (msg.opcode == CMM_MSG_GET_IFACES) {
@@ -298,7 +311,7 @@ void * IPC_Listener(void *)
                     FD_CLR(s, &active_fds);
                 } else {
                     // never happens; the socket wouldn't be in the fd_set
-                    assert(0);
+                    ASSERT(0);
                 }
                 ready_fds--;
             }
@@ -506,7 +519,7 @@ struct trace_slice {
 
     void ntohl_all() {
         const size_t numints = (sizeof(trace_slice) - 32) / sizeof(u_long);
-        assert(numints*sizeof(u_long) == (sizeof(trace_slice) - 32)); // no truncation
+        ASSERT(numints*sizeof(u_long) == (sizeof(trace_slice) - 32)); // no truncation
         for (size_t i = 0; i < numints; ++i) {
             u_long *pos = ((u_long*)this) + i;
             *pos = ntohl(*pos);
@@ -810,7 +823,7 @@ int main(int argc, char *argv[])
 
     if (trace_replay) {
         emu_sock = get_trace(trace);
-        assert(!trace.empty());
+        ASSERT(!trace.empty());
     }
 
     running = true;
@@ -883,7 +896,7 @@ int main(int argc, char *argv[])
                 continue;
             }
             struct trace_slice slice = trace[cur_trace_slice++];
-            assert(cur_trace_slice < trace.size());
+            ASSERT(cur_trace_slice < trace.size());
             struct timeval end = trace[cur_trace_slice].start;
 
             struct net_interface cellular_iface = ifs[0];

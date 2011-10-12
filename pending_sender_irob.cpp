@@ -163,7 +163,7 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno,
         data = get_bytes_internal(chunk.offset, len);
         
         // if this data was already sent once, it must be in the IROB
-        assert(len == lencopy);
+        ASSERT(len == lencopy);
         
         // 3) write out the argument-return values
         offset_ = chunk.offset;
@@ -205,7 +205,7 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno,
     sent_chunk.seqno = seqno;
     sent_chunk.offset = offset_;
     sent_chunk.datalen = bytes_requested;
-    assert(sent_chunks.size() == seqno);
+    ASSERT(sent_chunks.size() == seqno);
     sent_chunks.push_back(sent_chunk);
     
     return data;
@@ -214,7 +214,7 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno,
 vector<struct iovec>
 PendingSenderIROB::get_last_sent_chunk_htonl(struct irob_chunk_data *chunk)
 {
-    assert(chunk);
+    ASSERT(chunk);
     if (sent_chunks.empty()) {
         return vector<struct iovec>();
     }
