@@ -1,12 +1,13 @@
 #ifndef socket_api_tests_h_incl
 #define socket_api_tests_h_incl
 
-#include "end_to_end_tests_remote.h"
+#include "end_to_end_tests_forked.h"
 #include <cppunit/extensions/HelperMacros.h>
 
-class SocketAPITest : public EndToEndTestsRemote {
+class SocketAPITest : public EndToEndTestsForked {
     CPPUNIT_TEST_SUITE(SocketAPITest);
-    CPPUNIT_TEST(testBuffers);
+    //CPPUNIT_TEST(testBuffers);
+    CPPUNIT_TEST(testLabelsReturnedOnIROBBoundaries);
     CPPUNIT_TEST_SUITE_END();  
 
     void setOpt(int sock, int opt);
@@ -17,6 +18,7 @@ class SocketAPITest : public EndToEndTestsRemote {
 
   public:
     void testBuffers();
+    void testLabelsReturnedOnIROBBoundaries();
 };
 
 #endif

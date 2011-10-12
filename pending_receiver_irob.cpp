@@ -519,6 +519,14 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
             erase(pirob->id, true);
             release_dependents(pirob, ReadyIROB());
             //delete pirob; shared ptr will clean up
+            
+            if ((flags & MSG_WAITALL) == 0) {
+                // only pass one IROB at a time, so the application gets the 
+                //  labels for each incoming IROB
+                // (if they passed MSG_WAITALL, that takes precedence
+                //  and they only get labels for the first IROB.)
+                break;
+            }
         } else {
             assert(!partially_read_irob);
             partially_read_irob = pi;

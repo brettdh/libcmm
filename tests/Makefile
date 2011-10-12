@@ -47,18 +47,18 @@ SUPPORTOBJS := pending_irob.o intset.o debug.o pending_receiver_irob.o \
 	       pending_sender_irob.o timeops.o net_stats.o \
 	       test_common.o debug.o net_interface.o irob_scheduling.o common.o \
 	       shmem_test.o shmem_test_common.o libcmm_shmem.o ../libancillary/libancillary.a csocket.o \
-		   cmm_socket_control.o
+		   cmm_socket_control.o libcmm_net_preference.o
 
 run_unit_tests:: shmem_test_helper
 run_unit_tests:: run_all_tests.o StdioOutputter.o $(TESTOBJS) $(SUPPORTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
 
-LIBTESTOBJS:=end_to_end_tests_base.o end_to_end_tests_forked.o forked_tests.o
+LIBTESTOBJS:=end_to_end_tests_base.o end_to_end_tests_forked.o forked_tests.o socket_api_tests.o
 
 run_lib_tests: run_all_tests.o StdioOutputter.o test_common.o $(LIBTESTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
 
-REMOTETESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o remote_tests.o socket_api_tests.o
+REMOTETESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o remote_tests.o
 run_remote_tests: run_all_tests.o StdioOutputter.o test_common.o $(REMOTETESTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
 
