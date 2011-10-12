@@ -231,7 +231,8 @@ void * IPC_Listener(void *)
                     if (rc < 0) {
                         LOG_PERROR("read");
                     }
-                    DEBUG_LOG("Failed to receive subscribe message\n");
+                    DEBUG_LOG("Failed to receive subscribe message: got %d bytes, expected %d\n",
+                              rc, (int) sizeof(msg));
                     close(ipc_sock);
                 } else {
                     if (msg.opcode == CMM_MSG_GET_IFACES) {
