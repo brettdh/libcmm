@@ -55,16 +55,6 @@ static void DEBUG_LOG(const char *fmt, ...)
 #endif
 
 #include "debug.h"
-//#define ASSERT assert
-// #define ASSERT(cond)                                                   \
-//     do {                                                               \
-//         if (!cond) {                                                   \
-//             DEBUG_LOG("ASSERT failed at %s:%s\n", __FILE__, __LINE__); \
-//             sleep(60);                                                 \
-//             *((char*)0xdeadbaad) = 1;                                        \
-//         }                                                              \
-//     } while (0)
-
 
 static void LOG_PERROR(const char *str)
 {
