@@ -157,6 +157,20 @@ make_scout_listener_socket()
     return listener_sock;
 }
 
+static int
+is_network_usable(struct net_interface iface)
+{
+    if (iface.type == NET_TYPE_WIFI) {
+        // TODO: implement a real check here.
+        PthreadScopedLock lock(&ifaces_lock);
+        return net_interfaces.count(iface.ip_addr.s_addr) == 1;
+    } else {
+        // don't do anything special for non-wifi networks
+        PthreadScopedLock lock(&ifaces_lock);
+        return net_interfaces.count(iface.ip_addr.s_addr) == 1;
+    }
+}
+
 static
 void * IPC_Listener(void *)
 {
@@ -227,43 +241,59 @@ void * IPC_Listener(void *)
                 } else {
                     if (msg.opcode == CMM_MSG_GET_IFACES) {
                         // not a real subscriber; just an iface request
-                        rc = init_subscriber(msg.data.pid, ipc_sock);
+                        rc = init_subscriber(msg.pid, ipc_sock);
                         if (rc < 0) {
                             DEBUG_LOG("Failed to send iface info to pid %d\n",
-                                      msg.data.pid);
+                                      msg.pid);
                         } else {
                             struct net_interface sentinel;
                             memset(&sentinel, 0, sizeof(sentinel));
                             rc = notify_subscriber_of_event(
-                                msg.data.pid, ipc_sock, sentinel,
+                                msg.pid, ipc_sock, sentinel,
                                 CMM_MSG_IFACE_LABELS
                             );
                             if (rc < 0) {
                                 DEBUG_LOG("Failed to send sentinel iface to "
-                                          "process %d\n", msg.data.pid);
+                                          "process %d\n", msg.pid);
                             }
+                        }
+                        close(ipc_sock);
+                    } else if (msg.opcode == CMM_MSG_IS_IP_CONNECTED) {
+                        DEBUG_LOG("Got is-connected request for iface %s (%s) from process %d\n",
+                                  inet_ntoa(msg.data.iface.ip_addr),
+                                  net_type_name(msg.data.iface.type),
+                                  msg.pid);
+                        msg.rc = is_network_usable(msg.data.iface);
+                        DEBUG_LOG("Response: iface %s (%s) is %sconnected\n",
+                                  inet_ntoa(msg.data.iface.ip_addr),
+                                  net_type_name(msg.data.iface.type),
+                                  msg.rc == 1 ? "" : "not ");
+                        rc = write(ipc_sock, &msg, sizeof(msg));
+                        if (rc != sizeof(msg)) {
+                            DEBUG_LOG("Failed to send is-connected response to process %d\n",
+                                      msg.pid);
                         }
                         close(ipc_sock);
                     } else {
                         SubscriberProcHash::accessor ac;
-                        if (subscriber_procs.find(ac, msg.data.pid)) {
+                        if (subscriber_procs.find(ac, msg.pid)) {
                             DEBUG_LOG("Duplicate subscribe request received "
-                                "from process %d\n", msg.data.pid);
+                                "from process %d\n", msg.pid);
                             DEBUG_LOG("Reopening socket\n");
                             close(ac->second.ipc_sock);
                         } else {
                             subscriber_procs.insert(ac, ipc_sock);
-                            ac->second.pid = msg.data.pid;
+                            ac->second.pid = msg.pid;
                         }
                         
-                        rc = init_subscriber(msg.data.pid, ipc_sock);
+                        rc = init_subscriber(msg.pid, ipc_sock);
                         if (rc < 0) {
                             close(ipc_sock);
                             subscriber_procs.erase(ac);
                         } else {
                             ac->second.ipc_sock = ipc_sock;
                             DEBUG_LOG("Process %d subscribed\n", 
-                                    msg.data.pid);
+                                    msg.pid);
                             if (ipc_sock > maxfd) {
                                 maxfd = ipc_sock;
                             }
@@ -295,7 +325,7 @@ void * IPC_Listener(void *)
                         DEBUG_LOG("Hmm... process %d must have died\n",
                                 ac->second.pid);
                     } else {
-                        DEBUG_LOG("Process %d unsubscribed\n", msg.data.pid);
+                        DEBUG_LOG("Process %d unsubscribed\n", msg.pid);
                     }
                     remove_subscriber(ac);
                     FD_CLR(s, &active_fds);

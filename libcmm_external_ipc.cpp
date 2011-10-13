@@ -44,7 +44,7 @@ bool get_local_interfaces(vector<net_interface>& ifaces)
     struct cmm_msg msg;
     memset(&msg, 0, sizeof(msg));
     msg.opcode = CMM_MSG_GET_IFACES;
-    msg.data.pid = getpid();
+    msg.pid = getpid();
     int rc = write(sock, &msg, sizeof(msg));
     if (rc != sizeof(msg)) {
         dbgprintf_always("Failed to send get_ifaces request to scout\n");
@@ -77,7 +77,7 @@ bool is_ip_connected(int ipAddr)
     memset(&msg, 0, sizeof(msg));
     msg.rc = -1;
     msg.opcode = CMM_MSG_IS_IP_CONNECTED;
-    msg.data.pid = getpid();
+    msg.pid = getpid();
     msg.data.iface.ip_addr.s_addr = ipAddr;
     int rc = write(sock, &msg, sizeof(msg));
     if (rc != sizeof(msg)) {

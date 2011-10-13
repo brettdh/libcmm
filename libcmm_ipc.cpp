@@ -106,7 +106,7 @@ int scout_ipc_init()
     }
 
     msg.opcode = CMM_MSG_SUBSCRIBE;
-    msg.data.pid = getpid();
+    msg.pid = getpid();
     int rc = send_control_message(&msg);
     if (rc < 0) {
         dbgprintf_always(
@@ -136,7 +136,7 @@ void scout_ipc_deinit(void)
         struct cmm_msg msg;
         memset(&msg, 0, sizeof(msg));
         msg.opcode = CMM_MSG_UNSUBSCRIBE;
-        msg.data.pid = getpid();
+        msg.pid = getpid();
         int rc = send_control_message(&msg);
         if (rc < 0) {
             dbgprintf_always("Warning: failed to send unsubscribe message\n");
