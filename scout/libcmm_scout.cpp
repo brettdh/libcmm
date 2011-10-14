@@ -31,6 +31,8 @@ using std::queue; using std::deque;
 #include "net_interface.h"
 #include <errno.h>
 
+#include "network_test.h"
+
 #ifdef BUILDING_SCOUT_SHLIB
 #include <jni.h>
 #else
@@ -161,13 +163,18 @@ static int
 is_network_usable(struct net_interface iface)
 {
     if (iface.type == NET_TYPE_WIFI) {
-        // TODO: implement a real check here.
-        PthreadScopedLock lock(&ifaces_lock);
-        return net_interfaces.count(iface.ip_addr.s_addr) == 1;
+        // TODO: switch to UDP ping?
+        // TODO: better yet, implement something beacon-based.
+        struct in_addr server_ip;
+        memset(&server_ip, 0, sizeof(server_ip));
+        if (inet_aton("141.212.110.132", &server_ip) < 0) {
+            DEBUG_LOG("Failed to decode server IP\n");
+            return -1;
+        }
+        return is_connected(iface.ip_addr.s_addr, server_ip.s_addr);
     } else {
         // don't do anything special for non-wifi networks
-        PthreadScopedLock lock(&ifaces_lock);
-        return net_interfaces.count(iface.ip_addr.s_addr) == 1;
+        return 1;
     }
 }
 
@@ -259,15 +266,30 @@ void * IPC_Listener(void *)
                         }
                         close(ipc_sock);
                     } else if (msg.opcode == CMM_MSG_IS_IP_CONNECTED) {
-                        DEBUG_LOG("Got is-connected request for iface %s (%s) from process %d\n",
-                                  inet_ntoa(msg.data.iface.ip_addr),
-                                  net_type_name(msg.data.iface.type),
-                                  msg.pid);
-                        msg.rc = is_network_usable(msg.data.iface);
-                        DEBUG_LOG("Response: iface %s (%s) is %sconnected\n",
-                                  inet_ntoa(msg.data.iface.ip_addr),
-                                  net_type_name(msg.data.iface.type),
-                                  msg.rc == 1 ? "" : "not ");
+                        struct net_interface iface;
+                        memset(&iface, 0, sizeof(iface));
+                        {
+                            PthreadScopedLock lock(&ifaces_lock);
+                            in_addr_t ip = msg.data.iface.ip_addr.s_addr;
+                            if (net_interfaces.count(ip) == 1) {
+                                iface = net_interfaces[ip];
+                            }
+                        }
+                        if (iface.ip_addr.s_addr == 0) {
+                            DEBUG_LOG("Got is-connected request for unknown iface %s\n",
+                                      inet_ntoa(msg.data.iface.ip_addr));
+                            msg.rc = -1;
+                        } else {
+                            DEBUG_LOG("Got is-connected request for iface %s (%s) from process %d\n",
+                                      inet_ntoa(iface.ip_addr),
+                                      net_type_name(iface.type),
+                                      msg.pid);
+                            msg.rc = is_network_usable(iface);
+                            DEBUG_LOG("Response: iface %s (%s) is %sconnected\n",
+                                      inet_ntoa(iface.ip_addr),
+                                      net_type_name(iface.type),
+                                      msg.rc == 1 ? "" : "not ");
+                        }
                         rc = write(ipc_sock, &msg, sizeof(msg));
                         if (rc != sizeof(msg)) {
                             DEBUG_LOG("Failed to send is-connected response to process %d\n",

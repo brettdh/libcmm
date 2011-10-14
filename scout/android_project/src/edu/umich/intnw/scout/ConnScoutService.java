@@ -183,6 +183,7 @@ public class ConnScoutService extends ServiceCompat
     }
 
     static {
+        System.loadLibrary("native_networktest");
         System.loadLibrary("conn_scout");
     }
     
