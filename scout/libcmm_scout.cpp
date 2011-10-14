@@ -159,6 +159,10 @@ make_scout_listener_socket()
     return listener_sock;
 }
 
+static struct timeval last_wifi_check = {0, 0};
+static struct timeval wifi_check_period = {1, 0};
+static int last_wifi_check_result = 1;
+
 static int
 is_network_usable(struct net_interface iface)
 {
@@ -171,7 +175,15 @@ is_network_usable(struct net_interface iface)
             DEBUG_LOG("Failed to decode server IP\n");
             return -1;
         }
-        return is_connected(iface.ip_addr.s_addr, server_ip.s_addr);
+
+        struct timeval now, diff;
+        TIME(now);
+        TIMEDIFF(last_wifi_check, now, diff);
+        if (timercmp(&diff, &wifi_check_period, >=)) {
+            TIME(last_wifi_check);
+            last_wifi_check_result = is_connected(iface.ip_addr.s_addr, server_ip.s_addr);
+        }
+        return last_wifi_check_result;
     } else {
         // don't do anything special for non-wifi networks
         return 1;
