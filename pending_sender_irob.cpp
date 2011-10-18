@@ -256,6 +256,13 @@ PendingSenderIROB::markSentOn(CSocketPtr csock)
                                     csock->remote_iface.ip_addr.s_addr));
 }
 
+static bool
+matches(in_addr_t expected, in_addr_t actual)
+{
+    // expected == 0 means match-any
+    return (expected == 0 || expected == actual);
+}
+
 // must be holding sk->scheduling_state_lock
 bool
 PendingSenderIROB::wasSentOn(in_addr_t local_ip, in_addr_t remote_ip)
@@ -263,7 +270,14 @@ PendingSenderIROB::wasSentOn(in_addr_t local_ip, in_addr_t remote_ip)
     if (local_ip == 0 && remote_ip == 0) {
         return true;
     }
-    return sending_ifaces.count(make_pair(local_ip, remote_ip)) > 0;
+    for (IfacePairSet::const_iterator it = sending_ifaces.begin();
+         it != sending_ifaces.end(); ++it) {
+        if (matches(local_ip, it->first) &&
+            matches(remote_ip, it->second)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 // must be holding sk->scheduling_state_lock
