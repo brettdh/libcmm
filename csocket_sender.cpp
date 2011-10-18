@@ -1542,7 +1542,9 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
     }
 
     csock->update_last_app_data_sent();
-    psirob->markSentOn(csock);
+    if (psirob) {
+        psirob->markSentOn(csock);
+    }
 
     dbgprintf("About to send message: %s\n", 
               data_check_hdr.describe().c_str());
