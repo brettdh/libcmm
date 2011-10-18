@@ -16,6 +16,8 @@
 #include <boost/shared_ptr.hpp>
 #include <time.h>
 
+#include <arpa/inet.h>
+
 struct BlockingRequest;
 struct ResumeOperation;
 
@@ -147,7 +149,8 @@ class CMMSocketImpl : public CMMSocket {
     virtual void setup(struct net_interface iface, bool local);
     virtual void teardown(struct net_interface iface, bool local);
 
-    void data_check_all_irobs();
+    void data_check_all_irobs(in_addr_t local_ip=0, in_addr_t remote_ip=0, 
+                              u_long label_mask=0);
     
     int set_all_sockopts(int osfd);
 

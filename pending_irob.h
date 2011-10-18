@@ -181,8 +181,7 @@ class PendingIROBLattice {
     void for_each_by_ref(Functor& f);
 
     std::vector<irob_id_t> get_all_ids();
-    void data_check_all();
-        
+    
   private:
     // must hold membership_lock
     bool insert_locked(PendingIROB *pirob, bool infer_deps = true);

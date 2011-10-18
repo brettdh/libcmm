@@ -443,21 +443,3 @@ PendingIROBLattice::get_all_ids()
     for_each_by_ref(obj);
     return obj.ids;
 }
-
-struct DataCheckIROB {
-    void operator()(PendingIROBPtr pirob) {
-        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
-        if (psirob) {
-            psirob->request_data_check();
-        }
-    }
-};
-
-// only call on a lattice that only contains
-//  PendingSenderIROBs.
-void
-PendingIROBLattice::data_check_all()
-{
-    DataCheckIROB obj;
-    for_each_by_ref(obj);
-}
