@@ -2005,7 +2005,7 @@ CMMSocketImpl::end_irob(irob_id_t id)
                 outgoing_irobs.erase(id);
                 //delete pirob;  // smart ptr will clean up
                 return CMM_DEFERRED;
-            } else {
+            } else if (pirob->status == CMM_BLOCKING) {
                 pthread_mutex_unlock(&scheduling_state_lock);
                 ret = wait_for_labels(send_labels);
                 pthread_mutex_lock(&scheduling_state_lock);
@@ -2015,6 +2015,9 @@ CMMSocketImpl::end_irob(irob_id_t id)
                     //delete pirob; // smart ptr will clean up
                     return ret;
                 }
+            } else {
+                outgoing_irobs.erase(id);
+                return CMM_FAILED;
             }
         }
         pirob->finish();
@@ -2678,7 +2681,7 @@ CMMSocketImpl::update_net_restriction_stats(int labels, size_t bytes_sent, size_
     stats.bytes_recvd += bytes_recvd;
 
     string restriction_desc = describe_network_restrictions(labels);
-    dbgprintf("Bytes transferred on multisocket %d contrary to net restriction labels [%s]: sent %zu  recvd %zu\n",
+    dbgprintf("Bytes transferred on multisocket %d contrary to net restriction labels [%s]: sent %zu  recvd %zu (SHOULD NEVER HAPPEN NOW!!)\n",
               sock, restriction_desc.c_str(), bytes_sent, bytes_recvd);
     dbgprintf("New totals for [%s] restriction: %zu sent  %zu recvd\n",
               restriction_desc.c_str(), stats.bytes_sent, stats.bytes_recvd);

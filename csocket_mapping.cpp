@@ -314,11 +314,11 @@ struct LabelMatcher {
         // we have a match after we've considered at least one.
         has_match = true;
 
-        if (!has_wifi_match || matches_type(NET_TYPE_WIFI, local_iface, remote_iface)) {
+        if (matches_type(NET_TYPE_WIFI, local_iface, remote_iface)) {
             wifi_pair = make_pair(local_iface, remote_iface);
             has_wifi_match = true;
         }
-        if (!has_threeg_match || matches_type(NET_TYPE_THREEG, local_iface, remote_iface)) {
+        if (matches_type(NET_TYPE_THREEG, local_iface, remote_iface)) {
             threeg_pair = make_pair(local_iface, remote_iface);
             has_threeg_match = true;
         }
@@ -334,10 +334,18 @@ struct LabelMatcher {
 
         // first, check net type restriction labels, since they take precedence
         if (send_label & CMM_LABEL_WIFI_ONLY) {
+            if (!has_wifi_match) {
+                return false;
+            }
+
             local_iface = wifi_pair.first;
             remote_iface = wifi_pair.second;
             return true;
         } else if (send_label & CMM_LABEL_THREEG_ONLY) {
+            if (!has_threeg_match) {
+                return false;
+            }
+
             local_iface = threeg_pair.first;
             remote_iface = threeg_pair.second;
             return true;
@@ -415,8 +423,11 @@ CSockMapping::connected_csock_with_labels(u_long send_label, bool locked)
         // no connected csocks
         return CSocketPtr();
     } else {
-        matcher.pick_label_match(send_label, iface_pair.first, iface_pair.second);
-        return lookup[iface_pair];
+        if (matcher.pick_label_match(send_label, iface_pair.first, iface_pair.second)) {
+            return lookup[iface_pair];
+        } else {
+            return CSocketPtr();
+        }
     }
 }
 

@@ -21,6 +21,12 @@
 struct BlockingRequest;
 struct ResumeOperation;
 
+/* only used internally, to mark an IROB that
+   is waiting for a suitable network, but has no thunk. 
+   Shouldn't really happen, but a future label could conceivably 
+   necessitate this behavior. */
+#define CMM_BLOCKING -3
+
 class CMMSocketImpl;
 typedef boost::shared_ptr<CMMSocketImpl> CMMSocketImplPtr;
 

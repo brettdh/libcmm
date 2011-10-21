@@ -30,7 +30,7 @@ bool matches_type(int type,
             (local_iface.type == 0 && remote_iface.type == 0));
 }
 
-bool network_fits_restriction(int labels, 
+bool network_fits_restriction(u_long labels, 
                              struct net_interface local_iface,
                              struct net_interface remote_iface)
 {

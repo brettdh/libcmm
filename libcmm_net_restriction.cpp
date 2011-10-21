@@ -15,20 +15,20 @@ const char *net_type_name(int type)
     return net_type_strs[index];
 }
 
-bool has_network_restriction(int labels)
+bool has_network_restriction(u_long labels)
 {
     int restriction_labels = labels & ALL_NETWORK_RESTRICTIONS;
     return (restriction_labels != 0 && restriction_labels != ALL_NETWORK_RESTRICTIONS);
 }
 
-int network_fits_restriction(int type, int labels)
+int network_fits_restriction(int type, u_long labels)
 {
     int restriction_labels = labels & ALL_NETWORK_RESTRICTIONS;
     int restriction_mask = type << NET_RESTRICTION_LABEL_SHIFT;
     return (restriction_labels == 0 || restriction_mask & restriction_labels);
 }
 
-string describe_network_restrictions(int labels)
+string describe_network_restrictions(u_long labels)
 {
     if (!has_network_restriction(labels)) {
         return string("no restriction");

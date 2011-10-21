@@ -1,6 +1,8 @@
 #ifndef LIBCMM_NET_RESTRICTION_H
 #define LIBCMM_NET_RESTRICTION_H
 
+#include <sys/types.h>
+
 #define NUM_NET_TYPES 2
 
 #define NET_TYPE_WIFI 0x1
@@ -14,10 +16,10 @@
 
 
 const char * net_type_name(int type);
-bool has_network_restriction(int labels);
-int network_fits_restriction(int type, int labels);
+bool has_network_restriction(u_long labels);
+int network_fits_restriction(int type, u_long labels);
 
 #include <string>
-std::string describe_network_restrictions(int labels);
+std::string describe_network_restrictions(u_long labels);
 
 #endif /* LIBCMM_NET_RESTRICTION_H */

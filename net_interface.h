@@ -44,7 +44,7 @@ u_long iface_RTT(const struct net_interface& local_iface,
 bool matches_type(int type, 
                   struct net_interface local_iface,
                   struct net_interface remote_iface);
-bool network_fits_restriction(int labels, 
+bool network_fits_restriction(u_long labels, 
                               struct net_interface local_iface,
                               struct net_interface remote_iface);
 

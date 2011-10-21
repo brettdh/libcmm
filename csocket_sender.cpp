@@ -570,6 +570,27 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
     ASSERT(psirob);
 
     if (!match) {
+        if (!csock->fits_net_restriction(send_labels)) {
+            // no network is available that meets these restrictions.
+            dbgprintf("Can't satisfy network restrictions (%s) for "
+                      "IROB %ld, so I'm dropping it\n",
+                      describe_network_restrictions(send_labels).c_str(),
+                      pirob->id);
+            
+            pirob->status = CMM_FAILED;
+            if (pirob->complete) {
+                // no more application calls coming for this IROB;
+                //   it can safely be forgotten
+                sk->outgoing_irobs.drop_irob_and_dependents(pirob->id);
+                pirob.reset();
+            } // else: mc_end_irob hasn't returned yet; it will clean up
+            
+            return true;
+        }
+
+        // if this csocket fits the network restrictions, we might want to
+        //  send data even though it's not the best network.
+
         if (send_labels & CMM_LABEL_BACKGROUND) {
             // No actual background network, so let's trickle 
             // on the available network
@@ -590,7 +611,7 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
                                 pirob->send_labels, 
                                 (resume_handler_t)resume_operation_thunk,
                                 new ResumeOperation(sk, data));
-                pirob->status = CMM_FAILED; // really "blocking"
+                pirob->status = CMM_BLOCKING;
             }
         } else {
             /* no way to tell the application that we failed to send
@@ -599,8 +620,7 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
              */
             dbgprintf("Warning: silently dropping IROB %ld after failing to send it.\n",
                       pirob->id);
-            sk->outgoing_irobs.erase(pirob->id);
-            //delete pirob; // smart ptr will clean up
+            sk->outgoing_irobs.drop_irob_and_dependents(pirob->id);
             pirob.reset();
         }
         return true;

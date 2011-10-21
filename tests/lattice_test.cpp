@@ -40,14 +40,9 @@ LatticeTest::assert_insert(irob_id_t id, PendingIROB *pirob)
     CPPUNIT_ASSERT(get_pointer(pirobs->find(id)) == pirob);
 }
 
-void 
-LatticeTest::testLatticeStructure()
+void
+LatticeTest::init_dep_matrix(bool dep_matrix[][])
 {
-    for (int i = 0; i < 10; i++) {
-        assert_insert(i, pirob_array[i]);
-    }
-
-    bool dep_matrix[10][10];
     for (int i = 0; i < 10; i++) {
         for (int j = 0; j < 10; j++) {
             dep_matrix[i][j] = false;
@@ -63,6 +58,17 @@ LatticeTest::testLatticeStructure()
     for (int i = 0; i < NUM_DEPS; i++) {
         dep_matrix[dep_pairs[i][0]][dep_pairs[i][1]] = true;
     }
+}
+
+void 
+LatticeTest::testLatticeStructure()
+{
+    for (int i = 0; i < 10; i++) {
+        assert_insert(i, pirob_array[i]);
+    }
+
+    bool dep_matrix[10][10];
+    init_dep_matrix(dep_matrix);
     
     for (int i = 0; i < 10; i++) {
         for (int j = 0; j < 10; j++) {
@@ -89,44 +95,112 @@ LatticeTest::testRemoval()
 {
     testLatticeStructure();
     
-    //CPPUNIT_ASSERT(pirobs->erase(0) == true);
     CPPUNIT_ASSERT(pirobs->erase(0, true) == true);
     CPPUNIT_ASSERT(pirob_array[1]->depends_on(0) == false);
     CPPUNIT_ASSERT(pirob_array[2]->depends_on(0) == false);
 
-    //CPPUNIT_ASSERT(pirobs->erase(1) == true);
     CPPUNIT_ASSERT(pirobs->erase(1, true) == true);
     CPPUNIT_ASSERT(pirob_array[4]->depends_on(1) == false);
 
-    //CPPUNIT_ASSERT(pirobs->erase(2) == true);
     CPPUNIT_ASSERT(pirobs->erase(2, true) == true);
     CPPUNIT_ASSERT(pirob_array[4]->depends_on(2) == false);
 
-    //CPPUNIT_ASSERT(pirobs->erase(3) == true);
     CPPUNIT_ASSERT(pirobs->erase(3, true) == true);
     CPPUNIT_ASSERT(pirob_array[4]->depends_on(3) == false);
 
-    //CPPUNIT_ASSERT(pirobs->erase(4) == true);
     CPPUNIT_ASSERT(pirobs->erase(4, true) == true);
     CPPUNIT_ASSERT(pirob_array[5]->depends_on(4) == false);
     CPPUNIT_ASSERT(pirob_array[6]->depends_on(4) == false);
     
-    //CPPUNIT_ASSERT(pirobs->erase(6) == true);
     CPPUNIT_ASSERT(pirobs->erase(6, true) == true);
     CPPUNIT_ASSERT(pirob_array[7]->depends_on(6) == false);
 
-    //CPPUNIT_ASSERT(pirobs->erase(5) == true);
     CPPUNIT_ASSERT(pirobs->erase(5, true) == true);
     CPPUNIT_ASSERT(pirob_array[8]->depends_on(5) == false);
 
-    //CPPUNIT_ASSERT(pirobs->erase(7) == true);
     CPPUNIT_ASSERT(pirobs->erase(7, true) == true);
     CPPUNIT_ASSERT(pirob_array[8]->depends_on(7) == false);
 
-    //CPPUNIT_ASSERT(pirobs->erase(8) == true);
     CPPUNIT_ASSERT(pirobs->erase(8, true) == true);
     CPPUNIT_ASSERT(pirob_array[9]->depends_on(8) == false);
 
-    //CPPUNIT_ASSERT(pirobs->erase(9) == true);
     CPPUNIT_ASSERT(pirobs->erase(9, true) == true);
+}
+
+void
+LatticeTest::assert_contents(const set<irob_id_t>& present_irobs,
+                             const set<irob_id_t>& absent_irobs)
+{
+    for (irob_id_t::const_iterator it = present_irobs.begin();
+         it != present_irobs.end(); ++it) {
+        CPPUNIT_ASSERT(pirobs->find(*it));
+    }
+    for (irob_id_t::const_iterator it = absent_irobs.begin();
+         it != absent_irobs.end(); ++it) {
+        CPPUNIT_ASSERT(!pirobs->find(*it));
+    }
+}
+
+void
+LatticeTest::testTransitiveDropIROB()
+{
+    testLatticeStructure();
+    
+    bool dep_matrix[10][10];
+    init_dep_matrix(dep_matrix);
+    
+    // dep chain at this point:
+    //     0    3   4   5   6   8   9
+    //    / \               |
+    //   1   2              7
+
+    set<irob_id_t> present_irobs, absent_irobs;
+    for (int i = 0; i < 10; ++i) {
+        present_irobs.insert(i);
+    }
+    assert_contents(present_irobs, absent_irobs);
+
+    pirobs->drop_irob_and_dependents(0);
+    for (int i = 0; i <= 2; ++i) {
+        present_irobs.erase(i);
+        absent_irobs.insert(i);
+    }
+    assert_contents(present_irobs, absent_irobs);
+
+    pirobs->drop_irob_and_dependents(3);
+    present_irobs.erase(3);
+    absent_irobs.insert(3);
+    assert_contents(present_irobs, absent_irobs);
+
+    pirobs->drop_irob_and_dependents(6);
+    for (int i = 6; i <= 7; ++i) {
+        present_irobs.erase(i);
+        absent_irobs.insert(i);
+    }
+    assert_contents(present_irobs, absent_irobs);
+
+    // dep chain at this point:
+    //     4   5   8   9
+    
+    irob_id_t id = 9;
+    pirobs->insert(new PendingIROB(10, 1, &id, 0, NULL, 0));
+    id = 10;
+    pirobs->insert(new PendingIROB(11, 1, &id, 0, NULL, 0));
+    present_irobs.insert(10);
+    present_irobs.insert(11);
+    assert_contents(present_irobs, absent_irobs);
+
+    // dep chain at this point:
+    //     4   5   8   9
+    //                 |
+    //                 10
+    //                 |
+    //                 11
+
+    pirobs->drop_irob_and_dependents(9);
+    for (int i = 9; i <= 11; ++i) {
+        present_irobs.erase(i);
+        absent_irobs.insert(i);
+    }
+    assert_contents(present_irobs, absent_irobs);
 }

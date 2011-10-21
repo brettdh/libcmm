@@ -94,6 +94,8 @@ class CSocket {
 
     struct net_interface bottleneck_iface();
 
+    bool fits_net_restriction(u_long labels);
+
   private:
     // only allow shared_ptr creation
     CSocket(boost::weak_ptr<CMMSocketImpl> sk_, 
@@ -154,7 +156,7 @@ class CSocket {
     bool busy;
 
     // must hold sk->scheduling_state_lock.
-    void update_net_restriction_stats(int labels, size_t bytes_sent, size_t bytes_recvd);
+    void update_net_restriction_stats(u_long labels, size_t bytes_sent, size_t bytes_recvd);
 #endif // ifndef CMM_UNIT_TESTING
 };
 

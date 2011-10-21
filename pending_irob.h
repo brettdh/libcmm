@@ -155,9 +155,13 @@ class PendingIROBLattice {
     virtual ~PendingIROBLattice();
     // XXX: these default args are really describing what happens at the sender.
     //  maybe these should be moved into a PendingSenderIROBLattice.
+    // TODO: yes, they should.  Do it!
     bool insert(PendingIROB *pirob, bool infer_deps = true);
     PendingIROBPtr find(irob_id_t id);
     bool erase(irob_id_t id, bool at_receiver = false);
+
+    // only call at the sender.
+    void drop_irob_and_dependents(irob_id_t id);
 
     bool past_irob_exists(irob_id_t id);
 
@@ -186,6 +190,7 @@ class PendingIROBLattice {
     // must hold membership_lock
     bool insert_locked(PendingIROB *pirob, bool infer_deps = true);
     PendingIROBPtr find_locked(irob_id_t id);
+    bool erase_locked(irob_id_t id, bool at_receiver = false);
     
     // Invariant: pending_irobs.empty() || 
     //            (pending_irobs[0] != NULL &&
