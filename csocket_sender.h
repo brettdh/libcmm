@@ -68,8 +68,8 @@ class CSocketSender : public CMMThread {
 
     struct TroubleChecker {
         CMMSocketImpl *sk;
-        bool trouble_exists;
-        TroubleChecker(CMMSocketImpl *skp) : sk(skp), trouble_exists(false) {}
+        std::vector<struct net_interface> troubled_ifaces;
+        TroubleChecker(CMMSocketImpl *skp) : sk(skp) {}
         
         int operator()(CSocketPtr csock);
     };

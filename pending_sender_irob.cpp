@@ -7,7 +7,7 @@
 #include <algorithm>
 using std::deque;
 using std::vector; using std::min;
-using std::for_each;
+using std::for_each; using std::make_pair;
 
 PendingSenderIROB::PendingSenderIROB(irob_id_t id_, 
                                      int numdeps, const irob_id_t *deps_array,
@@ -19,9 +19,8 @@ PendingSenderIROB::PendingSenderIROB(irob_id_t id_,
       resume_handler(resume_handler_), rh_arg(rh_arg_),
       announced(false), end_announced(false), acked(false),
       next_seqno_to_send(0), //next_chunk(0), chunk_offset(0),
-      num_bytes(datalen), irob_offset(0),
+      num_bytes(datalen), irob_offset(0)
       //chunk_in_flight(false),
-      data_check(false)
 {
 }
 
@@ -249,14 +248,41 @@ PendingSenderIROB::mark_drop_point(int next_chunk)
     }
 }
 
+// must be holding sk->scheduling_state_lock
 void
-PendingSenderIROB::request_data_check()
+PendingSenderIROB::markSentOn(CSocketPtr csock)
 {
-    data_check = true;
+    sending_ifaces.insert(make_pair(csock->local_iface.ip_addr.s_addr,
+                                    csock->remote_iface.ip_addr.s_addr));
 }
 
-bool
-PendingSenderIROB::needs_data_check()
+static bool
+matches(in_addr_t expected, in_addr_t actual)
 {
-    return data_check;
+    // expected == 0 means match-any
+    return (expected == 0 || expected == actual);
 }
+
+// must be holding sk->scheduling_state_lock
+bool
+PendingSenderIROB::wasSentOn(in_addr_t local_ip, in_addr_t remote_ip)
+{
+    if (local_ip == 0 && remote_ip == 0) {
+        return true;
+    }
+    for (IfacePairSet::const_iterator it = sending_ifaces.begin();
+         it != sending_ifaces.end(); ++it) {
+        if (matches(local_ip, it->first) &&
+            matches(remote_ip, it->second)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// must be holding sk->scheduling_state_lock
+// void
+// PendingSenderIROB::clearSenderIfaces()
+// {
+//     sending_ifaces.clear();
+// }

@@ -1741,18 +1741,28 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
     }
     
     PthreadScopedLock lock(&scheduling_state_lock);
-    data_check_all_irobs();
+    if (local) {
+        data_check_all_irobs(iface.ip_addr.s_addr, 0);
+    } else {
+        data_check_all_irobs(0, iface.ip_addr.s_addr);
+    }
 }
 
-void CMMSocketImpl::data_check_all_irobs()
+void CMMSocketImpl::data_check_all_irobs(in_addr_t local_ip, in_addr_t remote_ip,
+                                         u_long label_mask)
 {
-    // TODO-OPTI: Only data-check IROBs that might have actually been lost
-    // TODO-OPTI:  (i.e. IROBs not yet sent couldn't have been lost)
     vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
-    outgoing_irobs.data_check_all();
     for (size_t i = 0; i < ids.size(); ++i) {
-        IROBSchedulingData data_check(ids[i], false);
-        irob_indexes.waiting_data_checks.insert(data_check);
+        PendingIROBPtr pirob = outgoing_irobs.find(ids[i]);
+        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
+        ASSERT(psirob);
+        
+        if (psirob->wasSentOn(local_ip, remote_ip) &&
+            (label_mask == 0 ||
+             label_mask & psirob->send_labels)) {
+            IROBSchedulingData data_check(ids[i], false);
+            irob_indexes.waiting_data_checks.insert(data_check);
+        }
     }
 
     // even in the remote case, any reading threads need to
@@ -2345,7 +2355,6 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
         psirob->mark_drop_point(next_chunk);
         irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));
     }
-    psirob->data_check = false;
     pthread_cond_broadcast(&scheduling_state_cv);
 }
 

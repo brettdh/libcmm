@@ -31,7 +31,9 @@ using std::queue; using std::deque;
 #include "net_interface.h"
 #include <errno.h>
 
+#ifdef ANDROID
 #include "network_test.h"
+#endif
 
 #ifdef BUILDING_SCOUT_SHLIB
 #include <jni.h>
@@ -159,14 +161,17 @@ make_scout_listener_socket()
     return listener_sock;
 }
 
+#ifdef ANDROID
 static struct timeval last_wifi_check = {0, 0};
 static struct timeval wifi_check_period = {1, 0};
 static int last_wifi_check_result = 1;
+#endif
 
 static int
 is_network_usable(struct net_interface iface)
 {
     if (iface.type == NET_TYPE_WIFI) {
+#ifdef ANDROID
         // TODO: switch to UDP ping?
         // TODO: better yet, implement something beacon-based.
         struct in_addr server_ip;
@@ -184,6 +189,9 @@ is_network_usable(struct net_interface iface)
             last_wifi_check_result = is_connected(iface.ip_addr.s_addr, server_ip.s_addr);
         }
         return last_wifi_check_result;
+#else
+        return 1;
+#endif
     } else {
         // don't do anything special for non-wifi networks
         return 1;

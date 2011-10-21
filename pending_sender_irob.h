@@ -10,6 +10,12 @@
 #include "pending_irob.h"
 #include <map>
 
+#include "csocket.h"
+#include <arpa/inet.h>
+
+#include <set>
+#include <map>
+
 /* Terminology:
  *  An IROB is _pending_ if the application has not yet received all of its
  *    bytes.
@@ -94,6 +100,11 @@ class PendingSenderIROB : public PendingIROB {
      * have all the chunks been acked, or has the IROB been acked? */
     bool is_acked(void);
 
+    // must be holding sk->scheduling_state_lock
+    void markSentOn(CSocketPtr csock);
+    // must be holding sk->scheduling_state_lock
+    bool wasSentOn(in_addr_t local_ip, in_addr_t remote_ip);
+
   private:
     friend class CMMSocketImpl;
     friend class CSocketSender;
@@ -130,9 +141,8 @@ class PendingSenderIROB : public PendingIROB {
     // only one thread at a time should be sending app data
     //bool chunk_in_flight;
 
-    // true iff the receiver might be missing some data due to
-    //  a network failure.
-    bool data_check;
+    typedef std::set<std::pair<in_addr_t, in_addr_t> > IfacePairSet;
+    IfacePairSet sending_ifaces;
 };
 
 #endif

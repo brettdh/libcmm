@@ -14,7 +14,7 @@ libcmm_shmem_scout.o: ../libcmm_shmem.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $^
 
 conn_scout: libcmm_scout.o ../cdf_sampler.o ../debug.o ../common.o \
-	    ../cmm_thread.o ../timeops.o libcmm_shmem_scout.o \
+	    ../cmm_thread.o ../timeops.o libcmm_shmem_scout.o ../libcmm_net_preference.o \
 	    ../libancillary/libancillary.a
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 

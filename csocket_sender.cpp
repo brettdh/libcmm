@@ -65,37 +65,24 @@ CSocketSender::DataInFlight::operator()(CSocketPtr csock)
 
 int CSocketSender::TroubleChecker::operator()(CSocketPtr csock)
 {
-    // pthread_mutex_unlock(&sk->scheduling_state_lock);
-    // bool is_fg = csock->is_fg_ignore_trouble();
-    // pthread_mutex_lock(&sk->scheduling_state_lock);
-    if (true /*is_fg*/) {
-        if (csock->data_inflight() &&
-            csock->is_in_trouble() && sk->csock_map->count_locked() > 1) {
-            // XXX: we only want to do fast-recovery for FG IROBs
-            //    ...but the impact of doing it for them all will be small
-            // XXX: we don't want to do this check for the 3G network
-            //   ...but we probably usually won't, since it's not FG
-            
-            struct timespec last, now, diff, timeout;
-            timeout = csock->trouble_check_timeout();
-            last = csock->last_trouble_check;
-            TIME(now);
-            if (timercmp(&last, &now, <)) {
-                TIMEDIFF(csock->last_trouble_check, now, diff);
-                if (timercmp(&diff, &timeout, >)) {
-                    // only trigger a trouble check if it's been long enough since the last one
-                    csock->last_trouble_check = now;
-                    trouble_exists = true;
-                }
-            }
+    if (csock->data_inflight() &&
+        csock->is_in_trouble() && sk->csock_map->count_locked() > 1) {
+        
+        struct timespec last, now, diff, timeout;
+        timeout = csock->trouble_check_timeout();
+        last = csock->last_trouble_check;
+        TIME(now);
+        if (timercmp(&last, &now, <)) {
+            TIMEDIFF(csock->last_trouble_check, now, diff);
+            if (timercmp(&diff, &timeout, >)) {
+                // only trigger a trouble check if it's been long enough since the last one
+                csock->last_trouble_check = now;
+                troubled_ifaces.push_back(csock->local_iface);
 
-            if (trouble_exists) {
                 char local_ip[16], remote_ip[16];
                 get_ip_string(csock->local_iface.ip_addr, local_ip);
                 get_ip_string(csock->remote_iface.ip_addr, remote_ip);
-                dbgprintf("Network (%s -> %s) is in trouble; data-checking all IROBs\n",
-                          local_ip, remote_ip);
-                return -1; // "fail" in order to bail out of the for_each
+                dbgprintf("Network (%s -> %s) is in trouble\n", local_ip, remote_ip);
             }
         }
     }
@@ -198,6 +185,8 @@ CSocketSender::Run()
                 }
             }
 
+            bool not_sending_due_to_trouble = false;
+
             // pthread_mutex_unlock(&sk->scheduling_state_lock);
             // bool is_fg = csock->is_fg_ignore_trouble();
             // pthread_mutex_lock(&sk->scheduling_state_lock);
@@ -208,6 +197,7 @@ CSocketSender::Run()
                 get_ip_string(csock->remote_iface.ip_addr, remote_ip);
                 dbgprintf("Network (%s -> %s) is in trouble; not trying to send anything\n",
                           local_ip, remote_ip);
+                not_sending_due_to_trouble = true;
 
                 // pass off my scheduling data while I'm troubled.
                 if (csock->irob_indexes.size() > 0) {
@@ -244,12 +234,19 @@ CSocketSender::Run()
 
             DataInFlight inflight;
             sk->csock_map->for_each(inflight);
-            if (inflight.data_inflight && inflight.rel_trouble_timeout.tv_sec != -1) {
+            if ((inflight.data_inflight && inflight.rel_trouble_timeout.tv_sec != -1)) {
                 timeout = abs_time(inflight.rel_trouble_timeout);
                 dbgprintf("Data in flight; trouble-check timeout in %lu.%09lu sec\n",
                           inflight.rel_trouble_timeout.tv_sec,
                           inflight.rel_trouble_timeout.tv_nsec);
+            } else if (not_sending_due_to_trouble) {
+                struct timespec rel_trouble_timeout = csock->trouble_check_timeout();
+                timeout = abs_time(rel_trouble_timeout);
+                dbgprintf("Not sending due to trouble; timeout in %lu.%09lu sec\n", 
+                          rel_trouble_timeout.tv_sec, 
+                          rel_trouble_timeout.tv_nsec);
             }
+            
             if (trickle_timeout.tv_sec > 0) {
                 if (timeout.tv_sec > 0) {
                     timeout = (timercmp(&timeout, &trickle_timeout, <)
@@ -297,8 +294,13 @@ CSocketSender::Run()
 
             TroubleChecker checker(sk);
             sk->csock_map->for_each(checker);
-            if (checker.trouble_exists) {
-                sk->data_check_all_irobs();
+            if (checker.troubled_ifaces.size() > 0) {
+                dbgprintf("Network(s) in trouble; data-checking FG IROBs\n");
+                
+                for (size_t i = 0; i < checker.troubled_ifaces.size(); ++i) {
+                    sk->data_check_all_irobs(checker.troubled_ifaces[i].ip_addr.s_addr, 0, 
+                                             CMM_LABEL_ONDEMAND);
+                }
             }
             // something happened; we might be able to do some work
         }
@@ -321,7 +323,7 @@ CSocketSender::Run()
             //  the connecting side will do it
             PthreadScopedLock lock(&sk->scheduling_state_lock);
             sk->irob_indexes.add(csock->irob_indexes);
-            sk->data_check_all_irobs();
+            sk->data_check_all_irobs(csock->local_iface.ip_addr.s_addr);
             if (sk->csock_map->empty()) {
                 // no more connections; kill the multisocket
                 dbgprintf("Multisocket %d has no more csockets and I'm the accepting side; "
@@ -346,7 +348,7 @@ CSocketSender::Run()
             } else {
                 sk->irob_indexes.add(csock->irob_indexes);
             }
-            sk->data_check_all_irobs();
+            sk->data_check_all_irobs(csock->local_iface.ip_addr.s_addr);
         } else {
             // this connection is hosed, so make sure everything
             // gets cleaned up as if we had done a graceful shutdown
@@ -859,6 +861,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         csock->update_last_fg();
     }
     csock->update_last_app_data_sent();
+    psirob->markSentOn(csock);
 
     pthread_mutex_unlock(&sk->scheduling_state_lock);
     csock->stats.report_send_event(id, bytes);
@@ -928,6 +931,7 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
     hdr.send_labels = htonl(pirob->send_labels);
 
     csock->update_last_app_data_sent();
+    psirob->markSentOn(csock);
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
@@ -996,19 +1000,6 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     }
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
     ASSERT(psirob);
-
-    if (psirob->needs_data_check()) {
-        dbgprintf("Data check in progress for IROB %ld\n", id);
-
-        // when the response arrives, we'll begin sending again on this IROB.
-        // until then, this thread might send data from other IROBs if there's
-        //  data to send.
-        // Update:  no reason not to continue sending data.  I'll still get
-        //  resend requests for whatever's missing, but it's better to continue
-        //  making forward progress in the meantime.  If I have nothing else to send,
-        //  I'll bail out below after psirob->get_ready_bytes() returns 0.
-        //return true;
-    }
 
     struct CMMSocketControlHdr hdr;
     memset(&hdr, 0, sizeof(hdr));
@@ -1097,6 +1088,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
         csock->update_last_fg();
     }
     csock->update_last_app_data_sent();
+    psirob->markSentOn(csock);
 
     // wake up other sleeping threads to check whether I might be in trouble
     //  (just in case I block on the writev and don't wake up for a while)
@@ -1137,17 +1129,6 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
         size_t total_header_size = sizeof(hdr);
         if (waiting_ack_irob != -1) {
             total_header_size += sizeof(ack_hdr);
-        }
-        if (rc > (ssize_t)total_header_size) {
-            // this way, I won't have to resend bytes that were
-            //  already received
-            //psirob->mark_sent(rc - (ssize_t)total_header_size);
-        
-            if (rc != (ssize_t)total_bytes) {
-                // XXX: data checks are now done by the sender-side
-                // when a network goes down.
-                //psirob->request_data_check();
-            }
         }
     }
 
@@ -1571,6 +1552,9 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
     }
 
     csock->update_last_app_data_sent();
+    if (psirob) {
+        psirob->markSentOn(csock);
+    }
 
     dbgprintf("About to send message: %s\n", 
               data_check_hdr.describe().c_str());
