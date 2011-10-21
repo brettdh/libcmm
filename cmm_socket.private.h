@@ -353,15 +353,15 @@ class CMMSocketImpl : public CMMSocket {
     };
     static static_destroyer destroyer;
 
-    struct NetPrefStats {
+    struct NetRestrictionStats {
         size_t bytes_sent;
         size_t bytes_recvd;
-        NetPrefStats() : bytes_sent(0), bytes_recvd(0) {}
+        NetRestrictionStats() : bytes_sent(0), bytes_recvd(0) {}
     };
-    std::map<int, NetPrefStats> net_pref_stats;
+    std::map<int, NetRestrictionStats> net_restriction_stats;
 
     // must hold scheduling_state_lock
-    void update_net_pref_stats(int labels, size_t bytes_sent, size_t bytes_recvd);
+    void update_net_restriction_stats(int labels, size_t bytes_sent, size_t bytes_recvd);
 };
 
 class CMMSocketPassThrough : public CMMSocket {

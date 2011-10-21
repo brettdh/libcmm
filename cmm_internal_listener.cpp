@@ -5,7 +5,7 @@
 #include "cmm_internal_listener.h"
 #include "cmm_socket.private.h"
 #include "csocket_mapping.h"
-#include "libcmm_net_preference.h"
+#include "libcmm_net_restriction.h"
 #include "debug.h"
 #include <netinet/in.h>
 #include <arpa/inet.h>

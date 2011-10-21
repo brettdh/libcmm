@@ -15,7 +15,7 @@ using std::ptr_fun;
 using std::make_pair;
 
 #include "cmm_socket.private.h"
-#include "libcmm_net_preference.h"
+#include "libcmm_net_restriction.h"
 
 using std::auto_ptr;
 using std::pair;
@@ -332,17 +332,17 @@ struct LabelMatcher {
             return false;
         }
 
-        // first, check net type preference labels, since they take precedence
-        if (send_label & CMM_LABEL_WIFI_PREFERRED) {
+        // first, check net type restriction labels, since they take precedence
+        if (send_label & CMM_LABEL_WIFI_ONLY) {
             local_iface = wifi_pair.first;
             remote_iface = wifi_pair.second;
             return true;
-        } else if (send_label & CMM_LABEL_THREEG_PREFERRED) {
+        } else if (send_label & CMM_LABEL_THREEG_ONLY) {
             local_iface = threeg_pair.first;
             remote_iface = threeg_pair.second;
             return true;
         }
-        // else: no net type preference; carry on with other label matching
+        // else: no net type restriction; carry on with other label matching
 
         const u_long LABELMASK_FGBG = CMM_LABEL_ONDEMAND | CMM_LABEL_BACKGROUND;
 

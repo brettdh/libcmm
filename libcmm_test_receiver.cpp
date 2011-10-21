@@ -7,7 +7,7 @@
 #include <netinet/in.h>
 #include "libcmm.h"
 #include "libcmm_test.h"
-#include "libcmm_net_preference.h"
+#include "libcmm_net_restriction.h"
 #include "common.h"
 #include <errno.h>
 #include "timeops.h"
@@ -66,13 +66,13 @@ void * Worker(void * arg)
         int rc = cmm_read(sock, &ch, sizeof(ch), &sender_labels);
 
         if (sender_labels & CMM_LABEL_ONDEMAND) {
-            sender_labels &= (~CMM_LABEL_WIFI_PREFERRED);
-            sender_labels |= CMM_LABEL_THREEG_PREFERRED;
-            dbgprintf_always("Got FG request: sending prefer-3G response (for testing)\n");
+            sender_labels &= (~CMM_LABEL_WIFI_ONLY);
+            sender_labels |= CMM_LABEL_THREEG_ONLY;
+            dbgprintf_always("Got FG request: sending 3G-only response (for testing)\n");
         } else if (sender_labels & CMM_LABEL_BACKGROUND) {
-            sender_labels &= (~CMM_LABEL_THREEG_PREFERRED);
-            sender_labels |= CMM_LABEL_WIFI_PREFERRED;
-            dbgprintf_always("Got BG request: sending prefer-wifi response (for testing)\n");
+            sender_labels &= (~CMM_LABEL_THREEG_ONLY);
+            sender_labels |= CMM_LABEL_WIFI_ONLY;
+            dbgprintf_always("Got BG request: sending wifi-only response (for testing)\n");
         }
 #endif
         TIME(end);

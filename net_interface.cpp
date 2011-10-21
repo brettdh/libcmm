@@ -1,5 +1,5 @@
 #include "net_interface.h"
-#include "libcmm_net_preference.h"
+#include "libcmm_net_restriction.h"
 #include "debug.h"
 #include "common.h"
 #include <functional>
@@ -30,21 +30,21 @@ bool matches_type(int type,
             (local_iface.type == 0 && remote_iface.type == 0));
 }
 
-bool network_fits_preference(int labels, 
+bool network_fits_restriction(int labels, 
                              struct net_interface local_iface,
                              struct net_interface remote_iface)
 {
-    if (!has_network_preference(labels)) {
+    if (!has_network_restriction(labels)) {
         return true;
     }
     
-    // At least one of the network preference labels has been set,
+    // At least one of the network restriction labels has been set,
     //  but not all.
     // Go through the list of them and return true as soon as
     //  this network satisfies one of them.
     for (int type = NET_TYPE_WIFI; type < NET_TYPE_WIFI + NUM_NET_TYPES; ++type) {
-        if (!network_fits_preference(type, labels)) {
-            dbgprintf("Network type %s doesn't fit label prefs\n",
+        if (!network_fits_restriction(type, labels)) {
+            dbgprintf("Network type %s doesn't fit label restrictions\n",
                       net_type_name(type));
             continue;
         }
@@ -64,6 +64,6 @@ bool network_fits_preference(int labels,
     }
 
     // At this point, we know this network satisfies none of the
-    //  network preferences, so return false.
+    //  network restrictions, so return false.
     return false;
 }

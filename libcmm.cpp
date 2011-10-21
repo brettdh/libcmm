@@ -23,7 +23,7 @@ using std::auto_ptr;
 
 #include "libcmm.h"
 #include "libcmm_ipc.h"
-#include "libcmm_net_preference.h"
+#include "libcmm_net_restriction.h"
 #include "pending_irob.h"
 #include "debug.h"
 

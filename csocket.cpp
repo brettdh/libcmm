@@ -634,10 +634,10 @@ CSocket::bottleneck_iface()
 
 // must hold sk->scheduling_state_lock.
 void
-CSocket::update_net_pref_stats(int labels, size_t bytes_sent, size_t bytes_recvd)
+CSocket::update_net_restriction_stats(int labels, size_t bytes_sent, size_t bytes_recvd)
 {
-    if (!network_fits_preference(labels, local_iface, remote_iface)) {
-        sk->update_net_pref_stats(labels, bytes_sent, bytes_recvd);
+    if (!network_fits_restriction(labels, local_iface, remote_iface)) {
+        sk->update_net_restriction_stats(labels, bytes_sent, bytes_recvd);
     }
 }
 #endif

@@ -49,7 +49,7 @@ vanilla_throughput_test: vanilla_throughput_test.o timeops.o debug.o
 vanilla_%.o: libcmm_%.cpp
 	$(CXX) $(CXXFLAGS) -DNOMULTISOCK $(LDFLAGS) -c -o $@ $<
 
-libcmm.so: libcmm.o libcmm_ipc.o libcmm_external_ipc.o libcmm_net_preference.o \
+libcmm.so: libcmm.o libcmm_ipc.o libcmm_external_ipc.o libcmm_net_restriction.o \
 	       cmm_socket.o cmm_socket_impl.o \
 	       cmm_socket_passthrough.o thunks.o cmm_timing.o csocket.o \
            csocket_mapping.o csocket_sender.o csocket_receiver.o \
