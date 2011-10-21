@@ -47,7 +47,7 @@ SUPPORTOBJS := pending_irob.o intset.o debug.o pending_receiver_irob.o \
 	       pending_sender_irob.o timeops.o net_stats.o \
 	       test_common.o debug.o net_interface.o irob_scheduling.o common.o \
 	       shmem_test.o shmem_test_common.o libcmm_shmem.o ../libancillary/libancillary.a csocket.o \
-		   cmm_socket_control.o libcmm_net_preference.o
+		   cmm_socket_control.o libcmm_net_restriction.o
 
 run_unit_tests:: shmem_test_helper
 run_unit_tests:: run_all_tests.o StdioOutputter.o $(TESTOBJS) $(SUPPORTOBJS)

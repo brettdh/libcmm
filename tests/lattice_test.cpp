@@ -3,7 +3,9 @@
 #include <cppunit/extensions/HelperMacros.h>
 #include "lattice_test.h"
 #include <sstream>
-using std::ostringstream;
+#include <set>
+using std::ostringstream; using std::set;
+
 
 CPPUNIT_TEST_SUITE_REGISTRATION(LatticeTest);
 
@@ -41,7 +43,7 @@ LatticeTest::assert_insert(irob_id_t id, PendingIROB *pirob)
 }
 
 void
-LatticeTest::init_dep_matrix(bool dep_matrix[][])
+LatticeTest::init_dep_matrix(bool dep_matrix[10][10])
 {
     for (int i = 0; i < 10; i++) {
         for (int j = 0; j < 10; j++) {
@@ -131,11 +133,11 @@ void
 LatticeTest::assert_contents(const set<irob_id_t>& present_irobs,
                              const set<irob_id_t>& absent_irobs)
 {
-    for (irob_id_t::const_iterator it = present_irobs.begin();
+    for (irob_id_set::const_iterator it = present_irobs.begin();
          it != present_irobs.end(); ++it) {
         CPPUNIT_ASSERT(pirobs->find(*it));
     }
-    for (irob_id_t::const_iterator it = absent_irobs.begin();
+    for (irob_id_set::const_iterator it = absent_irobs.begin();
          it != absent_irobs.end(); ++it) {
         CPPUNIT_ASSERT(!pirobs->find(*it));
     }
@@ -145,9 +147,6 @@ void
 LatticeTest::testTransitiveDropIROB()
 {
     testLatticeStructure();
-    
-    bool dep_matrix[10][10];
-    init_dep_matrix(dep_matrix);
     
     // dep chain at this point:
     //     0    3   4   5   6   8   9
