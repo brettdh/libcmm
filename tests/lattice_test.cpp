@@ -19,11 +19,16 @@ LatticeTest::setUp()
     pirob_array[1] = new PendingIROB(1, 1, &id, 0, NULL, 0);
     pirob_array[2] = new PendingIROB(2, 1, &id, 0, NULL, 0);
     pirob_array[3] = new PendingIROB(3, 0, NULL, 0, NULL, 0);
+
+    // 'anonymous'; depends on all previous IROBs
     pirob_array[4] = new PendingIROB(4, 0, NULL, 20, new char[20], 0);
+
     pirob_array[5] = new PendingIROB(5, 0, NULL, 0, NULL, 0);
     pirob_array[6] = new PendingIROB(6, 0, NULL, 0, NULL, 0);
     id = 6;
     pirob_array[7] = new PendingIROB(7, 1, &id, 0, NULL, 0);
+
+    // 'anonymous'; depends on all previous IROBs
     pirob_array[8] = new PendingIROB(8, 0, NULL, 20, new char[20], 0);
     pirob_array[9] = new PendingIROB(9, 0, NULL, 20, new char[20], 0);
 }
@@ -148,56 +153,47 @@ LatticeTest::testTransitiveDropIROB()
 {
     testLatticeStructure();
     
-    // dep chain at this point:
-    //     0    3   4   5   6   8   9
-    //    / \               |
-    //   1   2              7
+    /* dep chain at this point:
+    //     0    3
+    //    / \   |
+    //   1   2  |
+    //    \ /  /
+    //     4 -
+    //     |\ 
+    //     5 6 -- 7
+    //     | |   /
+    //     \ | /
+    //       8
+    //       |
+    //       9
+    // 4, 8 and 9 are 'default' or 'anonymous' IROBs;
+    //  they are choke points.  They depend on all
+    //  previous IROBs, and all subsequent IROBs
+    //  depend on them.
+    */
 
     set<irob_id_t> present_irobs, absent_irobs;
     for (int i = 0; i < 10; ++i) {
         present_irobs.insert(i);
     }
     assert_contents(present_irobs, absent_irobs);
-
-    pirobs->drop_irob_and_dependents(0);
-    for (int i = 0; i <= 2; ++i) {
+    
+    pirobs->drop_irob_and_dependents(8);
+    for (int i = 8; i <= 9; ++i) {
         present_irobs.erase(i);
         absent_irobs.insert(i);
     }
     assert_contents(present_irobs, absent_irobs);
 
     pirobs->drop_irob_and_dependents(3);
-    present_irobs.erase(3);
-    absent_irobs.insert(3);
-    assert_contents(present_irobs, absent_irobs);
-
-    pirobs->drop_irob_and_dependents(6);
-    for (int i = 6; i <= 7; ++i) {
+    for (int i = 3; i <= 7; ++i) {
         present_irobs.erase(i);
         absent_irobs.insert(i);
     }
     assert_contents(present_irobs, absent_irobs);
 
-    // dep chain at this point:
-    //     4   5   8   9
-    
-    irob_id_t id = 9;
-    pirobs->insert(new PendingIROB(10, 1, &id, 0, NULL, 0));
-    id = 10;
-    pirobs->insert(new PendingIROB(11, 1, &id, 0, NULL, 0));
-    present_irobs.insert(10);
-    present_irobs.insert(11);
-    assert_contents(present_irobs, absent_irobs);
-
-    // dep chain at this point:
-    //     4   5   8   9
-    //                 |
-    //                 10
-    //                 |
-    //                 11
-
-    pirobs->drop_irob_and_dependents(9);
-    for (int i = 9; i <= 11; ++i) {
+    pirobs->drop_irob_and_dependents(0);
+    for (int i = 0; i <= 2; ++i) {
         present_irobs.erase(i);
         absent_irobs.insert(i);
     }

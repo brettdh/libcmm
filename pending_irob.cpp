@@ -5,10 +5,12 @@
 #include <functional>
 #include <vector>
 #include <deque>
+#include <iterator>
 using std::deque;
 using std::vector; using std::max;
 using std::mem_fun_ref;
 using std::bind1st; using std::copy;
+using std::insert_iterator;
 
 #include "pthread_util.h"
 
@@ -439,7 +441,7 @@ PendingIROBLattice::drop_irob_and_dependents(irob_id_t id)
         PendingIROBPtr pirob = find_locked(next_victim);
         if (pirob) {
             copy(pirob->dependents.begin(), pirob->dependents.end(),
-                 victims.end());
+                 insert_iterator<deque<irob_id_t> >(victims, victims.end()));
             erase_locked(next_victim);
         }
     }
