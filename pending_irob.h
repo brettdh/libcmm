@@ -28,6 +28,7 @@ struct ResumeOperation;
 typedef std::set<irob_id_t> irob_id_set;
 
 class PendingIROB;
+class PendingSenderIROB;
 typedef boost::shared_ptr<PendingIROB> PendingIROBPtr;
 
 class PendingIROB {
@@ -185,6 +186,10 @@ class PendingIROBLattice {
     void for_each_by_ref(Functor& f);
 
     std::vector<irob_id_t> get_all_ids();
+
+    // returns true if this IROB can't be delivered; e.g.
+    //  because it depends on an IROB that was dropped
+    bool irob_is_undeliverable(PendingSenderIROB *pirob);
     
   private:
     // must hold membership_lock
@@ -215,6 +220,10 @@ class PendingIROBLattice {
     /* In a sender, this means IROBs that have been sent and ACK'd.
      * In a receiver, this means IROBs that have been received by the app. */
     IntSet past_irobs;
+
+    // Only at the sender.  IROBs that were dropped due to an unsatisfiable
+    //  network restriction label.
+    IntSet dropped_irobs;
 
     /* 1) If pirob is anonymous, add deps on all pending IROBs.
      * 2) Otherwise, add deps on all pending anonymous IROBs.

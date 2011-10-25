@@ -9,6 +9,8 @@
 #include <arpa/inet.h>
 
 #include <libcmm.h>
+#include <libcmm_irob.h>
+#include <libcmm_private.h>
 
 CPPUNIT_TEST_SUITE_REGISTRATION(SocketAPITest);
 
@@ -94,5 +96,32 @@ SocketAPITest::testLabelsReturnedOnIROBBoundaries()
 
         rc = cmm_write(data_sock, &value, sizeof(value), CMM_LABEL_LARGE, NULL, NULL);
         CPPUNIT_ASSERT_EQUAL_MESSAGE("Sent data", (int) sizeof(value), rc);
+    }
+}
+
+
+void
+SocketAPITest::testDroppedIROBFailureCases()
+{
+    if (isReceiver()) {
+        char ch;
+        cmm_read(data_sock, &ch, 1, NULL);
+    } else {
+        irob_id_t irob = begin_irob(data_sock, 0, NULL, 0, NULL, NULL);
+        CPPUNIT_ASSERT(irob >= 0);
+        
+        CMM_PRIVATE_drop_irob_and_dependents(irob);
+        
+        int rc = irob_send(irob, "12345", 5, 0);
+        CPPUNIT_ASSERT_MESSAGE("Adding to a dropped IROB should fail", rc < 0);
+        // TODO: test for particular failure code
+
+        rc = begin_irob(data_sock, 1, &irob, 0, NULL, NULL);
+        CPPUNIT_ASSERT_MESSAGE("Creating an IROB that depends on a known-undelivered IROB should fail",
+                               rc < 0);
+        CPPUNIT_ASSERT_EQUAL_MESSAGE("begin_irob returns 'undeliverable' return code",
+                                     CMM_UNDELIVERABLE, rc);
+
+        cmm_write_with_deps(data_sock, "A", 1, 0, NULL, 0, NULL, NULL, NULL);
     }
 }

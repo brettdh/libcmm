@@ -443,6 +443,7 @@ PendingIROBLattice::drop_irob_and_dependents(irob_id_t id)
             copy(pirob->dependents.begin(), pirob->dependents.end(),
                  insert_iterator<deque<irob_id_t> >(victims, victims.end()));
             erase_locked(next_victim);
+            dropped_irobs.insert(next_victim);
         }
     }
 }
@@ -475,4 +476,16 @@ PendingIROBLattice::get_all_ids()
     GetIDs obj;
     for_each_by_ref(obj);
     return obj.ids;
+}
+
+bool
+PendingIROBLattice::irob_is_undeliverable(PendingSenderIROB *pirob)
+{
+    for (irob_id_set::const_iterator it = pirob->deps.begin();
+         it != pirob->deps.end(); ++it) {
+        if (dropped_irobs.contains(*it)) {
+            return true;
+        }
+    }
+    return false;
 }

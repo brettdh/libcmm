@@ -1,5 +1,7 @@
+#include "libcmm_private.h"
 #include "libcmm_irob.h"
 #include "cmm_socket.h"
+#include "cmm_socket.private.h"
 #include <errno.h>
 
 /* Begin an IROB on a multi-socket.  
@@ -116,4 +118,17 @@ int
 irob_relabel(irob_id_t irob_id, u_long new_labels)
 {
     return CMMSocket::lookup_by_irob(irob_id)->irob_relabel(irob_id, new_labels);
+}
+
+
+/* Private functions; only exported via private header. */
+
+void
+CMM_PRIVATE_drop_irob_and_dependents(irob_id_t irob)
+{
+    CMMSocketPtr sk(CMMSocket::lookup_by_irob(irob));
+    if (sk) {
+        CMMSocketImpl *skp = (CMMSocketImpl *) get_pointer(sk);
+        skp->drop_irob_and_dependents(irob);
+    }
 }

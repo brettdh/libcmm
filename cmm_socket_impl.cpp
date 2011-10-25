@@ -1927,9 +1927,12 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
                                                      0, NULL,
                                                      send_labels, 
                                                      resume_handler, rh_arg);
-
     {
         PthreadScopedLock lock(&scheduling_state_lock);
+
+        if (outgoing_irobs.irob_is_undeliverable(pirob)) {
+            return CMM_UNDELIVERABLE;
+        }
         
         bool success = outgoing_irobs.insert(pirob);
         ASSERT(success);
@@ -2075,12 +2078,12 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
         pirob = outgoing_irobs.find(id);
         if (!pirob) {
             dbgprintf("Tried to add to nonexistent IROB %ld\n", id);
-            throw CMMException();
+            return CMM_FAILED;
         }
         
         if (pirob->is_complete()) {
             dbgprintf("Tried to add to complete IROB %ld\n", id);
-            throw CMMException();
+            return CMM_FAILED;
         }
 
         psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
@@ -2685,4 +2688,12 @@ CMMSocketImpl::update_net_restriction_stats(int labels, size_t bytes_sent, size_
               sock, restriction_desc.c_str(), bytes_sent, bytes_recvd);
     dbgprintf("New totals for [%s] restriction: %zu sent  %zu recvd\n",
               restriction_desc.c_str(), stats.bytes_sent, stats.bytes_recvd);
+}
+
+void
+CMMSocketImpl::drop_irob_and_dependents(irob_id_t irob)
+{
+    // ONLY for testing.
+    PthreadScopedLock lock(&scheduling_state_lock);
+    outgoing_irobs.drop_irob_and_dependents(irob);
 }

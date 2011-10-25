@@ -129,6 +129,9 @@ class CMMSocketImpl : public CMMSocket {
     // cmm_close all remaining mc_sockets.
     static void cleanup();
 
+    // for testing only.
+    void drop_irob_and_dependents(irob_id_t irob);
+    
   private:
     // XXX: WHAT.  this is kind of silly.
     // TODO: refactor the boundaries between these classes

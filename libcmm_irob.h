@@ -42,6 +42,10 @@ typedef long irob_id_t;
 extern "C" {
 #endif
 
+/* return code for when a new IROB cannot be delivered because
+ * one or more of its dependencies was dropped. */
+#define CMM_UNDELIVERABLE -3
+
 /* Begin an IROB and return the new IROB id.
  * If deps is non-NULL, it should point to a depnum-sized array of
  * irob_id_t's, indicating which IROBs this IROB depends on.
