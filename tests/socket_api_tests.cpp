@@ -114,7 +114,8 @@ SocketAPITest::testDroppedIROBFailureCases()
         
         int rc = irob_send(irob, "12345", 5, 0);
         CPPUNIT_ASSERT_MESSAGE("Adding to a dropped IROB should fail", rc < 0);
-        // TODO: test for particular failure code
+        CPPUNIT_ASSERT_EQUAL_MESSAGE("irob_chunk returns 'undeliverable' return code",
+                                     CMM_UNDELIVERABLE, rc);
 
         rc = begin_irob(data_sock, 1, &irob, 0, NULL, NULL);
         CPPUNIT_ASSERT_MESSAGE("Creating an IROB that depends on a known-undelivered IROB should fail",

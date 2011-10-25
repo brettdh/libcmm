@@ -191,6 +191,8 @@ class PendingIROBLattice {
     //  because it depends on an IROB that was dropped
     bool irob_is_undeliverable(PendingSenderIROB *pirob);
     
+    bool irob_was_dropped(irob_id_t irob_id);
+    
   private:
     // must hold membership_lock
     bool insert_locked(PendingIROB *pirob, bool infer_deps = true);

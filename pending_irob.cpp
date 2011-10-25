@@ -483,9 +483,15 @@ PendingIROBLattice::irob_is_undeliverable(PendingSenderIROB *pirob)
 {
     for (irob_id_set::const_iterator it = pirob->deps.begin();
          it != pirob->deps.end(); ++it) {
-        if (dropped_irobs.contains(*it)) {
+        if (irob_was_dropped(*it)) {
             return true;
         }
     }
     return false;
+}
+
+bool
+PendingIROBLattice::irob_was_dropped(irob_id_t irob_id)
+{
+    return dropped_irobs.contains(irob_id);
 }

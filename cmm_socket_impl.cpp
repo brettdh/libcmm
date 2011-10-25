@@ -2077,8 +2077,13 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 
         pirob = outgoing_irobs.find(id);
         if (!pirob) {
-            dbgprintf("Tried to add to nonexistent IROB %ld\n", id);
-            return CMM_FAILED;
+            if (outgoing_irobs.irob_was_dropped(id)) {
+                dbgprintf("Tried to add to IROB %ld, but it was dropped\n", id);
+                return CMM_UNDELIVERABLE;
+            } else {
+                dbgprintf("Tried to add to nonexistent IROB %ld\n", id);
+                return CMM_FAILED;
+            }
         }
         
         if (pirob->is_complete()) {
