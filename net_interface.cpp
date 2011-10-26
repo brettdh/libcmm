@@ -37,6 +37,15 @@ bool network_fits_restriction(u_long labels,
     if (!has_network_restriction(labels)) {
         return true;
     }
+
+    char local_ip[16], remote_ip[16];
+    get_ip_string(local_iface.ip_addr, local_ip);
+    get_ip_string(remote_iface.ip_addr, remote_ip);
+    dbgprintf("Checking whether iface pair (%s -> %s) (%s (%d) -> %s (%d)) fits restrictions: %s\n",
+              local_ip, remote_ip, 
+              net_type_name(local_iface.type), local_iface.type,
+              net_type_name(remote_iface.type), remote_iface.type,
+              describe_network_restrictions(labels).c_str());
     
     // At least one of the network restriction labels has been set,
     //  but not all.
@@ -49,9 +58,6 @@ bool network_fits_restriction(u_long labels,
             continue;
         }
         if (!matches_type(type, local_iface, remote_iface)) {
-            char local_ip[16], remote_ip[16];
-            get_ip_string(local_iface.ip_addr, local_ip);
-            get_ip_string(remote_iface.ip_addr, remote_ip);
             dbgprintf("iface pair (%s -> %s) (%s (%d) -> %s (%d)) doesn't fit type %s\n",
                       local_ip, remote_ip, 
                       net_type_name(local_iface.type), local_iface.type,
@@ -60,10 +66,12 @@ bool network_fits_restriction(u_long labels,
 
             continue;
         }
+        dbgprintf("Iface pair fits restrictions.\n");
         return true;
     }
 
     // At this point, we know this network satisfies none of the
     //  network restrictions, so return false.
+    dbgprintf("Iface pair doesn't fit restrictions.\n");
     return false;
 }
