@@ -245,7 +245,9 @@ struct SatisfiesNetworkRestrictions {
     bool operator()(CSocketPtr csock) {
         // add the trouble-check to match the behavior of
         //  {new|connected}_csock_with_labels.
-        return (csock->fits_net_restriction(send_labels) && !csock->is_in_trouble());
+        return (csock->fits_net_restriction(send_labels) && 
+                (send_labels & CMM_LABEL_BACKGROUND || 
+                 !csock->is_in_trouble()));
     }
 };
 
@@ -549,6 +551,7 @@ CSockMapping::get_iface_pair_locked_internal(u_long send_label,
             }
             if (!existing_csock ||
                 !existing_csock->is_in_trouble() ||
+                send_label & CMM_LABEL_BACKGROUND || /* ignore trouble for BG data */
                 count() == 1) {
                 matcher.consider(*i, *j);
             } else {
@@ -622,13 +625,19 @@ CSockMapping::new_csock_with_labels(u_long send_label, bool grab_lock)
 int
 CSockMapping::get_csock(u_long send_labels, CSocket*& csock)
 {
-    struct net_interface local_dummy, remote_dummy;
-    if (get_iface_pair_locked(send_labels, local_dummy, remote_dummy)) {
+    struct net_interface local, remote;
+    // ignore trouble-check when picking a socket here;
+    //  if it's troubled, it'll hand off its data to another socket
+    //  (or drop it)
+    if (get_iface_pair_locked(send_labels, local, remote, true)) {
         // avoid using sockets that aren't yet connected; if connect() times out,
         //   it might take a long time to send anything
         csock = get_pointer(connected_csock_with_labels(send_labels, false));
         if (!csock) {
             csock = get_pointer(new_csock_with_labels(send_labels, false));
+        }
+        if (!csock) {
+            csock = get_pointer(csock_by_ifaces(local, remote));
         }
     } else {
         csock = NULL;

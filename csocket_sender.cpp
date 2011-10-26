@@ -185,19 +185,13 @@ CSocketSender::Run()
                 }
             }
 
-            bool not_sending_due_to_trouble = false;
-
-            // pthread_mutex_unlock(&sk->scheduling_state_lock);
-            // bool is_fg = csock->is_fg_ignore_trouble();
-            // pthread_mutex_lock(&sk->scheduling_state_lock);
-            if (/* is_fg && */ csock->is_in_trouble() &&
+            if (csock->is_in_trouble() &&
                 sk->csock_map->count() > 1) {
                 char local_ip[16], remote_ip[16];
                 get_ip_string(csock->local_iface.ip_addr, local_ip);
                 get_ip_string(csock->remote_iface.ip_addr, remote_ip);
-                dbgprintf("Network (%s -> %s) is in trouble; not trying to send anything\n",
+                dbgprintf("Network (%s -> %s) is in trouble; asking other senders to help\n",
                           local_ip, remote_ip);
-                not_sending_due_to_trouble = true;
 
                 // pass off my scheduling data while I'm troubled.
                 if (csock->irob_indexes.size() > 0) {
@@ -206,27 +200,32 @@ CSocketSender::Run()
 
                     pthread_cond_broadcast(&sk->scheduling_state_cv);
                 }
-            } else {
+            }
+            // Sending FG data will get redirected to a non-troubled sender
+            //  in delegate_if_necessary.
+            // I might still send some other things, such as BG data.
+            // if I do, other threads can work on sending my other items.
+            //   potentially: acks, resend requests, iface updates, etc.
+
+            if (schedule_work(csock->irob_indexes) ||
+                schedule_work(sk->irob_indexes)) {
+                continue;
+            }
+
+            bool dropped_lock = false;
+            if (!csock->is_busy()) {
+                pthread_mutex_unlock(&sk->scheduling_state_lock);
+                fire_thunks();
+                pthread_mutex_lock(&sk->scheduling_state_lock);
+                dropped_lock = true;
+            }
+
+            if (dropped_lock) {
+                // I dropped the lock, so I should re-check the 
+                // IROB scheduling indexes.
                 if (schedule_work(csock->irob_indexes) ||
                     schedule_work(sk->irob_indexes)) {
                     continue;
-                }
-
-                bool dropped_lock = false;
-                if (!csock->is_busy()) {
-                    pthread_mutex_unlock(&sk->scheduling_state_lock);
-                    fire_thunks();
-                    pthread_mutex_lock(&sk->scheduling_state_lock);
-                    dropped_lock = true;
-                }
-
-                if (dropped_lock) {
-                    // I dropped the lock, so I should re-check the 
-                    // IROB scheduling indexes.
-                    if (schedule_work(csock->irob_indexes) ||
-                        schedule_work(sk->irob_indexes)) {
-                        continue;
-                    }
                 }
             }
             
@@ -239,12 +238,6 @@ CSocketSender::Run()
                 dbgprintf("Data in flight; trouble-check timeout in %lu.%09lu sec\n",
                           inflight.rel_trouble_timeout.tv_sec,
                           inflight.rel_trouble_timeout.tv_nsec);
-            } else if (not_sending_due_to_trouble) {
-                struct timespec rel_trouble_timeout = csock->trouble_check_timeout();
-                timeout = abs_time(rel_trouble_timeout);
-                dbgprintf("Not sending due to trouble; timeout in %lu.%09lu sec\n", 
-                          rel_trouble_timeout.tv_sec, 
-                          rel_trouble_timeout.tv_nsec);
             }
             
             if (trickle_timeout.tv_sec > 0) {
