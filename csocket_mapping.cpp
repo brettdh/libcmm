@@ -239,6 +239,20 @@ CSockMapping::get_idle_csock(bool grab_lock_first)
 }
 
 
+struct SatisfiesNetworkRestrictions {
+    u_long send_labels;
+    SatisfiesNetworkRestrictions(u_long send_labels_) : send_labels(send_labels_) {}
+    bool operator()(CSocketPtr csock) {
+        return csock->fits_net_restriction(send_labels);
+    }
+};
+
+bool
+CSockMapping::can_satisfy_network_restrictions(u_long send_labels)
+{
+    return find_csock(SatisfiesNetworkRestrictions(send_labels));
+}
+
 struct IfaceMatcher {
     struct net_interface local_iface;
     struct net_interface remote_iface;

@@ -1851,6 +1851,10 @@ CMMSocketImpl::get_csock(u_long send_labels,
         }
 
         if (!csock) {
+            if (!csock_map->can_satisfy_network_restrictions(send_labels)) {
+                return CMM_UNDELIVERABLE;
+            }
+            
             if (resume_handler) {
                 enqueue_handler(sock, send_labels, 
                                 resume_handler, rh_arg);
@@ -2237,7 +2241,7 @@ CMMSocketImpl::validate_default_irob(u_long send_labels,
     }
 
     // checking for thunking here makes sense too; it's separate
-    //  from the begin->chunk->ehd function flow.
+    //  from the begin->chunk->end function flow.
     int ret = get_csock(send_labels, resume_handler, rh_arg, csock, true);
     if (ret < 0) {
         return ret;

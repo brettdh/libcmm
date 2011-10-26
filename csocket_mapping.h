@@ -55,6 +55,8 @@ class CSockMapping {
     size_t count_locked();
     bool empty();
     
+    bool can_satisfy_network_restrictions(u_long send_labels);
+
     void add_connection(int sock, 
                         struct in_addr local_addr,
                         struct net_interface remote_iface);
