@@ -1839,20 +1839,21 @@ CMMSocketImpl::get_csock(u_long send_labels,
                          CSocket *& csock, bool blocking)
 {
     try {
-        if (net_available(send_labels)) {
-            // avoid using sockets that aren't yet connected; if connect() times out,
-            //   it might take a long time to send anything
-            csock = get_pointer(csock_map->connected_csock_with_labels(send_labels, false));
-            if (!csock) {
-                csock = get_pointer(csock_map->new_csock_with_labels(send_labels, false));
-            }
-        } else {
-            csock = NULL;
-        }
-
+        // if (net_available(send_labels)) {
+        //     // avoid using sockets that aren't yet connected; if connect() times out,
+        //     //   it might take a long time to send anything
+        //     csock = get_pointer(csock_map->connected_csock_with_labels(send_labels, false));
+        //     if (!csock) {
+        //         csock = get_pointer(csock_map->new_csock_with_labels(send_labels, false));
+        //     }
+        // } else {
+        //     csock = NULL;
+        // }
+        csock = NULL;
+        int rc = csock_map->get_csock(send_labels, csock);
         if (!csock) {
-            if (!csock_map->can_satisfy_network_restrictions(send_labels)) {
-                return CMM_UNDELIVERABLE;
+            if (rc == CMM_UNDELIVERABLE) {
+                return rc;
             }
             
             if (resume_handler) {

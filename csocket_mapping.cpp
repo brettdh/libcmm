@@ -243,7 +243,9 @@ struct SatisfiesNetworkRestrictions {
     u_long send_labels;
     SatisfiesNetworkRestrictions(u_long send_labels_) : send_labels(send_labels_) {}
     bool operator()(CSocketPtr csock) {
-        return csock->fits_net_restriction(send_labels);
+        // add the trouble-check to match the behavior of
+        //  {new|connected}_csock_with_labels.
+        return (csock->fits_net_restriction(send_labels) && !csock->is_in_trouble());
     }
 };
 
@@ -615,6 +617,32 @@ CSockMapping::new_csock_with_labels(u_long send_label, bool grab_lock)
     }
 
     return make_new_csocket(local_iface, remote_iface);
+}
+
+int
+CSockMapping::get_csock(u_long send_labels, CSocket*& csock)
+{
+    struct net_interface local_dummy, remote_dummy;
+    if (get_iface_pair_locked(send_labels, local_dummy, remote_dummy)) {
+        // avoid using sockets that aren't yet connected; if connect() times out,
+        //   it might take a long time to send anything
+        csock = get_pointer(connected_csock_with_labels(send_labels, false));
+        if (!csock) {
+            csock = get_pointer(new_csock_with_labels(send_labels, false));
+        }
+    } else {
+        csock = NULL;
+    }
+    
+    if (!csock) {
+        if (!can_satisfy_network_restrictions(send_labels)) {
+            return CMM_UNDELIVERABLE;
+        } else {
+            return CMM_FAILED;
+        }
+    } else {
+        return 0;
+    }
 }
 
 void 
