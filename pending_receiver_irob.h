@@ -46,9 +46,12 @@ class PendingReceiverIROB : public PendingIROB {
     //  will know which seqnos haven't been received.
     bool finish(ssize_t expected_bytes, int num_chunks);
 
-    /* Read the next len bytes into buf. 
-     * After this call, the first len bytes cannot be re-read. */
+    /* Read the next len bytes into buf, but don't remove them. */
     ssize_t read_data(void *buf, size_t len);
+    
+    /* Remove the first len bytes from the IROB.
+     * After this call, the first len bytes cannot be re-read. */
+    void remove_bytes(size_t len);
 
     ssize_t numbytes();
     ssize_t recvdbytes();

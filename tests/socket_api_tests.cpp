@@ -12,6 +12,9 @@
 #include <libcmm_irob.h>
 #include <libcmm_private.h>
 
+#include <string>
+using std::string;
+
 CPPUNIT_TEST_SUITE_REGISTRATION(SocketAPITest);
 
 void
@@ -124,5 +127,34 @@ SocketAPITest::testDroppedIROBFailureCases()
                                      CMM_UNDELIVERABLE, rc);
 
         cmm_write_with_deps(data_sock, "A", 1, 0, NULL, 0, NULL, NULL, NULL);
+    }
+}
+
+void
+SocketAPITest::testPeek()
+{
+    const char msg[] = "This is the message.";
+    size_t len = sizeof(msg);
+    
+    if (isReceiver()) {
+        char buf[50];
+        
+        sleep(1);
+        int rc;
+
+        for (int i = 0; i < 5; ++i) {
+            rc = cmm_recv(data_sock, buf, 5, MSG_PEEK, NULL);
+            CPPUNIT_ASSERT_EQUAL(5, rc);
+            buf[rc]= '\0';
+            CPPUNIT_ASSERT_EQUAL(string(msg, 5), string(buf));
+        }
+
+        rc = cmm_recv(data_sock, buf, len, MSG_WAITALL, NULL);
+        CPPUNIT_ASSERT_EQUAL((int) len, rc);
+        buf[rc]= '\0';
+        CPPUNIT_ASSERT_EQUAL(string(msg), string(buf));
+    } else {
+        int rc = cmm_write(data_sock, msg, len, 0, NULL, NULL);
+        CPPUNIT_ASSERT_EQUAL((int) len, rc);
     }
 }

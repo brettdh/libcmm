@@ -9,6 +9,7 @@ class SocketAPITest : public EndToEndTestsForked {
     //CPPUNIT_TEST(testBuffers);
     CPPUNIT_TEST(testLabelsReturnedOnIROBBoundaries);
     CPPUNIT_TEST(testDroppedIROBFailureCases);
+    CPPUNIT_TEST(testPeek);
     CPPUNIT_TEST_SUITE_END();  
 
     void setOpt(int sock, int opt);
@@ -21,6 +22,7 @@ class SocketAPITest : public EndToEndTestsForked {
     void testBuffers();
     void testLabelsReturnedOnIROBBoundaries();
     void testDroppedIROBFailureCases();
+    void testPeek();
 };
 
 #endif

@@ -250,6 +250,39 @@ PendingReceiverIROB::read_data(void *buf, size_t len)
         ssize_t bytes = min(len, partial_chunk.datalen - offset);
         ASSERT(bytes > 0);
         memcpy(buf, partial_chunk.data + offset, bytes);
+        len -= bytes;
+        bytes_copied += bytes;
+    }
+
+    /* if len == 0 here, we'll skip the loop */
+    size_t i = 0;
+    while (len > 0 && i < chunks.size()) {
+        const struct irob_chunk_data& chunk = chunks[i];
+
+        dbgprintf("Copying from chunk: datalen=%d, data=%p\n", 
+                  chunk.datalen, chunk.data);
+
+        ssize_t bytes = min(len, chunk.datalen);
+        memcpy((char*)buf + bytes_copied, chunk.data, bytes);
+        bytes_copied += bytes;
+        len -= bytes;
+        dbgprintf("Read %d bytes; %d bytes remaining in request\n",
+                  (int)bytes, len);
+        ++i;
+    }
+    dbgprintf("Copied %d bytes from IROB %ld\n", (int)bytes_copied, id);
+    return bytes_copied;
+}
+
+void
+PendingReceiverIROB::remove_bytes(size_t len)
+{
+    ssize_t bytes_removed = 0;
+
+    dbgprintf("Removing %zu bytes from irob %ld\n", len, id);
+    if (partial_chunk.data) {
+        ssize_t bytes = min(len, partial_chunk.datalen - offset);
+        ASSERT(bytes > 0);
         if (len >= (partial_chunk.datalen - offset)) {
             delete [] partial_chunk.data;
             partial_chunk.data = NULL;
@@ -259,7 +292,7 @@ PendingReceiverIROB::read_data(void *buf, size_t len)
             offset += bytes;
         }
         len -= bytes;
-        bytes_copied += bytes;
+        bytes_removed += bytes;
     }
 
     /* if len == 0 here, we'll skip the loop */
@@ -267,12 +300,8 @@ PendingReceiverIROB::read_data(void *buf, size_t len)
         struct irob_chunk_data chunk = chunks.front();
         chunks.pop_front();
 
-        dbgprintf("Copying from chunk: datalen=%d, data=%p\n", 
-                  chunk.datalen, chunk.data);
-
         ssize_t bytes = min(len, chunk.datalen);
-        memcpy((char*)buf + bytes_copied, chunk.data, bytes);
-        bytes_copied += bytes;
+        bytes_removed += bytes;
         if (chunk.datalen > len) {
             offset = bytes;
             partial_chunk = chunk;
@@ -280,12 +309,10 @@ PendingReceiverIROB::read_data(void *buf, size_t len)
             delete [] chunk.data;
         }
         len -= bytes;
-        dbgprintf("Read %d bytes; %d bytes remaining in request\n",
+        dbgprintf("Removed %d bytes; %d bytes remaining in request\n",
                   (int)bytes, len);
     }
-    num_bytes -= bytes_copied;
-    dbgprintf("Copied %d bytes from IROB %ld\n", (int)bytes_copied, id);
-    return bytes_copied;
+    num_bytes -= bytes_removed;
 }
 
 ssize_t 
@@ -513,8 +540,12 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
 #endif
         }
 
-        bytes_passed += pirob->read_data(buf + bytes_passed,
-                                         len - bytes_passed);
+        ssize_t bytes_copied = pirob->read_data(buf + bytes_passed,
+                                                len - bytes_passed);
+        bytes_passed += bytes_copied;
+        if ((flags & MSG_PEEK) == 0) {
+            pirob->remove_bytes(bytes_copied);
+        }
         if (pirob->is_complete() && pirob->numbytes() == 0) {
             erase(pirob->id, true);
             release_dependents(pirob, ReadyIROB());
