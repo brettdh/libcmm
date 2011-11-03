@@ -5,7 +5,7 @@
 #include <sstream>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include "libcmm_net_preference.h"
+#include "libcmm_net_restriction.h"
 
 #include <iomanip>
 using std::setfill; using std::setw;
@@ -75,12 +75,12 @@ CMMSocketControlHdr::labels_str() const
         h_labels = modify_bits_string(h_labels, label_mask, strs[i], msg);
     }
     
-    static const char *net_pref_strs[] = {
-        "PREFER_WIFI", "PREFER_3G"
+    static const char *net_restriction_strs[] = {
+        "WIFI_ONLY", "3G_ONLY"
     };
     for (int i = 0; i < 2; ++i) {
-        int label_mask = 1 << (NET_PREF_LABEL_SHIFT + i);
-        h_labels = modify_bits_string(h_labels, label_mask, net_pref_strs[i], msg);
+        int label_mask = 1 << (NET_RESTRICTION_LABEL_SHIFT + i);
+        h_labels = modify_bits_string(h_labels, label_mask, net_restriction_strs[i], msg);
     }
     return msg.str();
 }

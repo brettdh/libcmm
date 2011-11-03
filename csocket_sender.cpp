@@ -32,7 +32,7 @@ using std::vector; using std::max; using std::min;
 #include "cmm_timing.h"
 #include "libcmm_shmem.h"
 #include "common.h"
-#include "libcmm_net_preference.h"
+#include "libcmm_net_restriction.h"
 
 // easy handle to enable/disable striping.
 static bool striping = true;
@@ -185,19 +185,13 @@ CSocketSender::Run()
                 }
             }
 
-            bool not_sending_due_to_trouble = false;
-
-            // pthread_mutex_unlock(&sk->scheduling_state_lock);
-            // bool is_fg = csock->is_fg_ignore_trouble();
-            // pthread_mutex_lock(&sk->scheduling_state_lock);
-            if (/* is_fg && */ csock->is_in_trouble() &&
+            if (csock->is_in_trouble() &&
                 sk->csock_map->count() > 1) {
                 char local_ip[16], remote_ip[16];
                 get_ip_string(csock->local_iface.ip_addr, local_ip);
                 get_ip_string(csock->remote_iface.ip_addr, remote_ip);
-                dbgprintf("Network (%s -> %s) is in trouble; not trying to send anything\n",
+                dbgprintf("Network (%s -> %s) is in trouble; asking other senders to help\n",
                           local_ip, remote_ip);
-                not_sending_due_to_trouble = true;
 
                 // pass off my scheduling data while I'm troubled.
                 if (csock->irob_indexes.size() > 0) {
@@ -206,27 +200,32 @@ CSocketSender::Run()
 
                     pthread_cond_broadcast(&sk->scheduling_state_cv);
                 }
-            } else {
+            }
+            // Sending FG data will get redirected to a non-troubled sender
+            //  in delegate_if_necessary.
+            // I might still send some other things, such as BG data.
+            // if I do, other threads can work on sending my other items.
+            //   potentially: acks, resend requests, iface updates, etc.
+
+            if (schedule_work(csock->irob_indexes) ||
+                schedule_work(sk->irob_indexes)) {
+                continue;
+            }
+
+            bool dropped_lock = false;
+            if (!csock->is_busy()) {
+                pthread_mutex_unlock(&sk->scheduling_state_lock);
+                fire_thunks();
+                pthread_mutex_lock(&sk->scheduling_state_lock);
+                dropped_lock = true;
+            }
+
+            if (dropped_lock) {
+                // I dropped the lock, so I should re-check the 
+                // IROB scheduling indexes.
                 if (schedule_work(csock->irob_indexes) ||
                     schedule_work(sk->irob_indexes)) {
                     continue;
-                }
-
-                bool dropped_lock = false;
-                if (!csock->is_busy()) {
-                    pthread_mutex_unlock(&sk->scheduling_state_lock);
-                    fire_thunks();
-                    pthread_mutex_lock(&sk->scheduling_state_lock);
-                    dropped_lock = true;
-                }
-
-                if (dropped_lock) {
-                    // I dropped the lock, so I should re-check the 
-                    // IROB scheduling indexes.
-                    if (schedule_work(csock->irob_indexes) ||
-                        schedule_work(sk->irob_indexes)) {
-                        continue;
-                    }
                 }
             }
             
@@ -239,12 +238,6 @@ CSocketSender::Run()
                 dbgprintf("Data in flight; trouble-check timeout in %lu.%09lu sec\n",
                           inflight.rel_trouble_timeout.tv_sec,
                           inflight.rel_trouble_timeout.tv_nsec);
-            } else if (not_sending_due_to_trouble) {
-                struct timespec rel_trouble_timeout = csock->trouble_check_timeout();
-                timeout = abs_time(rel_trouble_timeout);
-                dbgprintf("Not sending due to trouble; timeout in %lu.%09lu sec\n", 
-                          rel_trouble_timeout.tv_sec, 
-                          rel_trouble_timeout.tv_nsec);
             }
             
             if (trickle_timeout.tv_sec > 0) {
@@ -570,6 +563,27 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
     ASSERT(psirob);
 
     if (!match) {
+        if (!csock->fits_net_restriction(send_labels)) {
+            // no network is available that meets these restrictions.
+            dbgprintf("Can't satisfy network restrictions (%s) for "
+                      "IROB %ld, so I'm dropping it\n",
+                      describe_network_restrictions(send_labels).c_str(),
+                      pirob->id);
+            
+            pirob->status = CMM_FAILED;
+            if (pirob->complete) {
+                // no more application calls coming for this IROB;
+                //   it can safely be forgotten
+                sk->outgoing_irobs.drop_irob_and_dependents(pirob->id);
+                pirob.reset();
+            } // else: mc_end_irob hasn't returned yet; it will clean up
+            
+            return true;
+        }
+
+        // if this csocket fits the network restrictions, we might want to
+        //  send data even though it's not the best network.
+
         if (send_labels & CMM_LABEL_BACKGROUND) {
             // No actual background network, so let's trickle 
             // on the available network
@@ -590,7 +604,7 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
                                 pirob->send_labels, 
                                 (resume_handler_t)resume_operation_thunk,
                                 new ResumeOperation(sk, data));
-                pirob->status = CMM_FAILED; // really "blocking"
+                pirob->status = CMM_BLOCKING;
             }
         } else {
             /* no way to tell the application that we failed to send
@@ -599,8 +613,7 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
              */
             dbgprintf("Warning: silently dropping IROB %ld after failing to send it.\n",
                       pirob->id);
-            sk->outgoing_irobs.erase(pirob->id);
-            //delete pirob; // smart ptr will clean up
+            sk->outgoing_irobs.drop_irob_and_dependents(pirob->id);
             pirob.reset();
         }
         return true;
@@ -619,7 +632,7 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
             } else {
                 match->irob_indexes.new_chunks.insert(data);
                 if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND &&
-                    !has_network_preference(psirob->send_labels)) {
+                    !has_network_restriction(psirob->send_labels)) {
                     //  Try to send this chunk in parallel
                     ret = false;
                 }
@@ -816,7 +829,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
             chunk_hdr.op.irob_chunk.data = NULL;
             count++;
 
-            csock->update_net_pref_stats(pirob->send_labels, chunksize, 0);
+            csock->update_net_restriction_stats(pirob->send_labels, chunksize, 0);
 
             // begin_irob hdr, deps array, irob_chunk hdr, data, end_irob hdr
             vecs_to_send = new struct iovec[2 + 1 + irob_vecs.size() + 1];
@@ -1074,14 +1087,14 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND &&
-        !has_network_preference(psirob->send_labels) &&
+        !has_network_restriction(psirob->send_labels) &&
         sk->csock_map->count() > 1) {
         // let other threads try to send this chunk too
         sk->irob_indexes.new_chunks.insert(data);
         pthread_cond_broadcast(&sk->scheduling_state_cv);
     }
 
-    csock->update_net_pref_stats(psirob->send_labels, chunksize, 0);
+    csock->update_net_restriction_stats(psirob->send_labels, chunksize, 0);
     
     if (data.send_labels & CMM_LABEL_ONDEMAND) {
         sk->update_last_fg();
@@ -1162,7 +1175,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
 
         // more chunks to send, potentially, so make sure someone sends them.
         if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND &&
-            !has_network_preference(psirob->send_labels) &&
+            !has_network_restriction(psirob->send_labels) &&
             sk->csock_map->count() > 1) {
             // already inserted it into sk->irob_indexes.new_chunks,
             //  letting another thread try to jump in.

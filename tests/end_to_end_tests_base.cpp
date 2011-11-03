@@ -13,6 +13,7 @@
 #include <assert.h>
 #include <libcmm.h>
 #include <libcmm_irob.h>
+#include <libcmm_net_restriction.h>
 #include <openssl/sha.h>
 #include <sys/stat.h>
 #include <fcntl.h>

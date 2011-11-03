@@ -36,6 +36,14 @@ class CSockMapping {
     CSocketPtr csock_with_labels(u_long send_label);
     CSocketPtr connected_csock_with_labels(u_long send_label, bool locked=true);
     CSocketPtr new_csock_with_labels(u_long send_label, bool locked=true);
+
+    // tries to get a CSocket suitable for the given labels.
+    //  prefers connected csocks, but will create a new one if necessary.
+    // returns 0 on success.  On failure,
+    //  returns CMM_UNDELIVERABLE if the labels contain an unsatisfiable 
+    //  network restriction, or CMM_FAILED otherwise.
+    int get_csock(u_long send_label, CSocket*& csock);
+
     void remove_csock(CSocketPtr csock); // only removes, doesn't delete
 
     CSocketPtr get_idle_csock(bool grab_lock=true);
@@ -55,6 +63,8 @@ class CSockMapping {
     size_t count_locked();
     bool empty();
     
+    bool can_satisfy_network_restrictions(u_long send_labels);
+
     void add_connection(int sock, 
                         struct in_addr local_addr,
                         struct net_interface remote_iface);

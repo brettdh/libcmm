@@ -94,6 +94,13 @@ class CSocket {
 
     struct net_interface bottleneck_iface();
 
+    bool fits_net_restriction(u_long labels);
+
+    // returns true iff FG traffic shouldn't be sent on this network
+    //  because we think it might be disconnected, but
+    //  we haven't been notified as such by the scout yet.
+    bool is_in_trouble();
+    
   private:
     // only allow shared_ptr creation
     CSocket(boost::weak_ptr<CMMSocketImpl> sk_, 
@@ -129,11 +136,6 @@ class CSocket {
     // to distinguish between connecting and accepting sockets
     bool accepting;
     
-    // returns true iff FG traffic shouldn't be sent on this network
-    //  because we think it might be disconnected, but
-    //  we haven't been notified as such by the scout yet.
-    bool is_in_trouble();
-    
     // return true if this CSocket's TCP connection has
     //  unACKed bytes in flight.
     bool data_inflight();
@@ -154,7 +156,7 @@ class CSocket {
     bool busy;
 
     // must hold sk->scheduling_state_lock.
-    void update_net_pref_stats(int labels, size_t bytes_sent, size_t bytes_recvd);
+    void update_net_restriction_stats(u_long labels, size_t bytes_sent, size_t bytes_recvd);
 #endif // ifndef CMM_UNIT_TESTING
 };
 

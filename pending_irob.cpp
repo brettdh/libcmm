@@ -5,10 +5,12 @@
 #include <functional>
 #include <vector>
 #include <deque>
+#include <iterator>
 using std::deque;
 using std::vector; using std::max;
 using std::mem_fun_ref;
-using std::bind1st;
+using std::bind1st; using std::copy;
+using std::insert_iterator;
 
 #include "pthread_util.h"
 
@@ -373,6 +375,12 @@ PendingIROBLattice::erase(irob_id_t id, bool at_receiver)
 {
     PthreadScopedLock lock(&membership_lock);
 
+    return erase_locked(id, at_receiver);
+}
+
+bool
+PendingIROBLattice::erase_locked(irob_id_t id, bool at_receiver)
+{
     //TimeFunctionBody timer("pending_irobs.erase(const_accessor)");
     int index = id - offset;
     if (index < 0 || index >= (int)pending_irobs.size() ||
@@ -414,6 +422,32 @@ PendingIROBLattice::erase(irob_id_t id, bool at_receiver)
     return true;
 }
 
+// only call this at the sender.
+void
+PendingIROBLattice::drop_irob_and_dependents(irob_id_t id)
+{
+    dbgprintf("Dropping IROB %ld and all of its dependents\n", id);
+
+    PthreadScopedLock lock(&membership_lock);
+    
+    // BFS through the IROB dependency chain and remove them all
+    deque<irob_id_t> victims;
+    victims.push_back(id);
+    
+    while (!victims.empty()) {
+        irob_id_t next_victim = victims.front();
+        victims.pop_front();
+        
+        PendingIROBPtr pirob = find_locked(next_victim);
+        if (pirob) {
+            copy(pirob->dependents.begin(), pirob->dependents.end(),
+                 insert_iterator<deque<irob_id_t> >(victims, victims.end()));
+            erase_locked(next_victim);
+            dropped_irobs.insert(next_victim);
+        }
+    }
+}
+
 bool 
 PendingIROBLattice::past_irob_exists(irob_id_t id)
 {
@@ -442,4 +476,22 @@ PendingIROBLattice::get_all_ids()
     GetIDs obj;
     for_each_by_ref(obj);
     return obj.ids;
+}
+
+bool
+PendingIROBLattice::irob_is_undeliverable(PendingSenderIROB *pirob)
+{
+    for (irob_id_set::const_iterator it = pirob->deps.begin();
+         it != pirob->deps.end(); ++it) {
+        if (irob_was_dropped(*it)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool
+PendingIROBLattice::irob_was_dropped(irob_id_t irob_id)
+{
+    return dropped_irobs.contains(irob_id);
 }

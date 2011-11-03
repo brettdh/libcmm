@@ -15,7 +15,7 @@ using std::ptr_fun;
 using std::make_pair;
 
 #include "cmm_socket.private.h"
-#include "libcmm_net_preference.h"
+#include "libcmm_net_restriction.h"
 
 using std::auto_ptr;
 using std::pair;
@@ -239,6 +239,24 @@ CSockMapping::get_idle_csock(bool grab_lock_first)
 }
 
 
+struct SatisfiesNetworkRestrictions {
+    u_long send_labels;
+    SatisfiesNetworkRestrictions(u_long send_labels_) : send_labels(send_labels_) {}
+    bool operator()(CSocketPtr csock) {
+        // add the trouble-check to match the behavior of
+        //  {new|connected}_csock_with_labels.
+        return (csock->fits_net_restriction(send_labels) && 
+                (send_labels & CMM_LABEL_BACKGROUND || 
+                 !csock->is_in_trouble()));
+    }
+};
+
+bool
+CSockMapping::can_satisfy_network_restrictions(u_long send_labels)
+{
+    return find_csock(SatisfiesNetworkRestrictions(send_labels));
+}
+
 struct IfaceMatcher {
     struct net_interface local_iface;
     struct net_interface remote_iface;
@@ -314,11 +332,11 @@ struct LabelMatcher {
         // we have a match after we've considered at least one.
         has_match = true;
 
-        if (!has_wifi_match || matches_type(NET_TYPE_WIFI, local_iface, remote_iface)) {
+        if (matches_type(NET_TYPE_WIFI, local_iface, remote_iface)) {
             wifi_pair = make_pair(local_iface, remote_iface);
             has_wifi_match = true;
         }
-        if (!has_threeg_match || matches_type(NET_TYPE_THREEG, local_iface, remote_iface)) {
+        if (matches_type(NET_TYPE_THREEG, local_iface, remote_iface)) {
             threeg_pair = make_pair(local_iface, remote_iface);
             has_threeg_match = true;
         }
@@ -332,17 +350,25 @@ struct LabelMatcher {
             return false;
         }
 
-        // first, check net type preference labels, since they take precedence
-        if (send_label & CMM_LABEL_WIFI_PREFERRED) {
+        // first, check net type restriction labels, since they take precedence
+        if (send_label & CMM_LABEL_WIFI_ONLY) {
+            if (!has_wifi_match) {
+                return false;
+            }
+
             local_iface = wifi_pair.first;
             remote_iface = wifi_pair.second;
             return true;
-        } else if (send_label & CMM_LABEL_THREEG_PREFERRED) {
+        } else if (send_label & CMM_LABEL_THREEG_ONLY) {
+            if (!has_threeg_match) {
+                return false;
+            }
+
             local_iface = threeg_pair.first;
             remote_iface = threeg_pair.second;
             return true;
         }
-        // else: no net type preference; carry on with other label matching
+        // else: no net type restriction; carry on with other label matching
 
         const u_long LABELMASK_FGBG = CMM_LABEL_ONDEMAND | CMM_LABEL_BACKGROUND;
 
@@ -415,8 +441,11 @@ CSockMapping::connected_csock_with_labels(u_long send_label, bool locked)
         // no connected csocks
         return CSocketPtr();
     } else {
-        matcher.pick_label_match(send_label, iface_pair.first, iface_pair.second);
-        return lookup[iface_pair];
+        if (matcher.pick_label_match(send_label, iface_pair.first, iface_pair.second)) {
+            return lookup[iface_pair];
+        } else {
+            return CSocketPtr();
+        }
     }
 }
 
@@ -522,6 +551,7 @@ CSockMapping::get_iface_pair_locked_internal(u_long send_label,
             }
             if (!existing_csock ||
                 !existing_csock->is_in_trouble() ||
+                send_label & CMM_LABEL_BACKGROUND || /* ignore trouble for BG data */
                 count() == 1) {
                 matcher.consider(*i, *j);
             } else {
@@ -590,6 +620,38 @@ CSockMapping::new_csock_with_labels(u_long send_label, bool grab_lock)
     }
 
     return make_new_csocket(local_iface, remote_iface);
+}
+
+int
+CSockMapping::get_csock(u_long send_labels, CSocket*& csock)
+{
+    struct net_interface local, remote;
+    // ignore trouble-check when picking a socket here;
+    //  if it's troubled, it'll hand off its data to another socket
+    //  (or drop it)
+    if (get_iface_pair_locked(send_labels, local, remote, true)) {
+        // avoid using sockets that aren't yet connected; if connect() times out,
+        //   it might take a long time to send anything
+        csock = get_pointer(connected_csock_with_labels(send_labels, false));
+        if (!csock) {
+            csock = get_pointer(new_csock_with_labels(send_labels, false));
+        }
+        if (!csock) {
+            csock = get_pointer(csock_by_ifaces(local, remote));
+        }
+    } else {
+        csock = NULL;
+    }
+    
+    if (!csock) {
+        if (!can_satisfy_network_restrictions(send_labels)) {
+            return CMM_UNDELIVERABLE;
+        } else {
+            return CMM_FAILED;
+        }
+    } else {
+        return 0;
+    }
 }
 
 void 

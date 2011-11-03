@@ -632,12 +632,20 @@ CSocket::bottleneck_iface()
     }
 }
 
+bool
+CSocket::fits_net_restriction(u_long labels)
+{
+    return network_fits_restriction(labels, local_iface, remote_iface);
+}
+
 // must hold sk->scheduling_state_lock.
 void
-CSocket::update_net_pref_stats(int labels, size_t bytes_sent, size_t bytes_recvd)
+CSocket::update_net_restriction_stats(u_long labels, size_t bytes_sent, size_t bytes_recvd)
 {
-    if (!network_fits_preference(labels, local_iface, remote_iface)) {
-        sk->update_net_pref_stats(labels, bytes_sent, bytes_recvd);
+    if (!fits_net_restriction(labels)) {
+        // should never happen; if unable to respect network restriction,
+        //  the sending of that IROB should just fail.
+        sk->update_net_restriction_stats(labels, bytes_sent, bytes_recvd);
     }
 }
 #endif

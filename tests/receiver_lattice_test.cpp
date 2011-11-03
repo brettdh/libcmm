@@ -73,8 +73,8 @@ ReceiverLatticeTest::testMultiIROBReceive()
 
     int buf[4];
     u_long labels = 42;
-    ssize_t rc = pirobs->recv((void*)buf, sizeof(int) * 4, 0, &labels);
-    CPPUNIT_ASSERT(rc == sizeof(int) * 4);
+    ssize_t rc = pirobs->recv((void*)buf, sizeof(int) * 4, MSG_WAITALL, &labels);
+    CPPUNIT_ASSERT_EQUAL((int)(sizeof(int) * 4), rc);
     CPPUNIT_ASSERT(labels == 0);
     for (int i = 0; i < 4; i++) {
         CPPUNIT_ASSERT(buf[i] == i);

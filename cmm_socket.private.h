@@ -21,6 +21,12 @@
 struct BlockingRequest;
 struct ResumeOperation;
 
+/* only used internally, to mark an IROB that
+   is waiting for a suitable network, but has no thunk. 
+   Shouldn't really happen, but a future label could conceivably 
+   necessitate this behavior. */
+#define CMM_BLOCKING -3
+
 class CMMSocketImpl;
 typedef boost::shared_ptr<CMMSocketImpl> CMMSocketImplPtr;
 
@@ -123,6 +129,9 @@ class CMMSocketImpl : public CMMSocket {
     // cmm_close all remaining mc_sockets.
     static void cleanup();
 
+    // for testing only.
+    void drop_irob_and_dependents(irob_id_t irob);
+    
   private:
     // XXX: WHAT.  this is kind of silly.
     // TODO: refactor the boundaries between these classes
@@ -353,15 +362,15 @@ class CMMSocketImpl : public CMMSocket {
     };
     static static_destroyer destroyer;
 
-    struct NetPrefStats {
+    struct NetRestrictionStats {
         size_t bytes_sent;
         size_t bytes_recvd;
-        NetPrefStats() : bytes_sent(0), bytes_recvd(0) {}
+        NetRestrictionStats() : bytes_sent(0), bytes_recvd(0) {}
     };
-    std::map<int, NetPrefStats> net_pref_stats;
+    std::map<int, NetRestrictionStats> net_restriction_stats;
 
     // must hold scheduling_state_lock
-    void update_net_pref_stats(int labels, size_t bytes_sent, size_t bytes_recvd);
+    void update_net_restriction_stats(int labels, size_t bytes_sent, size_t bytes_recvd);
 };
 
 class CMMSocketPassThrough : public CMMSocket {

@@ -8,7 +8,7 @@
 #include "net_interface.h"
 #include "libcmm.h"
 #include "libcmm_ipc.h"
-#include "libcmm_net_preference.h"
+#include "libcmm_net_restriction.h"
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -1839,18 +1839,23 @@ CMMSocketImpl::get_csock(u_long send_labels,
                          CSocket *& csock, bool blocking)
 {
     try {
-        if (net_available(send_labels)) {
-            // avoid using sockets that aren't yet connected; if connect() times out,
-            //   it might take a long time to send anything
-            csock = get_pointer(csock_map->connected_csock_with_labels(send_labels, false));
-            if (!csock) {
-                csock = get_pointer(csock_map->new_csock_with_labels(send_labels, false));
-            }
-        } else {
-            csock = NULL;
-        }
-
+        // if (net_available(send_labels)) {
+        //     // avoid using sockets that aren't yet connected; if connect() times out,
+        //     //   it might take a long time to send anything
+        //     csock = get_pointer(csock_map->connected_csock_with_labels(send_labels, false));
+        //     if (!csock) {
+        //         csock = get_pointer(csock_map->new_csock_with_labels(send_labels, false));
+        //     }
+        // } else {
+        //     csock = NULL;
+        // }
+        csock = NULL;
+        int rc = csock_map->get_csock(send_labels, csock);
         if (!csock) {
+            if (rc == CMM_UNDELIVERABLE) {
+                return rc;
+            }
+            
             if (resume_handler) {
                 enqueue_handler(sock, send_labels, 
                                 resume_handler, rh_arg);
@@ -1927,9 +1932,12 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
                                                      0, NULL,
                                                      send_labels, 
                                                      resume_handler, rh_arg);
-
     {
         PthreadScopedLock lock(&scheduling_state_lock);
+
+        if (outgoing_irobs.irob_is_undeliverable(pirob)) {
+            return CMM_UNDELIVERABLE;
+        }
         
         bool success = outgoing_irobs.insert(pirob);
         ASSERT(success);
@@ -2005,7 +2013,7 @@ CMMSocketImpl::end_irob(irob_id_t id)
                 outgoing_irobs.erase(id);
                 //delete pirob;  // smart ptr will clean up
                 return CMM_DEFERRED;
-            } else {
+            } else if (pirob->status == CMM_BLOCKING) {
                 pthread_mutex_unlock(&scheduling_state_lock);
                 ret = wait_for_labels(send_labels);
                 pthread_mutex_lock(&scheduling_state_lock);
@@ -2015,6 +2023,9 @@ CMMSocketImpl::end_irob(irob_id_t id)
                     //delete pirob; // smart ptr will clean up
                     return ret;
                 }
+            } else {
+                outgoing_irobs.erase(id);
+                return CMM_FAILED;
             }
         }
         pirob->finish();
@@ -2071,13 +2082,18 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 
         pirob = outgoing_irobs.find(id);
         if (!pirob) {
-            dbgprintf("Tried to add to nonexistent IROB %ld\n", id);
-            throw CMMException();
+            if (outgoing_irobs.irob_was_dropped(id)) {
+                dbgprintf("Tried to add to IROB %ld, but it was dropped\n", id);
+                return CMM_UNDELIVERABLE;
+            } else {
+                dbgprintf("Tried to add to nonexistent IROB %ld\n", id);
+                return CMM_FAILED;
+            }
         }
         
         if (pirob->is_complete()) {
             dbgprintf("Tried to add to complete IROB %ld\n", id);
-            throw CMMException();
+            return CMM_FAILED;
         }
 
         psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
@@ -2226,7 +2242,7 @@ CMMSocketImpl::validate_default_irob(u_long send_labels,
     }
 
     // checking for thunking here makes sense too; it's separate
-    //  from the begin->chunk->ehd function flow.
+    //  from the begin->chunk->end function flow.
     int ret = get_csock(send_labels, resume_handler, rh_arg, csock, true);
     if (ret < 0) {
         return ret;
@@ -2670,16 +2686,24 @@ CMMSocketImpl::update_last_fg()
 
 // must hold scheduling_state_lock.
 void
-CMMSocketImpl::update_net_pref_stats(int labels, size_t bytes_sent, size_t bytes_recvd)
+CMMSocketImpl::update_net_restriction_stats(int labels, size_t bytes_sent, size_t bytes_recvd)
 {
-    int pref_labels = (labels & ALL_NETWORK_PREFS);
-    NetPrefStats& stats = net_pref_stats[pref_labels];
+    int restriction_labels = (labels & ALL_NETWORK_RESTRICTIONS);
+    NetRestrictionStats& stats = net_restriction_stats[restriction_labels];
     stats.bytes_sent += bytes_sent;
     stats.bytes_recvd += bytes_recvd;
 
-    string pref_desc = describe_network_preferences(labels);
-    dbgprintf("Bytes transferred on multisocket %d contrary to net pref labels [%s]: sent %zu  recvd %zu\n",
-              sock, pref_desc.c_str(), bytes_sent, bytes_recvd);
-    dbgprintf("New totals for [%s] preference: %zu sent  %zu recvd\n",
-              pref_desc.c_str(), stats.bytes_sent, stats.bytes_recvd);
+    string restriction_desc = describe_network_restrictions(labels);
+    dbgprintf("Bytes transferred on multisocket %d contrary to net restriction labels [%s]: sent %zu  recvd %zu (SHOULD NEVER HAPPEN NOW!!)\n",
+              sock, restriction_desc.c_str(), bytes_sent, bytes_recvd);
+    dbgprintf("New totals for [%s] restriction: %zu sent  %zu recvd\n",
+              restriction_desc.c_str(), stats.bytes_sent, stats.bytes_recvd);
+}
+
+void
+CMMSocketImpl::drop_irob_and_dependents(irob_id_t irob)
+{
+    // ONLY for testing.
+    PthreadScopedLock lock(&scheduling_state_lock);
+    outgoing_irobs.drop_irob_and_dependents(irob);
 }

@@ -375,7 +375,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
 
     {
         PthreadScopedLock lock(&sk->scheduling_state_lock);
-        csock->update_net_pref_stats(labels, 0, datalen);
+        csock->update_net_restriction_stats(labels, 0, datalen);
         
         PendingIROBPtr pirob = sk->incoming_irobs.find(id);
         if (!pirob) {
