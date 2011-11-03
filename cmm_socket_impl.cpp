@@ -1548,7 +1548,13 @@ CMMSocketImpl::mc_setsockopt(int level, int optname,
     PthreadScopedRWLock lock(&my_lock, true);
 
     if (optname == O_NONBLOCK) {
-        non_blocking = true;
+        non_blocking = false;
+        for (socklen_t i = 0; i < optlen; ++i) {
+            if (((char*) optval)[i]) {
+                non_blocking = true;
+                break;
+            }
+        }
     }
 
     if (optname != O_NONBLOCK) {
