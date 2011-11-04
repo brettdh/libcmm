@@ -281,8 +281,8 @@ public:
     }
 };
 
-static FDSharingThread *fd_sharing_thread_data;
-static boost::thread *fd_sharing_thread;
+static FDSharingThread *fd_sharing_thread_data = NULL;
+static boost::thread *fd_sharing_thread = NULL;
 
 static int send_local_csocket_fd(struct iface_pair ifaces, //struct in_addr ip_addr, 
                                  pid_t target, 
@@ -425,6 +425,11 @@ void ipc_shmem_deinit()
      *       to do the shared memory stuff. 
      */
 #else
+    if (!fd_sharing_thread_data) {
+        // ipc_shmem_init was never called.
+        return;
+    }
+
     fd_sharing_thread_data->interrupt();
     fd_sharing_thread->join();
     delete fd_sharing_thread;

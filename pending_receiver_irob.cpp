@@ -309,7 +309,7 @@ PendingReceiverIROB::remove_bytes(size_t len)
             delete [] chunk.data;
         }
         len -= bytes;
-        dbgprintf("Removed %d bytes; %d bytes remaining in request\n",
+        dbgprintf("Removed %d bytes; %d bytes remaining to remove\n",
                   (int)bytes, len);
     }
     num_bytes -= bytes_removed;

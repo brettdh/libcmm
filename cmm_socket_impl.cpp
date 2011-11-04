@@ -583,6 +583,7 @@ CMMSocketImpl::mc_connect(const struct sockaddr *serv_addr,
     {    
         CMMSocketImplPtr sk;
         if (!cmm_sock_hash.find(sock, sk)) {
+            // XXX: support pass-through connect()?
             ASSERT(0);
         }
     }
@@ -1389,8 +1390,6 @@ mc_socket_t
 CMMSocketImpl::mc_accept(int listener_sock, 
                          struct sockaddr *addr, socklen_t *addrlen)
 {
-    lazy_scout_ipc_init();
-
     VanillaListenerSet::const_accessor ac;
     if (!cmm_listeners.find(ac, listener_sock)) {
         /* pass-through */
@@ -1398,6 +1397,8 @@ CMMSocketImpl::mc_accept(int listener_sock,
                   "for listener_sock %d\n", listener_sock);
         return accept(listener_sock, addr, addrlen);
     }
+
+    lazy_scout_ipc_init();
 
     struct sockaddr_in ip_sockaddr;
     socklen_t len = sizeof(ip_sockaddr);
