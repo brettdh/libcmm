@@ -1,6 +1,7 @@
 #include "libcmm_shmem.h"
 #include "timeops.h"
 #include "common.h"
+#include "pthread_util.h"
 
 #ifdef ANDROID
 /* TODO: use Android's /dev/ashmem and IBinder interfaces
@@ -132,10 +133,36 @@ void add_or_remove_csocket(struct iface_pair ifaces, //struct in_addr ip_addr,
 // to be followed by a PID
 #define INTNW_FD_SHARING_SOCKET_FMT "IntNWFDSharingSocket_%d"
 
+static int send_fd_sharing_packet(const struct fd_sharing_packet& packet, pid_t target);
+
+
+static void add_proc(pid_t pid);
+
 struct FDSharingThread {
+private:
+    bool running;
+    pthread_mutex_t running_mutex;
+    pid_t pid;
+
+public:
     int sock;
     
     FDSharingThread() {
+        pthread_mutex_init(&running_mutex, NULL);
+        running = true;
+        
+        sock = -1;
+        pid = getpid();
+        bind_socket();
+    }
+
+    void bind_socket() {
+        if (sock != -1) {
+            close(sock);
+        }
+        dbgprintf("Binding fd sharing socket to unix path: "
+                  INTNW_FD_SHARING_SOCKET_FMT "\n", getpid());
+        
         sock = socket(AF_UNIX, SOCK_DGRAM, 0);
         if (sock < 0) {
             perror("FDSharingThread: socket");
@@ -156,6 +183,22 @@ struct FDSharingThread {
         }
     }
 
+
+    bool is_running() {
+        PthreadScopedLock lock(&running_mutex);
+        return running;
+    }
+
+    void interrupt() {
+        PthreadScopedLock lock(&running_mutex);
+        running = false;
+        
+        struct fd_sharing_packet packet;
+        memset(&packet, 0, sizeof(packet));
+        packet.pid = -1;
+        send_fd_sharing_packet(packet, getpid());
+    }
+
     void operator()() {
         if (sock < 0) {
             return;
@@ -165,13 +208,38 @@ struct FDSharingThread {
         strncpy(name, "FDSharingThread", MAX_NAME_LEN);
         set_thread_name(name);
         
-        while (1) {
+        while (is_running()) {
             struct sockaddr_un addr;
             socklen_t addrlen = sizeof(addr);
             struct fd_sharing_packet packet;
             int new_fd = -1;
-            int rc = recvfrom(sock, &packet, sizeof(packet), 0, 
-                              (struct sockaddr *)&addr, &addrlen);
+
+            struct timeval timeout = {1, 0};
+            fd_set fds;
+            FD_ZERO(&fds);
+            FD_SET(sock, &fds);
+            int rc = select(sock + 1, &fds, NULL, NULL, &timeout);
+            if (rc == 0) {
+                if (pid != getpid()) {
+                    // pid has changed; this means we're the child of a fork()
+                    // XXX: hack to handle fork().  The Right(er) Way to do this
+                    // XXX: would be to do away with the UNIX datagram sockets
+                    // XXX: and just handle this through the connection
+                    // XXX: to the scout.
+                    pid = getpid();
+                    bind_socket();
+                    add_proc(pid);
+                    dbgprintf("Re-initialized FDSharingThread with new pid, %d\n", pid);
+                    dbgprintf("WARNING: this means app has forked after creating a multisocket.\n"
+                              "It should never do this; we don't handle it.\n");
+                }
+                continue;
+            } else if (rc < 0) {
+                dbgprintf("Error: select failed: %s\n", strerror(errno));
+                break;
+            }
+            rc = recvfrom(sock, &packet, sizeof(packet), 0, 
+                          (struct sockaddr *)&addr, &addrlen);
             if (rc != sizeof(packet)) {
                 if (rc < 0) {
                     perror("FDSharingThread: recvfrom");
@@ -181,6 +249,11 @@ struct FDSharingThread {
                               "%zu bytes, received %d\n", sizeof(packet), rc);
                     break;
                 }
+            }
+
+            if (packet.pid == -1) {
+                dbgprintf("FDSharingThread received shutdown signal; exiting.\n");
+                break;
             }
 
             if (!packet.remove_fd) {
@@ -208,7 +281,7 @@ struct FDSharingThread {
     }
 };
 
-static FDSharingThread fd_sharing_thread_data;
+static FDSharingThread *fd_sharing_thread_data;
 static boost::thread *fd_sharing_thread;
 
 static int send_local_csocket_fd(struct iface_pair ifaces, //struct in_addr ip_addr, 
@@ -222,6 +295,11 @@ static int send_local_csocket_fd(struct iface_pair ifaces, //struct in_addr ip_a
     packet.remote_fd = local_fd;
     packet.remove_fd = remove_fd ? 1 : 0;
 
+    return send_fd_sharing_packet(packet, target);
+}
+
+static int send_fd_sharing_packet(const struct fd_sharing_packet& packet, pid_t target)
+{
     // send packet
     struct sockaddr_un addr;
     memset(&addr, 0, sizeof(addr));
@@ -230,13 +308,13 @@ static int send_local_csocket_fd(struct iface_pair ifaces, //struct in_addr ip_a
              INTNW_FD_SHARING_SOCKET_FMT, target);
 
     dbgprintf("Sending socket fd %d to PID %d remove? %s\n",
-              local_fd, target, remove_fd ? "yes" : "no");
+              packet.remote_fd, target, packet.remove_fd ? "yes" : "no");
     boost::unique_lock<boost::shared_mutex> lock(*proc_local_lock);
-    int rc = sendto(fd_sharing_thread_data.sock, &packet, sizeof(packet), 0,
+    int rc = sendto(fd_sharing_thread_data->sock, &packet, sizeof(packet), 0,
                     (struct sockaddr *)&addr, sizeof(addr));
     if (rc == sizeof(packet)) {
-        if (!remove_fd) {
-            rc = ancil_send_fd_to(fd_sharing_thread_data.sock, local_fd,
+        if (!packet.remove_fd) {
+            rc = ancil_send_fd_to(fd_sharing_thread_data->sock, packet.remote_fd,
                                   (struct sockaddr *)&addr, sizeof(addr));
             if (rc != 0) {
                 perror("ancil_send_fd_to");
@@ -321,7 +399,8 @@ void ipc_shmem_init(bool create)
     proc_local_lock = new boost::shared_mutex;
     all_intnw_csockets = new CSocketMap;
     add_proc(getpid());
-    fd_sharing_thread = new boost::thread(boost::ref(fd_sharing_thread_data));
+    fd_sharing_thread_data = new FDSharingThread;
+    fd_sharing_thread = new boost::thread(boost::ref(*fd_sharing_thread_data));
 
     // initialize the all_intnw_csockets map with the currently available
     //  network interfaces that the scout has added to the fg_data_map
@@ -346,9 +425,10 @@ void ipc_shmem_deinit()
      *       to do the shared memory stuff. 
      */
 #else
-    shutdown(fd_sharing_thread_data.sock, SHUT_RDWR);
+    fd_sharing_thread_data->interrupt();
     fd_sharing_thread->join();
     delete fd_sharing_thread;
+    delete fd_sharing_thread_data;
     
     remove_proc(getpid());
     delete all_intnw_csockets;

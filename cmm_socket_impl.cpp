@@ -337,8 +337,7 @@ int
 CMMSocketImpl::connect_status()
 {
     PthreadScopedRWLock sock_lock(&my_lock, false);
-    ASSERT(bootstrapper);
-    return bootstrapper->status();
+    return bootstrapper ? bootstrapper->status() : ENOTCONN;
 }
 
 mc_socket_t
@@ -579,6 +578,8 @@ int
 CMMSocketImpl::mc_connect(const struct sockaddr *serv_addr, 
                           socklen_t addrlen)
 {
+    lazy_scout_ipc_init();
+
     {    
         CMMSocketImplPtr sk;
         if (!cmm_sock_hash.find(sock, sk)) {
@@ -1388,10 +1389,7 @@ mc_socket_t
 CMMSocketImpl::mc_accept(int listener_sock, 
                          struct sockaddr *addr, socklen_t *addrlen)
 {
-    if (!scout_ipc_inited()) {
-        errno = EPROTO; // XXX: maybe? 
-        return -1;
-    }
+    lazy_scout_ipc_init();
 
     VanillaListenerSet::const_accessor ac;
     if (!cmm_listeners.find(ac, listener_sock)) {

@@ -93,7 +93,18 @@ bool scout_ipc_inited(void)
     return (scout_ipc_fd > 0);
 }
 
-int scout_ipc_init()
+static int scout_ipc_init(void);
+
+void lazy_scout_ipc_init(void)
+{
+    if (!scout_ipc_inited() && scout_ipc_init() < 0) {
+        // XXX: is there any problem with doing this here?
+        exit(EXIT_FAILURE);
+    }
+}
+
+
+static int scout_ipc_init(void)
 {
     ipc_shmem_init(false);
 

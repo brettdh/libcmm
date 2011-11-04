@@ -12,7 +12,7 @@
 /* single message queue for subscribing and unsubscribing. */
 #define SCOUT_CONTROL_MQ_NAME "scout_control_mq"
 
-int scout_ipc_init(void);
+void lazy_scout_ipc_init(void);
 void scout_ipc_deinit(void);
 
 bool scout_ipc_inited(void);

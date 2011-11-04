@@ -60,10 +60,13 @@ static void libcmm_init(void)
                 CONFIG_FILE);
     }
     
-    if (scout_ipc_init() < 0) {
-        // XXX: is there any problem with doing this here?
-        exit(EXIT_FAILURE);
-    }
+    // try doing this lazily so as to allow applications to fork() before 
+    //  calling into IntNW.
+    //  This lets us define a contract for that behavior.
+    // if (scout_ipc_init() < 0) {
+    //     // XXX: is there any problem with doing this here?
+    //     exit(EXIT_FAILURE);
+    // }
 
 #ifdef CMM_TIMING
     PthreadScopedLock lock(&timing_mutex);
