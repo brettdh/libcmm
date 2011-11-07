@@ -1,4 +1,4 @@
-package edu.umich.intnw.lib;
+package edu.umich.intnw;
 
 class ServerMultiSocket {
     
