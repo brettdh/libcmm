@@ -1,4 +1,27 @@
 #include <jni.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <stdlib.h>
+#include <assert.h>
+#include <stdio.h>
+
+static void jniThrowException(JNIEnv *jenv, const char *className, const char *msg)
+{
+    jclass exceptionClass = jenv->FindClass(className);
+    if (exceptionClass) {
+        jenv->ThrowNew(exceptionClass, msg);
+    }
+}
+
+static void jniThrowNullPointerException(JNIEnv *jenv, const char *msg)
+{
+    jniThrowException(jenv, "java/lang/NullPointerException", msg);
+}
+
+static void jniThrowIOException(JNIEnv *jenv, const char *msg)
+{
+    jniThrowException(jenv, "java/io/IOException", msg);
+}
 
 /* LICENSE INFO:
  * from the AOSP - specifically, Apache harmony project.
@@ -39,7 +62,9 @@ static bool byteArrayToSocketAddress(JNIEnv* env, jbyteArray byteArray, int port
     return true;
 }
 
-#include <libcmm.h> 
+#include <libcmm.h>
+#include <libcmm_irob.h>
+#include <libcmm_net_restriction.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -66,11 +91,11 @@ Java_edu_umich_intnw_SystemCalls_ms_1connect(JNIEnv *jenv, jclass,
 {
     sockaddr_storage ss;
     socklen_t addrlen = sizeof(ss);
-    if (!byteArrayToSocketAddress(jenv, addrBytes, port, &s)) {
-        throwIOException("Failed to convert socket address");
+    if (!byteArrayToSocketAddress(jenv, addrBytes, port, &ss)) {
+        jniThrowIOException(jenv, "Failed to convert socket address");
     }
     if (cmm_connect(msock_fd, (struct sockaddr *)&ss, addrlen) < 0) {
-        throwIOException("Failed to connect multisocket");
+        jniThrowIOException(jenv, "Failed to connect multisocket");
     }
 }
 
@@ -88,42 +113,65 @@ Java_edu_umich_intnw_SystemCalls_ms_1close(JNIEnv *jenv, jclass, jint msock_fd)
 /*
  * Class:     edu_umich_intnw_SystemCalls
  * Method:    ms_write
- * Signature: (I[BII)V
+ * Signature: (I[BIII)V
  */
 JNIEXPORT void JNICALL
 Java_edu_umich_intnw_SystemCalls_ms_1write(JNIEnv *jenv, jclass, jint msock_fd,
-                                           jbyteArray byteArray, jint offset, jint length)
+                                           jbyteArray byteArray, jint offset, jint length,
+                                           jint labels)
 {
     size_t arrayLength = jenv->GetArrayLength(byteArray);
     assert(offset + length <= arrayLength); // checked in caller
 
     jbyte *realBuffer = jenv->GetByteArrayElements(byteArray, NULL);
-    if (cmm_write(msock_fd, realBuffer + offset, length, 0, NULL, NULL) != length) {
-        throwIOException("Failed to write bytes to multisocket");
+    jint rc = cmm_write(msock_fd, realBuffer + offset, length, labels, NULL, NULL);
+    if (rc != length) {
+        if (rc == CMM_UNDELIVERABLE) {
+            jniThrowException(jenv, "edu/umich/intnw/UndeliverableException",
+                              "Data was undeliverable due to labels");
+        } else {
+            jniThrowIOException(jenv, "Failed to write bytes to multisocket");
+        }
     }
-    jenv->ReleasebyteArrayElements(byteArray, realBuffer, JNI_ABORT);
+    jenv->ReleaseByteArrayElements(byteArray, realBuffer, JNI_ABORT);
 }
 
 /*
  * Class:     edu_umich_intnw_SystemCalls
  * Method:    ms_read
- * Signature: (I[BII)I
+ * Signature: (I[BII[I)I
  */
 JNIEXPORT jint JNICALL 
 Java_edu_umich_intnw_SystemCalls_ms_1read(JNIEnv *jenv, jclass, 
                                           jint msock_fd, jbyteArray byteArray, 
-                                          jint offset, jint length)
+                                          jint offset, jint length, jintArray outLabels)
 {
     size_t arrayLength = jenv->GetArrayLength(byteArray);
     assert(offset + length <= arrayLength); // checked in caller
 
+    u_long labels = 0;
+
     jbyte *realBuffer = jenv->GetByteArrayElements(byteArray, NULL);
-    if (cmm_read(msock_fd, realBuffer + offset, length, NULL) != length) {
-        throwIOException("Failed to read bytes from multisocket");
+    jint *plabelsArray = NULL;
+    if (outLabels) {
+        plabelsArray = jenv->GetIntArrayElements(outLabels, NULL);
+    }
+
+    int rc = cmm_read(msock_fd, realBuffer + offset, length, &labels);
+    if (rc < 0) {
+        jniThrowIOException(jenv, "Failed to read bytes from multisocket");
+        return -1;
     }
     
-    // write back changes, free realBuffer
-    jenv->ReleasebyteArrayElements(byteArray, realBuffer, 0);
+    if (outLabels) {
+        assert(plabelsArray);
+        *plabelsArray = labels;
+        jenv->ReleaseIntArrayElements(outLabels, plabelsArray, 0);
+    }
+    jenv->ReleaseByteArrayElements(byteArray, realBuffer, 0);
+    // Release<type>ArrayElements writes back changes, frees native array
+
+    return rc;
 }
 
 #ifdef __cplusplus

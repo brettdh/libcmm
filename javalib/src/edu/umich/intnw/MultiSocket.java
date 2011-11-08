@@ -32,8 +32,8 @@ public class MultiSocket extends Socket {
 
     @Override
     public synchronized void close() throws IOException {
-        // TODO Auto-generated method stub
-        super.close();
+        SystemCalls.ms_close(msock_fd);
+        msock_fd = -1;
     }
 
     @Override

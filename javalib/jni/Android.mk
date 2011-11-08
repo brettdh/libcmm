@@ -1,12 +1,19 @@
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
-LOCAL_SRC_FILES:= \
-    edu_umich_intnw_lib_MultiSocket.cpp \
-    edu_umich_intnw_lib_ServerMultiSocket.cpp
+MY_ANDROID_SRC_ROOT := $(HOME)/src/android-source
+LIBCMM_ROOT := $(MY_ANDROID_SRC_ROOT)/external/bdh_apps/libcmm
+
+LOCAL_MODULE := cmm
+LOCAL_SRC_FILES := ../../obj/local/armeabi/libcmm.so
+include $(PREBUILT_SHARED_LIBRARY)
+
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES := wrappers.cpp
 
 LOCAL_C_INCLUDES += \
-        $(JNI_H_INCLUDE)
+        $(LIBCMM_ROOT)
 
 LOCAL_SHARED_LIBRARIES := \
         libcmm

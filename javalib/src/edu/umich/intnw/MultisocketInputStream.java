@@ -21,15 +21,24 @@ public class MultisocketInputStream extends InputStream {
     }
 
     @Override
-    public int read(byte[] b, int offset, int length) throws IOException {
-        if (offset < 0 || length < 0 || (offset + length) > b.length) {
+    public int read(byte[] buffer, int offset, int length) throws IOException {
+        return read(buffer, offset, length, null);
+    }
+    
+    public int read(byte[] buffer, int offset, int length, int[] outLabels) throws IOException {
+        if (offset < 0 || length < 0 || (offset + length) > buffer.length) {
             throw new IndexOutOfBoundsException();
         }
-        return SystemCalls.ms_read(msock_fd, b, offset, length);
+        
+        return SystemCalls.ms_read(msock_fd, buffer, offset, length, outLabels);
     }
 
+    public int read(byte[] buffer, int[] outLabels) throws IOException {
+        return read(buffer, 0, buffer.length, outLabels);
+    }
+    
     @Override
-    public int read(byte[] b) throws IOException {
-        return read(b, 0, b.length);
+    public int read(byte[] buffer) throws IOException {
+        return read(buffer, null);
     }
 }

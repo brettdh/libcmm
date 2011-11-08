@@ -19,14 +19,22 @@ public class MultisocketOutputStream extends OutputStream {
 
     @Override
     public void write(byte[] buffer, int offset, int count) throws IOException {
+        write(buffer, offset, count, 0);
+    }
+    
+    public void write(byte[] buffer, int offset, int count, int labels) throws IOException {
         if (offset < 0 || count < 0 || (offset + count) > buffer.length) {
             throw new IndexOutOfBoundsException();
         }
-        SystemCalls.ms_write(msock_fd, buffer, offset, count);
+        SystemCalls.ms_write(msock_fd, buffer, offset, count, labels);
     }
 
     @Override
     public void write(byte[] buffer) throws IOException {
-        write(buffer, 0, buffer.length);
+        write(buffer, 0);
+    }
+    
+    public void write(byte[] buffer, int labels) throws IOException {
+        write(buffer, 0, buffer.length, labels);
     }
 }
