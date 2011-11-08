@@ -55,6 +55,7 @@ public class SmokeTest extends InstrumentationTestCase {
     }
     
     public void testReaderWriter() throws IOException {
+        // second newline will be overwritten with a NUL in the response
         String msg = "01234567890123456789012345678901234567\n\n";
         assertEquals(CHUNK_SIZE, msg.length());
         
@@ -63,7 +64,7 @@ public class SmokeTest extends InstrumentationTestCase {
         writer.flush();
         
         BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        String actual = reader.readLine();
+        String actual = reader.readLine(); // trims off the newline
         assertEquals(msg.trim(), actual);
     }
 }
