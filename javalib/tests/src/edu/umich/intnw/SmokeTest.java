@@ -1,7 +1,9 @@
 package edu.umich.intnw;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.InetSocketAddress;
@@ -10,6 +12,7 @@ import edu.umich.intnw.MultiSocket;
 import android.test.InstrumentationTestCase;
 
 public class SmokeTest extends InstrumentationTestCase {
+    private static final String TEST_MSG = "testing, testing, testing";
     private static final int CHUNK_SIZE = 40;
     private MultiSocket socket;
     
@@ -23,7 +26,7 @@ public class SmokeTest extends InstrumentationTestCase {
     }
     
     public void testConnection() throws IOException {
-        final byte[] msg = padWithNul("testing, testing, testing", CHUNK_SIZE);
+        final byte[] msg = padWithNul(TEST_MSG, CHUNK_SIZE);
         
         OutputStream out = socket.getOutputStream();
         out.write(msg);
@@ -49,5 +52,18 @@ public class SmokeTest extends InstrumentationTestCase {
             }
         }
         return buf;
+    }
+    
+    public void testReaderWriter() throws IOException {
+        String msg = "01234567890123456789012345678901234567\n\n";
+        assertEquals(CHUNK_SIZE, msg.length());
+        
+        OutputStreamWriter writer = new OutputStreamWriter(socket.getOutputStream());
+        writer.write(msg);
+        writer.flush();
+        
+        BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        String actual = reader.readLine();
+        assertEquals(msg.trim(), actual);
     }
 }
