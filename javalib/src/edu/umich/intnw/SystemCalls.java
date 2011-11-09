@@ -1,6 +1,7 @@
 package edu.umich.intnw;
 
 import java.io.IOException;
+import java.net.SocketException;
 
 class SystemCalls {
     static native int ms_stream_socket();
@@ -9,8 +10,19 @@ class SystemCalls {
     static native void ms_write(int msock_fd, byte[] buffer, int offset, int count, int labels) throws IOException;
     static native int ms_read(int msock_fd, byte[] b, int offset, int length, int[] outLabels) throws IOException;
     
+    static native int getsockopt_integer(int msock_Fd, int so_name) throws SocketException;
+    
+    static native void setsockopt_linger(int msock_fd, boolean on, int timeout) throws SocketException;
+    static native void setsockopt_boolean(int msock_fd, int so_name, boolean on) throws SocketException;
+    static native void setsockopt_integer(int msock_fd, int so_name, int value) throws SocketException;
+    
+    static native int getPort(int msock_fd);
+    static native void shutdownInput(int msock_fd) throws SocketException;
+    static native void shutdownOutput(int msock_fd) throws SocketException;
+
     static {
         System.loadLibrary("cmm");
         System.loadLibrary("intnw_javalib");
     }
+
 }

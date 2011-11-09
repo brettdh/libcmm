@@ -1,26 +1,69 @@
 #include <jni.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
+#include <errno.h>
 
-static void jniThrowException(JNIEnv *jenv, const char *className, const char *msg)
+static void jniThrowExceptionVaList(JNIEnv *jenv, const char *className, const char *fmt, 
+                                    va_list ap)
 {
+    const size_t MAXCHARS = 256;
+    char buf[MAXCHARS + 1];
+    vsnprintf(buf, MAXCHARS, fmt, ap);
+
     jclass exceptionClass = jenv->FindClass(className);
     if (exceptionClass) {
-        jenv->ThrowNew(exceptionClass, msg);
+        jenv->ThrowNew(exceptionClass, buf);
     }
+
 }
 
-static void jniThrowNullPointerException(JNIEnv *jenv, const char *msg)
+static void jniThrowException(JNIEnv *jenv, const char *className, const char *fmt, ...)
+    __attribute__((format(printf, 3, 4)));
+
+static void jniThrowException(JNIEnv *jenv, const char *className, const char *fmt, ...)
 {
-    jniThrowException(jenv, "java/lang/NullPointerException", msg);
+    va_list ap;
+    va_start(ap, fmt);
+    jniThrowExceptionVaList(jenv, className, fmt, ap);
+    va_end(ap);
 }
 
-static void jniThrowIOException(JNIEnv *jenv, const char *msg)
+static void jniThrowNullPointerException(JNIEnv *jenv, const char *fmt, ...)
+    __attribute__((format(printf, 2, 3)));
+
+static void jniThrowNullPointerException(JNIEnv *jenv, const char *fmt, ...)
 {
-    jniThrowException(jenv, "java/io/IOException", msg);
+    va_list ap;
+    va_start(ap, fmt);
+    jniThrowExceptionVaList(jenv, "java/lang/NullPointerException", fmt, ap);
+    va_end(ap);
+}
+
+static void jniThrowIOException(JNIEnv *jenv, const char *fmt, ...)
+    __attribute__((format(printf, 2, 3)));
+
+static void jniThrowIOException(JNIEnv *jenv, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    jniThrowExceptionVaList(jenv, "java/io/IOException", fmt, ap);
+    va_end(ap);
+}
+
+static void jniThrowSocketException(JNIEnv *jenv, const char *fmt, ...)
+    __attribute__((format(printf, 2, 3)));
+
+static void jniThrowSocketException(JNIEnv *jenv, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    jniThrowExceptionVaList(jenv, "java/net/SocketException", fmt, ap);
+    va_end(ap);
 }
 
 /* LICENSE INFO:
@@ -161,6 +204,9 @@ Java_edu_umich_intnw_SystemCalls_ms_1read(JNIEnv *jenv, jclass,
     if (rc < 0) {
         jniThrowIOException(jenv, "Failed to read bytes from multisocket");
         return -1;
+    } else if (rc == 0) {
+        // Java InputStream#read expects -1 at end-of-stream.
+        return -1;
     }
     
     if (outLabels) {
@@ -172,6 +218,179 @@ Java_edu_umich_intnw_SystemCalls_ms_1read(JNIEnv *jenv, jclass,
     // Release<type>ArrayElements writes back changes, frees native array
 
     return rc;
+}
+
+#define JAVASOCKOPT_IP_MULTICAST_IF 16
+#define JAVASOCKOPT_IP_MULTICAST_IF2 31
+#define JAVASOCKOPT_IP_MULTICAST_LOOP 18
+#define JAVASOCKOPT_IP_TOS 3
+#define JAVASOCKOPT_MCAST_JOIN_GROUP 19
+#define JAVASOCKOPT_MCAST_LEAVE_GROUP 20
+#define JAVASOCKOPT_MULTICAST_TTL 17
+#define JAVASOCKOPT_SO_BROADCAST 32
+#define JAVASOCKOPT_SO_KEEPALIVE 8
+#define JAVASOCKOPT_SO_LINGER 128
+#define JAVASOCKOPT_SO_OOBINLINE  4099
+#define JAVASOCKOPT_SO_RCVBUF 4098
+#define JAVASOCKOPT_SO_TIMEOUT  4102
+#define JAVASOCKOPT_SO_REUSEADDR 4
+#define JAVASOCKOPT_SO_SNDBUF 4097
+#define JAVASOCKOPT_TCP_NODELAY 1
+
+    
+static int getSockoptName(int javaSockoptName)
+{
+    switch (javaSockoptName) {
+    case JAVASOCKOPT_SO_SNDBUF:
+        return SO_SNDBUF;
+    case JAVASOCKOPT_SO_RCVBUF:
+        return SO_RCVBUF;
+    case JAVASOCKOPT_SO_LINGER:
+        return SO_LINGER;
+    case JAVASOCKOPT_SO_TIMEOUT:
+        return SO_RCVTIMEO;
+    case JAVASOCKOPT_TCP_NODELAY:
+        return TCP_NODELAY;
+    default:
+        return -1;
+    }
+}
+
+static int
+getSockoptLevel(int optname)
+{
+    switch (optname) {
+    case TCP_NODELAY:
+        return IPPROTO_TCP;
+    default:
+        return SOL_SOCKET;
+    }
+}
+
+/*
+ * Class:     edu_umich_intnw_SystemCalls
+ * Method:    setsockopt_linger
+ * Signature: (IZI)V
+ */
+JNIEXPORT void JNICALL
+Java_edu_umich_intnw_SystemCalls_setsockopt_1linger(JNIEnv *jenv, jclass,
+                                                    jint msock_fd, jboolean on, jint timeout)
+{
+    struct linger linger_opt = { on, timeout };
+    socklen_t optlen = sizeof(linger_opt);
+    int rc = cmm_setsockopt(msock_fd, SOL_SOCKET, SO_LINGER, &linger_opt, optlen);
+    if (rc < 0) {
+        jniThrowSocketException(jenv, "Failed to set SO_LINGER");
+    }
+}
+
+/*
+ * Class:     edu_umich_intnw_SystemCalls
+ * Method:    setsockopt_boolean
+ * Signature: (IIZ)V
+ */
+JNIEXPORT void JNICALL
+Java_edu_umich_intnw_SystemCalls_setsockopt_1boolean(JNIEnv *jenv, jclass, 
+                                                     jint msock_fd, jint javaOptName,
+                                                     jboolean value)
+{
+    int optname = getSockoptName(javaOptName);
+    if (optname < 0) {
+        jniThrowSocketException(jenv, "Unknown java socket option constant: %d", javaOptName);
+        return;
+    }
+    int level = getSockoptLevel(optname);
+    socklen_t optlen = sizeof(value);
+    int rc = cmm_setsockopt(msock_fd, level, optname, &value, optlen);
+    if (rc < 0) {
+        jniThrowSocketException(jenv, "Failed to set boolean sockopt");
+    }
+}
+
+/*
+ * Class:     edu_umich_intnw_SystemCalls
+ * Method:    setsockopt_integer
+ * Signature: (III)V
+ */
+JNIEXPORT void JNICALL
+Java_edu_umich_intnw_SystemCalls_setsockopt_1integer(JNIEnv *jenv, jclass, 
+                                                     jint msock_fd, jint javaOptName, jint value)
+{
+    int optname = getSockoptName(javaOptName);
+    if (optname < 0) {
+        jniThrowSocketException(jenv, "Unknown java socket option constant: %d", javaOptName);
+        return;
+    }
+    int level = getSockoptLevel(optname);
+    socklen_t optlen = sizeof(value);
+    int rc = cmm_setsockopt(msock_fd, level, optname, &value, optlen);
+    if (rc < 0) {
+        jniThrowSocketException(jenv, "Failed to set integer sockopt %d: %s", optname, strerror(errno));
+    }
+}
+
+/*
+ * Class:     edu_umich_intnw_SystemCalls
+ * Method:    getsockopt_integer
+ * Signature: (II)V
+ */
+JNIEXPORT jint JNICALL
+Java_edu_umich_intnw_SystemCalls_getsockopt_1integer(JNIEnv *jenv, jclass, 
+                                                     jint msock_fd, jint javaOptName)
+{
+    int optname = getSockoptName(javaOptName);
+    if (optname < 0) {
+        jniThrowSocketException(jenv, "Unknown java socket option constant: %d", javaOptName);
+        return -1;
+    }
+    int level = getSockoptLevel(optname);
+    jint value = 0;
+    socklen_t optlen = sizeof(value);
+    int rc = cmm_getsockopt(msock_fd, level, optname, &value, &optlen);
+    if (rc < 0) {
+        jniThrowSocketException(jenv, "Failed to get integer sockopt %d: %s",
+                          optname, strerror(errno));
+    }
+    return value;
+}
+
+JNIEXPORT jint JNICALL
+Java_edu_umich_intnw_SystemCalls_getPort(JNIEnv *jenv, jclass,
+                                         jint msock_fd)
+{
+    // XXX: only works for AF_INET sockets?
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    socklen_t addrlen = sizeof(addr);
+    
+    int rc = cmm_getpeername(msock_fd, (struct sockaddr *)&addr, &addrlen);
+    if (rc < 0) {
+        return -1;
+    }
+    jint remotePort = ntohs(addr.sin_port);
+    return remotePort;
+}
+
+static void doShutdown(JNIEnv *jenv, jint msock_fd, int how, const char *direction)
+{
+    int rc = cmm_shutdown(msock_fd, how);
+    if (rc < 0) {
+        jniThrowSocketException(jenv, "shutdown%s failed: %s", direction, strerror(errno));
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_edu_umich_intnw_SystemCalls_shutdownInput(JNIEnv *jenv, jclass,
+                                               jint msock_fd)
+{
+    doShutdown(jenv, msock_fd, SHUT_RD, "Input");
+}
+
+JNIEXPORT void JNICALL
+Java_edu_umich_intnw_SystemCalls_shutdownOutput(JNIEnv *jenv, jclass,
+                                                jint msock_fd)
+{
+    doShutdown(jenv, msock_fd, SHUT_WR, "Output");
 }
 
 #ifdef __cplusplus

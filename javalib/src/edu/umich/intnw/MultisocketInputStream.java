@@ -4,10 +4,11 @@ import java.io.IOException;
 import java.io.InputStream;
 
 public class MultisocketInputStream extends InputStream {
-    private int msock_fd;
+    private MultiSocket socket;
     
-    public MultisocketInputStream(int msock_fd) {
-        this.msock_fd = msock_fd;
+    public MultisocketInputStream(MultiSocket socket) {
+        super();
+        this.socket = socket;
     }
 
     @Override
@@ -30,7 +31,7 @@ public class MultisocketInputStream extends InputStream {
             throw new IndexOutOfBoundsException();
         }
         
-        return SystemCalls.ms_read(msock_fd, buffer, offset, length, outLabels);
+        return SystemCalls.ms_read(socket.msock_fd, buffer, offset, length, outLabels);
     }
 
     public int read(byte[] buffer, int[] outLabels) throws IOException {
@@ -40,5 +41,17 @@ public class MultisocketInputStream extends InputStream {
     @Override
     public int read(byte[] buffer) throws IOException {
         return read(buffer, null);
+    }
+
+    private Object UNIMPLEMENTED_METHODS_MARKER = null;
+    
+    @Override
+    public int available() throws IOException {
+        throw new Error("available not supported for multisocket input stream!");
+    }
+
+    @Override
+    public void close() throws IOException {
+        socket.close();
     }
 }

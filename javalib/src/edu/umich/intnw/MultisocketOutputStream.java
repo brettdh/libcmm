@@ -4,10 +4,10 @@ import java.io.IOException;
 import java.io.OutputStream;
 
 public class MultisocketOutputStream extends OutputStream {
-    private int msock_fd;
+    private MultiSocket socket;
     
-    MultisocketOutputStream(int msock_fd) {
-        this.msock_fd = msock_fd;
+    MultisocketOutputStream(MultiSocket socket) {
+        this.socket = socket;
     }
 
     @Override
@@ -26,7 +26,7 @@ public class MultisocketOutputStream extends OutputStream {
         if (offset < 0 || count < 0 || (offset + count) > buffer.length) {
             throw new IndexOutOfBoundsException();
         }
-        SystemCalls.ms_write(msock_fd, buffer, offset, count, labels);
+        SystemCalls.ms_write(socket.msock_fd, buffer, offset, count, labels);
     }
 
     @Override
@@ -36,5 +36,12 @@ public class MultisocketOutputStream extends OutputStream {
     
     public void write(byte[] buffer, int labels) throws IOException {
         write(buffer, 0, buffer.length, labels);
+    }
+    
+    private Object UNIMPLEMENTED_METHODS_MARKER = null;
+
+    @Override
+    public void close() throws IOException {
+        socket.close();
     }
 }
