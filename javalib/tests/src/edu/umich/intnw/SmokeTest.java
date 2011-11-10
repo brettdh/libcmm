@@ -42,7 +42,7 @@ public class SmokeTest extends InstrumentationTestCase {
     }
 
     private byte[] padWithNul(String string, int size) {
-        assert(string.length() < size);
+        assertTrue(string.length() < size);
         byte[] buf = new byte[size];
         for (int i = 0; i < size; ++i) {
             if (i < string.length()) {
