@@ -94,6 +94,11 @@ static void vdbgprintf(bool plain, const char *fmt, va_list ap)
         vfprintf(out, fmtstr.c_str(), ap);
         fclose(out);
     } else {
+        int e = errno;
+        stream.str("Failed opening intnw log file: ");
+        stream << strerror(e) << " ** " << fmtstr;
+        fmtstr = stream.str();
+        
         __android_log_vprint(ANDROID_LOG_INFO, "libcmm", fmtstr.c_str(), ap);
     }
 #else
