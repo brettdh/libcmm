@@ -202,8 +202,13 @@ Java_edu_umich_intnw_SystemCalls_ms_1read(JNIEnv *jenv, jclass,
 
     int rc = cmm_read(msock_fd, realBuffer + offset, length, &labels);
     if (rc < 0) {
-        jniThrowIOException(jenv, "Failed to read bytes from multisocket");
-        return -1;
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            // read expects 0 for timeout or non-blocking return.
+            return 0;
+        } else {
+            jniThrowIOException(jenv, "Failed to read bytes from multisocket");
+            return -1;
+        }
     } else if (rc == 0) {
         // Java InputStream#read expects -1 at end-of-stream.
         return -1;
