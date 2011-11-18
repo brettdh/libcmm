@@ -339,6 +339,8 @@ class CMMSocketImpl : public CMMSocket {
     bool non_blocking;
     bool is_non_blocking(); // considers calls to fcntl with O_NONBLOCK
 
+    struct timeval get_read_timeout();
+    bool read_timeout_expired(struct timeval read_begin);
     struct timeval receive_timeout; // can be set via SO_RCVTIMEO
 
     /* these are used for creating new physical sockets */

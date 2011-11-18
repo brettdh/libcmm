@@ -367,7 +367,7 @@ PendingIROBPtr PendingReceiverIROBLattice::empty_sentinel_irob(new PendingReceiv
  *  bytes are ready, as blocking recv should do.
  */
 PendingIROBPtr
-PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
+PendingReceiverIROBLattice::get_ready_irob(bool block_for_data, struct timeval read_begin)
 {
     //irob_id_t ready_irob_id = -1;
     IROBSchedulingData ready_irob_data;
@@ -398,15 +398,31 @@ PendingReceiverIROBLattice::get_ready_irob(bool block_for_data)
                         return PendingIROBPtr();
                     }
                 }
-                if (!block_for_data || sk->is_non_blocking()) {
-                    dbgprintf("get_ready_irob: none ready and %s; "
-                              "I'm returning NULL\n",
-                              sk->is_non_blocking()
-                              ? "socket is non-blocking"
-                              : "bytes previously returned");
+                if (!block_for_data) {
+                    dbgprintf("get_ready_irob: none ready and bytes previously returned; "
+                              "I'm returning NULL\n");
+                    return empty_sentinel_irob;
+                } else if (sk->is_non_blocking()) {
+                    dbgprintf("get_ready_irob: none ready and socket is non-blocking; "
+                              "I'm returning NULL\n");
+                    return empty_sentinel_irob;
+                } else if (sk->read_timeout_expired(read_begin)) {
+                    dbgprintf("get_ready_irob: none ready and receive timeout expired; "
+                              "I'm returning NULL\n");
                     return empty_sentinel_irob;
                 }
-                pthread_cond_wait(&sk->scheduling_state_cv, &sk->scheduling_state_lock);
+                
+                struct timeval sk_timeout = sk->get_read_timeout();
+                struct timespec reltimeout = {sk_timeout.tv_sec, sk_timeout.tv_usec * 1000};
+                
+                struct timespec abstimeout = {read_begin.tv_sec, read_begin.tv_usec * 1000};
+                if (reltimeout.tv_sec != 0 || reltimeout.tv_nsec != 0) {
+                    timeradd(&abstimeout, &reltimeout, &abstimeout);
+                    pthread_cond_timedwait(&sk->scheduling_state_cv, &sk->scheduling_state_lock,
+                                           &abstimeout);
+                } else {
+                    pthread_cond_wait(&sk->scheduling_state_cv, &sk->scheduling_state_lock);
+                }
             }
 #endif
 
@@ -479,9 +495,8 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
         struct timeval one_begin, one_end, one_diff;
         TIME(one_begin);
         // if the socket is in blocking mode, this will block
-        //    if bytes_passed == 0
         bool block_for_data = ((bytes_passed == 0) || (flags & MSG_WAITALL));
-        PendingIROBPtr pi = get_ready_irob(block_for_data);
+        PendingIROBPtr pi = get_ready_irob(block_for_data, begin);
         PendingReceiverIROB *pirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(pi));
         TIME(one_end);
         TIMEDIFF(one_begin, one_end, one_diff);
@@ -508,7 +523,7 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
             // sentinel; no more bytes are ready
             ASSERT(pirob == (PendingReceiverIROB*)get_pointer(empty_sentinel_irob));
             if (bytes_passed == 0) {
-                if (!sk->is_non_blocking()) {
+                if (!sk->is_non_blocking() && !sk->read_timeout_expired(begin)) {
                     // impossible; get_ready_irob would have blocked
                     //  until there was data ready to return
                     ASSERT(0);

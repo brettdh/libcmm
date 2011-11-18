@@ -4,7 +4,7 @@ LDFLAGS:=-L. -L..  -lcppunit -ldl -pthread -lrt -lglib-2.0 -lboost_thread
 
 EXECUTABLES=run_unit_tests run_lib_tests run_remote_tests run_thunk_tests run_trickle_tests \
 	    run_lib_tests_nb run_remote_tests_nb multi_app_test multi_app_test_helper \
-		fake_intnw_test run_spotty_network_failure_test
+		fake_intnw_test run_spotty_network_failure_test run_socket_api_tests
 
 .gitignore: Makefile
 	echo "$(EXECUTABLES)" | sed -e 's/\s+/ /' | tr ' ' '\n' > .gitignore
@@ -53,10 +53,17 @@ run_unit_tests:: shmem_test_helper
 run_unit_tests:: run_all_tests.o StdioOutputter.o $(TESTOBJS) $(SUPPORTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
 
-LIBTESTOBJS:=end_to_end_tests_base.o end_to_end_tests_forked.o forked_tests.o socket_api_tests.o
+LIBTESTOBJS:=end_to_end_tests_base.o end_to_end_tests_forked.o forked_tests.o
 
 run_lib_tests: run_all_tests.o StdioOutputter.o test_common.o $(LIBTESTOBJS)
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
+
+SOCKETAPITESTOBJS:=end_to_end_tests_base.o end_to_end_tests_forked.o socket_api_tests.o
+
+run_socket_api_tests: run_all_tests.o StdioOutputter.o test_common.o $(SOCKETAPITESTOBJS)
+	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -lssl
+
+
 
 REMOTETESTOBJS:=end_to_end_tests_base.o end_to_end_tests_remote.o remote_tests.o
 run_remote_tests: run_all_tests.o StdioOutputter.o test_common.o $(REMOTETESTOBJS)

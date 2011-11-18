@@ -115,7 +115,7 @@ class PendingReceiverIROBLattice : public PendingIROBLattice {
     /* Hard rule: this won't ever return a non-ready IROB. */
     // also, if the socket is in blocking mode and block_for_data == true,
     //  this will block if no IROBs are ready.
-    PendingIROBPtr get_ready_irob(bool block_for_data);
+    PendingIROBPtr get_ready_irob(bool block_for_data, struct timeval read_begin);
 
     bool data_is_ready();
 

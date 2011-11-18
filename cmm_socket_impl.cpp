@@ -1541,6 +1541,25 @@ CMMSocketImpl::is_non_blocking()
             (fcntl(sock, F_GETFL, 0) & O_NONBLOCK));
 }
 
+struct timeval
+CMMSocketImpl::get_read_timeout()
+{
+    return receive_timeout;
+}
+
+bool
+CMMSocketImpl::read_timeout_expired(struct timeval read_begin)
+{
+    struct timeval now, abstimeout;
+    TIME(now);
+
+    if (receive_timeout.tv_sec == 0 && receive_timeout.tv_usec == 0) {
+        return false;
+    }
+    timeradd(&read_begin, &receive_timeout, &abstimeout);
+    return timercmp(&now, &abstimeout, >=);
+}
+
 int
 CMMSocketImpl::mc_setsockopt(int level, int optname, 
                              const void *optval, socklen_t optlen)
