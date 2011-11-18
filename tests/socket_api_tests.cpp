@@ -7,6 +7,8 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <errno.h>
+#include <string.h>
 
 #include <libcmm.h>
 #include <libcmm_irob.h>
@@ -156,5 +158,60 @@ SocketAPITest::testPeek()
     } else {
         int rc = cmm_write(data_sock, msg, len, 0, NULL, NULL);
         CPPUNIT_ASSERT_EQUAL((int) len, rc);
+    }
+}
+
+void
+SocketAPITest::setReceiveTimeout(int seconds)
+{
+    struct timeval timeout = {seconds, 0};
+    int rc = cmm_setsockopt(data_sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    CPPUNIT_ASSERT_EQUAL(0, rc);
+}
+
+void
+SocketAPITest::testReceiveTimeout()
+{
+    const char str[] = "This is the string.";
+    const int len = sizeof(str);
+    const int FIRST_CHUNK = 5;
+    
+    if (isReceiver()) {
+        setReceiveTimeout(1);
+
+        char ch = 42;
+
+        int rc = cmm_read(data_sock, &ch, 1, NULL);
+        int e = errno;
+        CPPUNIT_ASSERT_EQUAL(-1, rc);
+        CPPUNIT_ASSERT(e == EAGAIN || e == EWOULDBLOCK);
+
+        setReceiveTimeout(0); // disables timeout entirely
+
+        rc = cmm_read(data_sock, &ch, 1, NULL);
+        CPPUNIT_ASSERT_EQUAL(1, rc);
+
+        setReceiveTimeout(1);
+        
+        char buf[64];
+        memset(buf, 0, 64);
+        rc = cmm_read(data_sock, buf, len, NULL);
+        CPPUNIT_ASSERT_EQUAL(FIRST_CHUNK, rc);
+
+        setReceiveTimeout(5);
+        rc = cmm_read(data_sock, buf, len, NULL);
+        CPPUNIT_ASSERT_EQUAL(len - FIRST_CHUNK, rc);
+    } else {
+        sleep(3);
+        char ch = 42;
+        int rc = cmm_write(data_sock, &ch, 1, 0, NULL, NULL);
+        CPPUNIT_ASSERT_EQUAL(1, rc);
+        
+        rc = cmm_write(data_sock, str, FIRST_CHUNK, 0, NULL, NULL);
+        CPPUNIT_ASSERT_EQUAL(FIRST_CHUNK, rc);
+        sleep(3);
+        
+        rc = cmm_write(data_sock, str, len - FIRST_CHUNK, 0, NULL, NULL);
+        CPPUNIT_ASSERT_EQUAL(len - FIRST_CHUNK, rc);
     }
 }

@@ -10,10 +10,13 @@ class SocketAPITest : public EndToEndTestsForked {
     CPPUNIT_TEST(testLabelsReturnedOnIROBBoundaries);
     CPPUNIT_TEST(testDroppedIROBFailureCases);
     CPPUNIT_TEST(testPeek);
+    CPPUNIT_TEST(testReceiveTimeout);
     CPPUNIT_TEST_SUITE_END();  
 
     void setOpt(int sock, int opt);
     void checkOpt(int sock, int opt);
+    
+    void setReceiveTimeout(int seconds);
 
   protected:
     virtual void socketSetup();
@@ -23,6 +26,7 @@ class SocketAPITest : public EndToEndTestsForked {
     void testLabelsReturnedOnIROBBoundaries();
     void testDroppedIROBFailureCases();
     void testPeek();
+    void testReceiveTimeout();
 };
 
 #endif

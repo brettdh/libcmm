@@ -529,6 +529,8 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
     sock_protocol = protocol;
 
     non_blocking = false;
+    receive_timeout.tv_sec = 0;
+    receive_timeout.tv_usec = 0;
 
     csock_map = NULL;
     //csock_map = new CSockMapping(this);
@@ -1555,8 +1557,26 @@ CMMSocketImpl::mc_setsockopt(int level, int optname,
             }
         }
     }
+    if (optname == SO_RCVTIMEO) {
+        if (optlen != sizeof(struct timeval)) {
+            errno = EINVAL;
+            return -1;
+        }
+        struct timeval *ptimeout = (struct timeval *) optval;
+        receive_timeout = *ptimeout;
+    }
 
-    if (optname != O_NONBLOCK) {
+    if (optname == O_NONBLOCK ||
+        optname == SO_RCVTIMEO || 
+        optname == SO_SNDTIMEO) {
+        // don't call setsockopt for the real sockets; the library
+        //   depends on blocking I/O for them.
+        // Instead, we give the illusion of non-blocking I/O
+        //   by always returning immediately from the 
+        //   relevant calls.
+        // This is trivially done for all calls except 
+        //   cmm_connect and cmm_accept; they require special care.
+    } else {
         rc = setsockopt(sock, level, optname, optval, optlen);
         if (rc < 0) {
             dbgprintf("warning: failed setting socket option on "
@@ -1579,14 +1599,6 @@ CMMSocketImpl::mc_setsockopt(int level, int optname,
         opt.optval = malloc(optlen);
         ASSERT(opt.optval);
         memcpy(opt.optval, optval, optlen);
-    } else {
-        // don't call setsockopt for the real sockets; the library
-        //   depends on blocking I/O for them.
-        // Instead, we give the illusion of non-blocking I/O
-        //   by always returning immediately from the 
-        //   relevant calls.
-        // This is trivially done for all calls except 
-        //   cmm_connect and cmm_accept; they require special care.
     }
 
     return 0;
