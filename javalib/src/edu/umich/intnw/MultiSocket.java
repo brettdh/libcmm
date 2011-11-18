@@ -51,9 +51,8 @@ public class MultiSocket extends Socket {
     }
 
     @Override
-    public synchronized void setSoTimeout(int timeout) throws SocketException {
-        // don't actually set this, since multisocket calls don't block on I/O.
-        //SystemCalls.setsockopt_integer(msock_fd, SocketOptions.SO_TIMEOUT, timeout);
+    public synchronized void setSoTimeout(int timeoutMillis) throws SocketException {
+        SystemCalls.set_receive_timeout(msock_fd, timeoutMillis);
     }
 
     @Override

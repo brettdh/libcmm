@@ -354,6 +354,25 @@ Java_edu_umich_intnw_SystemCalls_getsockopt_1integer(JNIEnv *jenv, jclass,
     return value;
 }
 
+/*
+ * Class:     edu_umich_intnw_SystemCalls
+ * Method:    set_receive_timeout
+ * Signature: (II)V
+ */
+JNIEXPORT void JNICALL
+Java_edu_umich_intnw_SystemCalls_set_1receive_1timeout(JNIEnv *jenv, jclass, 
+                                                       jint msock_fd, jint timeoutMillis)
+{
+    struct timeval timeout = {timeoutMillis / 1000, 0};
+    timeoutMillis -= (timeout.tv_sec * 1000);
+    timeout.tv_usec = timeoutMillis * 1000;
+    socklen_t optlen = sizeof(timeout);
+    int rc = cmm_setsockopt(msock_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, optlen);
+    if (rc < 0) {
+        jniThrowSocketException(jenv, "Failed to set receive timeout: %s", strerror(errno));
+    }
+}
+
 JNIEXPORT jint JNICALL
 Java_edu_umich_intnw_SystemCalls_getPort(JNIEnv *jenv, jclass,
                                          jint msock_fd)
