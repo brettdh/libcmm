@@ -119,6 +119,12 @@ void add_or_remove_csocket(struct iface_pair ifaces, //struct in_addr ip_addr,
                   " info from iface pair", pid, remote_fd);
         ifaces.print();
         dbgprintf_plain("\n");
+        if (pid != getpid() &&
+            (*all_intnw_csockets)[ifaces].count(info) > 0) {
+            local_fd = (*all_intnw_csockets)[ifaces].find(info)->local_fd;
+            dbgprintf("Closing local (dup'd) socket %d\n", local_fd);
+            close(local_fd);
+        }
         (*all_intnw_csockets)[ifaces].erase(info);
     } else {
         dbgprintf("adding (PID: %d remote_fd: %d local_fd: %d) "
@@ -212,7 +218,7 @@ public:
             struct sockaddr_un addr;
             socklen_t addrlen = sizeof(addr);
             struct fd_sharing_packet packet;
-            int new_fd = -1;
+            int recvd_fd = -1;
 
             struct timeval timeout = {1, 0};
             fd_set fds;
@@ -257,7 +263,7 @@ public:
             }
 
             if (!packet.remove_fd) {
-                rc = ancil_recv_fd(sock, &new_fd);
+                rc = ancil_recv_fd(sock, &recvd_fd);
                 if (rc != 0) {
                     perror("FDSharingThread: ancil_recv_fd");
                     break;
@@ -269,11 +275,11 @@ public:
                       packet.pid);
             packet.ifaces.print();
             dbgprintf_plain(" remote_fd %d local_fd %d remove? %s\n",
-                      packet.remote_fd, new_fd, 
+                      packet.remote_fd, recvd_fd, 
                       packet.remove_fd ? "yes" : "no");
 
             add_or_remove_csocket(packet.ifaces, 
-                                  packet.pid, packet.remote_fd, new_fd,
+                                  packet.pid, packet.remote_fd, recvd_fd,
                                   packet.remove_fd);
         }
         dbgprintf("FDSharingThread exiting.\n");

@@ -394,6 +394,7 @@ int notify_subscriber_of_event(pid_t pid, int ipc_sock,
                                struct net_interface iface, MsgOpcode opcode)
 {
     struct cmm_msg msg;
+    memset(&msg, 0, sizeof(msg));
     msg.opcode = opcode;
     msg.data.iface = iface;
     int rc = write(ipc_sock, (char*)&msg, sizeof(msg));
