@@ -133,6 +133,25 @@ SocketAPITest::testDroppedIROBFailureCases()
 }
 
 void
+SocketAPITest::testDroppedIROBWithDefaultIROBs()
+{
+    if (isReceiver()) {
+        char ch;
+        cmm_read(data_sock, &ch, 1, NULL);
+    } else {
+        irob_id_t irob = begin_irob(data_sock, 0, NULL, 0, NULL, NULL);
+        CPPUNIT_ASSERT(irob >= 0);
+        
+        CMM_PRIVATE_drop_irob_and_dependents(irob);
+
+        int rc = cmm_write(data_sock, "A", 1, 0, NULL, NULL);
+        CPPUNIT_ASSERT_MESSAGE("A new default IROB should not depend on dropped IROBs",
+                               rc != CMM_UNDELIVERABLE);
+        CPPUNIT_ASSERT_EQUAL(1, rc);
+    }
+}
+
+void
 SocketAPITest::testPeek()
 {
     const char msg[] = "This is the message.";
