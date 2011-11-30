@@ -138,6 +138,8 @@ SocketAPITest::testDroppedIROBWithDefaultIROBs()
     if (isReceiver()) {
         char ch;
         cmm_read(data_sock, &ch, 1, NULL);
+        cmm_read(data_sock, &ch, 1, NULL);
+        cmm_read(data_sock, &ch, 1, NULL);
     } else {
         irob_id_t irob = begin_irob(data_sock, 0, NULL, 0, NULL, NULL);
         CPPUNIT_ASSERT(irob >= 0);
@@ -146,6 +148,19 @@ SocketAPITest::testDroppedIROBWithDefaultIROBs()
 
         int rc = cmm_write(data_sock, "A", 1, 0, NULL, NULL);
         CPPUNIT_ASSERT_MESSAGE("A new default IROB should not depend on dropped IROBs",
+                               rc != CMM_UNDELIVERABLE);
+        CPPUNIT_ASSERT_EQUAL(1, rc);
+
+        rc = cmm_write_with_deps(data_sock, "A", 1, 0, NULL, 0, NULL, NULL, &irob);
+        CPPUNIT_ASSERT(irob >= 0);
+        CPPUNIT_ASSERT_EQUAL(1, rc);
+        
+        irob = begin_irob(data_sock, 0, NULL, 0, NULL, NULL);
+        CPPUNIT_ASSERT(irob >= 0);
+        CMM_PRIVATE_drop_irob_and_dependents(irob);
+
+        rc = cmm_write(data_sock, "A", 1, 0, NULL, NULL);
+        CPPUNIT_ASSERT_MESSAGE("Don't depend on default IROBs even when there are other ACK'd IROBs",
                                rc != CMM_UNDELIVERABLE);
         CPPUNIT_ASSERT_EQUAL(1, rc);
     }
