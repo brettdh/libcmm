@@ -1453,14 +1453,18 @@ CMMSocketImpl::mc_recv(void *buf, size_t count, int flags,
         return -1;
     }
 
+    int real_errno = 0;
     struct timeval begin, end, diff;
     TIME(begin);
     int rc = incoming_irobs.recv(buf, count, flags, recv_labels);
+    real_errno = errno;
     TIME(end);
     TIMEDIFF(begin, end, diff);
     dbgprintf("mc_read (%d bytes) took %lu.%06lu seconds, start-to-finish\n", 
               rc, diff.tv_sec, diff.tv_usec);
 
+    // on Android, dbgprintf resets errno for some reason.  Hacky workaround.
+    errno = real_errno;
     return rc;
 }
 
@@ -1468,6 +1472,11 @@ int
 CMMSocketImpl::mc_getsockopt(int level, int optname, 
                              void *optval, socklen_t *optlen)
 {
+    if (!optval || !optlen) {
+        errno = EFAULT;
+        return -1;
+    }
+    
     PthreadScopedRWLock lock(&my_lock, false);
 
     if (optname == SO_ERROR) {
@@ -1475,10 +1484,6 @@ CMMSocketImpl::mc_getsockopt(int level, int optname,
         // like normal SO_ERROR does.  Shouldn't matter;
         // once there's an error of this sort, can't do
         // much besides close the socket.
-        if (!optval || !optlen) {
-            errno = EFAULT;
-            return -1;
-        }
         if (level != SOL_SOCKET) {
             errno = ENOPROTOOPT;
             return -1;
@@ -1487,6 +1492,18 @@ CMMSocketImpl::mc_getsockopt(int level, int optname,
         *((int*)optval) = bootstrapper ? bootstrapper->status() : 0;
         return 0;
     }
+
+    if (optname == SO_RCVTIMEO) {
+        if (*optlen < sizeof(struct timeval)) {
+            errno = EINVAL;
+            return -1;
+        }
+        struct timeval *ptimeout = (struct timeval *) optval;
+        *ptimeout = receive_timeout;
+        *optlen = sizeof(receive_timeout);
+        return 0;
+    }
+
 
     CSocketPtr csock = csock_map->csock_with_labels(0);
     if (csock) {

@@ -59,7 +59,7 @@ public class MultiSocket extends Socket {
     public synchronized int getSoTimeout() throws SocketException {
         // we set this as zero because we never actually do anything for setSoTimeout (see above).
         //  according to the JavaDoc, zero means infinite timeout.
-        return 0;
+        return SystemCalls.get_receive_timeout(msock_fd);
     }
 
     @Override

@@ -203,10 +203,15 @@ Java_edu_umich_intnw_SystemCalls_ms_1read(JNIEnv *jenv, jclass,
     int rc = cmm_read(msock_fd, realBuffer + offset, length, &labels);
     if (rc < 0) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            // read expects 0 for timeout or non-blocking return.
+            // read expects 0 for non-blocking return.
             return 0;
+        } else if (errno == ETIMEDOUT) {
+            jniThrowException(jenv, "java/net/SocketTimeoutException", 
+                              "Timed out waiting for bytes on multisocket");
+            return -1;
         } else {
-            jniThrowIOException(jenv, "Failed to read bytes from multisocket");
+            jniThrowIOException(jenv, "Failed to read bytes from multisocket: %s",
+                                strerror(errno));
             return -1;
         }
     } else if (rc == 0) {
@@ -376,6 +381,26 @@ Java_edu_umich_intnw_SystemCalls_set_1receive_1timeout(JNIEnv *jenv, jclass,
     if (rc < 0) {
         jniThrowSocketException(jenv, "Failed to set receive timeout: %s", strerror(errno));
     }
+}
+
+/*
+ * Class:     edu_umich_intnw_SystemCalls
+ * Method:    get_receive_timeout
+ * Signature: (I)I
+ */
+JNIEXPORT jint JNICALL
+Java_edu_umich_intnw_SystemCalls_get_1receive_1timeout(JNIEnv *jenv, jclass, 
+                                                       jint msock_fd)
+{
+    jint timeoutMillis = 0;
+    
+    struct timeval timeout = {0, 0};
+    socklen_t optlen = sizeof(timeout);
+    int rc = cmm_getsockopt(msock_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, &optlen);
+    if (rc < 0) {
+        jniThrowSocketException(jenv, "Failed to get receive timeout: %s", strerror(errno));
+    }
+    return (timeout.tv_sec * 1000) + (timeout.tv_usec / 1000);
 }
 
 JNIEXPORT jint JNICALL

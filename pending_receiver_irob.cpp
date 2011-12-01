@@ -490,6 +490,8 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
     // will be released while waiting for bytes to arrive
 #endif
 
+    int msock_read_errno = 0;
+
     ssize_t bytes_passed = 0;
     while ((size_t)bytes_passed < len) {
         struct timeval one_begin, one_end, one_diff;
@@ -523,14 +525,17 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
             // sentinel; no more bytes are ready
             ASSERT(pirob == (PendingReceiverIROB*)get_pointer(empty_sentinel_irob));
             if (bytes_passed == 0) {
-                if (!sk->is_non_blocking() && !sk->read_timeout_expired(begin)) {
+                if (sk->is_non_blocking()) {
+                    msock_read_errno = EWOULDBLOCK;
+                } else if (sk->read_timeout_expired(begin)) {
+                    msock_read_errno = ETIMEDOUT;
+                } else {
                     // impossible; get_ready_irob would have blocked
                     //  until there was data ready to return
                     ASSERT(0);
                 }
 
                 bytes_passed = -1;
-                errno = EWOULDBLOCK;
             }
             break;
         }
@@ -598,5 +603,6 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
         //global_stats.recv_count[timing_recv_labels]++;;
     }
 #endif
+    errno = msock_read_errno;
     return bytes_passed;
 }
