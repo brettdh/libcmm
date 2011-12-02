@@ -816,13 +816,16 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
 
     dbgprintf("libcmm: about to call select(), maxosfd=%d\n", maxosfd);
 
+    int real_errno = 0;
     rc = select(maxosfd + 1, &tmp_readfds, &tmp_writefds, &tmp_exceptfds, 
                 timeout);
+    real_errno = errno;
 
     dbgprintf("libcmm: returned from select()\n");
     
     if (rc < 0) {
         /* select does not modify the fd_sets if failure occurs */
+        errno = real_errno;
         return rc;
     }
 

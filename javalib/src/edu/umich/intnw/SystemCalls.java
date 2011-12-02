@@ -2,6 +2,7 @@ package edu.umich.intnw;
 
 import java.io.IOException;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 
 class SystemCalls {
     static native int ms_stream_socket();
@@ -26,4 +27,9 @@ class SystemCalls {
         System.loadLibrary("cmm");
         System.loadLibrary("intnw_javalib");
     }
+
+    static native void ms_wait_for_input(int msock_fd, int timeoutMillis) throws MultiSocketInterruptedException, SocketTimeoutException, IOException;
+    static native void install_interruption_signal_handler(long currentThreadId);
+    static native void remove_interruption_signal_handler(long currentThreadId);
+    static native void interrupt_waiter(long waitingThreadId);
 }

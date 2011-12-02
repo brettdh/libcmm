@@ -8,6 +8,14 @@
 #include <string.h>
 #include <errno.h>
 
+#include "debug.h"
+
+#include <map>
+using std::map;
+
+#include <pthread.h>
+#include <signal.h>
+
 static void jniThrowExceptionVaList(JNIEnv *jenv, const char *className, const char *fmt, 
                                     va_list ap)
 {
@@ -177,6 +185,123 @@ Java_edu_umich_intnw_SystemCalls_ms_1write(JNIEnv *jenv, jclass, jint msock_fd,
         }
     }
     jenv->ReleaseByteArrayElements(byteArray, realBuffer, JNI_ABORT);
+}
+
+/*
+ * Class:     edu_umich_intnw_SystemCalls
+ * Method:    ms_wait_for_input
+ * Signature: (I)V
+ */
+JNIEXPORT void JNICALL 
+Java_edu_umich_intnw_SystemCalls_ms_1wait_1for_1input(JNIEnv *jenv, jclass, jint msock_fd, jint timeoutMillis)
+{
+    struct timeval timeout;
+    struct timeval *ptimeout = NULL;
+    if (timeoutMillis >= 0) {
+        timeout.tv_sec = timeoutMillis / 1000;
+        timeout.tv_usec = (timeoutMillis - (timeout.tv_sec * 1000)) * 1000;
+        ptimeout = &timeout;
+    }
+    fd_set read_fds;
+    FD_ZERO(&read_fds);
+    FD_SET(msock_fd, &read_fds);
+    int rc = cmm_select(msock_fd + 1, &read_fds, NULL, NULL, ptimeout);
+    if (rc < 0) {
+        if (errno == EINTR) {
+            jniThrowException(jenv, "edu/umich/intnw/MultiSocketInterruptedException",
+                              "waitForInput on multisocket %d interrupted by signal", msock_fd);
+        } else {
+            jniThrowIOException(jenv, "waitForInput failed; error on multisocket %d: %s", 
+                                msock_fd, strerror(errno));
+        }
+    } else if (rc == 0) {
+        jniThrowException(jenv, "java/net/SocketTimeoutException",
+                          "waitForInput on multisocket %d timed out", msock_fd);
+    } else {
+        assert(rc == 1);
+    }
+}
+
+
+static map<jlong, pthread_t> waitingJavaThreads;
+static map<jlong, struct sigaction*> default_sa_per_thread;
+static pthread_mutex_t waiters_mutex = PTHREAD_MUTEX_INITIALIZER;
+static const int READ_WAKEUP_SIGNAL = 43;  // as in IntNW IPCThread, this should be fine.
+
+static void wakeup_handler(int signum)
+{
+    dbgprintf("In wakeup handler, pthread 0x%x\n", pthread_self());
+}
+
+/*
+ * Class:     edu_umich_intnw_SystemCalls
+ * Method:    install_interruption_signal_handler
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL 
+Java_edu_umich_intnw_SystemCalls_install_1interruption_1signal_1handler(JNIEnv *jenv, jclass, jlong currentThreadId)
+{
+    pthread_mutex_lock(&waiters_mutex);
+    assert(waitingJavaThreads.count(currentThreadId) == 0);
+    waitingJavaThreads[currentThreadId] = pthread_self();
+    assert(default_sa_per_thread.count(currentThreadId) == 0);
+
+    struct sigaction *default_sa = new struct sigaction;
+    default_sa_per_thread[currentThreadId] = default_sa;
+
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    memset(default_sa, 0, sizeof(*default_sa));
+
+    sa.sa_handler = wakeup_handler;
+    sigaction(READ_WAKEUP_SIGNAL, &sa, default_sa);
+    default_sa->sa_handler == SIG_IGN;
+
+    // bad case: we generate an unexpected signal
+    //  for a program that expects it in some context.
+    // TODO: address.  Seems unlikely, though.
+
+    dbgprintf("Added pthread 0x%x interruption handler\n", pthread_self());
+
+    pthread_mutex_unlock(&waiters_mutex);
+}
+
+/*
+ * Class:     edu_umich_intnw_SystemCalls
+ * Method:    remove_interruption_signal_handler
+ * Signature: (Ljava/lang/Thread;)V
+ */
+JNIEXPORT void JNICALL
+Java_edu_umich_intnw_SystemCalls_remove_1interruption_1signal_1handler(JNIEnv *jenv, jclass, jlong currentThreadId)
+{
+    pthread_mutex_lock(&waiters_mutex);
+    assert(waitingJavaThreads.count(currentThreadId) == 1);
+    waitingJavaThreads.erase(currentThreadId);
+    assert(default_sa_per_thread.count(currentThreadId) == 1);
+    struct sigaction *default_sa = default_sa_per_thread[currentThreadId];
+    default_sa_per_thread.erase(currentThreadId);
+    
+    //sigaction(READ_WAKEUP_SIGNAL, default_sa, NULL);
+    delete default_sa;
+    dbgprintf("Removed pthread 0x%x interruption handler\n", pthread_self());
+
+    pthread_mutex_unlock(&waiters_mutex);
+}
+
+/*
+ * Class:     edu_umich_intnw_SystemCalls
+ * Method:    interrupt_waiter
+ * Signature: (Ljava/lang/Thread;)V
+ */
+JNIEXPORT void JNICALL Java_edu_umich_intnw_SystemCalls_interrupt_1waiter(JNIEnv *jenv, jclass, jlong waitingThreadId)
+{
+    pthread_mutex_lock(&waiters_mutex);
+    if (waitingJavaThreads.count(waitingThreadId) == 1) {
+        pthread_t waitingPthread = waitingJavaThreads[waitingThreadId];
+        pthread_kill(waitingPthread, READ_WAKEUP_SIGNAL);
+        dbgprintf("Sent wakeup signal to waiter pthread 0x%x\n", waitingPthread);
+    }
+    pthread_mutex_unlock(&waiters_mutex);
 }
 
 /*
