@@ -47,11 +47,29 @@ public class MultisocketInputStream extends InputStream {
     }
     
     public void waitForInput() throws MultiSocketInterruptedException, IOException {
-        waitforInput(-1);
+        waitforInput(0);
     }
     
     private HashSet<Thread> waiters = new HashSet<Thread>();
+    
+    /**
+     * Respects the timeout set by setSoTimeout().  Waits for min(getSoTimeout(), timeoutMillis) if timeoutMillis is > 0.
+     * @param timeoutMillis
+     * @throws MultiSocketInterruptedException
+     * @throws SocketTimeoutException
+     * @throws IOException
+     */
     public void waitforInput(int timeoutMillis) throws MultiSocketInterruptedException, SocketTimeoutException, IOException {
+        timeoutMillis = Math.max(0, timeoutMillis);
+        int socketTimeout = socket.getSoTimeout();
+        if (timeoutMillis > 0 && socketTimeout > 0) {
+            timeoutMillis = Math.min(timeoutMillis, socketTimeout);
+        } else {
+            // only one or neither are non-zero.
+            // pick that one or zero.
+            timeoutMillis = Math.max(timeoutMillis, socketTimeout);
+        }
+        
         synchronized(waiters) {
             waiters.add(Thread.currentThread());
         }

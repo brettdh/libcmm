@@ -197,7 +197,7 @@ Java_edu_umich_intnw_SystemCalls_ms_1wait_1for_1input(JNIEnv *jenv, jclass, jint
 {
     struct timeval timeout;
     struct timeval *ptimeout = NULL;
-    if (timeoutMillis >= 0) {
+    if (timeoutMillis > 0) {
         timeout.tv_sec = timeoutMillis / 1000;
         timeout.tv_usec = (timeoutMillis - (timeout.tv_sec * 1000)) * 1000;
         ptimeout = &timeout;
