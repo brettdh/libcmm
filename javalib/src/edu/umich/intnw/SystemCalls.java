@@ -16,6 +16,7 @@ class SystemCalls {
     static native void setsockopt_boolean(int msock_fd, int so_name, boolean on) throws SocketException;
     static native void setsockopt_integer(int msock_fd, int so_name, int value) throws SocketException;
     static native void set_receive_timeout(int msock_fd, int timeoutMillis) throws SocketException;
+    static native int get_receive_timeout(int msock_fd) throws SocketException;
     
     static native int getPort(int msock_fd);
     static native void shutdownInput(int msock_fd) throws SocketException;
@@ -25,6 +26,4 @@ class SystemCalls {
         System.loadLibrary("cmm");
         System.loadLibrary("intnw_javalib");
     }
-
-
 }
