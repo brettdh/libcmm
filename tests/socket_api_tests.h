@@ -12,6 +12,7 @@ class SocketAPITest : public EndToEndTestsForked {
     CPPUNIT_TEST(testPeek);
     CPPUNIT_TEST(testReceiveTimeout);
     CPPUNIT_TEST(testDroppedIROBWithDefaultIROBs);
+    CPPUNIT_TEST(testSelect);
     CPPUNIT_TEST_SUITE_END();  
 
     void setOpt(int sock, int opt);
@@ -29,6 +30,7 @@ class SocketAPITest : public EndToEndTestsForked {
     void testPeek();
     void testReceiveTimeout();
     void testDroppedIROBWithDefaultIROBs();
+    void testSelect();
 };
 
 #endif
