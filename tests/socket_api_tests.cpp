@@ -17,6 +17,8 @@
 #include <string>
 using std::string;
 
+#include "timeops.h"
+
 CPPUNIT_TEST_SUITE_REGISTRATION(SocketAPITest);
 
 void
@@ -247,5 +249,70 @@ SocketAPITest::testReceiveTimeout()
         
         rc = cmm_write(data_sock, str, len - FIRST_CHUNK, 0, NULL, NULL);
         CPPUNIT_ASSERT_EQUAL(len - FIRST_CHUNK, rc);
+    }
+}
+
+static void handler(int signum)
+{
+    // ignore
+}
+
+static void scheduleInterruption(int seconds)
+{
+    signal(SIGALRM, handler);
+    alarm(seconds);
+}
+
+void SocketAPITest::testSelect()
+{
+    if (isReceiver()) {
+        // test normal select behavior
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
+        FD_SET(data_sock, &read_fds);
+        int rc = cmm_select(data_sock + 1, &read_fds, NULL, NULL, NULL);
+        CPPUNIT_ASSERT_EQUAL(1, rc);
+        char ch = 42;
+        rc = cmm_read(data_sock, &ch, 1, NULL);
+        CPPUNIT_ASSERT_EQUAL(1, rc);
+        CPPUNIT_ASSERT(FD_ISSET(data_sock, &read_fds));
+
+        // test timeout
+        FD_ZERO(&read_fds);
+        FD_SET(data_sock, &read_fds);
+        struct timeval timeout = {1, 0};
+        struct timeval begin, end, diff;
+        TIME(begin);
+        rc = cmm_select(data_sock + 1, &read_fds, NULL, NULL, &timeout);
+        CPPUNIT_ASSERT_EQUAL(0, rc);
+        TIME(end);
+        TIMEDIFF(begin, end, diff);
+        CPPUNIT_ASSERT_EQUAL(1, (int)diff.tv_sec);
+        CPPUNIT_ASSERT(!FD_ISSET(data_sock, &read_fds));
+
+        // test interruption
+        timeout.tv_sec = 3;
+        timeout.tv_usec = 0;
+        scheduleInterruption(1);
+        FD_ZERO(&read_fds);
+        FD_SET(data_sock, &read_fds);
+        rc = cmm_select(data_sock + 1, &read_fds, NULL, NULL, &timeout);
+        int my_errno = errno;
+        CPPUNIT_ASSERT_MESSAGE("cmm_select should return <0 when interrupted", rc < 0);
+        CPPUNIT_ASSERT_EQUAL(EINTR, my_errno);
+        CPPUNIT_ASSERT(FD_ISSET(data_sock, &read_fds));
+        
+        // not really part of the test; just keep the other side alive until now
+        rc = cmm_write(data_sock, "A", 1, 0, NULL, NULL);
+        CPPUNIT_ASSERT_EQUAL(1, rc);
+    } else {
+        sleep(1);
+        int rc = cmm_write(data_sock, "A", 1, 0, NULL, NULL);
+        CPPUNIT_ASSERT_EQUAL(1, rc);
+        
+        // wait for receiver to finish test
+        char ch = 42;
+        rc = cmm_read(data_sock, &ch, 1, NULL);
+        CPPUNIT_ASSERT_EQUAL(1, rc);
     }
 }
