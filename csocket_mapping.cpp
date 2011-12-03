@@ -577,8 +577,21 @@ CSockMapping::make_new_csocket(struct net_interface local_iface,
         PthreadScopedRWLock lock(&sockset_mutex, true);
         
         csock = csock_by_ifaces(local_iface, remote_iface, false);
-        if (csock) {
-            return csock;
+        if (csock)  {
+            if (accepted_sock > 0) {
+                // The accepting side thinks it still has a socket
+                //   on this iface-pair, but the connecting side is
+                //   connecting a new one.  That means that the connecting side
+                //   thinks its connection is dead.
+                // It seems like this shouldn't happen, but I get
+                //   strange "Connection reset by peer" errors sometimes.
+                // When it does happen, the accepting side should ditch its old
+                //   csocket and use the new one instead.
+                available_csocks.erase(csock);
+                shutdown(csock->osfd, SHUT_RDWR); /* tells the sender/receiver threads to exit */
+            } else {
+                return csock;
+            }
         }
 
         // TODO: if this multisocket was created by cmm_accept,
