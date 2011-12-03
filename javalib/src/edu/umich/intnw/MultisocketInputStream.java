@@ -2,6 +2,9 @@ package edu.umich.intnw;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.SocketTimeoutException;
+import java.util.Collections;
+import java.util.HashSet;
 
 public class MultisocketInputStream extends InputStream {
     private MultiSocket socket;
@@ -41,6 +44,52 @@ public class MultisocketInputStream extends InputStream {
     @Override
     public int read(byte[] buffer) throws IOException {
         return read(buffer, null);
+    }
+    
+    public void waitForInput() throws MultiSocketInterruptedException, IOException {
+        waitforInput(0);
+    }
+    
+    private HashSet<Thread> waiters = new HashSet<Thread>();
+    
+    /**
+     * Respects the timeout set by setSoTimeout().  Waits for min(getSoTimeout(), timeoutMillis) if timeoutMillis is > 0.
+     * @param timeoutMillis
+     * @throws MultiSocketInterruptedException
+     * @throws SocketTimeoutException
+     * @throws IOException
+     */
+    public void waitforInput(int timeoutMillis) throws MultiSocketInterruptedException, SocketTimeoutException, IOException {
+        timeoutMillis = Math.max(0, timeoutMillis);
+        int socketTimeout = socket.getSoTimeout();
+        if (timeoutMillis > 0 && socketTimeout > 0) {
+            timeoutMillis = Math.min(timeoutMillis, socketTimeout);
+        } else {
+            // only one or neither are non-zero.
+            // pick that one or zero.
+            timeoutMillis = Math.max(timeoutMillis, socketTimeout);
+        }
+        
+        synchronized(waiters) {
+            waiters.add(Thread.currentThread());
+        }
+        try {
+            SystemCalls.install_interruption_signal_handler(Thread.currentThread().getId());
+            SystemCalls.ms_wait_for_input(socket.msock_fd, timeoutMillis);
+        } finally {
+            synchronized(waiters) {
+                waiters.remove(Thread.currentThread());
+            }
+            SystemCalls.remove_interruption_signal_handler(Thread.currentThread().getId());
+        }
+    }
+
+    public void interruptWaiters() {
+        synchronized(waiters) {
+            for (Thread waiter : waiters) {
+                SystemCalls.interrupt_waiter(waiter.getId());
+            }
+        }
     }
 
     private Object UNIMPLEMENTED_METHODS_MARKER = null;
