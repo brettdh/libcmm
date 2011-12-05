@@ -27,6 +27,7 @@ struct IROBSchedulingData {
     bool chunks_ready;
     resend_request_type_t resend_request;
     struct timeval completion_time; // for ACKs
+    bool data_check;
 
     u_long send_labels;
     // more scheduling hints here?

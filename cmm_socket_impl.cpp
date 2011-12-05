@@ -1816,8 +1816,9 @@ void CMMSocketImpl::data_check_all_irobs(in_addr_t local_ip, in_addr_t remote_ip
         if (psirob->wasSentOn(local_ip, remote_ip) &&
             (label_mask == 0 ||
              label_mask & psirob->send_labels)) {
-            IROBSchedulingData data_check(ids[i], false);
-            irob_indexes.waiting_data_checks.insert(data_check);
+            IROBSchedulingData data(ids[i], false);
+            data.data_check = true;
+            irob_indexes.waiting_data_checks.insert(data);
         }
     }
 

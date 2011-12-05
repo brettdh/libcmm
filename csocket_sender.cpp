@@ -627,7 +627,9 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
         if (match != csock && match->is_connected()) {
             bool ret = true;
             // pass this task to the right thread
-            if (!data.chunks_ready) {
+            if (data.data_check) {
+                match->irob_indexes.waiting_data_checks.insert(data);
+            } else if (!data.chunks_ready) {
                 match->irob_indexes.new_irobs.insert(data);
             } else {
                 match->irob_indexes.new_chunks.insert(data);
@@ -1483,6 +1485,12 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
     PendingIROBPtr pirob = sk->outgoing_irobs.find(data.id);
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
     if (psirob) { 
+        if (delegate_if_necessary(data.id, pirob, data)) {
+            // should try data checks on label-matched thread first
+            //  also, shouldn't data-check contrary to net restriction labels
+            return;
+        }
+
         ssize_t chunksize = MIN_CHUNKSIZE;
         u_long seqno = 0;
         size_t offset = 0;
