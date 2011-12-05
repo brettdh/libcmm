@@ -53,20 +53,30 @@ public class SocketAPITest extends InstrumentationTestCase {
         } catch (SocketTimeoutException e) {
             // success
         }
+        
+        writeChunk();
+
+        in.waitForInput();
+        // success
+        readChunk(in);
+    }
+
+    private void readChunk(MultisocketInputStream in) throws IOException {
+        byte[] response = new byte[CHUNKLEN];
+        int rc = in.read(response);
+        assertTrue(rc == CHUNKLEN);
+    }
+
+    final int CHUNKLEN = 40;
+    private void writeChunk() throws IOException {
         final String msg = "abcd\n";
-        final int CHUNKLEN = 40;
+        
         byte[] netMessage = new byte[CHUNKLEN];
         Arrays.fill(netMessage, (byte) 0);
         for (int i = 0; i < msg.length(); ++i) {
             netMessage[i] = msg.getBytes()[i];
         }
         sock.getOutputStream().write(netMessage);
-
-        in.waitForInput();
-        // success
-        byte[] response = new byte[CHUNKLEN];
-        int rc = in.read(response);
-        assertTrue(rc == CHUNKLEN);
     }
     
     public void testWaitForInputIsInterruptible() throws IOException {
@@ -148,5 +158,45 @@ public class SocketAPITest extends InstrumentationTestCase {
         MultisocketInputStream in = (MultisocketInputStream) sock.getInputStream();
         in.waitForInput();
         // success; failure detection is left to the next read()
+    }
+    
+    public void testWaitForInputAfterInterruptShouldThrow() throws IOException {
+        MultisocketInputStream in = (MultisocketInputStream) sock.getInputStream();
+        in.interruptWaiters();
+        try {
+            in.waitforInput(1000);
+            fail("Should have thrown interrupted exception");
+        } catch (MultiSocketInterruptedException e) {
+            // success
+        } catch (SocketTimeoutException e) {
+            fail("Should have been interrupted, not timed out");
+        }
+        
+        in.clearInterruptedState();
+        try {
+            in.waitforInput(1000);
+            fail("Should have thrown timeout exception");
+        } catch (MultiSocketInterruptedException e) {
+            fail("Should have timed out, not have been interrupted");
+        } catch (SocketTimeoutException e) {
+            // success
+        }
+    }
+    
+    public void testWaitForInputStreamReturnsAvailableDataWhenInterrupted() throws IOException, InterruptedException {
+        writeChunk();
+        Thread.sleep(3000);
+        
+        MultisocketInputStream in = (MultisocketInputStream) sock.getInputStream();
+        in.interruptWaiters();
+        in.waitForInput();
+        readChunk(in);
+        
+        try {
+            in.waitForInput();
+            fail("Should be interrupted after returning buffered data");
+        } catch (MultiSocketInterruptedException e) {
+            // success
+        }
     }
 }

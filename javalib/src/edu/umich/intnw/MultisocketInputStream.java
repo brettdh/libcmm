@@ -51,6 +51,7 @@ public class MultisocketInputStream extends InputStream {
     }
     
     private HashSet<Thread> waiters = new HashSet<Thread>();
+    private boolean interrupted = false;
     
     /**
      * Respects the timeout set by setSoTimeout().  Waits for min(getSoTimeout(), timeoutMillis) if timeoutMillis is > 0.
@@ -71,6 +72,17 @@ public class MultisocketInputStream extends InputStream {
         }
         
         synchronized(waiters) {
+            if (this.interrupted) {
+                try {
+                    SystemCalls.ms_wait_for_input(socket.msock_fd, 1);
+                    return; // if ms_wait_for_input doesn't time out, 
+                            // we already have buffered data ready to return.
+                } catch (SocketTimeoutException e) {
+                    // ...if it does time out, then we are interrupted 
+                    //  and we have no more data ready to return.
+                    throw new MultiSocketInterruptedException("MultiSocket was in interrupted state before wait!");
+                }
+            }
             waiters.add(Thread.currentThread());
         }
         try {
@@ -89,6 +101,13 @@ public class MultisocketInputStream extends InputStream {
             for (Thread waiter : waiters) {
                 SystemCalls.interrupt_waiter(waiter.getId());
             }
+            this.interrupted = true; // interrupted state persists until cleared by another method
+        }
+    }
+    
+    public void clearInterruptedState() {
+        synchronized(waiters) {
+            this.interrupted = false;
         }
     }
 
