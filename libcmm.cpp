@@ -194,27 +194,16 @@ int cmm_select(mc_socket_t nfds,
                struct timeval *timeout)
 {
     return CMMSocket::mc_select(nfds, readfds, writefds, exceptfds, timeout);
-
-#if 0
-    /* No longer needed, since we now select on a special
-     * file descriptor that captures all CSockets */
-    int rc = 0;
-    do {
-        rc = CMMSocket::mc_select(nfds, readfds, writefds, exceptfds, timeout);
-        if (rc < 0 && errno == EINTR) {
-            dbgprintf("Select interrupted by signal; retrying "
-                    "(inside libcmm)\n");
-        } else {
-            dbgprintf("mc_select returned %d, errno=%d\n", rc, errno);
-        }
-    } while (rc < 0 && errno == EINTR);
-    return rc;
-#endif
 }
 
 int cmm_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 {
     return CMMSocket::mc_poll(fds, nfds, timeout);
+}
+
+void cmm_interrupt_waiters(mc_socket_t sock)
+{
+    CMMSocket::lookup(sock)->mc_interrupt_waiters();
 }
 
 int cmm_getpeername(mc_socket_t sock, struct sockaddr *address, 

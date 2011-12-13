@@ -97,6 +97,8 @@ class CMMSocketImpl : public CMMSocket {
                          struct timeval *timeout);
     static int mc_poll(struct pollfd fds[], nfds_t nfds, int timeout);
 
+    void mc_interrupt_waiters();
+
     static int mc_listen(int listener_sock, int backlog);
     static mc_socket_t mc_accept(int listener_sock, 
                                  struct sockaddr *addr, socklen_t *addrlen);
@@ -264,6 +266,7 @@ class CMMSocketImpl : public CMMSocket {
     void data_check_requested(irob_id_t id);
     
     bool is_shutting_down(void);
+    bool will_block_on_read(void);
 
 #define CMM_INVALID_RC -10
 
@@ -385,8 +388,6 @@ class CMMSocketPassThrough : public CMMSocket {
                                socklen_t *address_len);
     virtual int mc_getsockname(struct sockaddr *address, 
                                socklen_t *address_len);
-    //virtual int reset();
-    //virtual int check_label(u_long label, resume_handler_t fn, void *arg);
     virtual int mc_recv(void *buf, size_t count, int flags,
                         u_long *recv_labels);
     virtual int mc_getsockopt(int level, int optname, 
@@ -404,6 +405,8 @@ class CMMSocketPassThrough : public CMMSocket {
                           resume_handler_t resume_handler, void *arg);
     virtual int mc_shutdown(int how);
 
+    void mc_interrupt_waiters();
+    
     virtual irob_id_t mc_begin_irob(int numdeps, const irob_id_t *deps, 
                                     u_long send_labels, 
                                     resume_handler_t rh, void *rh_arg);
