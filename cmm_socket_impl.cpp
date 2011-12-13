@@ -823,7 +823,7 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
 
     dbgprintf("libcmm: returned from select()\n");
     
-    if (rc < 0) {
+    if (rc <= 0) {
         /* select does not modify the fd_sets if failure occurs */
         errno = real_errno;
         return rc;
@@ -842,7 +842,6 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
     rc -= make_mc_fd_set(&tmp_writefds, writeosfd_list);
     rc -= make_mc_fd_set(&tmp_exceptfds, exceptosfd_list);
 
-    int select_errno = 0;
     for (int i = 0; i < nfds; ++i) {
         if (FD_ISSET(i, &tmp_readfds) ||
             FD_ISSET(i, &tmp_writefds)) {
@@ -861,7 +860,7 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
                 sk->clear_select_pipe(sk->select_pipe[0]);
                 if (sk->will_block_on_read()) {
                     // we got interrupted by mc_interrupt_waiters
-                    select_errno = EINTR;
+                    real_errno = EINTR;
                     rc = -1;
                 }
             }
@@ -876,6 +875,7 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
     if (writefds)  { *writefds  = tmp_writefds;  }
     if (exceptfds) { *exceptfds = tmp_exceptfds; }
 
+    errno = real_errno;
     return rc;
 }
 
