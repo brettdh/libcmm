@@ -525,10 +525,8 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
             // sentinel; no more bytes are ready
             ASSERT(pirob == (PendingReceiverIROB*)get_pointer(empty_sentinel_irob));
             if (bytes_passed == 0) {
-                if (sk->is_non_blocking()) {
+                if (sk->is_non_blocking() || sk->read_timeout_expired(begin)) {
                     msock_read_errno = EWOULDBLOCK;
-                } else if (sk->read_timeout_expired(begin)) {
-                    msock_read_errno = ETIMEDOUT;
                 } else {
                     // impossible; get_ready_irob would have blocked
                     //  until there was data ready to return

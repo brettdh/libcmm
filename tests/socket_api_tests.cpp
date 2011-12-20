@@ -221,6 +221,7 @@ SocketAPITest::testReceiveTimeout()
         int rc = cmm_read(data_sock, &ch, 1, NULL);
         int e = errno;
         CPPUNIT_ASSERT_EQUAL(-1, rc);
+        perror("cmm_read (expected to fail)");
         CPPUNIT_ASSERT(e == EAGAIN || e == EWOULDBLOCK);
 
         setReceiveTimeout(0); // disables timeout entirely
