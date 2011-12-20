@@ -133,9 +133,12 @@ public class SocketAPITest extends InstrumentationTestCase {
         }
         
         Thread.sleep(3000);
-        in.interruptWaiters();
         for (SocketWaiter waiter : waiters) {
-            waiter.join();
+            in.interruptWaiters();
+            Thread.sleep(1000);
+        }
+        for (SocketWaiter waiter : waiters) {
+            waiter.join(1000);
             assertTrue(waiter.interrupted);
         }
     }

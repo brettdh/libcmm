@@ -29,7 +29,5 @@ class SystemCalls {
     }
 
     static native void ms_wait_for_input(int msock_fd, int timeoutMillis) throws MultiSocketInterruptedException, SocketTimeoutException, IOException;
-    static native void install_interruption_signal_handler(long currentThreadId);
-    static native void remove_interruption_signal_handler(long currentThreadId);
-    static native void interrupt_waiter(long waitingThreadId);
+    static native void interrupt_waiters(int msock_fd);
 }

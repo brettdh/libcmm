@@ -50,7 +50,6 @@ public class MultisocketInputStream extends InputStream {
         waitforInput(0);
     }
     
-    private HashSet<Thread> waiters = new HashSet<Thread>();
     private boolean interrupted = false;
     
     /**
@@ -71,7 +70,7 @@ public class MultisocketInputStream extends InputStream {
             timeoutMillis = Math.max(timeoutMillis, socketTimeout);
         }
         
-        synchronized(waiters) {
+        synchronized(this) {
             if (this.interrupted) {
                 try {
                     SystemCalls.ms_wait_for_input(socket.msock_fd, 1);
@@ -83,30 +82,22 @@ public class MultisocketInputStream extends InputStream {
                     throw new MultiSocketInterruptedException("MultiSocket was in interrupted state before wait!");
                 }
             }
-            waiters.add(Thread.currentThread());
         }
-        try {
-            SystemCalls.install_interruption_signal_handler(Thread.currentThread().getId());
-            SystemCalls.ms_wait_for_input(socket.msock_fd, timeoutMillis);
-        } finally {
-            synchronized(waiters) {
-                waiters.remove(Thread.currentThread());
-            }
-            SystemCalls.remove_interruption_signal_handler(Thread.currentThread().getId());
-        }
+        SystemCalls.ms_wait_for_input(socket.msock_fd, timeoutMillis);
     }
 
+    // XXX: only interrupts one waiter.  Then again,
+    // XXX:  multiple threads selecting on the same socket need synchronization anyway, so.
+    // TODO: fix to interrupt ALL selecting threads.
     public void interruptWaiters() {
-        synchronized(waiters) {
-            for (Thread waiter : waiters) {
-                SystemCalls.interrupt_waiter(waiter.getId());
-            }
+        synchronized(this) {
+            SystemCalls.interrupt_waiters(socket.msock_fd);
             this.interrupted = true; // interrupted state persists until cleared by another method
         }
     }
     
     public void clearInterruptedState() {
-        synchronized(waiters) {
+        synchronized(this) {
             this.interrupted = false;
         }
     }
