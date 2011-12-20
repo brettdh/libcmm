@@ -573,6 +573,7 @@ CSockMapping::make_new_csocket(struct net_interface local_iface,
                                int accepted_sock)
 {
     CSocketPtr csock;
+    bool should_data_check = false;
     {
         PthreadScopedRWLock lock(&sockset_mutex, true);
         
@@ -589,6 +590,7 @@ CSockMapping::make_new_csocket(struct net_interface local_iface,
                 //   csocket and use the new one instead.
                 available_csocks.erase(csock);
                 shutdown(csock->osfd, SHUT_RDWR); /* tells the sender/receiver threads to exit */
+                should_data_check = true;
             } else {
                 return csock;
             }
@@ -606,6 +608,12 @@ CSockMapping::make_new_csocket(struct net_interface local_iface,
     }
 
     csock->startup_workers(); // sender thread calls phys_connect()
+    if (should_data_check) {
+        CMMSocketImplPtr skp(sk);
+        PthreadScopedLock lock(&skp->scheduling_state_lock);
+        skp->data_check_all_irobs(local_iface.ip_addr.s_addr, 
+                                  remote_iface.ip_addr.s_addr);
+    }
     
     return csock;    
 }

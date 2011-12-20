@@ -328,9 +328,8 @@ Java_edu_umich_intnw_SystemCalls_ms_1read(JNIEnv *jenv, jclass,
     int rc = cmm_read(msock_fd, realBuffer + offset, length, &labels);
     if (rc < 0) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            // read expects 0 for non-blocking return.
-            return 0;
-        } else if (errno == ETIMEDOUT) {
+            // we don't do NIO-style non-blocking read right now
+            //  (i.e. SocketChannel), so this must be a timeout.
             jniThrowException(jenv, "java/net/SocketTimeoutException", 
                               "Timed out waiting for bytes on multisocket");
             return -1;

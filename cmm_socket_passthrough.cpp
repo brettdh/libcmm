@@ -96,6 +96,12 @@ CMMSocketPassThrough::mc_shutdown(int how)
     return shutdown(sock, how);
 }
 
+void
+CMMSocketPassThrough::mc_interrupt_waiters()
+{
+    passthrough_debug_alert("cmm_interrupt_waiters");
+}
+
 irob_id_t
 CMMSocketPassThrough::mc_begin_irob(int numdeps, const irob_id_t *deps, 
                                     u_long send_labels, 

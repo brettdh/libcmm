@@ -29,10 +29,6 @@ class CMMSocket {
     // cmm_close all remaining mc_sockets.
     static void cleanup();
 
-    //virtual int reset() = 0;
-    //virtual int check_label(u_long label, resume_handler_t fn, 
-    //                        void *arg) = 0;
-
     virtual int mc_connect(const struct sockaddr *serv_addr, 
                            socklen_t addrlen) = 0;
     
@@ -40,6 +36,7 @@ class CMMSocket {
                          fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
                          struct timeval *timeout);
     static int mc_poll(struct pollfd fds[], nfds_t nfds, int timeout);
+    virtual void mc_interrupt_waiters() = 0;
 
     static int mc_listen(int listener_sock, int backlog);
     static mc_socket_t mc_accept(int listener_sock, 

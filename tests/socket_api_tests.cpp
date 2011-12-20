@@ -217,9 +217,11 @@ SocketAPITest::testReceiveTimeout()
 
         char ch = 42;
 
+        errno = 0;
         int rc = cmm_read(data_sock, &ch, 1, NULL);
         int e = errno;
         CPPUNIT_ASSERT_EQUAL(-1, rc);
+        perror("cmm_read (expected to fail)");
         CPPUNIT_ASSERT(e == EAGAIN || e == EWOULDBLOCK);
 
         setReceiveTimeout(0); // disables timeout entirely
@@ -263,6 +265,16 @@ static void scheduleInterruption(int seconds)
     alarm(seconds);
 }
 
+static void *Interrupter(void *arg)
+{
+    mc_socket_t sock = (mc_socket_t) arg;
+    struct timeval wait_time = {1, 0};
+    (void)select(0, NULL, NULL, NULL, &wait_time);
+    cmm_interrupt_waiters(sock);
+    
+    return NULL;
+}
+
 void SocketAPITest::testSelect()
 {
     if (isReceiver()) {
@@ -288,7 +300,7 @@ void SocketAPITest::testSelect()
         TIME(end);
         TIMEDIFF(begin, end, diff);
         CPPUNIT_ASSERT_EQUAL(1, (int)diff.tv_sec);
-        CPPUNIT_ASSERT(!FD_ISSET(data_sock, &read_fds));
+        //CPPUNIT_ASSERT(!FD_ISSET(data_sock, &read_fds));
 
         // test interruption
         timeout.tv_sec = 3;
@@ -298,9 +310,22 @@ void SocketAPITest::testSelect()
         FD_SET(data_sock, &read_fds);
         rc = cmm_select(data_sock + 1, &read_fds, NULL, NULL, &timeout);
         int my_errno = errno;
-        CPPUNIT_ASSERT_MESSAGE("cmm_select should return <0 when interrupted", rc < 0);
+        CPPUNIT_ASSERT_MESSAGE("cmm_select should return <0 when interrupted by signal", rc < 0);
         CPPUNIT_ASSERT_EQUAL(EINTR, my_errno);
         CPPUNIT_ASSERT(FD_ISSET(data_sock, &read_fds));
+
+        // test interruption via cmm_interrupt_waiters
+        pthread_t interrupter;
+        pthread_create(&interrupter, NULL, Interrupter, (void*)data_sock);
+        
+        FD_ZERO(&read_fds);
+        FD_SET(data_sock, &read_fds);
+        rc = cmm_select(data_sock + 1, &read_fds, NULL, NULL, &timeout);
+        my_errno = errno;
+        CPPUNIT_ASSERT_MESSAGE("cmm_select should return <0 when interrupted by interrupt_waiters", rc < 0);
+        CPPUNIT_ASSERT_EQUAL(EINTR, my_errno);
+        CPPUNIT_ASSERT(FD_ISSET(data_sock, &read_fds));
+        pthread_join(interrupter, NULL);
         
         // not really part of the test; just keep the other side alive until now
         rc = cmm_write(data_sock, "A", 1, 0, NULL, NULL);

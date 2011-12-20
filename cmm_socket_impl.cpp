@@ -823,7 +823,7 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
 
     dbgprintf("libcmm: returned from select()\n");
     
-    if (rc < 0) {
+    if (rc <= 0) {
         /* select does not modify the fd_sets if failure occurs */
         errno = real_errno;
         return rc;
@@ -858,6 +858,11 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
             if (FD_ISSET(i, &tmp_readfds)) {
                 dbgprintf("SELECT_DEBUG fd %d is set in tmp_readfds\n", i);
                 sk->clear_select_pipe(sk->select_pipe[0]);
+                if (sk->will_block_on_read()) {
+                    // we got interrupted by mc_interrupt_waiters
+                    real_errno = EINTR;
+                    rc = -1;
+                }
             }
             if (FD_ISSET(i, &tmp_writefds)) {
                 dbgprintf("SELECT_DEBUG fd %d is set in tmp_writefds\n", i);
@@ -870,7 +875,20 @@ CMMSocketImpl::mc_select(mc_socket_t nfds,
     if (writefds)  { *writefds  = tmp_writefds;  }
     if (exceptfds) { *exceptfds = tmp_exceptfds; }
 
+    errno = real_errno;
     return rc;
+}
+
+bool CMMSocketImpl::will_block_on_read()
+{
+    return (!incoming_irobs.data_is_ready() && !is_shutting_down());
+}
+
+void CMMSocketImpl::mc_interrupt_waiters()
+{
+    PthreadScopedRWLock lock(&my_lock, true);
+    char c = 42; // value will be ignored
+    (void)send(select_pipe[1], &c, 1, MSG_NOSIGNAL);
 }
 
 void

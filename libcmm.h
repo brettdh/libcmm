@@ -112,6 +112,14 @@ int cmm_select(mc_socket_t nfds,
 
 int cmm_poll(struct pollfd fds[], nfds_t nfds, int timeout);
 
+// cause all threads waiting for input on sock with cmm_select
+// to be interrupted and return -1, errno=EINTR.
+// XXX: this is a hack.  I think it would make more sense
+// XXX: to implement a "filtered receive" with network-restriction
+// XXX: labels that returns an appropriate error if the required
+// XXX: network goes away.
+void cmm_interrupt_waiters(mc_socket_t sock);
+
 // XXX: broken.  Kind of silly, too, since if you called
 //    cmm_connect, you know the answer already.
 int cmm_getpeername(int socket, struct sockaddr *address, socklen_t *address_len);
