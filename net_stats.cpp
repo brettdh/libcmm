@@ -541,7 +541,7 @@ IROBMeasurement::IROBMeasurement()
     : id(-1), finished(false)
 {
     total_size = 0;
-    //TIME(arrival_time);
+    //NetStats::get_time(arrival_time);
     arrival_time.tv_sec = arrival_time.tv_usec = -1;
     last_activity = arrival_time;
     ack_time.tv_sec = -1;
@@ -568,7 +568,7 @@ IROBMeasurement::add_bytes(size_t bytes, struct timeval queuable_time,
                            u_long bw_est)
 {
     struct timeval diff, now;
-    TIME(now);
+    NetStats::get_time(now);
 
     if (arrival_time.tv_sec == -1) {
         arrival_time = now;
@@ -634,7 +634,7 @@ IROBMeasurement::ack(struct timeval *real_time)
     if (real_time) {
         ack_time = *real_time;
     } else {
-        TIME(ack_time);
+        NetStats::get_time(ack_time);
     }
 }
 
@@ -678,7 +678,7 @@ QueuingDelay::add_message(size_t msg_size, u_long bw_estimate,
 {
     struct timeval zero = {0, 0};
     struct timeval cur_msg_time;
-    TIME(cur_msg_time);
+    NetStats::get_time(cur_msg_time);
 
     if (last_msg_qdelay.tv_sec == -1) {
         // base case; first message has no qdelay
@@ -818,4 +818,18 @@ Estimate::spot_value_within_limits()
     double lower = center_line - limit_distance;
     double upper = center_line + limit_distance;
     return (spot_value >= lower && spot_value <= upper);
+}
+
+time_getter_fn_t NetStats::time_getter = &gettimeofday;
+
+void
+NetStats::set_time_getter(time_getter_fn_t new_gettimeofday)
+{
+    time_getter = new_gettimeofday;
+}
+
+void
+NetStats::get_time(struct timeval& tv)
+{
+    time_getter(&tv, NULL);
 }

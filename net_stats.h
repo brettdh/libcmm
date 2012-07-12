@@ -173,7 +173,17 @@ class NetStats {
     NetStats(struct net_interface local_iface, 
              struct net_interface remote_iface);
     ~NetStats();
+
+    static void get_time(struct timeval &tv);
+
+    // pseudo-mocking interface for getting time.
+    //  useful for testing.
+    // TODO: use a real mocking framework for this?
+    typedef int (*time_getter_fn_t)(struct timeval *, void *);
+    static void set_time_getter(time_getter_fn_t new_gettimeofday);
   private:
+    static time_getter_fn_t time_getter;
+
     struct in_addr local_addr;
     struct in_addr remote_addr;
 
