@@ -9,17 +9,17 @@
 #include "debug.h"
 
 
-const long int& subseconds(const struct timeval&  tv);
+const suseconds_t& subseconds(const struct timeval&  tv);
 const long int& subseconds(const struct timespec& tv);
-long int& subseconds(struct timeval&  tv);
+suseconds_t& subseconds(struct timeval&  tv);
 long int& subseconds(struct timespec& tv);
-const long int& subseconds(const struct timeval  *tv);
+const suseconds_t& subseconds(const struct timeval  *tv);
 const long int& subseconds(const struct timespec *tv);
-long int& subseconds(struct timeval  *tv);
+suseconds_t& subseconds(struct timeval  *tv);
 long int& subseconds(struct timespec *tv);
 
-long int MAX_SUBSECS(const struct timeval& tv);
-long int MAX_SUBSECS(const struct timeval *tv);
+suseconds_t MAX_SUBSECS(const struct timeval& tv);
+suseconds_t MAX_SUBSECS(const struct timeval *tv);
 long int MAX_SUBSECS(const struct timespec& tv);
 long int MAX_SUBSECS(const struct timespec *tv);
 

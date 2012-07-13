@@ -1,17 +1,17 @@
 #include "timeops.h"
 #include <time.h>
 
-const long int& subseconds(const struct timeval&  tv) { return tv.tv_usec; }
+const suseconds_t& subseconds(const struct timeval&  tv) { return tv.tv_usec; }
 const long int& subseconds(const struct timespec& tv) { return tv.tv_nsec; }
-long int& subseconds(struct timeval&  tv) { return tv.tv_usec; }
+suseconds_t& subseconds(struct timeval&  tv) { return tv.tv_usec; }
 long int& subseconds(struct timespec& tv) { return tv.tv_nsec; }
-const long int& subseconds(const struct timeval  *tv) { return tv->tv_usec; }
+const suseconds_t& subseconds(const struct timeval  *tv) { return tv->tv_usec; }
 const long int& subseconds(const struct timespec *tv) { return tv->tv_nsec; }
-long int& subseconds(struct timeval  *tv) { return tv->tv_usec; }
+suseconds_t& subseconds(struct timeval  *tv) { return tv->tv_usec; }
 long int& subseconds(struct timespec *tv) { return tv->tv_nsec; }
 
-long int MAX_SUBSECS(const struct timeval& tv) { return 1000000; }
-long int MAX_SUBSECS(const struct timeval *tv) { return 1000000; }
+suseconds_t MAX_SUBSECS(const struct timeval& tv) { return 1000000; }
+suseconds_t MAX_SUBSECS(const struct timeval *tv) { return 1000000; }
 long int MAX_SUBSECS(const struct timespec& tv) { return 1000000000; }
 long int MAX_SUBSECS(const struct timespec *tv) { return 1000000000; }
 

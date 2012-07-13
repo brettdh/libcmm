@@ -2,7 +2,10 @@
 #include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+
+#if defined(LINUX)
 #include <linux/sockios.h>
+#endif
 
 // tcp.h is temperamental.
 #include <netinet/tcp.h>
@@ -14,6 +17,7 @@
 
 int get_unsent_bytes(int sock)
 {
+#if defined(LINUX)
     int bytes_in_send_buffer = 0;
     int rc = ioctl(sock, SIOCOUTQ, &bytes_in_send_buffer);
     if (rc < 0) {
@@ -33,6 +37,11 @@ int get_unsent_bytes(int sock)
     /*dbgprintf("socket %d: %d bytes in sndbuf and %d bytes unacked = %d bytes unsent?\n",
                 sock, bytes_in_send_buffer, info.tcpi_unacked, unsent_bytes);*/
     return unsent_bytes;
+#elsif defined (__APPLE__)
+    // XXX: SIOCOUTQ not defined.
+#else
+    return 0;
+#endif
 }
 
 void get_ip_string(struct in_addr ip_addr, char *ip_string)

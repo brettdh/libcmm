@@ -820,7 +820,7 @@ Estimate::spot_value_within_limits()
     return (spot_value >= lower && spot_value <= upper);
 }
 
-time_getter_fn_t NetStats::time_getter = &gettimeofday;
+NetStats::time_getter_fn_t NetStats::time_getter = &gettimeofday;
 
 void
 NetStats::set_time_getter(time_getter_fn_t new_gettimeofday)
