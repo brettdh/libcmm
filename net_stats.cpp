@@ -712,8 +712,10 @@ QueuingDelay::add_message(size_t msg_size, u_long bw_estimate,
         timeradd(&last_msg_qdelay, &prev_bw_time, &qdelay_calc);
 
         // msg_time(t+1) - msg_time(t)
-        struct timeval diff;
-        TIMEDIFF(last_msg_time, cur_msg_time, diff);
+        struct timeval diff = {0,0};
+        if (timercmp(&last_msg_time, &cur_msg_time, <)) {
+            TIMEDIFF(last_msg_time, cur_msg_time, diff);
+        }
         
         if (timercmp(&qdelay_calc, &diff, >)) {
             // qdelay(t) + size(t)/bandwidth(t) - (msg_time(t+1) - msg_time(t))
