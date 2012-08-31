@@ -317,7 +317,8 @@ calculate_bw_latency(struct timeval latency_RTT, struct timeval bw_RTT,
 void 
 NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
                      struct timeval ack_qdelay, 
-                     struct timeval *real_time)
+                     struct timeval *real_time,
+                     double *bw_out, double *latency_seconds_out)
 {
     if (srv_time.tv_usec == -1) {
         /* the original ACK was dropped, so it's not wise to use 
@@ -521,6 +522,9 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
 
                 // TODO: send bw_up estimate to remote peer as its bw_down.  Or maybe do that
                 //       in CSocketReceiver, after calling this.
+
+                if (bw_out) *bw_out = bw_est;
+                if (latency_seconds_out) *latency_seconds_out = (latency_est / 1000.0);
             }
         }
 

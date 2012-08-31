@@ -6,7 +6,7 @@ endif
 
 CXXFLAGS+=-Wall -Werror -I. -I/usr/local/include \
 	   -I./libancillary \
-	   -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include \
+	   $(shell pkg-config --cflags --libs glib-2.0) \
 	   -pthread -fPIC -m32 $(DEBUG_FLAGS) $(OPT_FLAGS)
 #LIBTBB:=-ltbb_debug
 LDFLAGS:=-L.  -L/usr/local/lib -m32

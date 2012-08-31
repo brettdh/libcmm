@@ -154,7 +154,8 @@ class NetStats {
     //  we want to say that they all arrived at about the same time.
     void report_ack(irob_id_t irob_id, struct timeval srv_time,
                     struct timeval ack_qdelay, 
-                    struct timeval *real_time = NULL);
+                    struct timeval *real_time = NULL,
+                    double *bw_out = NULL, double *latency_seconds_out = NULL);
 
     // remove this IROB without adding a new measurement.
     void remove(irob_id_t irob_id);

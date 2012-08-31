@@ -4,7 +4,7 @@ else
 DEBUG_FLAGS:=-g -DCMM_DEBUG
 endif
 CXXFLAGS+=-Wall -Werror -I.. -I../libancillary -I/usr/local/include -pthread -fPIC -m32 \
-	   -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include \
+	  $(shell pkg-config --cflags --libs glib-2.0) \
 	  $(DEBUG_FLAGS) -DBUILDING_SCOUT
 LDFLAGS+=-lrt -lglib-2.0 -lboost_thread
 
