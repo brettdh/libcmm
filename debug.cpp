@@ -99,7 +99,7 @@ static void vdbgprintf(bool plain, const char *fmt, va_list ap)
         stream << strerror(e) << " ** " << fmtstr;
         fmtstr = stream.str();
         
-        __android_log_vprint(ANDROID_LOG_INFO, "libcmm", fmtstr.c_str(), ap);
+        __android_log_print(ANDROID_LOG_INFO, "libcmm", fmtstr.c_str(), ap);
     }
 #else
     vfprintf(stderr, fmtstr.c_str(), ap);

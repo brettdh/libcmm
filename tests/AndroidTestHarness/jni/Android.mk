@@ -46,8 +46,7 @@ LOCAL_SRC_FILES := \
      $(addprefix ../../, end_to_end_tests_base.cpp \
 			end_to_end_tests_remote.cpp \
 			test_common.cpp) \
-	$(addprefix ../../../, net_interface.cpp cmm_socket_control.cpp debug.cpp) \
-	$(addprefix ../../, remote_tests.cpp socket_api_tests.cpp)
+	$(addprefix ../../../, net_interface.cpp cmm_socket_control.cpp debug.cpp)
 #	$(addprefix ../../, spotty_network_failure_test.cpp)
 
 
@@ -82,6 +81,7 @@ LOCAL_MODULE := fake_intnw_test
 LOCAL_SRC_FILES := $(TESTSUITE_SRCS) $(SPOTTYTEST_SRCS)
 LOCAL_C_INCLUDES := $(common_C_INCLUDES)
 LOCAL_CFLAGS := $(common_CFLAGS)
+LOCAL_LDLIBS := -llog
 LOCAL_STATIC_LIBRARIES := libcppunit
 LOCAL_SHARED_LIBRARIES := libcmm
 include $(BUILD_EXECUTABLE)
