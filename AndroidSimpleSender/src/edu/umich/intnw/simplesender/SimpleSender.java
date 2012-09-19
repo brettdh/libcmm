@@ -16,6 +16,8 @@ public class SimpleSender extends Activity
     private int fg_seqno = 0;
     private int bg_seqno = 0;
     private Thread replyThread;
+
+    private final String TEST_SERVER_IP = "141.212.113.120";
     
     /** Called when the activity is first created. */
     @Override
@@ -58,7 +60,7 @@ public class SimpleSender extends Activity
     
     private void doConnect() {
         try {
-            connect("141.212.110.132", (short)4242);
+            connect(TEST_SERVER_IP, (short)4242);
         
             replyThread = new Thread(new Runnable() {
                 public void run() {

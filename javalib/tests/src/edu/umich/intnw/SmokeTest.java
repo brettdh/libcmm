@@ -12,13 +12,14 @@ import edu.umich.intnw.MultiSocket;
 import android.test.InstrumentationTestCase;
 
 public class SmokeTest extends InstrumentationTestCase {
+    private static final String TEST_SERVER_IP = "141.212.113.120";
     private static final String TEST_MSG = "testing, testing, testing";
     private static final int CHUNK_SIZE = 40;
     private MultiSocket socket;
     
     public void setUp() throws IOException {
         socket = new MultiSocket();
-        socket.connect(new InetSocketAddress("141.212.110.132", 4242));
+        socket.connect(new InetSocketAddress(TEST_SERVER_IP, 4242));
     }
     
     public void tearDown() throws IOException {

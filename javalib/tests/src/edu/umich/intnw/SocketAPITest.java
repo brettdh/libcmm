@@ -9,7 +9,7 @@ import java.util.Arrays;
 import android.test.InstrumentationTestCase;
 
 public class SocketAPITest extends InstrumentationTestCase {
-    private static final String TEST_SERVER_IP = "141.212.110.132";
+    private static final String TEST_SERVER_IP = "141.212.113.120";
     private static final int TEST_PORT = 4242;
     private MultiSocket sock;
 
