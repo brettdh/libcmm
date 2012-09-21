@@ -834,6 +834,7 @@ size_t ipc_total_bytes_inflight(CSocketPtr csock)//struct in_addr ip_addr)
 
     /*dbgprintf("total_bytes_inflight: counted %zu bytes in %zu sockets\n", 
      *          bytes, num_sockets);*/
+    (void)num_sockets;
 
     return bytes;
 #endif /* !ANDROID */

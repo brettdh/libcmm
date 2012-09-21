@@ -16,7 +16,7 @@ libcmm_shmem_scout.o: ../libcmm_shmem.cpp
 conn_scout: libcmm_scout.o ../cdf_sampler.o ../debug.o ../common.o \
 	    ../cmm_thread.o ../timeops.o libcmm_shmem_scout.o ../libcmm_net_restriction.o \
 	    ../libancillary/libancillary.a
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
+	$(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
 
 virgil_server: virgil_server.c
 	gcc -o $@ $^ -g -Wall -Werror -pthread

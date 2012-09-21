@@ -29,10 +29,10 @@ cdf_test: cdf_test.o cdf_sampler.o debug.o timeops.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
 cmm_test_sender: libcmm_test_sender.o libcmm.so debug.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -lcmm -o $@ $<
+	$(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 
 cmm_test_receiver: libcmm_test_receiver.o libcmm.so debug.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -lcmm -o $@ $<
+	$(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS) $(LIBS) 
 
 vanilla_test_sender: vanilla_test_sender.o timeops.o debug.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
@@ -41,10 +41,10 @@ vanilla_test_receiver: vanilla_test_receiver.o timeops.o debug.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
 cmm_throughput_test: libcmm_throughput_test.o libcmm.so debug.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -lcmm -o $@ $<
+	$(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS) $(LIBS) 
 
 vanilla_throughput_test: vanilla_throughput_test.o timeops.o debug.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
+	$(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
 
 vanilla_%.o: libcmm_%.cpp
 	$(CXX) $(CXXFLAGS) -DNOMULTISOCK $(LDFLAGS) -c -o $@ $<
@@ -58,7 +58,7 @@ libcmm.so: libcmm.o libcmm_ipc.o libcmm_external_ipc.o libcmm_net_restriction.o 
            intset.o cmm_socket_control.o irob_scheduling.o timeops.o \
            net_interface.o net_stats.o cmm_conn_bootstrapper.o \
            libcmm_shmem.o common.o libancillary/libancillary.a
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -shared -o $@ $^
+	$(CXX) -shared -o $@ $^ $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 
 .PHONY: libcmm.tgz
 libcmm.tgz:
