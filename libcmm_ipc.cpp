@@ -12,6 +12,7 @@
 #include <set>
 using std::set;
 
+#include "cmm_socket.private.h"
 #include "libcmm_shmem.h"
 
 
@@ -157,6 +158,11 @@ void scout_ipc_deinit(void)
         pthread_kill(ipc_thread_id, CMM_SELECT_SIGNAL);
     }
 
+    dbgprintf("Application is exiting\n");
+    CMMSocketImpl::cleanup();
+    dbgprintf("Waiting for internal threads to finish\n");
+    CMMThread::join_all();
+    
     ipc_shmem_deinit();
 }
 

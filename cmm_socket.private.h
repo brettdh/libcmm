@@ -130,7 +130,7 @@ class CMMSocketImpl : public CMMSocket {
 
     // cmm_close all remaining mc_sockets.
     static void cleanup();
-
+    
     // for testing only.
     void drop_irob_and_dependents(irob_id_t irob);
     
@@ -362,12 +362,6 @@ class CMMSocketImpl : public CMMSocket {
                               const mcSocketOsfdPairList &osfd_list);
 
     bool net_available(u_long send_labels);
-
-    class static_destroyer {
-      public:
-        ~static_destroyer();
-    };
-    static static_destroyer destroyer;
 
     struct NetRestrictionStats {
         size_t bytes_sent;
