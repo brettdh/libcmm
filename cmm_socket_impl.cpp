@@ -2767,3 +2767,10 @@ CMMSocketImpl::drop_irob_and_dependents(irob_id_t irob)
     PthreadScopedLock lock(&scheduling_state_lock);
     outgoing_irobs.drop_irob_and_dependents(irob);
 }
+
+int
+CMMSocketImpl::mc_num_networks()
+{
+    PthreadScopedLock lock(&scheduling_state_lock);
+    return csock_map->count();
+}

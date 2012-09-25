@@ -133,6 +133,8 @@ class CMMSocketImpl : public CMMSocket {
     
     // for testing only.
     void drop_irob_and_dependents(irob_id_t irob);
+
+    virtual int mc_num_networks();
     
   private:
     // XXX: WHAT.  this is kind of silly.
@@ -413,6 +415,8 @@ class CMMSocketPassThrough : public CMMSocket {
 
     virtual int mc_get_failure_timeout(u_long label, struct timespec *ts);
     virtual int mc_set_failure_timeout(u_long label, const struct timespec *ts);
+
+    virtual int mc_num_networks();
   private:
     mc_socket_t sock;
 };

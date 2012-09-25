@@ -76,6 +76,8 @@ class CMMSocket {
     virtual int mc_get_failure_timeout(u_long label, struct timespec *ts) = 0;
     virtual int mc_set_failure_timeout(u_long label, const struct timespec *ts) = 0;
 
+    virtual int mc_num_networks() = 0;
+
     virtual ~CMMSocket() {}
 };
 

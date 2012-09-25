@@ -292,3 +292,8 @@ int cmm_set_failure_timeout(mc_socket_t sock, u_long label, const struct timespe
 {
     return CMMSocket::lookup(sock)->mc_set_failure_timeout(label, ts);
 }
+
+int CMM_PRIVATE_num_networks(mc_socket_t sock)
+{
+    return CMMSocket::lookup(sock)->mc_num_networks();
+}

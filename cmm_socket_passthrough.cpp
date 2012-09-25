@@ -161,3 +161,13 @@ CMMSocketPassThrough::mc_set_failure_timeout(u_long label, const struct timespec
     errno = EBADF;
     return -1;
 }
+
+int
+CMMSocketPassThrough::mc_num_networks()
+{
+    // This is a real TCP socket, so just one network.
+    // It's probably an error to call this, because
+    //  if you're not calling it on a multisocket, 
+    //  the answer is obviously 1.
+    return 1;
+}
