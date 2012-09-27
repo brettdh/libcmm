@@ -4,6 +4,7 @@
 /* Private functions useful for testing.
    Not to be exported to applications. */
 
+#include "libcmm.h"
 #include "libcmm_irob.h"
 
 #ifdef __cplusplus

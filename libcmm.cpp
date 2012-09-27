@@ -22,6 +22,7 @@ using std::vector; using std::pair;
 using std::auto_ptr;
 
 #include "libcmm.h"
+#include "libcmm_private.h"
 #include "libcmm_ipc.h"
 #include "libcmm_net_restriction.h"
 #include "pending_irob.h"
