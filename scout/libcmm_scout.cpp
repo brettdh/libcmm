@@ -31,7 +31,8 @@ using std::queue; using std::deque;
 #include "net_interface.h"
 #include <errno.h>
 
-#ifdef ANDROID
+#if 0 //def ANDROID
+// not using this anymore in the native code
 #include "network_test.h"
 #endif
 
@@ -171,7 +172,9 @@ static int
 is_network_usable(struct net_interface iface)
 {
     if (iface.type == NET_TYPE_WIFI) {
-#ifdef ANDROID
+#if 0 // def ANDROID
+        // don't need this check anymore, and having it around makes
+        //  the linking with NetworkTest annoying.
         // TODO: switch to UDP ping?
         // TODO: better yet, implement something beacon-based.
         struct in_addr server_ip;

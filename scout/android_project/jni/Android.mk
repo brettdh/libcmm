@@ -8,11 +8,11 @@ include $(CLEAR_VARS)
 LOCAL_PREBUILT_LIBS := ../../../android_libs/libboost_thread.a
 include $(BUILD_MULTI_PREBUILT)
 
-include $(CLEAR_VARS)
+# include $(CLEAR_VARS)
 
-LOCAL_MODULE=libnative_networktest
-LOCAL_SRC_FILES := libnative_networktest.so
-include $(PREBUILT_SHARED_LIBRARY)
+# LOCAL_MODULE=libnative_networktest
+# LOCAL_SRC_FILES := libnative_networktest.so
+# include $(PREBUILT_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
 
@@ -24,6 +24,6 @@ LOCAL_SRC_FILES := \
 LOCAL_CFLAGS += -DBUILDING_SCOUT_SHLIB -DBUILDING_SCOUT -DNDK_BUILD -g -ggdb
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/../../../ $(NETWORK_TEST_INCLUDES)
 LOCAL_LDLIBS := -L$(LOCAL_PATH)/../../../android_libs -lboost_thread -llog
-LOCAL_SHARED_LIBRARIES := libnative_networktest
+#LOCAL_SHARED_LIBRARIES := libnative_networktest
 
 include $(BUILD_SHARED_LIBRARY)
