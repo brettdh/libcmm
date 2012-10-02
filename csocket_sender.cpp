@@ -184,8 +184,11 @@ CSocketSender::Run()
                 }
             }
 
-            if (csock->is_in_trouble() &&
-                sk->csock_map->count() > 1) {
+            if (sk->csock_map->count() > 1 &&
+
+                /* TODO-REDUNDANCY: replace with generic "should_be_redundant()" */
+                csock->is_in_trouble()) {
+
                 char local_ip[16], remote_ip[16];
                 get_ip_string(csock->local_iface.ip_addr, local_ip);
                 get_ip_string(csock->remote_iface.ip_addr, remote_ip);
@@ -284,6 +287,8 @@ CSocketSender::Run()
                 dbgprintf("Woke up; maybe I can do some work?\n");
             }
 
+            /* TODO-REDUNDANCY: this is the periodic-reevaluation part.
+             * TODO-REDUNDANCY:  (only applicable for my redundancy code.) */
             TroubleChecker checker(sk);
             sk->csock_map->for_each(checker);
             if (checker.troubled_ifaces.size() > 0) {

@@ -23,6 +23,16 @@ using std::vector;
 using std::map;
 
 #include "pthread_util.h"
+
+/* TODO-REDUNDANCY: here's the big idea.
+ *
+ * Checking whether a csocket was troubled was the way to decide whether
+ *   to transmit redundantly.
+ * The basic rule here is that I should probably be deciding somewhere above here
+ *   whether to transmit redundantly, and then I won't even need to 
+ *   call into here to choose a csocket; or else I'll use a different call
+ *   that gives me ALL csockets, because I want to transmit redundantly.
+ */
     
 CSockMapping::CSockMapping(CMMSocketImplPtr sk_)
     : sk(sk_)
@@ -248,6 +258,9 @@ struct SatisfiesNetworkRestrictions {
         return (csock->fits_net_restriction(send_labels) && 
                 (send_labels & CMM_LABEL_BACKGROUND || 
                  !csock->is_in_trouble()));
+        /* TODO-REDUNDANCY: the trouble-check will go away,
+         * TODO-REDUNDANCY:   but I should be sure to use redundancy for
+         * TODO-REDUNDANCY:   FG IntNW control messages as well as FG data. */
     }
 };
 
@@ -453,15 +466,18 @@ CSockMapping::connected_csock_with_labels(u_long send_label, bool locked)
 bool
 CSockMapping::csock_matches_ignore_trouble(CSocket *csock, u_long send_label)
 {
+    // TODO-REDUNDANCY: this won't be necessary
     return csock_matches(csock, send_label, true);
 }
 
 /* must not be holding sk->scheduling_state_lock. */
 bool CSockMapping::csock_matches(CSocket *csock, u_long send_label, bool ignore_trouble)
 {
+    // TODO-REDUNDANCY: ignore_trouble won't be necessary; it will always ignore trouble
     return csock_matches_internal(csock, send_label, ignore_trouble, false);
 }
 
+// TODO-REDUNDANCY: ignore_trouble won't be necessary; it will always ignore trouble
 bool CSockMapping::csock_matches_internal(CSocket *csock, u_long send_label, bool ignore_trouble, 
                                           bool sockset_already_locked)
 {
@@ -481,6 +497,7 @@ bool CSockMapping::csock_matches_internal(CSocket *csock, u_long send_label, boo
             remote_iface.ip_addr.s_addr == csock->remote_iface.ip_addr.s_addr);
 }
 
+// TODO-REDUNDANCY: ignore_trouble won't be necessary; it will always ignore trouble
 bool
 CSockMapping::get_iface_pair(u_long send_label,
                              struct net_interface& local_iface,
@@ -491,6 +508,7 @@ CSockMapping::get_iface_pair(u_long send_label,
                                    ignore_trouble, false);
 }
 
+// TODO-REDUNDANCY: ignore_trouble won't be necessary; it will always ignore trouble
 bool
 CSockMapping::get_iface_pair_internal(u_long send_label, 
                                       struct net_interface& local_iface,
@@ -504,6 +522,7 @@ CSockMapping::get_iface_pair_internal(u_long send_label,
                                           ignore_trouble, sockset_already_locked);
 }
 
+// TODO-REDUNDANCY: ignore_trouble won't be necessary; it will always ignore trouble
 bool
 CSockMapping::get_iface_pair_locked(u_long send_label,
                                     struct net_interface& local_iface,
@@ -514,6 +533,7 @@ CSockMapping::get_iface_pair_locked(u_long send_label,
                                           ignore_trouble, false);
 }
 
+// TODO-REDUNDANCY: ignore_trouble won't be necessary; it will always ignore trouble
 bool
 CSockMapping::get_iface_pair_locked_internal(u_long send_label,
                                              struct net_interface& local_iface,
@@ -550,8 +570,12 @@ CSockMapping::get_iface_pair_locked_internal(u_long send_label,
                 existing_csock = csocks[0];
             }
             if (!existing_csock ||
+
+                // TODO-REDUNDANCY: this check goes away, because I want to consider
+                // TODO-REDUNDANCY: all csockets. I should only send redundantly once.
                 !existing_csock->is_in_trouble() ||
                 send_label & CMM_LABEL_BACKGROUND || /* ignore trouble for BG data */
+
                 count() == 1) {
                 matcher.consider(*i, *j);
             } else {
@@ -650,6 +674,7 @@ CSockMapping::get_csock(u_long send_labels, CSocket*& csock)
     // ignore trouble-check when picking a socket here;
     //  if it's troubled, it'll hand off its data to another socket
     //  (or drop it)
+    // TODO-REDUNDANCY: swap trouble check for should-be-redundant check
     if (get_iface_pair_locked(send_labels, local, remote, true)) {
         // avoid using sockets that aren't yet connected; if connect() times out,
         //   it might take a long time to send anything

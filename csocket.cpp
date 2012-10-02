@@ -404,6 +404,8 @@ bool CSocket::data_inflight()
     return (info.tcpi_unacked > 0);
 }
 
+/* TODO-REDUNDANCY: these will become periodic re-evaluation, 
+ * TODO-REDUNDANCY:  only applicable for my redundancy code. */
 static uint32_t
 get_trouble_timeout_ms(uint32_t rtt_ms)
 {
@@ -440,6 +442,11 @@ CSocket::trouble_check_timeout()
     return get_trouble_check_timeout(intnw_rtt);
 }
 
+/* TODO-REDUNDANCY: This one will be similar, 
+ * TODO-REDUNDANCY:   but again, only for my redundancy code. 
+ * TODO-REDUNDANCY: Need to keep track of whether I've already sent 
+ * TODO-REDUNDANCY:   redundantly; I shouldn't repeat transmissions
+ * TODO-REDUNDANCY:   on the same network, since TCP already does that. */
 bool CSocket::is_in_trouble()
 {
     struct tcp_info info;
