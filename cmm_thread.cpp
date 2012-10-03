@@ -166,18 +166,17 @@ CMMThread::detach()
 void
 CMMThread::join_all()
 {
-    std::set<pthread_t> joinable_threads_private;
-
     PthreadScopedLock lock(&joinable_lock);
 
     while (!joinable_threads.empty()) {
-        joinable_threads_private = joinable_threads;
+        std::vector<pthread_t> joinable_threads_private(joinable_threads.begin(),
+                                                        joinable_threads.end());
         joinable_threads.clear();
 
         pthread_mutex_unlock(&joinable_lock);
         
         void **result = NULL;
-        for (std::set<pthread_t>::iterator it = joinable_threads_private.begin();
+        for (std::vector<pthread_t>::iterator it = joinable_threads_private.begin();
              it != joinable_threads_private.end(); it++) {
             dbgprintf("pthread_join to thread %lx\n", *it);
             pthread_join(*it, result);

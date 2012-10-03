@@ -101,7 +101,7 @@ CMMSocketControlHdr::resend_request_type_str() const
     return msg.str();
 }
 
-static std::string nodebug_description = "(no debugging)";
+static const char *nodebug_description = "(no debugging)";
 
 std::string
 CMMSocketControlHdr::describe() const
