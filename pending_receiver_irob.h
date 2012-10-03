@@ -46,6 +46,8 @@ class PendingReceiverIROB : public PendingIROB {
     //  will know which seqnos haven't been received.
     bool finish(ssize_t expected_bytes, int num_chunks);
 
+    bool seen_end() { return expected_bytes != -1; }
+
     /* Read the next len bytes into buf, but don't remove them. */
     ssize_t read_data(void *buf, size_t len);
     
@@ -65,9 +67,6 @@ class PendingReceiverIROB : public PendingIROB {
 
     void assert_valid();
 
-    friend class CMMSocketImpl;
-    friend class CSocketSender;
-    friend class CSocketReceiver;
     friend class PendingReceiverIROBLattice;
 
     /* If this IROB is in the middle of being read, 

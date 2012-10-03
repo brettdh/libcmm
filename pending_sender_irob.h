@@ -83,6 +83,7 @@ class PendingSenderIROB : public PendingIROB {
 
     size_t expected_bytes();  // number of bytes given by the application.
     bool all_chunks_sent(); // true if all bytes have been put into send-chunks.
+    size_t num_chunks_sent();
 
     // Mark these bytes as not received; they will be resent.
     //  The chunk data in missing_chunk may identify fewer bytes
@@ -105,9 +106,14 @@ class PendingSenderIROB : public PendingIROB {
     // must be holding sk->scheduling_state_lock
     bool wasSentOn(in_addr_t local_ip, in_addr_t remote_ip);
 
+    bool was_announced();
+    bool end_was_announced();
+    void mark_announcement_sent();
+    void mark_end_announcement_sent();
+
+    void get_thunk(resume_handler_t& rh, void *& arg);
+
   private:
-    friend class CMMSocketImpl;
-    friend class CSocketSender;
     friend class PendingSenderIROBTest;
 
     /* all integers here are in host byte order */

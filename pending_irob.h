@@ -68,17 +68,22 @@ class PendingIROB {
     /* has all the data arrived? */
     virtual bool is_complete(void) const;
 
+    bool finish();
+    
     // number of PendingIROBs in existence
     static ssize_t objs();
 
+    irob_id_t get_id() { return id; }
+    u_long get_send_labels() { return send_labels; }
+    int get_status() { return status; }
+    void set_status(int new_status) { status = new_status; }
+    bool is_placeholder() { return placeholder; }
+
+    size_t get_num_chunks() { return chunks.size(); }
+
   protected:
-    bool finish(void);
 
     static ssize_t obj_count;
-
-    friend class CMMSocketImpl;
-    friend class CSocketSender;
-    friend class CSocketReceiver;
 
     friend void resume_operation_thunk(ResumeOperation *op);
     
@@ -160,6 +165,7 @@ class PendingIROBLattice {
     bool insert(PendingIROB *pirob, bool infer_deps = true);
     PendingIROBPtr find(irob_id_t id);
     bool erase(irob_id_t id, bool at_receiver = false);
+    bool erase(PendingIROB *pirob, bool at_receiver = false);
 
     // only call at the sender.
     void drop_irob_and_dependents(irob_id_t id);

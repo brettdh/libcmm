@@ -144,6 +144,7 @@ static void run_server()
     int rc;
     while (1) {
         rc = cmm_select(maxfd + 1, &listeners, NULL, NULL, NULL);
+        handle_error(rc < 0, "cmm_select");
         if (FD_ISSET(vanilla_listener, &listeners)) {
             fprintf(stderr, "Got connection from vanilla client\n");
             spawn_server_worker_thread(vanilla_listener);

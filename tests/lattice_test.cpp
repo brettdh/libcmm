@@ -102,36 +102,36 @@ LatticeTest::testRemoval()
 {
     testLatticeStructure();
     
-    CPPUNIT_ASSERT(pirobs->erase(0, true) == true);
+    CPPUNIT_ASSERT(pirobs->erase((irob_id_t) 0, true) == true);
     CPPUNIT_ASSERT(pirob_array[1]->depends_on(0) == false);
     CPPUNIT_ASSERT(pirob_array[2]->depends_on(0) == false);
 
-    CPPUNIT_ASSERT(pirobs->erase(1, true) == true);
+    CPPUNIT_ASSERT(pirobs->erase((irob_id_t) 1, true) == true);
     CPPUNIT_ASSERT(pirob_array[4]->depends_on(1) == false);
 
-    CPPUNIT_ASSERT(pirobs->erase(2, true) == true);
+    CPPUNIT_ASSERT(pirobs->erase((irob_id_t) 2, true) == true);
     CPPUNIT_ASSERT(pirob_array[4]->depends_on(2) == false);
 
-    CPPUNIT_ASSERT(pirobs->erase(3, true) == true);
+    CPPUNIT_ASSERT(pirobs->erase((irob_id_t) 3, true) == true);
     CPPUNIT_ASSERT(pirob_array[4]->depends_on(3) == false);
 
-    CPPUNIT_ASSERT(pirobs->erase(4, true) == true);
+    CPPUNIT_ASSERT(pirobs->erase((irob_id_t) 4, true) == true);
     CPPUNIT_ASSERT(pirob_array[5]->depends_on(4) == false);
     CPPUNIT_ASSERT(pirob_array[6]->depends_on(4) == false);
     
-    CPPUNIT_ASSERT(pirobs->erase(6, true) == true);
+    CPPUNIT_ASSERT(pirobs->erase((irob_id_t) 6, true) == true);
     CPPUNIT_ASSERT(pirob_array[7]->depends_on(6) == false);
 
-    CPPUNIT_ASSERT(pirobs->erase(5, true) == true);
+    CPPUNIT_ASSERT(pirobs->erase((irob_id_t) 5, true) == true);
     CPPUNIT_ASSERT(pirob_array[8]->depends_on(5) == false);
 
-    CPPUNIT_ASSERT(pirobs->erase(7, true) == true);
+    CPPUNIT_ASSERT(pirobs->erase((irob_id_t) 7, true) == true);
     CPPUNIT_ASSERT(pirob_array[8]->depends_on(7) == false);
 
-    CPPUNIT_ASSERT(pirobs->erase(8, true) == true);
+    CPPUNIT_ASSERT(pirobs->erase((irob_id_t) 8, true) == true);
     CPPUNIT_ASSERT(pirob_array[9]->depends_on(8) == false);
 
-    CPPUNIT_ASSERT(pirobs->erase(9, true) == true);
+    CPPUNIT_ASSERT(pirobs->erase((irob_id_t) 9, true) == true);
 }
 
 void
@@ -179,21 +179,21 @@ LatticeTest::testTransitiveDropIROB()
     assert_contents(present_irobs, absent_irobs);
     
     pirobs->drop_irob_and_dependents(8);
-    for (int i = 8; i <= 9; ++i) {
+    for (irob_id_t i = 8; i <= 9; ++i) {
         present_irobs.erase(i);
         absent_irobs.insert(i);
     }
     assert_contents(present_irobs, absent_irobs);
 
     pirobs->drop_irob_and_dependents(3);
-    for (int i = 3; i <= 7; ++i) {
+    for (irob_id_t i = 3; i <= 7; ++i) {
         present_irobs.erase(i);
         absent_irobs.insert(i);
     }
     assert_contents(present_irobs, absent_irobs);
 
     pirobs->drop_irob_and_dependents(0);
-    for (int i = 0; i <= 2; ++i) {
+    for (irob_id_t i = 0; i <= 2; ++i) {
         present_irobs.erase(i);
         absent_irobs.insert(i);
     }

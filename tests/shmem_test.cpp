@@ -50,7 +50,7 @@ ShmemTest::testGlobalBufferCount()
                        "test_global_buffer_count", NULL);
             // shouldn't return
 
-            handle_error(true, "execl");
+            handle_error(rc == -1, "execl");
         }
     }
 

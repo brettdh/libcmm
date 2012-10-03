@@ -45,14 +45,14 @@ PendingIROBLatticeTest::testErase()
     
     CPPUNIT_ASSERT(pirobs->empty() == false);
     
-    CPPUNIT_ASSERT(pirobs->erase(0) == true);
+    CPPUNIT_ASSERT(pirobs->erase((irob_id_t) 0) == true);
     CPPUNIT_ASSERT(get_pointer(pirobs->find(0)) == NULL);
-    CPPUNIT_ASSERT(pirobs->erase(0) == false);
+    CPPUNIT_ASSERT(pirobs->erase((irob_id_t) 0) == false);
     
     CPPUNIT_ASSERT(get_pointer(pirobs->find(1)) == pirob1);
     CPPUNIT_ASSERT(pirobs->empty() == false);
     
-    CPPUNIT_ASSERT(pirobs->erase(1) == true);
+    CPPUNIT_ASSERT(pirobs->erase((irob_id_t) 1) == true);
     CPPUNIT_ASSERT(get_pointer(pirobs->find(1)) == NULL);
     
     CPPUNIT_ASSERT(pirobs->empty() == true);
@@ -61,7 +61,7 @@ PendingIROBLatticeTest::testErase()
                                            20, new char[20], 0);
     CPPUNIT_ASSERT(pirobs->insert(pirob42) == true);
     CPPUNIT_ASSERT(get_pointer(pirobs->find(42)) == pirob42);
-    CPPUNIT_ASSERT(pirobs->erase(42) == true);
+    CPPUNIT_ASSERT(pirobs->erase((irob_id_t) 42) == true);
     CPPUNIT_ASSERT(get_pointer(pirobs->find(42)) == NULL);
 }
 
@@ -75,22 +75,22 @@ PendingIROBLatticeTest::testHoles()
     CPPUNIT_ASSERT(pirobs->insert(pirob2) == true);
     CPPUNIT_ASSERT(get_pointer(pirobs->find(2)) == pirob2);
     
-    CPPUNIT_ASSERT(pirobs->erase(1) == true);
+    CPPUNIT_ASSERT(pirobs->erase((irob_id_t) 1) == true);
     CPPUNIT_ASSERT(get_pointer(pirobs->find(1)) == NULL);
-    CPPUNIT_ASSERT(pirobs->erase(1) == false);
+    CPPUNIT_ASSERT(pirobs->erase((irob_id_t) 1) == false);
     
     CPPUNIT_ASSERT(pirobs->insert(pirob3) == true);
     CPPUNIT_ASSERT(get_pointer(pirobs->find(3)) == pirob3);
-    CPPUNIT_ASSERT(pirobs->erase(3) == true);
+    CPPUNIT_ASSERT(pirobs->erase((irob_id_t) 3) == true);
     CPPUNIT_ASSERT(get_pointer(pirobs->find(3)) == NULL);
     
-    CPPUNIT_ASSERT(pirobs->erase(0) == true);
+    CPPUNIT_ASSERT(pirobs->erase((irob_id_t) 0) == true);
     CPPUNIT_ASSERT(get_pointer(pirobs->find(0)) == NULL);
     CPPUNIT_ASSERT(get_pointer(pirobs->find(2)) == pirob2);
     
     CPPUNIT_ASSERT(pirobs->empty() == false);
     
-    CPPUNIT_ASSERT(pirobs->erase(2) == true);
+    CPPUNIT_ASSERT(pirobs->erase((irob_id_t) 2) == true);
     CPPUNIT_ASSERT(get_pointer(pirobs->find(2)) == NULL);
     
     CPPUNIT_ASSERT(pirobs->empty() == true);

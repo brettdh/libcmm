@@ -6,6 +6,7 @@
 #include <vector>
 #include <map>
 #include <sys/time.h>
+#include <stdlib.h>
 
 struct packet_hdr {
     int seqno;

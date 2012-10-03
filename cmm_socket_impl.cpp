@@ -1833,7 +1833,7 @@ void CMMSocketImpl::data_check_all_irobs(in_addr_t local_ip, in_addr_t remote_ip
         
         if (psirob->wasSentOn(local_ip, remote_ip) &&
             (label_mask == 0 ||
-             label_mask & psirob->send_labels)) {
+             label_mask & psirob->get_send_labels())) {
             IROBSchedulingData data(ids[i], false);
             data.data_check = true;
             irob_indexes.waiting_data_checks.insert(data);
@@ -2064,7 +2064,7 @@ CMMSocketImpl::end_irob(irob_id_t id)
             errno = EINVAL;
             return -1;
         }
-        send_labels = pirob->send_labels;
+        send_labels = pirob->get_send_labels();
     }
 
     // prefer the IROB's labels, but fall back to any connection
@@ -2080,15 +2080,15 @@ CMMSocketImpl::end_irob(irob_id_t id)
 
     {
         PthreadScopedLock lock(&scheduling_state_lock);
-        if (pirob->status < 0) {
+        if (pirob->get_status() < 0) {
             /* last chance to report failure;
              * if the sender has failed to send this IROB's data
              * for some reason, we can still block, thunk or fail. */
-            if (pirob->status == CMM_DEFERRED) {
+            if (pirob->get_status() == CMM_DEFERRED) {
                 outgoing_irobs.erase(id);
                 //delete pirob;  // smart ptr will clean up
                 return CMM_DEFERRED;
-            } else if (pirob->status == CMM_BLOCKING) {
+            } else if (pirob->get_status() == CMM_BLOCKING) {
                 pthread_mutex_unlock(&scheduling_state_lock);
                 ret = wait_for_labels(send_labels);
                 pthread_mutex_lock(&scheduling_state_lock);
@@ -2107,9 +2107,8 @@ CMMSocketImpl::end_irob(irob_id_t id)
 
         PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
         ASSERT(psirob);
-        if (psirob->announced && !psirob->end_announced &&
+        if (psirob->was_announced() && !psirob->end_was_announced() &&
             psirob->is_complete() && psirob->all_chunks_sent()) {
-            psirob->end_announced = true;
             if (csock->is_connected()) {
                 csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
             } else {
@@ -2171,7 +2170,7 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 
         psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
         ASSERT(psirob);
-        send_labels = psirob->send_labels;
+        send_labels = psirob->get_send_labels();
     }
 
     // only the begin_irob should try to register a thunk.
@@ -2202,7 +2201,7 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 
         // XXX: begin and chunk can be out of order now; is this check still needed?
         // XXX: then again, it probably never fails.
-        if (psirob->announced) {
+        if (psirob->was_announced()) {
             if (csock->is_connected()) {
                 csock->irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));//chunk.seqno));
             } else {
@@ -2420,7 +2419,7 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
     }
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
     ASSERT(psirob);
-    u_long send_labels = psirob->send_labels;
+    u_long send_labels = psirob->get_send_labels();
 
     if (request & CMM_RESEND_REQUEST_DEPS) {
         dbgprintf("Enqueuing resend of deps for IROB %ld\n", id);
@@ -2437,7 +2436,7 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
             irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false, send_labels));
         }
         dbgprintf("Enqueuing resend of chunks %d-%zu for IROB %ld\n", 
-                  next_chunk, psirob->sent_chunks.size(), id);
+                  next_chunk, psirob->num_chunks_sent(), id);
         psirob->mark_drop_point(next_chunk);
         irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));
     }
@@ -2480,7 +2479,7 @@ CMMSocketImpl::data_check_requested(irob_id_t id)
         }
     } else {
         resend_request_type_t reqtype = CMM_RESEND_REQUEST_NONE;
-        if (pirob->placeholder) {
+        if (pirob->is_placeholder()) {
             reqtype = resend_request_type_t(reqtype |
                                             CMM_RESEND_REQUEST_DEPS);
         }
@@ -2490,7 +2489,7 @@ CMMSocketImpl::data_check_requested(irob_id_t id)
             reqtype = resend_request_type_t(reqtype
                                             | CMM_RESEND_REQUEST_DATA);
         }
-        if (prirob->expected_bytes == -1) {
+        if (prirob->seen_end()) {
             reqtype = resend_request_type_t(reqtype
                                             | CMM_RESEND_REQUEST_END);
         }
@@ -2514,7 +2513,7 @@ void CMMSocketImpl::remove_if_unneeded(PendingIROBPtr pirob)
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
     ASSERT(psirob);
     if (psirob->is_acked() && psirob->is_complete()) {
-        outgoing_irobs.erase(pirob->id);
+        outgoing_irobs.erase(psirob);
         //delete pirob;  // not needed; smart ptr will clean up
 
         if (outgoing_irobs.empty()) {

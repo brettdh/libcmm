@@ -490,7 +490,7 @@ void resume_operation_thunk(ResumeOperation *op)
         ASSERT(pirob);
         PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
         ASSERT(psirob);
-        send_labels = psirob->send_labels;
+        send_labels = psirob->get_send_labels();
     }
 
     CSocketPtr csock;
@@ -534,7 +534,7 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
     ASSERT(psirob);
 
-    u_long send_labels = pirob->send_labels;
+    u_long send_labels = pirob->get_send_labels();
 
     pthread_mutex_unlock(&sk->scheduling_state_lock);
 
@@ -572,13 +572,13 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
             dbgprintf("Can't satisfy network restrictions (%s) for "
                       "IROB %ld, so I'm dropping it\n",
                       describe_network_restrictions(send_labels).c_str(),
-                      pirob->id);
+                      pirob->get_id());
             
-            pirob->status = CMM_FAILED;
-            if (pirob->complete) {
+            pirob->set_status(CMM_FAILED);
+            if (pirob->is_complete()) {
                 // no more application calls coming for this IROB;
                 //   it can safely be forgotten
-                sk->outgoing_irobs.drop_irob_and_dependents(pirob->id);
+                sk->outgoing_irobs.drop_irob_and_dependents(pirob->get_id());
                 pirob.reset();
             } // else: mc_end_irob hasn't returned yet; it will clean up
             
@@ -594,21 +594,24 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
             return false;
         }
 
-        if (!pirob->complete) {
+        if (!pirob->is_complete()) {
             // mc_end_irob hasn't returned yet for this IROB;
             //  we can still tell the application it failed
             //  or otherwise block/thunk
-            if (psirob->resume_handler) {
+            resume_handler_t resume_handler = NULL;
+            void *rh_arg = NULL;
+            psirob->get_thunk(resume_handler, rh_arg);
+            if (resume_handler) {
                 enqueue_handler(sk->sock,
-                                pirob->send_labels, 
-                                psirob->resume_handler, psirob->rh_arg);
-                pirob->status = CMM_DEFERRED;
+                                pirob->get_send_labels(), 
+                                resume_handler, rh_arg);
+                pirob->set_status(CMM_DEFERRED);
             } else {
                 enqueue_handler(sk->sock,
-                                pirob->send_labels, 
+                                pirob->get_send_labels(), 
                                 (resume_handler_t)resume_operation_thunk,
                                 new ResumeOperation(sk, data));
-                pirob->status = CMM_BLOCKING;
+                pirob->set_status(CMM_BLOCKING);
             }
         } else {
             /* no way to tell the application that we failed to send
@@ -616,8 +619,8 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
              * do the usual end-to-end check (e.g. response timeout). 
              */
             dbgprintf("Warning: silently dropping IROB %ld after failing to send it.\n",
-                      pirob->id);
-            sk->outgoing_irobs.drop_irob_and_dependents(pirob->id);
+                      pirob->get_id());
+            sk->outgoing_irobs.drop_irob_and_dependents(pirob->get_id());
             pirob.reset();
         }
         return true;
@@ -637,8 +640,8 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
                 match->irob_indexes.new_irobs.insert(data);
             } else {
                 match->irob_indexes.new_chunks.insert(data);
-                if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND &&
-                    !has_network_restriction(psirob->send_labels)) {
+                if (striping && psirob->get_send_labels() & CMM_LABEL_BACKGROUND &&
+                    !has_network_restriction(psirob->get_send_labels())) {
                     //  Try to send this chunk in parallel
                     ret = false;
                 }
@@ -736,7 +739,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
 
     irob_id_t id = data.id;
 
-    if (!psirob->announced) {
+    if (!psirob->was_announced()) {
         // only try to delegate if this is the first Begin_IROB 
         //  sent for this IROB.  Otherwise, it's a retransmission
         //  and we want to do it right away.
@@ -769,7 +772,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
 
     struct CMMSocketControlHdr hdr;
     memset(&hdr, 0, sizeof(hdr));
-    hdr.send_labels = htonl(pirob->send_labels);
+    hdr.send_labels = htonl(pirob->get_send_labels());
 
     struct iovec vec[6];
     vec[0].iov_base = &hdr;
@@ -812,15 +815,15 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     bool sending_all_irob_info = false;
     if (psirob->is_complete() &&
         psirob->expected_bytes() < (size_t) MIN_CHUNKSIZE &&
-        psirob->send_labels & CMM_LABEL_ONDEMAND &&
-        !psirob->announced) {
+        psirob->get_send_labels() & CMM_LABEL_ONDEMAND &&
+        !psirob->was_announced()) {
         // XXX: this code is begging to be put in a function.
 
         memset(&chunk_hdr, 0, sizeof(chunk_hdr));
         memset(&end_irob_hdr, 0, sizeof(end_irob_hdr));
         
         chunk_hdr.type = htons(CMM_CONTROL_MSG_IROB_CHUNK);
-        chunk_hdr.send_labels = htonl(pirob->send_labels);
+        chunk_hdr.send_labels = htonl(pirob->get_send_labels());
         
         ssize_t chunksize = psirob->expected_bytes();
         u_long seqno = 0;
@@ -835,7 +838,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
             chunk_hdr.op.irob_chunk.data = NULL;
             count++;
 
-            csock->update_net_restriction_stats(pirob->send_labels, chunksize, 0);
+            csock->update_net_restriction_stats(pirob->get_send_labels(), chunksize, 0);
 
             // begin_irob hdr, deps array, irob_chunk hdr, data, end_irob hdr
             vecs_to_send = new struct iovec[2 + 1 + irob_vecs.size() + 1];
@@ -850,8 +853,9 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
             end_irob_hdr.type = htons(CMM_CONTROL_MSG_END_IROB);
             end_irob_hdr.op.end_irob.id = htonl(data.id);
             end_irob_hdr.op.end_irob.expected_bytes = htonl(psirob->expected_bytes());
-            end_irob_hdr.op.end_irob.expected_chunks = htonl(psirob->sent_chunks.size());
-            end_irob_hdr.send_labels = htonl(pirob->send_labels);
+            end_irob_hdr.op.end_irob.expected_chunks = 
+                htonl(psirob->num_chunks_sent());
+            end_irob_hdr.send_labels = htonl(pirob->get_send_labels());
             vecs_to_send[2 + 1 + irob_vecs.size()].iov_base = &end_irob_hdr;
             vecs_to_send[2 + 1 + irob_vecs.size()].iov_len = sizeof(end_irob_hdr);
             count++;
@@ -909,18 +913,16 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     pirob = sk->outgoing_irobs.find(id);
     psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
     if (psirob) {
-        psirob->announced = true;
+        psirob->mark_announcement_sent();
         if (sending_all_irob_info) {
             if (psirob->is_complete() && psirob->all_chunks_sent()) {
-                if (!psirob->end_announced) {
-                    psirob->end_announced = true;
-                }
+                psirob->mark_end_announcement_sent();
             }
         } else {
             IROBSchedulingData new_chunk(id, true, data.send_labels);
             if (pirob->is_anonymous()) {
                 csock->irob_indexes.new_chunks.insert(new_chunk);
-            } else if (pirob->chunks.size() > 0) {
+            } else if (pirob->get_num_chunks() > 0) {
                 csock->irob_indexes.new_chunks.insert(new_chunk);
             }
         }
@@ -946,8 +948,8 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
     hdr.type = htons(CMM_CONTROL_MSG_END_IROB);
     hdr.op.end_irob.id = htonl(data.id);
     hdr.op.end_irob.expected_bytes = htonl(psirob->expected_bytes());
-    hdr.op.end_irob.expected_chunks = htonl(psirob->sent_chunks.size());
-    hdr.send_labels = htonl(pirob->send_labels);
+    hdr.op.end_irob.expected_chunks = htonl(psirob->num_chunks_sent());
+    hdr.send_labels = htonl(pirob->get_send_labels());
 
     csock->update_last_app_data_sent();
     psirob->markSentOn(csock);
@@ -1023,7 +1025,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     struct CMMSocketControlHdr hdr;
     memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_IROB_CHUNK);
-    hdr.send_labels = htonl(pirob->send_labels);
+    hdr.send_labels = htonl(pirob->get_send_labels());
 
     u_long seqno = 0;
     size_t offset = 0;
@@ -1092,15 +1094,15 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
 #endif
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
-    if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND &&
-        !has_network_restriction(psirob->send_labels) &&
+    if (striping && psirob->get_send_labels() & CMM_LABEL_BACKGROUND &&
+        !has_network_restriction(psirob->get_send_labels()) &&
         sk->csock_map->count() > 1) {
         // let other threads try to send this chunk too
         sk->irob_indexes.new_chunks.insert(data);
         pthread_cond_broadcast(&sk->scheduling_state_cv);
     }
 
-    csock->update_net_restriction_stats(psirob->send_labels, chunksize, 0);
+    csock->update_net_restriction_stats(psirob->get_send_labels(), chunksize, 0);
     
     if (data.send_labels & CMM_LABEL_ONDEMAND) {
         sk->update_last_fg();
@@ -1173,15 +1175,14 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     if (psirob) {
         //psirob->mark_sent(chunksize);
         if (psirob->is_complete() && psirob->all_chunks_sent()) {
-            if (!psirob->end_announced) {
-                psirob->end_announced = true;
+            if (!psirob->end_was_announced()) {
                 csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
             }
         } 
 
         // more chunks to send, potentially, so make sure someone sends them.
-        if (striping && psirob->send_labels & CMM_LABEL_BACKGROUND &&
-            !has_network_restriction(psirob->send_labels) &&
+        if (striping && psirob->get_send_labels() & CMM_LABEL_BACKGROUND &&
+            !has_network_restriction(psirob->get_send_labels()) &&
             sk->csock_map->count() > 1) {
             // already inserted it into sk->irob_indexes.new_chunks,
             //  letting another thread try to jump in.
@@ -1518,7 +1519,7 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
         begin_irob_hdr.type = htons(CMM_CONTROL_MSG_BEGIN_IROB);
         begin_irob_hdr.op.begin_irob.id = htonl(data.id);
         begin_irob_hdr.op.begin_irob.numdeps = htonl(numdeps);
-        begin_irob_hdr.send_labels = htonl(psirob->send_labels);
+        begin_irob_hdr.send_labels = htonl(psirob->get_send_labels());
         vecs[vecs_count].iov_base = &begin_irob_hdr;
         vecs[vecs_count].iov_len = sizeof(begin_irob_hdr);
         vecs_count++;
@@ -1533,7 +1534,7 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
             irob_chunk_hdr.type = htons(CMM_CONTROL_MSG_IROB_CHUNK);
             irob_chunk_hdr.op.irob_chunk = chunk;
             irob_chunk_hdr.op.irob_chunk.data = NULL;
-            irob_chunk_hdr.send_labels = htonl(psirob->send_labels);
+            irob_chunk_hdr.send_labels = htonl(psirob->get_send_labels());
             
             vecs[vecs_count].iov_base = &irob_chunk_hdr;
             vecs[vecs_count].iov_len = sizeof(irob_chunk_hdr);
@@ -1550,8 +1551,8 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
             end_irob_hdr.type = htons(CMM_CONTROL_MSG_END_IROB);
             end_irob_hdr.op.end_irob.id = htonl(data.id);
             end_irob_hdr.op.end_irob.expected_bytes = htonl(psirob->expected_bytes());
-            end_irob_hdr.op.end_irob.expected_chunks = htonl(psirob->sent_chunks.size());
-            end_irob_hdr.send_labels = htonl(psirob->send_labels);
+            end_irob_hdr.op.end_irob.expected_chunks = htonl(psirob->num_chunks_sent());
+            end_irob_hdr.send_labels = htonl(psirob->get_send_labels());
             
             vecs[vecs_count].iov_base = &end_irob_hdr;
             vecs[vecs_count].iov_len = sizeof(end_irob_hdr);

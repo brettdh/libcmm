@@ -478,7 +478,7 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
     vector<PendingReceiverIROB *> pirobs;
     char *buf = (char*)bufp;
     
-#ifdef CMM_TIMING
+#if defined(CMM_TIMING) && !defined(CMM_UNIT_TESTING)
     u_long timing_recv_labels = 0;
 #endif
 
@@ -553,7 +553,7 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
             if (recv_labels) {
                 *recv_labels = pirob->send_labels;
             }
-#ifdef CMM_TIMING
+#if defined(CMM_TIMING) && !defined(CMM_UNIT_TESTING)
             timing_recv_labels = pirob->send_labels;
 #endif
         }

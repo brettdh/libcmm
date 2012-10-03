@@ -232,7 +232,7 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
 
     sk->incoming_irobs.release_if_ready(pirob, ReadyIROB());
     
-    if (pirob->is_complete() && !pirob->placeholder) {
+    if (pirob->is_complete() && !pirob->is_placeholder()) {
         struct timeval completion_time;
         TIME(completion_time);
         IROBSchedulingData data(id, completion_time);
@@ -305,11 +305,11 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
                 dbgprintf_plain("still waiting for deps and/or data\n");
                 if (!resend_request) {
                     resend_request = true;
-                    if (prirob->placeholder) {
+                    if (prirob->is_placeholder()) {
                         req_type = resend_request_type_t(req_type |
                                                          CMM_RESEND_REQUEST_DEPS);
                     }
-                    if (prirob->recvd_bytes != expected_bytes) {
+                    if (prirob->recvdbytes() != expected_bytes) {
                         req_type = resend_request_type_t(req_type | 
                                                          CMM_RESEND_REQUEST_DATA);
                     }
@@ -328,7 +328,7 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
 
         sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
 
-        if (prirob->is_complete() && !prirob->placeholder) {
+        if (prirob->is_complete() && !prirob->is_placeholder()) {
             struct timeval completion_time;
             TIME(completion_time);
             IROBSchedulingData data(id, completion_time);
@@ -437,7 +437,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
 
         sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
 
-        if (prirob->is_complete() && !prirob->placeholder) {
+        if (prirob->is_complete() && !prirob->is_placeholder()) {
             struct timeval completion_time;
             TIME(completion_time);
             IROBSchedulingData data(id, completion_time);

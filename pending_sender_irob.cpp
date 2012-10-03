@@ -68,6 +68,12 @@ PendingSenderIROB::all_chunks_sent()
     return (sent_bytes == expected_bytes());
 }
 
+size_t
+PendingSenderIROB::num_chunks_sent()
+{
+    return sent_chunks.size();
+}
+
 struct LessByOffset {
     bool operator()(const struct irob_chunk_data& one, 
                     const struct irob_chunk_data& other) {
@@ -281,8 +287,36 @@ PendingSenderIROB::wasSentOn(in_addr_t local_ip, in_addr_t remote_ip)
 }
 
 // must be holding sk->scheduling_state_lock
-// void
-// PendingSenderIROB::clearSenderIfaces()
-// {
-//     sending_ifaces.clear();
-// }
+bool 
+PendingSenderIROB::was_announced()
+{
+    return announced;
+}
+
+// must be holding sk->scheduling_state_lock
+bool 
+PendingSenderIROB::end_was_announced()
+{
+    return end_announced;
+}
+
+// must be holding sk->scheduling_state_lock
+void
+PendingSenderIROB::mark_announcement_sent()
+{
+    announced = true;
+}
+
+// must be holding sk->scheduling_state_lock
+void
+PendingSenderIROB::mark_end_announcement_sent()
+{
+    end_announced = true;
+}
+
+void
+PendingSenderIROB::get_thunk(resume_handler_t& rh, void *& arg)
+{
+    rh = resume_handler;
+    arg = rh_arg;
+}

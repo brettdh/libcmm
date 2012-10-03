@@ -94,7 +94,7 @@ PendingIROB::add_chunk(struct irob_chunk_data& irob_chunk)
 }
 
 bool
-PendingIROB::finish(void)
+PendingIROB::finish()
 {
     if (is_complete()) {
         return false;
@@ -368,6 +368,14 @@ PendingIROBLattice::find_locked(irob_id_t id)
         return PendingIROBPtr();
     }
     return pending_irobs[index];
+}
+
+bool
+PendingIROBLattice::erase(PendingIROB *pirob, bool at_receiver)
+{
+    PthreadScopedLock lock(&membership_lock);
+
+    return erase_locked(pirob->id, at_receiver);
 }
 
 bool
