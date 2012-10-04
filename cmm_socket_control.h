@@ -24,6 +24,7 @@
 struct hello_data {
     in_port_t listen_port;
     int num_ifaces;
+    int redundancy_strategy_type;
 };
 
 struct begin_irob_data {

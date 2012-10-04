@@ -8,6 +8,7 @@ class AlwaysRedundant : public RedundancyStrategy {
     virtual bool shouldTransmitRedundantly(PendingSenderIROB *psirob) {
         return true;
     }
+    virtual int getType() { return ALWAYS_REDUNDANT; }
 };
 
 class NeverRedundant : public RedundancyStrategy {
@@ -15,6 +16,7 @@ class NeverRedundant : public RedundancyStrategy {
     virtual bool shouldTransmitRedundantly(PendingSenderIROB *psirob) {
         return false;
     }
+    virtual int getType() { return NEVER_REDUNDANT; }
 };
 
 #endif /* _REDUNDANCY_STRATEGY_TRIVIAL_H_INCLUDED_219G8FVOBSU9G4 */

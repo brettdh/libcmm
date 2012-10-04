@@ -48,6 +48,7 @@ typedef int mc_socket_t;
 #define NEVER_REDUNDANT     0
 #define ALWAYS_REDUNDANT    1
 #define EVALUATE_REDUNDANCY 2
+#define NUM_REDUNDANCY_STRATEGY_TYPES 3
 
 /*** CMM socket function wrappers ***/
 

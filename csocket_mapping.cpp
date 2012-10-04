@@ -61,6 +61,13 @@ CSockMapping::set_redundancy_strategy(int type)
     redundancy_strategy = RedundancyStrategy::create(type);
 }
 
+int 
+CSockMapping::get_redundancy_strategy()
+{
+    assert(redundancy_strategy);
+    return redundancy_strategy->getType();
+}
+
 size_t
 CSockMapping::count()
 {

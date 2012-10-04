@@ -88,6 +88,7 @@ class CSockMapping {
     void join_to_all_workers();
 
     void set_redundancy_strategy(int type);
+    int get_redundancy_strategy();
 
     CSockMapping(CMMSocketImplPtr sk);
     ~CSockMapping();

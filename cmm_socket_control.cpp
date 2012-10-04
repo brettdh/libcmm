@@ -6,6 +6,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "libcmm_net_restriction.h"
+#include "redundancy_strategy.h"
 
 #include <iomanip>
 using std::setfill; using std::setw;
@@ -116,17 +117,21 @@ CMMSocketControlHdr::describe() const
     stream << "Send labels: " << labels_str() << " ";
 
     switch (ntohs(type)) {
-    case CMM_CONTROL_MSG_HELLO:
-      stream << "listen port: " << ntohs(op.hello.listen_port) << " ";
-      stream << "num_ifaces: " << ntohl(op.hello.num_ifaces);
-      break;
+    case CMM_CONTROL_MSG_HELLO: {
+        int type = ntohl(op.hello.redundancy_strategy_type);
+        stream << "listen port: " << ntohs(op.hello.listen_port) << " ";
+        stream << "num_ifaces: " << ntohl(op.hello.num_ifaces) << " ";
+        stream << "redundancy_strategy_type: "
+               << RedundancyStrategy::describe_type(type);
+        break;
+    }
     case CMM_CONTROL_MSG_BEGIN_IROB:
         stream << "IROB: " << ntohl(op.begin_irob.id) << " ";
         stream << "numdeps: " << ntohl(op.begin_irob.numdeps);
         break;
     case CMM_CONTROL_MSG_END_IROB:
-      stream << "IROB: " << ntohl(op.end_irob.id) << " ";
-      stream << "expected_bytes: " << ntohl(op.end_irob.expected_bytes) << " ";
+        stream << "IROB: " << ntohl(op.end_irob.id) << " ";
+        stream << "expected_bytes: " << ntohl(op.end_irob.expected_bytes) << " ";
         stream << "expected_chunks: " << ntohl(op.end_irob.expected_chunks);
         break;
     case CMM_CONTROL_MSG_IROB_CHUNK:

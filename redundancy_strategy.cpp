@@ -5,6 +5,18 @@
 
 #include <assert.h>
 
+const char *
+RedundancyStrategy::strategy_types[NUM_REDUNDANCY_STRATEGY_TYPES] = {
+    "never-redundant", "always-redundant", "evaluate-redundancy"
+};
+
+std::string
+RedundancyStrategy::describe_type(int type)
+{
+    assert(type >= 0 && type < NUM_REDUNDANCY_STRATEGY_TYPES);
+    return strategy_types[type];
+}
+
 RedundancyStrategy *
 RedundancyStrategy::create(int type)
 {
