@@ -155,8 +155,10 @@ int CMMSocketImpl::recv_hello(int bootstrap_sock)
     {
         PthreadScopedRWLock sock_lock(&my_lock, true);
         remote_listener_port = hdr.op.hello.listen_port;
-        int type = ntohl(hdr.op.hello.redundancy_strategy_type);
-        csock_map->set_redundancy_strategy(type);
+        if (accepting_side) {
+            int type = ntohl(hdr.op.hello.redundancy_strategy_type);
+            csock_map->set_redundancy_strategy(type);
+        }
     }
     return ntohl(hdr.op.hello.num_ifaces);
 }
