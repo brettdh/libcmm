@@ -39,6 +39,8 @@ LOCAL_SRC_FILES := $(addprefix ../, \
 	pending_irob.cpp \
 	pending_receiver_irob.cpp \
 	pending_sender_irob.cpp \
+	redundancy_strategy.cpp \
+	redundancy_strategy_instruments.cpp \
 	thunks.cpp \
 	timeops.cpp)
 
