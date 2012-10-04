@@ -65,6 +65,7 @@ void * Worker(void * arg)
         u_long sender_labels = 0;
         int rc = cmm_read(sock, &ch, sizeof(ch), &sender_labels);
 
+        /*
         if (sender_labels & CMM_LABEL_ONDEMAND) {
             sender_labels &= (~CMM_LABEL_WIFI_ONLY);
             sender_labels |= CMM_LABEL_THREEG_ONLY;
@@ -74,6 +75,7 @@ void * Worker(void * arg)
             sender_labels |= CMM_LABEL_WIFI_ONLY;
             dbgprintf_always("Got BG request: sending wifi-only response (for testing)\n");
         }
+        */
 #endif
         TIME(end);
         if (rc != sizeof(ch)) {
