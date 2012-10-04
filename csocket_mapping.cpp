@@ -709,7 +709,9 @@ CSockMapping::get_csock(PendingSenderIROB *psirob, CSocket*& csock)
         csock = NULL;
     }
 
-    check_redundancy(psirob);
+    if (psirob) {
+        check_redundancy(psirob);
+    }
     
     if (!csock) {
         if (!can_satisfy_network_restrictions(send_labels)) {
