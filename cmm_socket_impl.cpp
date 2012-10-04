@@ -150,6 +150,8 @@ int CMMSocketImpl::recv_hello(int bootstrap_sock)
         throw -1;
     }
 
+    dbgprintf("Received hello: %s\n", hdr.describe().c_str());
+
     {
         PthreadScopedRWLock sock_lock(&my_lock, true);
         remote_listener_port = hdr.op.hello.listen_port;
@@ -180,6 +182,8 @@ CMMSocketImpl::send_hello(int bootstrap_sock)
     hdr.op.hello.listen_port = listener_thread->port();
     hdr.op.hello.num_ifaces = htonl(local_ifaces.size());
     hdr.op.hello.redundancy_strategy_type = htonl(csock_map->get_redundancy_strategy());
+
+    dbgprintf("Sending hello: %s\n", hdr.describe().c_str());
     
     int rc = send(bootstrap_sock, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr)) {
