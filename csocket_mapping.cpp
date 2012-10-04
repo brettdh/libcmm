@@ -3,6 +3,7 @@
 #include "csocket_sender.h"
 #include "csocket_receiver.h"
 #include "cmm_conn_bootstrapper.h"
+#include "pending_sender_irob.h"
 #include "debug.h"
 #include <memory>
 #include <map>
@@ -15,7 +16,10 @@ using std::ptr_fun;
 using std::make_pair;
 
 #include "cmm_socket.private.h"
+#include "libcmm.h"
 #include "libcmm_net_restriction.h"
+
+#include "redundancy_strategy.h"
 
 using std::auto_ptr;
 using std::pair;
@@ -38,12 +42,23 @@ CSockMapping::CSockMapping(CMMSocketImplPtr sk_)
     : sk(sk_)
 {
     RWLOCK_INIT(&sockset_mutex, NULL);
+    redundancy_strategy = RedundancyStrategy::create(NEVER_REDUNDANT);
 }
 
 CSockMapping::~CSockMapping()
 {
     PthreadScopedRWLock lock(&sockset_mutex, true);
     available_csocks.clear();
+    
+    delete redundancy_strategy;
+}
+
+void
+CSockMapping::set_redundancy_strategy(int type)
+{
+    assert(redundancy_strategy);
+    delete redundancy_strategy;
+    redundancy_strategy = RedundancyStrategy::create(type);
 }
 
 size_t
@@ -668,8 +683,13 @@ CSockMapping::new_csock_with_labels(u_long send_label, bool grab_lock)
 }
 
 int
-CSockMapping::get_csock(u_long send_labels, CSocket*& csock)
+CSockMapping::get_csock(PendingSenderIROB *psirob, CSocket*& csock)
 {
+    u_long send_labels = 0;
+    if (psirob) {
+        send_labels = psirob->get_send_labels();
+    }
+
     struct net_interface local, remote;
     // ignore trouble-check when picking a socket here;
     //  if it's troubled, it'll hand off its data to another socket
@@ -688,6 +708,8 @@ CSockMapping::get_csock(u_long send_labels, CSocket*& csock)
     } else {
         csock = NULL;
     }
+
+    check_redundancy(psirob);
     
     if (!csock) {
         if (!can_satisfy_network_restrictions(send_labels)) {
@@ -697,6 +719,25 @@ CSockMapping::get_csock(u_long send_labels, CSocket*& csock)
         }
     } else {
         return 0;
+    }
+}
+
+void
+CSockMapping::check_redundancy(PendingSenderIROB *psirob)
+{
+    if (count_locked() <= 1) {
+        // no redundancy possible
+        return;
+    }
+    
+    u_long send_labels = psirob->get_send_labels();
+    if (!(send_labels & CMM_LABEL_ONDEMAND &&
+          send_labels & CMM_LABEL_SMALL)) {
+        return;
+    }
+
+    if (redundancy_strategy->shouldTransmitRedundantly(psirob)) {
+        psirob->mark_send_on_all_networks();
     }
 }
 

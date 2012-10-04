@@ -316,6 +316,7 @@ PendingSenderIROB::wasSentOn(in_addr_t local_ip, in_addr_t remote_ip)
 bool 
 PendingSenderIROB::was_announced(CSocket * csock)
 {
+    csock = null_index_if_single_sending(csock);
     if (announcements.count(csock) > 0) {
         return announcements[csock];
     }
@@ -326,6 +327,7 @@ PendingSenderIROB::was_announced(CSocket * csock)
 bool 
 PendingSenderIROB::end_was_announced(CSocket * csock)
 {
+    csock = null_index_if_single_sending(csock);
     if (end_announcements.count(csock) > 0) {
         return end_announcements[csock];
     }
@@ -336,6 +338,7 @@ PendingSenderIROB::end_was_announced(CSocket * csock)
 void
 PendingSenderIROB::mark_announcement_sent(CSocket * csock)
 {
+    csock = null_index_if_single_sending(csock);
     announcements[csock] = true;
 }
 
@@ -343,6 +346,7 @@ PendingSenderIROB::mark_announcement_sent(CSocket * csock)
 void
 PendingSenderIROB::mark_end_announcement_sent(CSocket * csock)
 {
+    csock = null_index_if_single_sending(csock);
     end_announcements[csock] = true;
 }
 
@@ -365,9 +369,20 @@ PendingSenderIROB::should_send_on_all_networks()
     return send_on_all_networks;
 }
 
+CSocket *
+PendingSenderIROB::null_index_if_single_sending(CSocket *csock)
+{
+    if (!should_send_on_all_networks()) {
+        // only allow one sender (or striping-only if multiple)
+        csock = NULL;
+    }
+    return csock;
+}
+
 size_t 
 PendingSenderIROB::get_irob_offset(CSocket *csock)
 {
+    csock = null_index_if_single_sending(csock);
     if (irob_offsets.count(csock) == 0) {
         irob_offsets[csock] = 0;
     }
@@ -377,6 +392,7 @@ PendingSenderIROB::get_irob_offset(CSocket *csock)
 void 
 PendingSenderIROB::increment_irob_offset(CSocket *csock, size_t increment)
 {
+    csock = null_index_if_single_sending(csock);
     if (irob_offsets.count(csock) == 0) {
         irob_offsets[csock] = 0;
     }
@@ -386,6 +402,7 @@ PendingSenderIROB::increment_irob_offset(CSocket *csock, size_t increment)
 u_long 
 PendingSenderIROB::get_next_seqno_to_send(CSocket *csock)
 {
+    csock = null_index_if_single_sending(csock);
     if (next_seqnos_to_send.count(csock) == 0) {
         next_seqnos_to_send[csock] = 0;
     }
@@ -397,6 +414,7 @@ PendingSenderIROB::get_next_seqno_to_send(CSocket *csock)
 void 
 PendingSenderIROB::increment_seqno(CSocket *csock)
 {
+    csock = null_index_if_single_sending(csock);
     if (next_seqnos_to_send.count(csock) == 0) {
         next_seqnos_to_send[csock] = 0;
     }

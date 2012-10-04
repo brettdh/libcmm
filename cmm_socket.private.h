@@ -59,6 +59,7 @@ class ConnBootstrapper;
 class ListenerThread;
 class CMMSocketSender;
 class CMMSocketReceiver;
+class PendingSenderIROB;
 
 class CMMSocketImpl : public CMMSocket {
   public:
@@ -245,13 +246,8 @@ class CMMSocketImpl : public CMMSocket {
                             ssize_t total_bytes,
                             u_long send_labels,
                             resume_handler_t resume_handler, void *rh_arg);
-    int validate_default_irob(u_long send_labels,
-                              resume_handler_t resume_handler, void *rh_arg,
-                              CSocket *& csock);
-    int send_default_irob(irob_id_t id, CSocket *csock,
-                          char *buf, size_t len,
-                          u_long send_labels,
-                          resume_handler_t resume_handler, void *rh_arg);
+    int validate_default_irob(PendingSenderIROB *psirob, CSocket *& csock);
+    int send_default_irob(PendingSenderIROB *psirob, CSocket *csock);
 
     void new_interface(struct in_addr ip_addr, u_long labels);
     void down_interface(struct in_addr ip_addr);
@@ -311,8 +307,7 @@ class CMMSocketImpl : public CMMSocket {
 
     int wait_for_labels(u_long send_labels);
 
-    int get_csock(u_long send_labels, 
-                  resume_handler_t resume_handler, void *rh_arg,
+    int get_csock(PendingSenderIROB *psirob,
                   CSocket *& csock, bool blocking);
 
     void remove_if_unneeded(PendingIROBPtr pirob);

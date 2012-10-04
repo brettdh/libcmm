@@ -184,9 +184,12 @@ CSocketSender::Run()
                 }
             }
 
+            // moving this to delegate_if_necessary so I can
+            //  check only on IROB operations.
+            /*
             if (sk->csock_map->count() > 1 &&
 
-                /* TODO-REDUNDANCY: replace with generic "should_be_redundant()" */
+                // TODO-REDUNDANCY: replace with generic "should_be_redundant()"
                 csock->is_in_trouble()) {
 
                 char local_ip[16], remote_ip[16];
@@ -203,6 +206,7 @@ CSocketSender::Run()
                     pthread_cond_broadcast(&sk->scheduling_state_cv);
                 }
             }
+            */
             // Sending FG data will get redirected to a non-troubled sender
             //  in delegate_if_necessary.
             // I might still send some other things, such as BG data.
@@ -289,6 +293,10 @@ CSocketSender::Run()
 
             /* TODO-REDUNDANCY: this is the periodic-reevaluation part.
              * TODO-REDUNDANCY:  (only applicable for my redundancy code.) */
+            // TODO-REDUNDANCY: make sure that I get woken up to do this check.
+            // TODO-REDUNDANCY: maybe use a timeout, only calculated and set
+            // TODO-REDUNDANCY:   if we have sent >1 IROB non-redundantly.
+            /*
             TroubleChecker checker(sk);
             sk->csock_map->for_each(checker);
             if (checker.troubled_ifaces.size() > 0) {
@@ -299,6 +307,7 @@ CSocketSender::Run()
                                              CMM_LABEL_ONDEMAND);
                 }
             }
+            */
             // something happened; we might be able to do some work
         }
     } catch (CMMFatalError& e) {
@@ -535,6 +544,7 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
     ASSERT(psirob);
 
     u_long send_labels = pirob->get_send_labels();
+    bool redundant = psirob->should_send_on_all_networks();
 
     pthread_mutex_unlock(&sk->scheduling_state_lock);
 
@@ -594,6 +604,12 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
             return false;
         }
 
+        if (redundant) {
+            // we decided earlier to send this redundantly,
+            //  so every CSocket should send it.
+            return false;
+        }
+
         if (!pirob->is_complete()) {
             // mc_end_irob hasn't returned yet for this IROB;
             //  we can still tell the application it failed
@@ -647,6 +663,10 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
                 }
             }
             pthread_cond_broadcast(&sk->scheduling_state_cv);
+
+            if (redundant) {
+                ret = false;
+            }
             return ret;
         } // otherwise, I'll do it myself (this thread)
     }

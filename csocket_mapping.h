@@ -23,6 +23,9 @@ typedef std::map<u_long, std::map<u_long, CSocketPtr> > CSockLabelMap;
 
 class CMMSocketImpl;
 
+class PendingSenderIROB;
+class RedundancyStrategy;
+
 class CSockMapping {
   public:
     // return true iff csock is suitable for these labels.
@@ -42,7 +45,7 @@ class CSockMapping {
     // returns 0 on success.  On failure,
     //  returns CMM_UNDELIVERABLE if the labels contain an unsatisfiable 
     //  network restriction, or CMM_FAILED otherwise.
-    int get_csock(u_long send_label, CSocket*& csock);
+    int get_csock(PendingSenderIROB *psirob, CSocket*& csock);
 
     void remove_csock(CSocketPtr csock); // only removes, doesn't delete
 
@@ -84,6 +87,8 @@ class CSockMapping {
     // waits (pthread_join) for all workers to exit.
     void join_to_all_workers();
 
+    void set_redundancy_strategy(int type);
+
     CSockMapping(CMMSocketImplPtr sk);
     ~CSockMapping();
 
@@ -111,7 +116,9 @@ class CSockMapping {
                                 bool ignore_trouble,
                                 bool sockset_already_locked);
 
-    //CSockLabelMap csocks_by_send_label;
+    RedundancyStrategy *redundancy_strategy;
+    void check_redundancy(PendingSenderIROB *psirob);
+
     boost::weak_ptr<CMMSocketImpl> sk;  /* XXX: janky.  Remove later? */
     CSockSet available_csocks;
     RWLOCK_T sockset_mutex;

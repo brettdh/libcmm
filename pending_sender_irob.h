@@ -156,6 +156,8 @@ class PendingSenderIROB : public PendingIROB {
     // default: false.
     bool send_on_all_networks;
 
+    CSocket *null_index_if_single_sending(CSocket *csock);
+
     std::vector<struct iovec> get_bytes_internal(size_t offset, ssize_t& len);
     std::deque<struct irob_chunk_data>::iterator find_app_chunk(size_t offset);
     

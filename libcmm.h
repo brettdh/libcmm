@@ -45,6 +45,10 @@ typedef int mc_socket_t;
 
 #define MAX_LABEL_LENGTH 20
 
+#define NEVER_REDUNDANT     0
+#define ALWAYS_REDUNDANT    1
+#define EVALUATE_REDUNDANCY 2
+
 /*** CMM socket function wrappers ***/
 
 /* For all functions:
