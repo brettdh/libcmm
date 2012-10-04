@@ -237,6 +237,7 @@ CSocketSender::Run()
             
             struct timespec timeout = {-1, 0};
 
+            /*
             DataInFlight inflight;
             sk->csock_map->for_each(inflight);
             if ((inflight.data_inflight && inflight.rel_trouble_timeout.tv_sec != -1)) {
@@ -245,6 +246,7 @@ CSocketSender::Run()
                           inflight.rel_trouble_timeout.tv_sec,
                           inflight.rel_trouble_timeout.tv_nsec);
             }
+            */
             
             if (trickle_timeout.tv_sec > 0) {
                 if (timeout.tv_sec > 0) {
