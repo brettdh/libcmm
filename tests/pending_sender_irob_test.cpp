@@ -96,7 +96,8 @@ PendingSenderIROBTest::testReadByChunkSize(ssize_t chunksize)
         ssize_t bytes = chunksize;
         size_t offset = 0;
 
-        vector<struct iovec> new_vecs = psirob->get_ready_bytes(bytes, seqno, 
+        vector<struct iovec> new_vecs = psirob->get_ready_bytes(NULL,
+                                                                bytes, seqno, 
                                                                 offset);
         CPPUNIT_ASSERT_MESSAGE("Copied a chunk", 
                                (bytes == ((chunksize == 0) ? 10 : chunksize) ||

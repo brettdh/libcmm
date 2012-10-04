@@ -54,11 +54,14 @@ class PendingSenderIROB : public PendingIROB {
      * Side effect: bytes_requested is modified to reflect the
      * actual number of bytes returned.
      */
-    std::vector<struct iovec> get_ready_bytes(ssize_t& bytes_requested, 
+    std::vector<struct iovec> get_ready_bytes(CSocket * csock, 
+                                              ssize_t& bytes_requested, 
                                               u_long& seqno,
                                               size_t& offset);
 
-    std::vector<struct iovec> get_last_sent_chunk_htonl(struct irob_chunk_data *chunk);
+    std::vector<struct iovec> 
+        get_last_sent_chunk_htonl(CSocket * csock,
+                                  struct irob_chunk_data *chunk);
 
     /* Marks the next bytes_sent bytes as sent.  This in essence advances the
      * pointer that get_ready_bytes provides into this IROB's data. 
@@ -82,8 +85,8 @@ class PendingSenderIROB : public PendingIROB {
     //void rewind(size_t offset_);
 
     size_t expected_bytes();  // number of bytes given by the application.
-    bool all_chunks_sent(); // true if all bytes have been put into send-chunks.
-    size_t num_chunks_sent();
+    bool all_bytes_chunked(); // true if all bytes have been put into send-chunks.
+    size_t num_sender_chunks();
 
     // Mark these bytes as not received; they will be resent.
     //  The chunk data in missing_chunk may identify fewer bytes
@@ -106,47 +109,56 @@ class PendingSenderIROB : public PendingIROB {
     // must be holding sk->scheduling_state_lock
     bool wasSentOn(in_addr_t local_ip, in_addr_t remote_ip);
 
-    bool was_announced();
-    bool end_was_announced();
-    void mark_announcement_sent();
-    void mark_end_announcement_sent();
+    bool was_announced(CSocket * csock);
+    bool end_was_announced(CSocket * csock);
+    void mark_announcement_sent(CSocket * csock);
+    void mark_end_announcement_sent(CSocket * csock);
 
     void get_thunk(resume_handler_t& rh, void *& arg);
+
+    bool should_send_on_all_networks();
+    void mark_send_on_all_networks();
 
   private:
     friend class PendingSenderIROBTest;
 
-    /* all integers here are in host byte order */
-    //u_long next_seqno;
-
     resume_handler_t resume_handler;
     void *rh_arg;
 
-    bool announced;
-    bool end_announced;
+    //bool announced;
+    //bool end_announced;
+    std::map<CSocket *, bool> announcements;
+    std::map<CSocket *, bool> end_announcements;
     bool acked;
 
     // for sending partial chunks
-    u_long next_seqno_to_send;
-    //size_t next_chunk;
-    //size_t chunk_offset;
+    //u_long next_seqno_to_send;
+    std::map<CSocket *, u_long> next_seqnos_to_send;
+    u_long get_next_seqno_to_send(CSocket *csock);
+    void increment_seqno(CSocket *csock);
 
     std::deque<struct irob_chunk_data> sent_chunks;
 
     // make this a set so we don't have duplicate chunk-resend requests.
     typedef std::set<struct irob_chunk_data> ResendChunkSet;
     ResendChunkSet resend_chunks;
-    // std::deque<struct irob_chunk_data> resend_chunks;
 
     size_t num_bytes; // number of bytes added by the application
-    size_t irob_offset;  // number of bytes given to senders
+
+    // number of bytes given to senders
+    //size_t irob_offset;
+    std::map<CSocket *, size_t> irob_offsets;
+    size_t get_irob_offset(CSocket *csock);
+    void increment_irob_offset(CSocket *csock, size_t increment);
+
+    void add_sent_chunk(CSocket *csock, ssize_t len);
+
+    // default: false.
+    bool send_on_all_networks;
 
     std::vector<struct iovec> get_bytes_internal(size_t offset, ssize_t& len);
     std::deque<struct irob_chunk_data>::iterator find_app_chunk(size_t offset);
     
-    // only one thread at a time should be sending app data
-    //bool chunk_in_flight;
-
     typedef std::set<std::pair<in_addr_t, in_addr_t> > IfacePairSet;
     IfacePairSet sending_ifaces;
 };

@@ -1914,16 +1914,6 @@ CMMSocketImpl::get_csock(u_long send_labels,
                          CSocket *& csock, bool blocking)
 {
     try {
-        // if (net_available(send_labels)) {
-        //     // avoid using sockets that aren't yet connected; if connect() times out,
-        //     //   it might take a long time to send anything
-        //     csock = get_pointer(csock_map->connected_csock_with_labels(send_labels, false));
-        //     if (!csock) {
-        //         csock = get_pointer(csock_map->new_csock_with_labels(send_labels, false));
-        //     }
-        // } else {
-        //     csock = NULL;
-        // }
         csock = NULL;
         int rc = csock_map->get_csock(send_labels, csock);
         if (!csock) {
@@ -2107,8 +2097,8 @@ CMMSocketImpl::end_irob(irob_id_t id)
 
         PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
         ASSERT(psirob);
-        if (psirob->was_announced() && !psirob->end_was_announced() &&
-            psirob->is_complete() && psirob->all_chunks_sent()) {
+        if (psirob->was_announced(csock) && !psirob->end_was_announced(csock) &&
+            psirob->is_complete() && psirob->all_bytes_chunked()) {
             if (csock->is_connected()) {
                 csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
             } else {
@@ -2201,7 +2191,7 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 
         // XXX: begin and chunk can be out of order now; is this check still needed?
         // XXX: then again, it probably never fails.
-        if (psirob->was_announced()) {
+        if (psirob->was_announced(csock)) {
             if (csock->is_connected()) {
                 csock->irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));//chunk.seqno));
             } else {
@@ -2431,12 +2421,13 @@ CMMSocketImpl::resend_request_received(irob_id_t id, resend_request_type_t reque
         irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));
     }
     if (request & CMM_RESEND_REQUEST_END) {
-        if (psirob->is_complete() && psirob->all_chunks_sent()) {
+        if (psirob->is_complete() && psirob->all_bytes_chunked()) {
+
             dbgprintf("Enqueuing resend of End_IROB for IROB %ld\n", id);
             irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false, send_labels));
         }
         dbgprintf("Enqueuing resend of chunks %d-%zu for IROB %ld\n", 
-                  next_chunk, psirob->num_chunks_sent(), id);
+                  next_chunk, psirob->num_sender_chunks(), id);
         psirob->mark_drop_point(next_chunk);
         irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));
     }

@@ -17,10 +17,12 @@ PendingSenderIROB::PendingSenderIROB(irob_id_t id_,
                                      void *rh_arg_)
     : PendingIROB(id_, numdeps, deps_array, datalen, data, send_labels),
       resume_handler(resume_handler_), rh_arg(rh_arg_),
-      announced(false), end_announced(false), acked(false),
-      next_seqno_to_send(0), //next_chunk(0), chunk_offset(0),
-      num_bytes(datalen), irob_offset(0)
+      //announced(false), end_announced(false), 
+      acked(false),
+      //next_seqno_to_send(0), //next_chunk(0), chunk_offset(0),
+      num_bytes(datalen), //irob_offset(0)
       //chunk_in_flight(false),
+      send_on_all_networks(false)
 {
 }
 
@@ -60,7 +62,7 @@ PendingSenderIROB::expected_bytes()
 }
 
 bool
-PendingSenderIROB::all_chunks_sent()
+PendingSenderIROB::all_bytes_chunked()
 {
     size_t sent_bytes = for_each(sent_chunks.begin(),
                                  sent_chunks.end(),
@@ -69,7 +71,7 @@ PendingSenderIROB::all_chunks_sent()
 }
 
 size_t
-PendingSenderIROB::num_chunks_sent()
+PendingSenderIROB::num_sender_chunks()
 {
     return sent_chunks.size();
 }
@@ -102,6 +104,9 @@ PendingSenderIROB::find_app_chunk(size_t offset)
     return it;
 }
 
+// this function has no side effects (yay!)
+// it returns a vector of iovecs that contain the data gathered,
+//   and it sets len equal to the number of bytes gathered.
 vector<struct iovec> 
 PendingSenderIROB::get_bytes_internal(size_t offset, ssize_t& len)
 {
@@ -138,21 +143,30 @@ PendingSenderIROB::get_bytes_internal(size_t offset, ssize_t& len)
 }
 
 vector<struct iovec> 
-PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno,
-                                   size_t &offset_)
+PendingSenderIROB::get_ready_bytes(CSocket *csock,
+                                   ssize_t& bytes_requested, u_long& seqno,
+                                   size_t& offset)
 {
     vector<struct iovec> data;
 
     dbgprintf("Getting bytes to send from IROB %ld\n", id);
     dbgprintf("   (%d bytes requested; %d chunks total; irob_offset %d\n",
-              (int)bytes_requested, (int)chunks.size(), irob_offset);
+              (int)bytes_requested, (int)chunks.size(), 
+              get_irob_offset(csock));
     dbgprintf("   %zd unsent bytes ready, %zu chunks waiting to resend)\n",
-              num_bytes - irob_offset, resend_chunks.size());
+              num_bytes - get_irob_offset(csock), resend_chunks.size());
 
     if (bytes_requested <= 0) {
-        bytes_requested = num_bytes - irob_offset;
+        bytes_requested = num_bytes - get_irob_offset(csock);
     }
     
+    // resend_chunks will ignore redundancy.
+    // That's because I only expect them to exist right after
+    //   a network failure, at which point redundancy is moot.
+    // Whichever sender gets there first will do the retransmission.
+    //   If a delayed response has made this IROB redundant,
+    //   then senders that hadn't previously sent any of its data
+    //   will send all of it, since they'll see they haven't sent any of it.
     if (!resend_chunks.empty()) {
         // 1) Grab a chunk
         ResendChunkSet::iterator front = resend_chunks.begin();
@@ -171,19 +185,10 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno,
         ASSERT(len == lencopy);
         
         // 3) write out the argument-return values
-        offset_ = chunk.offset;
+        offset = chunk.offset;
         seqno = chunk.seqno;
-        /* Maybe special-case this later, but for now don't,
-         * since it breaks my assumption that sent_chunks are
-         * always sent in a single shot.
-        if ((ssize_t)chunk.datalen > bytes_requested) {
-            chunk.datalen -= bytes_requested;
-            chunk.offset += bytes_requested;
-            resend_chunks.push_front(chunk);
-        } else {
-        */
+
         bytes_requested = len;
-        //}
 
         // For simplicity, only return this resend request's data.
         //  The sender thread can loop around and ask for more data
@@ -191,40 +196,61 @@ PendingSenderIROB::get_ready_bytes(ssize_t& bytes_requested, u_long& seqno,
         return data;
     }
 
-    data = get_bytes_internal(irob_offset, bytes_requested);
+    data = get_bytes_internal(get_irob_offset(csock), bytes_requested);
     if (bytes_requested == 0) {
         dbgprintf("...no bytes ready\n");
         return data;
     }
 
+    seqno = get_next_seqno_to_send(csock);
+    offset = get_irob_offset(csock);
     dbgprintf("...returning %d bytes, seqno %lu\n",
-              (int)bytes_requested, next_seqno_to_send);
+              (int)bytes_requested, seqno);
 
-    seqno = next_seqno_to_send++;
-    offset_ = irob_offset;
-    irob_offset += bytes_requested;
-
-    struct irob_chunk_data sent_chunk;
-    memset(&sent_chunk, 0, sizeof(sent_chunk));
-    sent_chunk.id = id;
-    sent_chunk.seqno = seqno;
-    sent_chunk.offset = offset_;
-    sent_chunk.datalen = bytes_requested;
-    ASSERT(sent_chunks.size() == seqno);
-    sent_chunks.push_back(sent_chunk);
+    add_sent_chunk(csock, bytes_requested);
+    // TODO: this is almost done.  double-check it.
     
     return data;
 }
 
+void
+PendingSenderIROB::add_sent_chunk(CSocket *csock, ssize_t len)
+{
+    ssize_t seqno = get_next_seqno_to_send(csock);
+    increment_seqno(csock);
+
+    size_t offset = get_irob_offset(csock);
+    increment_irob_offset(csock, len);
+    
+    ASSERT(seqno <= (ssize_t) sent_chunks.size());
+    if (seqno == (ssize_t) sent_chunks.size()) {
+        // this is the first time any sender has sent this chunk,
+        // so we need to add it to the list.
+
+        struct irob_chunk_data sent_chunk;
+        memset(&sent_chunk, 0, sizeof(sent_chunk));
+        sent_chunk.id = id;
+        sent_chunk.seqno = seqno;
+        sent_chunk.offset = offset;
+        sent_chunk.datalen = len;
+
+        sent_chunks.push_back(sent_chunk);
+    }
+}
+
 vector<struct iovec>
-PendingSenderIROB::get_last_sent_chunk_htonl(struct irob_chunk_data *chunk)
+PendingSenderIROB::get_last_sent_chunk_htonl(CSocket *csock,
+                                             struct irob_chunk_data *chunk)
 {
     ASSERT(chunk);
-    if (sent_chunks.empty()) {
+    int seqno = get_next_seqno_to_send(csock);
+    if (sent_chunks.empty() || seqno == 0) {
         return vector<struct iovec>();
     }
 
-    struct irob_chunk_data last_chunk = sent_chunks.back();
+    --seqno; // no longer "next", but "last" instead
+    
+    struct irob_chunk_data last_chunk = sent_chunks[seqno];
     chunk->id = htonl(last_chunk.id);
     chunk->seqno = htonl(last_chunk.seqno);
     chunk->offset = htonl(last_chunk.offset);
@@ -288,30 +314,36 @@ PendingSenderIROB::wasSentOn(in_addr_t local_ip, in_addr_t remote_ip)
 
 // must be holding sk->scheduling_state_lock
 bool 
-PendingSenderIROB::was_announced()
+PendingSenderIROB::was_announced(CSocket * csock)
 {
-    return announced;
+    if (announcements.count(csock) > 0) {
+        return announcements[csock];
+    }
+    return false;
 }
 
 // must be holding sk->scheduling_state_lock
 bool 
-PendingSenderIROB::end_was_announced()
+PendingSenderIROB::end_was_announced(CSocket * csock)
 {
-    return end_announced;
+    if (end_announcements.count(csock) > 0) {
+        return end_announcements[csock];
+    }
+    return false;
 }
 
 // must be holding sk->scheduling_state_lock
 void
-PendingSenderIROB::mark_announcement_sent()
+PendingSenderIROB::mark_announcement_sent(CSocket * csock)
 {
-    announced = true;
+    announcements[csock] = true;
 }
 
 // must be holding sk->scheduling_state_lock
 void
-PendingSenderIROB::mark_end_announcement_sent()
+PendingSenderIROB::mark_end_announcement_sent(CSocket * csock)
 {
-    end_announced = true;
+    end_announcements[csock] = true;
 }
 
 void
@@ -319,4 +351,54 @@ PendingSenderIROB::get_thunk(resume_handler_t& rh, void *& arg)
 {
     rh = resume_handler;
     arg = rh_arg;
+}
+
+void
+PendingSenderIROB::mark_send_on_all_networks()
+{
+    send_on_all_networks = true;
+}
+
+bool
+PendingSenderIROB::should_send_on_all_networks()
+{
+    return send_on_all_networks;
+}
+
+size_t 
+PendingSenderIROB::get_irob_offset(CSocket *csock)
+{
+    if (irob_offsets.count(csock) == 0) {
+        irob_offsets[csock] = 0;
+    }
+    return irob_offsets[csock];
+}
+
+void 
+PendingSenderIROB::increment_irob_offset(CSocket *csock, size_t increment)
+{
+    if (irob_offsets.count(csock) == 0) {
+        irob_offsets[csock] = 0;
+    }
+    irob_offsets[csock] += increment;
+}
+
+u_long 
+PendingSenderIROB::get_next_seqno_to_send(CSocket *csock)
+{
+    if (next_seqnos_to_send.count(csock) == 0) {
+        next_seqnos_to_send[csock] = 0;
+    }
+    u_long seqno = next_seqnos_to_send[csock];
+    assert(seqno <= sent_chunks.size());
+    return seqno;
+}
+
+void 
+PendingSenderIROB::increment_seqno(CSocket *csock)
+{
+    if (next_seqnos_to_send.count(csock) == 0) {
+        next_seqnos_to_send[csock] = 0;
+    }
+    next_seqnos_to_send[csock]++;
 }
