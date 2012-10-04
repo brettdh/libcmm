@@ -15,18 +15,23 @@ using std::pair; using std::make_pair;
 
 class InvalidEstimateException {};
 
-NetStats::StatsCache NetStats::stats_cache;
-RWLOCK_T NetStats::stats_cache_lock;
+NetStats::StatsCache *NetStats::stats_cache;
+RWLOCK_T *NetStats::stats_cache_lock;
 NetStats::static_initializer NetStats::init;
 
-NetStats::IROBIfaceMap NetStats::irob_iface_map;
-IntSet NetStats::striped_irobs;
+NetStats::IROBIfaceMap *NetStats::irob_iface_map;
+IntSet *NetStats::striped_irobs;
 pthread_mutex_t NetStats::irob_iface_map_lock = PTHREAD_MUTEX_INITIALIZER;
 
 
 NetStats::static_initializer::static_initializer()
 {
-    RWLOCK_INIT(&NetStats::stats_cache_lock, NULL);
+    stats_cache = new StatsCache;
+    stats_cache_lock = new RWLOCK_T;
+    RWLOCK_INIT(NetStats::stats_cache_lock, NULL);
+
+    irob_iface_map = new IROBIfaceMap;
+    striped_irobs = new IntSet;
 }
 
 
@@ -104,7 +109,7 @@ NetStats::~NetStats()
 void
 NetStats::cache_save()
 {
-    PthreadScopedRWLock wrlock(&stats_cache_lock, true);
+    PthreadScopedRWLock wrlock(stats_cache_lock, true);
     PthreadScopedRWLock rd_self_lock(&my_lock, false);
 
     struct net_interface local_iface, remote_iface;
@@ -112,14 +117,14 @@ NetStats::cache_save()
     remote_iface.ip_addr = remote_addr;
     StatsCache::key_type key = make_pair(local_iface, remote_iface);
     for (size_t i = 0; i < NUM_ESTIMATES; ++i) {
-        stats_cache[key].estimates[i] = net_estimates.estimates[i];
+        (*stats_cache)[key].estimates[i] = net_estimates.estimates[i];
     }
 }
 
 void
 NetStats::cache_restore()
 {
-    PthreadScopedRWLock rdlock(&stats_cache_lock, false);
+    PthreadScopedRWLock rdlock(stats_cache_lock, false);
     PthreadScopedRWLock wr_self_lock(&my_lock, true);
 
     struct net_interface local_iface, remote_iface;
@@ -128,8 +133,8 @@ NetStats::cache_restore()
     StatsCache::key_type key = make_pair(local_iface, remote_iface);
     for (size_t i = 0; i < NUM_ESTIMATES; ++i) {
         u_long value;
-        if (stats_cache[key].estimates[i].get_estimate(value)) {
-            net_estimates.estimates[i] = stats_cache[key].estimates[i];
+        if ((*stats_cache)[key].estimates[i].get_estimate(value)) {
+            net_estimates.estimates[i] = (*stats_cache)[key].estimates[i];
         }
     }
 }
@@ -143,11 +148,11 @@ NetStats::get_estimate(const struct net_interface& local_iface,
         return false;
     }
 
-    PthreadScopedRWLock rdlock(&stats_cache_lock, false);
+    PthreadScopedRWLock rdlock(stats_cache_lock, false);
 
     StatsCache::key_type key = make_pair(local_iface, remote_iface);
-    StatsCache::iterator pos = stats_cache.find(key) ;
-    if (pos != stats_cache.end()) {
+    StatsCache::iterator pos = stats_cache->find(key) ;
+    if (pos != stats_cache->end()) {
         return pos->second.estimates[type].get_estimate(value);
     }
     return false;
@@ -175,23 +180,23 @@ NetStats::report_send_event(irob_id_t irob_id, size_t bytes)
     {
         PthreadScopedLock lock(&irob_iface_map_lock);
         
-        if (striped_irobs.contains(irob_id)) {
+        if (striped_irobs->contains(irob_id)) {
             irob_was_striped = true;
         } else {
-            if (irob_iface_map.count(irob_id) == 0) {
-                irob_iface_map[irob_id] = make_pair(local_addr, remote_addr);
+            if (irob_iface_map->count(irob_id) == 0) {
+                (*irob_iface_map)[irob_id] = make_pair(local_addr, remote_addr);
             }
 
             pair<struct in_addr, struct in_addr> iface_pair;
-            iface_pair = irob_iface_map[irob_id];
+            iface_pair = (*irob_iface_map)[irob_id];
             
             if (iface_pair.first.s_addr != local_addr.s_addr ||
                 iface_pair.second.s_addr != remote_addr.s_addr) {
                 irob_was_striped = true;
-                striped_irobs.insert(irob_id);
+                striped_irobs->insert(irob_id);
 
                 // no longer needed; save some space
-                irob_iface_map.erase(irob_id);
+                irob_iface_map->erase(irob_id);
             }
         }
     }
@@ -331,7 +336,7 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
 
     {
         PthreadScopedLock lock(&irob_iface_map_lock);
-        if (striped_irobs.contains(irob_id)) {
+        if (striped_irobs->contains(irob_id)) {
             dbgprintf("Got ACK for IROB %ld, but it was striped.  Ignoring.\n",
                       irob_id);
             return;

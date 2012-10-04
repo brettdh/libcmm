@@ -11,8 +11,17 @@ using std::for_each; using std::bind2nd;
 using std::ptr_fun;
 
 pthread_mutex_t CMMThread::joinable_lock = PTHREAD_MUTEX_INITIALIZER;
-std::set<pthread_t> CMMThread::joinable_threads;
+std::set<pthread_t> *CMMThread::joinable_threads = NULL;
 
+// must be holding joinable_lock.
+std::set<pthread_t> *
+CMMThread::joinable_threads_set()
+{
+    if (joinable_threads == NULL) {
+        joinable_threads = new std::set<pthread_t>;
+    }
+    return joinable_threads;
+}
 
 void
 ThreadCleanup(void * arg)
@@ -30,7 +39,7 @@ ThreadCleanup(void * arg)
 
     {
         PthreadScopedLock lock(&CMMThread::joinable_lock);
-        CMMThread::joinable_threads.erase(tid);
+        CMMThread::joinable_threads_set()->erase(tid);
     }
 }
 
@@ -85,7 +94,7 @@ CMMThread::start()
             return rc;
         }
         dbgprintf("Created thread %lx\n", tid);
-        joinable_threads.insert(tid);
+        joinable_threads_set()->insert(tid);
     }
 
     while (!running && !exiting) {
@@ -148,7 +157,7 @@ CMMThread::join()
     }
 
     PthreadScopedLock j_lock(&joinable_lock);
-    joinable_threads.erase(tid);
+    joinable_threads_set()->erase(tid);
 }
 
 void
@@ -157,7 +166,7 @@ CMMThread::detach()
     ASSERT(tid == pthread_self());
     {
         PthreadScopedLock j_lock(&joinable_lock);
-        joinable_threads.erase(tid);
+        joinable_threads_set()->erase(tid);
     }
     
     pthread_detach(tid);
@@ -168,10 +177,10 @@ CMMThread::join_all()
 {
     PthreadScopedLock lock(&joinable_lock);
 
-    while (!joinable_threads.empty()) {
-        std::vector<pthread_t> joinable_threads_private(joinable_threads.begin(),
-                                                        joinable_threads.end());
-        joinable_threads.clear();
+    while (!joinable_threads_set()->empty()) {
+        std::vector<pthread_t> joinable_threads_private(joinable_threads_set()->begin(),
+                                                        joinable_threads_set()->end());
+        joinable_threads_set()->clear();
 
         pthread_mutex_unlock(&joinable_lock);
         

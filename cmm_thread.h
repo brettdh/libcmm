@@ -38,8 +38,13 @@ class CMMThread {
     friend void ThreadCleanup(void *);
 
   private:
-    static pthread_mutex_t joinable_lock;
-    static std::set<pthread_t> joinable_threads;
+    static pthread_mutex_t joinable_lock; 
+
+    // put this on the heap.  it will persist until the process exits,
+    //  so as to avoid nasty last-second deallocation races.
+    static std::set<pthread_t> *joinable_threads;
+
+    static std::set<pthread_t> *joinable_threads_set();
 };
 
 /* throw from Run() function to terminate thread */

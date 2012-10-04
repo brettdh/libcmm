@@ -211,15 +211,15 @@ class NetStats {
     typedef std::map<std::pair<struct net_interface, 
                                struct net_interface>,
                      struct estimate_set> StatsCache;
-    static StatsCache stats_cache;
-    static RWLOCK_T stats_cache_lock;
+    static StatsCache *stats_cache;
+    static RWLOCK_T *stats_cache_lock;
     void cache_save();
     void cache_restore();
 
     typedef std::map<irob_id_t, 
                      std::pair<struct in_addr, struct in_addr> > IROBIfaceMap;
-    static IROBIfaceMap irob_iface_map;
-    static IntSet striped_irobs;
+    static IROBIfaceMap *irob_iface_map;
+    static IntSet *striped_irobs;
     static pthread_mutex_t irob_iface_map_lock;
 
     struct static_initializer {
