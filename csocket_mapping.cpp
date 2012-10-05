@@ -887,8 +887,7 @@ struct CSockMapping::AddRequestIfNotSent {
     AddRequestIfNotSent(PendingSenderIROB *psirob_, const IROBSchedulingData& data_)
         : psirob(psirob_), data(data_) {}
     
-    bool operator()(CSocketPtr csock) {
-        CSocketSender *sender = csock->csock_sendr;
+    int operator()(CSocketPtr csock) {
         if (!data.chunks_ready) {
             if (!psirob->was_announced(get_pointer(csock))) {
                 csock->irob_indexes.new_irobs.insert(data);
@@ -898,6 +897,7 @@ struct CSockMapping::AddRequestIfNotSent {
                 csock->irob_indexes.new_chunks.insert(data);
             }
         }
+        return 0;
     }
 };
 
@@ -905,7 +905,6 @@ void
 CSockMapping::pass_request_to_all_senders(PendingSenderIROB *psirob,
                                           const IROBSchedulingData& data)
 {
-    
     if (data.data_check) {
         // don't make other threads send this redundantly;
         //  Data_check now only follows a loss of a network.

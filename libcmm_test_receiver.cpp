@@ -92,7 +92,8 @@ void * Worker(void * arg)
                 end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec);
 
         ch.data[sizeof(ch)-1] = '\0';
-        printf("Msg: %*s\n", (int)(sizeof(ch) - 1), ch.data);
+        dbgprintf_always("[%lu.%06lu][testapp] Msg: %*s\n", 
+                         end.tv_sec, end.tv_usec, (int)(sizeof(ch) - 1), ch.data);
         //str_reverse(ch.data);
         errno = 0;
         //struct timeval begin, end, diff;

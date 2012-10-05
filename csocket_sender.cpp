@@ -560,7 +560,6 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
             return true;
         }
 
-        // XXXL need to pass scheduling requests directly to the threads that haven;t yet sent them.
         if (redundant) {
             // let other senders know about this too.
             sk->csock_map->pass_request_to_all_senders(psirob, data);
