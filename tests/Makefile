@@ -47,7 +47,7 @@ TESTOBJS := pending_irob_test.o lattice_test.o intset_test.o \
 SUPPORTOBJS := pending_irob.o intset.o debug.o pending_receiver_irob.o \
 	       pending_sender_irob.o timeops.o net_stats.o \
 	       test_common.o debug.o net_interface.o irob_scheduling.o common.o \
-	       csocket.o \
+	       csocket.o redundancy_strategy.o redundancy_strategy_instruments.o \
 		   cmm_socket_control.o libcmm_net_restriction.o
 # not running shmem_test for now; it's broken somehow
 #shmem_test.o shmem_test_common.o libcmm_shmem.o ../libancillary/libancillary.a 

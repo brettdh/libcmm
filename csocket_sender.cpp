@@ -63,6 +63,7 @@ CSocketSender::DataInFlight::operator()(CSocketPtr csock)
     return 0;
 }
 
+/*
 int CSocketSender::TroubleChecker::operator()(CSocketPtr csock)
 {
     if (csock->data_inflight() &&
@@ -88,6 +89,7 @@ int CSocketSender::TroubleChecker::operator()(CSocketPtr csock)
     }
     return 0;
 }
+*/
 
 void
 CSocketSender::Run()

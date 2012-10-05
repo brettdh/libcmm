@@ -53,6 +53,7 @@ class CSocketSender : public CMMThread {
         int operator()(CSocketPtr csock);
     };
 
+    /*
     struct TroubleChecker {
         CMMSocketImpl *sk;
         std::vector<struct net_interface> troubled_ifaces;
@@ -60,6 +61,7 @@ class CSocketSender : public CMMThread {
         
         int operator()(CSocketPtr csock);
     };
+    */
     
 };
 #endif

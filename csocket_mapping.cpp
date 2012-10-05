@@ -277,9 +277,12 @@ struct SatisfiesNetworkRestrictions {
     bool operator()(CSocketPtr csock) {
         // add the trouble-check to match the behavior of
         //  {new|connected}_csock_with_labels.
-        return (csock->fits_net_restriction(send_labels) && 
-                (send_labels & CMM_LABEL_BACKGROUND || 
-                 !csock->is_in_trouble()));
+        return (csock->fits_net_restriction(send_labels)
+                /*
+                && (send_labels & CMM_LABEL_BACKGROUND || 
+                !csock->is_in_trouble())
+                */
+                );
         /* TODO-REDUNDANCY: the trouble-check will go away,
          * TODO-REDUNDANCY:   but I should be sure to use redundancy for
          * TODO-REDUNDANCY:   FG IntNW control messages as well as FG data. */
@@ -579,6 +582,7 @@ CSockMapping::get_iface_pair_locked_internal(u_long send_label,
         for (NetInterfaceSet::iterator j = skp->remote_ifaces.begin();
              j != skp->remote_ifaces.end(); ++j) {
             csocks.clear();
+            /*
             if (!ignore_trouble) {
                 get_matching_csocks getter(&*i, &*j, csocks);
                 if (sockset_already_locked) {
@@ -587,6 +591,7 @@ CSockMapping::get_iface_pair_locked_internal(u_long send_label,
                     for_each(getter);
                 }
             }
+            */
             CSocketPtr existing_csock;
             if (!csocks.empty()) {
                 existing_csock = csocks[0];
@@ -595,8 +600,10 @@ CSockMapping::get_iface_pair_locked_internal(u_long send_label,
 
                 // TODO-REDUNDANCY: this check goes away, because I want to consider
                 // TODO-REDUNDANCY: all csockets. I should only send redundantly once.
+                /*
                 !existing_csock->is_in_trouble() ||
-                send_label & CMM_LABEL_BACKGROUND || /* ignore trouble for BG data */
+                send_label & CMM_LABEL_BACKGROUND || // ignore trouble for BG data
+                */
 
                 count() == 1) {
                 matcher.consider(*i, *j);
