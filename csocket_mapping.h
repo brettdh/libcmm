@@ -25,6 +25,7 @@ class CMMSocketImpl;
 
 class PendingSenderIROB;
 class RedundancyStrategy;
+class IROBSchedulingData;
 
 class CSockMapping {
   public:
@@ -90,6 +91,9 @@ class CSockMapping {
     void set_redundancy_strategy(int type);
     int get_redundancy_strategy();
 
+    void pass_request_to_all_senders(PendingSenderIROB *psirob,
+                                     const IROBSchedulingData& data);
+
     CSockMapping(CMMSocketImplPtr sk);
     ~CSockMapping();
 
@@ -98,6 +102,8 @@ class CSockMapping {
     template <typename Functor>
     int for_each(Functor& f);
   private:
+    struct AddRequestIfNotSent; // for passing scheduling requests to senders
+
     template <typename Functor>
     int for_each_locked(Functor& f);
 

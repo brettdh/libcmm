@@ -20,6 +20,7 @@ using std::make_pair;
 #include "libcmm_net_restriction.h"
 
 #include "redundancy_strategy.h"
+#include "irob_scheduling.h"
 
 using std::auto_ptr;
 using std::pair;
@@ -877,4 +878,44 @@ CSockMapping::join_to_all_workers()
     void **ret = NULL;
     std::for_each(workers.begin(), workers.end(),
                   bind2nd(ptr_fun(pthread_join), ret));
+}
+
+struct CSockMapping::AddRequestIfNotSent {
+    PendingSenderIROB *psirob;
+    const IROBSchedulingData& data;
+
+    AddRequestIfNotSent(PendingSenderIROB *psirob_, const IROBSchedulingData& data_)
+        : psirob(psirob_), data(data_) {}
+    
+    bool operator()(CSocketPtr csock) {
+        CSocketSender *sender = csock->csock_sendr;
+        if (!data.chunks_ready) {
+            if (!psirob->was_announced(get_pointer(csock))) {
+                csock->irob_indexes.new_irobs.insert(data);
+            }
+        } else {
+            if (psirob->num_ready_bytes(get_pointer(csock)) > 0) {
+                csock->irob_indexes.new_chunks.insert(data);
+            }
+        }
+    }
+};
+
+void
+CSockMapping::pass_request_to_all_senders(PendingSenderIROB *psirob,
+                                          const IROBSchedulingData& data)
+{
+    
+    if (data.data_check) {
+        // don't make other threads send this redundantly;
+        //  Data_check now only follows a loss of a network.
+        // (It won't be used during redundancy re-evaluation either;
+        //  that will just mark the IROB redundant and tell the senders
+        //  about it again.)
+        //sk->irob_indexes.waiting_data_checks.insert(data);
+        return;
+    } 
+
+    AddRequestIfNotSent functor(psirob, data);
+    for_each(functor);
 }

@@ -59,6 +59,11 @@ class PendingSenderIROB : public PendingIROB {
                                               u_long& seqno,
                                               size_t& offset);
 
+    // returns the number of bytes ready to be sent on csock,
+    //  without advancing the pointer.  Ignores bytes already
+    //  sent on csock.
+    size_t num_ready_bytes(CSocket *csock);
+
     std::vector<struct iovec> 
         get_last_sent_chunk_htonl(CSocket * csock,
                                   struct irob_chunk_data *chunk);

@@ -213,6 +213,12 @@ PendingSenderIROB::get_ready_bytes(CSocket *csock,
     return data;
 }
 
+size_t 
+PendingSenderIROB::num_ready_bytes(CSocket *csock)
+{
+    return expected_bytes() - get_irob_offset(csock);
+}
+
 void
 PendingSenderIROB::add_sent_chunk(CSocket *csock, ssize_t len)
 {

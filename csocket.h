@@ -112,6 +112,7 @@ class CSocket {
     friend class CMMSocketImpl;
     friend class CSocketSender;
     friend class CSocketReceiver;
+    
     friend void resume_operation_thunk(ResumeOperation *op);
     
     int phys_connect(void);
