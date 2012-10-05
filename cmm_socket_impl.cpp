@@ -1614,6 +1614,19 @@ CMMSocketImpl::mc_setsockopt(int level, int optname,
     int rc = 0;
     PthreadScopedRWLock lock(&my_lock, true);
 
+    if (optname == SO_CMM_REDUNDANCY_STRATEGY) {
+        if (optlen != sizeof(int32_t)) {
+            errno = EINVAL;
+            return -1;
+        }
+        int32_t type = *(int32_t *) optval;
+        if (type < NEVER_REDUNDANT || type >= NUM_REDUNDANCY_STRATEGY_TYPES) {
+            errno = EINVAL;
+            return -1;
+        }
+        csock_map->set_redundancy_strategy(type);
+    }
+
     if (optname == O_NONBLOCK) {
         non_blocking = false;
         for (socklen_t i = 0; i < optlen; ++i) {

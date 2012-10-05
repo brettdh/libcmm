@@ -119,6 +119,14 @@ int srv_connect(const char *hostname, short port)
         return -1;
     }
 
+    int type = ALWAYS_REDUNDANT;
+    rc = cmm_setsockopt(shared_sock, SOL_SOCKET, SO_CMM_REDUNDANCY_STRATEGY,
+                        &type, sizeof(type));
+    if (rc < 0) {
+        DEBUG_LOG("cmm_setsockopt: %s\n", strerror(errno));
+        return -1;
+    }
+
   conn_retry:
     DEBUG_LOG("Attempting to connect to %s:%d\n", 
               hostname, LISTEN_PORT);

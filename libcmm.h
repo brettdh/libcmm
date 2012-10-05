@@ -50,6 +50,9 @@ typedef int mc_socket_t;
 #define EVALUATE_REDUNDANCY 2
 #define NUM_REDUNDANCY_STRATEGY_TYPES 3
 
+
+#define SO_CMM_REDUNDANCY_STRATEGY 0x4002
+
 /*** CMM socket function wrappers ***/
 
 /* For all functions:
