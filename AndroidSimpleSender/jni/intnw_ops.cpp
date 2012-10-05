@@ -151,8 +151,10 @@ static int send_message(bool fg, int seqno)
     
      // should have no contention; triggered by button-press
     pthread_mutex_lock(&socket_lock);
+    u_long labels = fg ? CMM_LABEL_ONDEMAND : CMM_LABEL_BACKGROUND;
+    labels |= CMM_LABEL_SMALL;
     rc = cmm_write_with_deps(shared_sock, buf, CHUNK_SIZE, 0, NULL,
-                   fg ? CMM_LABEL_ONDEMAND : CMM_LABEL_BACKGROUND, NULL, NULL, NULL);
+                             labels, NULL, NULL, NULL);
     pthread_mutex_unlock(&socket_lock);
     if (rc < 0) {
         DEBUG_LOG("cmm_send: %s\n", strerror(errno));

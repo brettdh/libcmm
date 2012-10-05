@@ -75,6 +75,7 @@ public class SimpleSender extends Activity
     }
     
     static {
+        System.loadLibrary("cmm");
         System.loadLibrary("intnw_ops");
     }
     

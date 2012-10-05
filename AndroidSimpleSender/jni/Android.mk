@@ -3,7 +3,7 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_MODULE:=cmm
-LOCAL_SRC_FILES:=../../libs/armeabi/libcmm.so
+LOCAL_SRC_FILES:=../../obj/local/armeabi/libcmm.so
 include $(PREBUILT_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)

@@ -557,6 +557,19 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
             // already ACK'd; don't send anything for it
             return true;
         }
+
+        if (redundant) {
+            // let other senders know about this too.
+            if (data.data_check) {
+                sk->irob_indexes.waiting_data_checks.insert(data);
+            } else if (!data.chunks_ready) {
+                sk->irob_indexes.new_irobs.insert(data);
+            } else {
+                sk->irob_indexes.new_chunks.insert(data);
+            }
+            pthread_cond_broadcast(&sk->scheduling_state_cv);
+        }
+
         return false;
     }
     
