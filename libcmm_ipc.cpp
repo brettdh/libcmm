@@ -127,6 +127,16 @@ static int scout_ipc_init(void)
         close(scout_ipc_fd);
         scout_ipc_fd = -1;
     } else {
+        // wait for at least one network status update
+        //   before continuing, to avoid a race between the status upcates
+        //   and the first call to cmm_connect.
+        if (net_status_change_handler() != 0) {
+            // will block until message is received.
+            //  if it fails here, then we won't be able to connect any multisockets
+            //  anyway, so just bail out of init.
+            return -1;
+        }
+
         pthread_attr_t attr;
         pthread_attr_init(&attr);
         pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
