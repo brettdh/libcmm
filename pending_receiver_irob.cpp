@@ -16,7 +16,7 @@ PendingReceiverIROB::PendingReceiverIROB(irob_id_t id, int numdeps, irob_id_t *d
                                          u_long send_labels)
     : PendingIROB(id, numdeps, deps, datalen, data, send_labels),
       offset(0), num_bytes(datalen), expected_bytes(-1), expected_chunks(-1), 
-      recvd_bytes(0), recvd_chunks(0)
+      recvd_bytes(0), recvd_chunks(0), released(false)
 {
     partial_chunk.data = NULL;
     partial_chunk.datalen = 0;
@@ -31,7 +31,7 @@ PendingReceiverIROB::PendingReceiverIROB(irob_id_t id, int numdeps, irob_id_t *d
 PendingReceiverIROB::PendingReceiverIROB(irob_id_t id_)
     : PendingIROB(id_),
       offset(0), num_bytes(0), expected_bytes(-1), expected_chunks(-1), 
-      recvd_bytes(0), recvd_chunks(0)
+      recvd_bytes(0), recvd_chunks(0), released(false)
 {
     /* this placeholder PendingReceiverIROB will be replaced by 
        the real one, when it arrives. */
@@ -204,6 +204,12 @@ PendingReceiverIROB::is_complete(void)
     return ((expected_bytes == recvd_bytes) && 
             (expected_chunks == recvd_chunks) && 
             all_chunks_complete() && complete);
+}
+
+bool 
+PendingReceiverIROB::has_been_released()
+{
+    return released;
 }
 
 bool

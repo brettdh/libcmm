@@ -42,6 +42,8 @@ class PendingReceiverIROB : public PendingIROB {
      * have arrived. */
     bool is_complete(void);
 
+    bool has_been_released();
+
     //  From this, get_missing_chunks()
     //  will know which seqnos haven't been received.
     bool finish(ssize_t expected_bytes, int num_chunks);
@@ -98,6 +100,8 @@ class PendingReceiverIROB : public PendingIROB {
     int recvd_chunks;
 
     bool all_chunks_complete();
+    
+    bool released;
 };
 
 class CMMSocketImpl;
@@ -185,7 +189,8 @@ class ReadyIROB {
   public:
     bool operator()(PendingReceiverIROB *pirob) {
         ASSERT(pirob);
-        return (pirob->is_complete() && pirob->is_ready());
+        return (pirob->is_complete() && pirob->is_ready() &&
+                !pirob->has_been_released());
     }
 };
 
