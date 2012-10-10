@@ -35,6 +35,8 @@ using std::auto_ptr;
 #include "thunks.h"
 #include "cmm_thread.h"
 
+#include "redundancy_strategy.h"
+
 #define CONFIG_FILE "/etc/cmm_config"
 
 static void libcmm_init(void) __attribute__((constructor));
@@ -297,4 +299,9 @@ int cmm_set_failure_timeout(mc_socket_t sock, u_long label, const struct timespe
 int CMM_PRIVATE_num_networks(mc_socket_t sock)
 {
     return CMMSocket::lookup(sock)->mc_num_networks();
+}
+
+int get_redundancy_strategy_type(const char *strategy_name)
+{
+    return RedundancyStrategy::get_type(strategy_name);
 }

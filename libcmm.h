@@ -50,6 +50,7 @@ typedef int mc_socket_t;
 #define INTNW_REDUNDANT               2
 #define NUM_REDUNDANCY_STRATEGY_TYPES 3
 
+int get_redundancy_strategy_type(const char *strategy_name);
 
 #define SO_CMM_REDUNDANCY_STRATEGY 0x4002
 
