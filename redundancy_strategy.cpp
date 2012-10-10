@@ -4,6 +4,7 @@
 #include "libcmm.h"
 
 #include <assert.h>
+#include <string.h>
 
 const char *
 RedundancyStrategy::strategy_types[NUM_REDUNDANCY_STRATEGY_TYPES] = {
