@@ -21,7 +21,7 @@ int
 RedundancyStrategy::get_type(const std::string& name)
 {
     for (int i = INTNW_NEVER_REDUNDANT; i < NUM_REDUNDANCY_STRATEGY_TYPES; ++i) {
-        if (name.compare(strategy_types[i]) == 0) {
+        if (strcasecmp(name.c_str(), strategy_types[i]) == 0) {
             return i;
         }
     }
