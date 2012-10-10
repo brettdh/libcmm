@@ -43,7 +43,7 @@ CSockMapping::CSockMapping(CMMSocketImplPtr sk_)
     : sk(sk_)
 {
     RWLOCK_INIT(&sockset_mutex, NULL);
-    redundancy_strategy = RedundancyStrategy::create(NEVER_REDUNDANT);
+    redundancy_strategy = RedundancyStrategy::create(INTNW_NEVER_REDUNDANT);
 }
 
 CSockMapping::~CSockMapping()

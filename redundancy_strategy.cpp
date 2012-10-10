@@ -7,25 +7,37 @@
 
 const char *
 RedundancyStrategy::strategy_types[NUM_REDUNDANCY_STRATEGY_TYPES] = {
-    "never-redundant", "always-redundant", "evaluate-redundancy"
+    "intnw_never_redundant", "always_redundant", "intnw_redundant"
 };
 
 std::string
 RedundancyStrategy::describe_type(int type)
 {
-    assert(type >= 0 && type < NUM_REDUNDANCY_STRATEGY_TYPES);
+    assert(type >= INTNW_NEVER_REDUNDANT && type < NUM_REDUNDANCY_STRATEGY_TYPES);
     return strategy_types[type];
+}
+
+int
+RedundancyStrategy::get_type(const std::string& name)
+{
+    for (int i = INTNW_NEVER_REDUNDANT; i < NUM_REDUNDANCY_STRATEGY_TYPES; ++i) {
+        if (name.compare(strategy_types[i]) == 0) {
+            return i;
+        }
+    }
+    assert(0);
+    return -1;
 }
 
 RedundancyStrategy *
 RedundancyStrategy::create(int type)
 {
     switch (type) {
-    case NEVER_REDUNDANT:
+    case INTNW_NEVER_REDUNDANT:
         return new NeverRedundant;
     case ALWAYS_REDUNDANT:
         return new AlwaysRedundant;
-    case EVALUATE_REDUNDANCY:
+    case INTNW_REDUNDANT:
         return new RedundancyStrategyInstruments;
     default:
         assert(0);

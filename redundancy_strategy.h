@@ -11,6 +11,7 @@ class RedundancyStrategy {
     virtual bool shouldTransmitRedundantly(PendingSenderIROB *psirob) = 0;
     static RedundancyStrategy *create(int type);
     static std::string describe_type(int type);
+    static int get_type(const std::string& name);
 
     virtual int getType() = 0;
   protected:

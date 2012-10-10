@@ -1620,7 +1620,7 @@ CMMSocketImpl::mc_setsockopt(int level, int optname,
             return -1;
         }
         int32_t type = *(int32_t *) optval;
-        if (type < NEVER_REDUNDANT || type >= NUM_REDUNDANCY_STRATEGY_TYPES) {
+        if (type < INTNW_NEVER_REDUNDANT || type >= NUM_REDUNDANCY_STRATEGY_TYPES) {
             errno = EINVAL;
             return -1;
         }

@@ -16,7 +16,7 @@ class NeverRedundant : public RedundancyStrategy {
     virtual bool shouldTransmitRedundantly(PendingSenderIROB *psirob) {
         return false;
     }
-    virtual int getType() { return NEVER_REDUNDANT; }
+    virtual int getType() { return INTNW_NEVER_REDUNDANT; }
 };
 
 #endif /* _REDUNDANCY_STRATEGY_TRIVIAL_H_INCLUDED_219G8FVOBSU9G4 */

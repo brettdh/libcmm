@@ -10,7 +10,7 @@ class RedundancyStrategyInstruments : public RedundancyStrategy {
                                 u_long new_observation,
                                 u_long current_estimate);
     virtual bool shouldTransmitRedundantly(PendingSenderIROB *psirob);
-    virtual int getType() { return EVALUATE_REDUNDANCY; }
+    virtual int getType() { return INTNW_REDUNDANT; }
 };
 
 #endif /* _REDUNDANCY_STRATEGY_INSTRUMENTS_H_INCLUDED_SHGV42F9Q0VH */

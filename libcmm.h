@@ -45,9 +45,9 @@ typedef int mc_socket_t;
 
 #define MAX_LABEL_LENGTH 20
 
-#define NEVER_REDUNDANT     0
-#define ALWAYS_REDUNDANT    1
-#define EVALUATE_REDUNDANCY 2
+#define INTNW_NEVER_REDUNDANT         0
+#define ALWAYS_REDUNDANT              1
+#define INTNW_REDUNDANT               2
 #define NUM_REDUNDANCY_STRATEGY_TYPES 3
 
 
