@@ -212,6 +212,12 @@ PendingReceiverIROB::has_been_released()
     return released;
 }
 
+void
+PendingReceiverIROB::release()
+{
+    released = true;
+}
+
 bool
 PendingReceiverIROB::finish(ssize_t expected_bytes_, int num_chunks)
 {
@@ -468,6 +474,7 @@ PendingReceiverIROBLattice::release(irob_id_t id, u_long send_labels)
         (void)send(sk->select_pipe[1], &c, 1, MSG_NOSIGNAL);
 #endif
     }
+    
     ready_irobs.insert(IROBSchedulingData(id, false, send_labels));
 #ifndef CMM_UNIT_TESTING
     pthread_cond_broadcast(&sk->scheduling_state_cv);

@@ -43,6 +43,7 @@ class PendingReceiverIROB : public PendingIROB {
     bool is_complete(void);
 
     bool has_been_released();
+    void release();
 
     //  From this, get_missing_chunks()
     //  will know which seqnos haven't been received.
@@ -161,6 +162,7 @@ PendingReceiverIROBLattice::release_if_ready(PendingReceiverIROB *prirob,
     if (is_ready(prirob)) {
         /* TODO: smarter strategy for ordering ready IROBs. */
         dbgprintf("Releasing IROB %ld\n", prirob->id);
+        prirob->release();
         release(prirob->id, prirob->send_labels);
     }
 }
