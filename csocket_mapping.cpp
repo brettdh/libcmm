@@ -44,8 +44,9 @@ CSockMapping::CSockMapping(CMMSocketImplPtr sk_)
     : sk(sk_)
 {
     RWLOCK_INIT(&sockset_mutex, NULL);
-    redundancy_strategy = RedundancyStrategy::create(INTNW_NEVER_REDUNDANT);
-    network_chooser = NetworkChooser::create(INTNW_NEVER_REDUNDANT);
+    redundancy_strategy = NULL;
+    network_chooser = NULL;
+    set_redundancy_strategy(INTNW_NEVER_REDUNDANT);
 }
 
 CSockMapping::~CSockMapping()
@@ -54,22 +55,25 @@ CSockMapping::~CSockMapping()
     available_csocks.clear();
     
     delete redundancy_strategy;
+    delete network_chooser;
 }
 
 void
 CSockMapping::set_redundancy_strategy(int type)
 {
-    assert(redundancy_strategy);
     delete redundancy_strategy;
+    delete network_chooser;
     redundancy_strategy = RedundancyStrategy::create(type);
     network_chooser = NetworkChooser::create(type);
+
+    redundancy_strategy_type = type;
 }
 
 int 
 CSockMapping::get_redundancy_strategy()
 {
-    assert(redundancy_strategy);
-    return redundancy_strategy->getType();
+    assert(redundancy_strategy && network_chooser);
+    return redundancy_strategy_type;
 }
 
 size_t

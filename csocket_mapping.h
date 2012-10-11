@@ -124,6 +124,7 @@ class CSockMapping {
                                 bool ignore_trouble,
                                 bool sockset_already_locked);
 
+    int redundancy_strategy_type;
     RedundancyStrategy *redundancy_strategy;
     void check_redundancy(PendingSenderIROB *psirob);
 
