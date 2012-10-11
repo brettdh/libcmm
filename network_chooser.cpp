@@ -48,9 +48,12 @@ PreferredNetwork::choose_networks(u_long send_label,
                                   struct net_interface& local_iface,
                                   struct net_interface& remote_iface)
 {
-    assert(has_match);
+    if (!has_match) {
+        return false;
+    }
     local_iface = local;
     remote_iface = remote;
+    return true;
 }
 
 void 
