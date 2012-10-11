@@ -58,6 +58,7 @@ libcmm.so: libcmm.o libcmm_ipc.o libcmm_external_ipc.o libcmm_net_restriction.o 
            intset.o cmm_socket_control.o irob_scheduling.o timeops.o \
            net_interface.o net_stats.o cmm_conn_bootstrapper.o \
            redundancy_strategy.o redundancy_strategy_instruments.o \
+		   network_chooser.o \
            libcmm_shmem.o common.o libancillary/libancillary.a
 	$(CXX) -shared -o $@ $^ $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 

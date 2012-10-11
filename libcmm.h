@@ -48,7 +48,9 @@ typedef int mc_socket_t;
 #define INTNW_NEVER_REDUNDANT         0
 #define ALWAYS_REDUNDANT              1
 #define INTNW_REDUNDANT               2
-#define NUM_REDUNDANCY_STRATEGY_TYPES 3
+#define CELLULAR_ONLY                 3
+#define WIFI_PREFERRED                4
+#define NUM_REDUNDANCY_STRATEGY_TYPES 5
 
 int get_redundancy_strategy_type(const char *strategy_name);
 

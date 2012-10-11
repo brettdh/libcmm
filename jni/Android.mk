@@ -36,6 +36,7 @@ LOCAL_SRC_FILES := $(addprefix ../, \
 	libcmm_shmem.cpp \
 	net_interface.cpp \
 	net_stats.cpp \
+	network_chooser.cpp \
 	pending_irob.cpp \
 	pending_receiver_irob.cpp \
 	pending_sender_irob.cpp \

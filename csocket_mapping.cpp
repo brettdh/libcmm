@@ -20,6 +20,7 @@ using std::make_pair;
 #include "libcmm_net_restriction.h"
 
 #include "redundancy_strategy.h"
+#include "network_chooser.h"
 #include "irob_scheduling.h"
 
 using std::auto_ptr;
@@ -44,6 +45,7 @@ CSockMapping::CSockMapping(CMMSocketImplPtr sk_)
 {
     RWLOCK_INIT(&sockset_mutex, NULL);
     redundancy_strategy = RedundancyStrategy::create(INTNW_NEVER_REDUNDANT);
+    network_chooser = NetworkChooser::create(INTNW_NEVER_REDUNDANT);
 }
 
 CSockMapping::~CSockMapping()
@@ -60,6 +62,7 @@ CSockMapping::set_redundancy_strategy(int type)
     assert(redundancy_strategy);
     delete redundancy_strategy;
     redundancy_strategy = RedundancyStrategy::create(type);
+    network_chooser = NetworkChooser::create(type);
 }
 
 int 
@@ -316,134 +319,10 @@ CSockMapping::csock_by_ifaces(struct net_interface local_iface,
     return find_csock(IfaceMatcher(local_iface, remote_iface), grab_lock);
 }
 
-// Call consider() with several different label pairs, then
-//  call pick_label_match to get the local and remote
-//  interfaces among the pairs considered that best match
-//  the labels.
-struct LabelMatcher {
-    u_long max_bw;
-    u_long min_RTT;
-    bool has_match;
-    bool has_wifi_match;
-    bool has_threeg_match;
-    pair<struct net_interface, struct net_interface> max_bw_iface_pair;
-    pair<struct net_interface, struct net_interface> min_RTT_iface_pair;
-
-    pair<struct net_interface, struct net_interface> wifi_pair;
-    pair<struct net_interface, struct net_interface> threeg_pair;
-
-    LabelMatcher() : max_bw(0), min_RTT(ULONG_MAX), 
-                     has_match(false), has_wifi_match(false), has_threeg_match(false) {}
-
-    // for use with CSockMapping::for_each
-    void consider(CSocketPtr csock) {
-        consider(csock->local_iface, csock->remote_iface);
-    }
-
-    // Call this on each pair to be considered
-    void consider(struct net_interface local_iface, 
-                  struct net_interface remote_iface) {
-        u_long bw, RTT;
-        if (!NetStats::get_estimate(local_iface, remote_iface, NET_STATS_BW_UP, bw)) {
-            bw = iface_bandwidth(local_iface, remote_iface);
-        }
-        if (iface_bandwidth(local_iface, remote_iface) == 0) {
-            // special-case this, since the estimate won't 
-            // ever reflect when this happens
-            bw = 0;
-        }
-
-        if (!NetStats::get_estimate(local_iface, remote_iface, NET_STATS_LATENCY, RTT)) {
-            RTT = iface_RTT(local_iface, remote_iface);
-        } else {
-            RTT = RTT * 2;
-        }
-        
-        if (bw > max_bw) {
-            max_bw = bw;
-            max_bw_iface_pair = make_pair(local_iface, remote_iface);
-        }
-        if (RTT < min_RTT) {
-            min_RTT = RTT;
-            min_RTT_iface_pair = make_pair(local_iface, remote_iface);
-        }
-
-        // we have a match after we've considered at least one.
-        has_match = true;
-
-        if (matches_type(NET_TYPE_WIFI, local_iface, remote_iface)) {
-            wifi_pair = make_pair(local_iface, remote_iface);
-            has_wifi_match = true;
-        }
-        if (matches_type(NET_TYPE_THREEG, local_iface, remote_iface)) {
-            threeg_pair = make_pair(local_iface, remote_iface);
-            has_threeg_match = true;
-        }
-
-    }
-    
-    bool pick_label_match(u_long send_label,
-                          struct net_interface& local_iface,
-                          struct net_interface& remote_iface) {
-        if (!has_match) {
-            return false;
-        }
-
-        // first, check net type restriction labels, since they take precedence
-        if (send_label & CMM_LABEL_WIFI_ONLY) {
-            if (!has_wifi_match) {
-                return false;
-            }
-
-            local_iface = wifi_pair.first;
-            remote_iface = wifi_pair.second;
-            return true;
-        } else if (send_label & CMM_LABEL_THREEG_ONLY) {
-            if (!has_threeg_match) {
-                return false;
-            }
-
-            local_iface = threeg_pair.first;
-            remote_iface = threeg_pair.second;
-            return true;
-        }
-        // else: no net type restriction; carry on with other label matching
-
-        const u_long LABELMASK_FGBG = CMM_LABEL_ONDEMAND | CMM_LABEL_BACKGROUND;
-
-        // TODO: try to check based on the actual size
-        if (send_label & CMM_LABEL_SMALL &&
-            min_RTT < ULONG_MAX) {
-            local_iface = min_RTT_iface_pair.first;
-            remote_iface = min_RTT_iface_pair.second;
-            return true;
-        } else if (send_label & CMM_LABEL_LARGE) {
-            local_iface = max_bw_iface_pair.first;
-            remote_iface = max_bw_iface_pair.second;
-            return true;
-        } else if (send_label & CMM_LABEL_ONDEMAND ||
-                   !(send_label & LABELMASK_FGBG)) {
-            local_iface = min_RTT_iface_pair.first;
-            remote_iface = min_RTT_iface_pair.second;
-            return true;            
-        } else if (send_label & CMM_LABEL_BACKGROUND ||
-                   send_label == 0) {
-            local_iface = max_bw_iface_pair.first;
-            remote_iface = max_bw_iface_pair.second;
-            return true;            
-        } else {
-            local_iface = max_bw_iface_pair.first;
-            remote_iface = max_bw_iface_pair.second;
-            return true;
-        }
-        return false;
-    }
-};
-
 CSocketPtr 
 CSockMapping::connected_csock_with_labels(u_long send_label, bool locked)
 {
-    LabelMatcher matcher;
+    network_chooser->reset();
     pair<struct net_interface, struct net_interface> iface_pair;
 
     CMMSocketImplPtr skp(sk);
@@ -468,7 +347,7 @@ CSockMapping::connected_csock_with_labels(u_long send_label, bool locked)
          it != available_csocks.end(); it++) {
         CSocketPtr csock = *it;
         if (csock->is_connected()) {
-            matcher.consider(csock);
+            network_chooser->consider(csock);
             
             // keep track of the local/remote iface pair so I don't have to 
             //  iterate twice
@@ -480,7 +359,8 @@ CSockMapping::connected_csock_with_labels(u_long send_label, bool locked)
         // no connected csocks
         return CSocketPtr();
     } else {
-        if (matcher.pick_label_match(send_label, iface_pair.first, iface_pair.second)) {
+        if (network_chooser->choose_networks(send_label, 
+                                             iface_pair.first, iface_pair.second)) {
             return lookup[iface_pair];
         } else {
             return CSocketPtr();
@@ -576,38 +456,19 @@ CSockMapping::get_iface_pair_locked_internal(u_long send_label,
         return true;
     }
     
-    LabelMatcher matcher;
+    network_chooser->reset();
     vector<CSocketPtr> csocks; // only one per iface pair
     for (NetInterfaceSet::iterator i = skp->local_ifaces.begin();
          i != skp->local_ifaces.end(); ++i) {
         for (NetInterfaceSet::iterator j = skp->remote_ifaces.begin();
              j != skp->remote_ifaces.end(); ++j) {
             csocks.clear();
-            /*
-            if (!ignore_trouble) {
-                get_matching_csocks getter(&*i, &*j, csocks);
-                if (sockset_already_locked) {
-                    for_each_locked(getter);
-                } else {
-                    for_each(getter);
-                }
-            }
-            */
             CSocketPtr existing_csock;
             if (!csocks.empty()) {
                 existing_csock = csocks[0];
             }
-            if (!existing_csock ||
-
-                // TODO-REDUNDANCY: this check goes away, because I want to consider
-                // TODO-REDUNDANCY: all csockets. I should only send redundantly once.
-                /*
-                !existing_csock->is_in_trouble() ||
-                send_label & CMM_LABEL_BACKGROUND || // ignore trouble for BG data
-                */
-
-                count() == 1) {
-                matcher.consider(*i, *j);
+            if (!existing_csock || count() == 1) {
+                network_chooser->consider(*i, *j);
             } else {
                 char local_ip[16], remote_ip[16];
                 get_ip_string(i->ip_addr, local_ip);
@@ -618,7 +479,7 @@ CSockMapping::get_iface_pair_locked_internal(u_long send_label,
         }
     }
 
-    return matcher.pick_label_match(send_label, local_iface, remote_iface);
+    return network_chooser->choose_networks(send_label, local_iface, remote_iface);
 }
 
 CSocketPtr

@@ -8,7 +8,8 @@
 
 const char *
 RedundancyStrategy::strategy_types[NUM_REDUNDANCY_STRATEGY_TYPES] = {
-    "intnw_never_redundant", "always_redundant", "intnw_redundant"
+    "intnw_never_redundant", "always_redundant", "intnw_redundant",
+    "cellular_only", "wifi_preferred"
 };
 
 std::string
@@ -35,6 +36,8 @@ RedundancyStrategy::create(int type)
 {
     switch (type) {
     case INTNW_NEVER_REDUNDANT:
+    case CELLULAR_ONLY:
+    case WIFI_PREFERRED:
         return new NeverRedundant;
     case ALWAYS_REDUNDANT:
         return new AlwaysRedundant;

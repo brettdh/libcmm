@@ -25,6 +25,7 @@ class CMMSocketImpl;
 
 class PendingSenderIROB;
 class RedundancyStrategy;
+class NetworkChooser;
 class IROBSchedulingData;
 
 class CSockMapping {
@@ -125,6 +126,8 @@ class CSockMapping {
 
     RedundancyStrategy *redundancy_strategy;
     void check_redundancy(PendingSenderIROB *psirob);
+
+    NetworkChooser *network_chooser;
 
     boost::weak_ptr<CMMSocketImpl> sk;  /* XXX: janky.  Remove later? */
     CSockSet available_csocks;
