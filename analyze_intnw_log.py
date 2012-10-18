@@ -17,27 +17,7 @@
 # 4) Sent vs. received app data: two vertical subsections (send/recv)
 #    in each network's vertical section
 # 5) Network coming and going: shaded section, same as for IMP
-# 6) Annotations: popup box on hover (wxPython?)
-
-
-# Lines of the log file I'm interested in:
-
-# [1350338515.243048][18001][002a4940] Got update from scout: 192.168.1.2 is up, bandwidth_down 43226 bandwidth_up 12739 bytes/sec RTT 97 ms type wifi
-
-# [1350338515.263536][18001][CSockSender 57] Successfully bound osfd 57 to 192.168.1.2:0
-
-# [1350486872.277242][23478][Listener 13] Adding connection 14 from 192.168.1.2 bw_down 244696 bw_up 107664 RTT 391 type wifi(peername 141.212.110.115)
-
-# [1350338524.776829][18001][CSockSender 57] About to send message:  Type: Begin_IROB(1) Send labels: FG,SMALL IROB: 0 numdeps: 0
-
-# [1350338524.829664][18001][CSockReceiver 57] Received message:  Type: Begin_IROB(1) Send labels: FG,SMALL IROB: 0 numdeps: 0
-
-# [1350338524.831890][18001][CSockReceiver 57] Received message:  Type: IROB_chunk(3) Send labels: FG,SMALL IROB: 0 seqno: 0 offset: 0 datalen: 13
-
-# [1350338524.835000][18001][CSockReceiver 57] Received message:  Type: End_IROB(2) Send labels: FG,SMALL IROB: 0 expected_bytes: 13 expected_chunks: 1
-
-# [1350338524.811798][18001][CSockReceiver 57] Received message:  Type: Ack(7) Send labels:  num_acks: 0 IROB: 0 srv_time: 0.000997 qdelay: 0.000000
-
+# 6) Annotations: popup box on hover (PyQt)
 
 # Borrows heavily from
 #   http://eli.thegreenplace.net/2009/01/20/matplotlib-with-pyqt-guis/
@@ -54,6 +34,23 @@ from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as Naviga
 from matplotlib.figure import Figure
 
 from progressbar import ProgressBar
+
+class LogParsingError(Error):
+    def __init__(self, msg):
+        self.msg = msg
+
+    def setLine(self, linenum, line):
+        self.linenum = linenum
+        self.line = line
+
+    def __repr__(self):
+        return "LogParsingError: " + str(self)
+
+    def __str__(self):
+        return ("IntNW log parse error at line %s: %s%s"
+                % (self.linenum and str(self.linenum) or "<unknown>",
+                   self.msg,
+                   self.line != None and ('\n' + self.line) or ""))
 
 class IntNWPlotter(QMainWindow):
     def __init__(self, filename, parent=None):
@@ -86,7 +83,7 @@ class IntNWPlotter(QMainWindow):
         # 
         hbox = QHBoxLayout()
 
-        widgets = [] # TODO: add all my GUI widgets
+        widgets = [] # TODO: add any GUI widgets if needed
         for w in widgets:
             hbox.addWidget(w)
             hbox.setAlignment(w, Qt.AlignVCenter)
@@ -109,39 +106,129 @@ class IntNWPlotter(QMainWindow):
     def __readFile(self, filename):
         print "Parsing log file..."
         progress = ProgressBar()
-        for line in progress(open(filename).readlines()):
-            self.__parseLine(line)
+        for linenum, line in progress(enumerate(open(filename).readlines())):
+            try:
+                self.__parseLine(line)
+            except LogParsingError as e:
+                e.linenum = linenum
+                e.line = line
+                raise e
+            except Error as e:
+                e = LogParsingError(str(e))
+                e.linenum = linenum
+                e.line = line
+                raise e
 
     def __parseLine(self, line):
-        parser = self.__getParser(line)
-        parser.parse(line)
-
-    def __getParser(self, line):
-        parser = IntNWPlotter._IgnoreParser()
         if "Got update from scout" in line:
-            pass
+            #[time][pid][tid] Got update from scout: 192.168.1.2 is up,
+            #                 bandwidth_down 43226 bandwidth_up 12739 bytes/sec RTT 97 ms
+            #                 type wifi
+            self.__addNetwork(line)
         elif "Successfully bound" in line:
-            pass
-        elif "" in line: # TODO: more parsers
-            pass
-
-        parser.plotter = self
-        return parser
-
-    class _LineParser(object):
-        def parse(self, line):
-            raise NotImplementedError()
-
-    class _IgnoreParser(_LineParser):
-        def parse(self, line):
+            # [time][pid][CSockSender 57] Successfully bound osfd 57 to 192.168.1.2:0
+            self.__addConnection(line)
+        elif "Adding connection" in line:
+            # [time][pid][Listener 13] Adding connection 14 from 192.168.1.2
+            #                          bw_down 244696 bw_up 107664 RTT 391
+            #                          type wifi(peername 141.212.110.115)
+            pass # No accepting-side log analysis yet.
+        elif "Getting bytes to send from IROB" in line:
+            # [time][pid][CSockSender 57] Getting bytes to send from IROB 6
+            irob = int(line.strip().split()[-1])
+            network = self.__getNetwork(line)
+            self.__currentSendingIROB = irob
+            self.__addIROB(network, irob, download=False)
+        elif "...returning " in line:
+            # [time][pid][CSockSender 57] ...returning 1216 bytes, seqno 0
+            assert self.__currentSendingIROB != None
+            datalen = int(line.strip().split()[3])
+            network = self.__getNetwork(line)
+            self.__addIROBBytes(network, self.__currentSendingIROB, datalen)
+        elif "About to send message" in line:
+            # [time][pid][CSockSender 57] About to send message:  Type: Begin_IROB(1)
+            #                             Send labels: FG,SMALL IROB: 0 numdeps: 0
+            self.__addTransfer(line, download=False)
+        elif "Received message" in line:
+            # [time][pid][CSockReceiver 57] Received message:  Type: Begin_IROB(1)
+            #                               Send labels: FG,SMALL IROB: 0 numdeps: 0
+            self.__addTransfer(line, download=True)
+        else:
             pass # ignore it
 
-    class _ConnectionParser(_LineParser):
-        def parse(self, line):
-            pass # TODO
-    
-    # TODO: more parsers
+    def __initRegexps(self):
+        self.__irob_regex = re.compile("IROB: ([0-9]+)")
+        self.__datalen_regex = re.compile("datalen: ([0-9]+)")
+        self.__type_regex = re.compile("Type: ([A-Za-z_]+)")
+        self.__expected_bytes_regex = re.compile("expected_bytes: ([0-9]+)")
 
+    def __getIROB(self, line):
+        return int(re.search(self.__irob_regex, line).group(1))
+        
+    def __getNetwork(self, line):
+        # TODO
+        pass
+
+    def __getDatalen(self, line):
+        return int(re.search(self.__datalen_regex, line).group(1))
+
+    def __getMessageType(self, line):
+        return re.search(self.__type_regex, line).group(1)
+    
+    def __getExpectedBytes(self, line):
+        return int(re.search(self.__expected_bytes_regex, line).group(1))
+
+    def __addTransfer(line, download):
+        # [time][pid][CSockSender 57] About to send message:  Type: Begin_IROB(1)
+        #                             Send labels: FG,SMALL IROB: 0 numdeps: 0
+        # [time][pid][CSockReceiver 57] Received message:  Type: IROB_chunk(3)
+        #                               Send labels: FG,SMALL IROB: 0
+        #                               seqno: 0 offset: 0 datalen: 1024
+        # [time][pid][CSockReceiver 57] Received message:  Type: End_IROB(2)
+        #                               Send labels: FG,SMALL IROB: 0
+        #                               expected_bytes: 1024 expected_chunks: 1
+        # [time][pid][CSockReceiver 57] Received message:  Type: Ack(7)
+        #                               Send labels:  num_acks: 0 IROB: 0
+        #                               srv_time: 0.000997 qdelay: 0.000000
+        irob = self.__getIROB(line)
+        network = self.__getNetwork(line)
+        type = self.__getType(line)
+
+        if type == "Begin_IROB":
+            self.__currentSendingIROB = None
+            self.__addIROB(network, irob, download)
+        elif type == "IROB_chunk":
+            datalen = self.__getDatalen(line)
+            self.__addIROBBytes(network, irob, datalen, download)b
+        elif type == "End_IROB" and download:
+            expected_bytes = self.__getExpectedBytes(line)
+            self.__finishReceivedIROB(network, irob, expected_bytes)
+        elif type == "Ack":
+            if download:
+                self.__ackIROB(network, irob)
+        else:
+            pass # ignore other types of messages
+
+    def __addIROB(self, network, irob_id, download):
+        if network not in self.__networks:
+            raise LogParsingError("saw data on unknown network '%s'" % network)
+        irobs = self.__networks[network][download]
+        if irob_id not in irobs:
+            irobs[irob_id] = IROB(irob_id)
+
+    def __addIROBBytes(self, network, irob_id, datalen, download):
+        # TODO
+        pass
+
+    def __finishReceivedIROB(self, network, irob_id, expected_bytes):
+        # TODO
+        pass
+
+    def __ackIROB(self, network, irob_id):
+        # TODO
+        pass
+    
+    
 def main():
     parser = ArgumentParser()
     parser.add_argument("filename")
