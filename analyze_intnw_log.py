@@ -52,6 +52,26 @@ class LogParsingError(Error):
                    self.msg,
                    self.line != None and ('\n' + self.line) or ""))
 
+class IROB(object):
+    def __init__(self, irob_id):
+        self.__irob_id = irob_id
+        self.__datalen = 0
+        self.__expected_bytes = 0
+        self.__ack_time = None
+
+    def addBytes(self, bytes):
+        self.__datalen += bytes
+
+    def finish(self, timestamp, expected_bytes):
+        self.__expected_bytes = expected_bytes
+
+    def ack(self, timestamp):
+        self.__ack_time = timestamp
+
+    def draw(self, axes):
+        # TODO
+        pass
+
 class IntNWPlotter(QMainWindow):
     def __init__(self, filename, parent=None):
         QMainWindow.__init__(self, parent)
@@ -133,6 +153,10 @@ class IntNWPlotter(QMainWindow):
             #                          bw_down 244696 bw_up 107664 RTT 391
             #                          type wifi(peername 141.212.110.115)
             pass # No accepting-side log analysis yet.
+        elif "CSocketReceiver: recv failed" in line:
+            # [time][pid][CSockReceiver 57] CSocketReceiver: recv failed, rc = -1,
+            #                               errno=110
+            self.__removeConnection(line)
         elif "Getting bytes to send from IROB" in line:
             # [time][pid][CSockSender 57] Getting bytes to send from IROB 6
             irob = int(line.strip().split()[-1])
@@ -164,6 +188,18 @@ class IntNWPlotter(QMainWindow):
 
     def __getIROB(self, line):
         return int(re.search(self.__irob_regex, line).group(1))
+
+    def __addNetwork(self, line):
+        # TODO
+        pass
+        
+    def __addConnection(self, line):
+        # TODO
+        pass
+        
+    def __removeConnection(self, line):
+        # TODO
+        pass
         
     def __getNetwork(self, line):
         # TODO
@@ -203,30 +239,42 @@ class IntNWPlotter(QMainWindow):
         elif type == "End_IROB" and download:
             expected_bytes = self.__getExpectedBytes(line)
             self.__finishReceivedIROB(network, irob, expected_bytes)
-        elif type == "Ack":
-            if download:
-                self.__ackIROB(network, irob)
+        elif type == "Ack" and download:
+            self.__ackIROB(network, irob)
         else:
             pass # ignore other types of messages
 
-    def __addIROB(self, network, irob_id, download):
+    def __getIROB(self, network, irob_id, download, start=None):
         if network not in self.__networks:
             raise LogParsingError("saw data on unknown network '%s'" % network)
         irobs = self.__networks[network][download]
         if irob_id not in irobs:
-            irobs[irob_id] = IROB(irob_id)
+            if start != None:
+                irobs[irob_id] = IROB(start, irob_id)
+            else:
+                raise LogParsingError("Unknown IROB %d" % irob_id)
+            
+        return irobs[irob_id]
+    
+    def __addIROB(self, network, irob_id, download):
+        self.__getIROB(network, irob_id, download, start=timestamp)
 
-    def __addIROBBytes(self, network, irob_id, datalen, download):
-        # TODO
+    def __addIROBBytes(self, timestamp, network, irob_id, datalen, download):
+        irob = self.__getIROB(network, irob_id, download)
+        irob.addData(timestamp, datalen)
+
+    def __finishReceivedIROB(self, timestamp, network, irob_id, expected_bytes):
+        irob = self.__getIROB(network, irob_id, True)
+        irob.finish(timestamp, expected_bytes)
+
+    def __markDroppedIROBs(self, timestamp, network):
+        # TODO: find all unfinished IROBs on network and mark then lost.
+        # TODO: 'unfinshed' means not completely received or not ACKed.
         pass
 
-    def __finishReceivedIROB(self, network, irob_id, expected_bytes):
-        # TODO
-        pass
-
-    def __ackIROB(self, network, irob_id):
-        # TODO
-        pass
+    def __ackIROB(self, timestamp, network, irob_id):
+        irob = self.__getIROB(network, irob_id, True)
+        irob.ack()
     
     
 def main():
