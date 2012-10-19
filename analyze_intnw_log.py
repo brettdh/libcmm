@@ -22,7 +22,7 @@
 # Borrows heavily from
 #   http://eli.thegreenplace.net/2009/01/20/matplotlib-with-pyqt-guis/
 
-import sys
+import sys, re
 from argparse import ArgumentParser
 
 from PyQt4.QtCore import *
@@ -35,7 +35,7 @@ from matplotlib.figure import Figure
 
 from progressbar import ProgressBar
 
-class LogParsingError(Error):
+class LogParsingError(Exception):
     def __init__(self, msg):
         self.msg = msg
 
@@ -53,33 +53,54 @@ class LogParsingError(Error):
                    self.line != None and ('\n' + self.line) or ""))
 
 class IROB(object):
-    def __init__(self, irob_id):
+    def __init__(self, start, irob_id):
+        self.__start = start
         self.__irob_id = irob_id
-        self.__datalen = 0
-        self.__expected_bytes = 0
-        self.__ack_time = None
-
-    def addBytes(self, bytes):
+        self.__datalen = None
+        self.__expected_bytes = None
+        self.__completion_time = None
+        self.__drop_time = None
+        self.__acked = False
+        
+    def addBytes(self, timestamp, bytes):
+        if self.__datalen == None:
+            self.__datalen = 0
         self.__datalen += bytes
+        self.__checkIfComplete(timestamp)
 
     def finish(self, timestamp, expected_bytes):
         self.__expected_bytes = expected_bytes
+        self.__checkIfComplete(timestamp)
 
     def ack(self, timestamp):
-        self.__ack_time = timestamp
+        self.__acked = True
+        self.__checkIfComplete(timestamp)
+
+    def complete(self):
+        return (self.__acked and
+                (self.__datalen != None and
+                 self.__datalen == self.__expected_bytes))
+    
+    def __checkIfComplete(self, timestamp):
+        if self.complete():
+            self.__completion_time = timestamp
+
+    def markDropped(self, timestamp):
+        self.__drop_time = timestamp
 
     def draw(self, axes):
         # TODO
         pass
 
-class IntNWPlotter(QMainWindow):
-    def __init__(self, filename, parent=None):
-        QMainWindow.__init__(self, parent)
-        
-        self.__transfers = []
-        self.__wifiPeriods = []
-        self.__connections = {} # socket fd -> network type
-        self.__readFile(filename)
+class IntNWBehaviorPlot(QDialog):
+    def __init__(self, parent=None):
+        QDialog.__init__(self, parent)
+
+        self.__initRegexps()
+        self.__networks = {}
+        self.__network_periods = {}
+        self.__network_type_by_ip = {}
+        self.__network_type_by_sock = {}
 
         # TODO: infer plot title from file path
         self.__title = "IntNW"
@@ -108,14 +129,11 @@ class IntNWPlotter(QMainWindow):
             hbox.addWidget(w)
             hbox.setAlignment(w, Qt.AlignVCenter)
         
-        vbox = QVBoxLayout()
+        vbox = QVBoxLayout(self)
         vbox.addWidget(self.__canvas)
         vbox.addWidget(self.__mpl_toolbar)
         vbox.addLayout(hbox)
         
-        self.__frame.setLayout(vbox)
-        self.setCentralWidget(self.__frame)
-
     def on_draw(self):
         self.__axes.clear()
 
@@ -123,28 +141,12 @@ class IntNWPlotter(QMainWindow):
         
         self.__canvas.draw()
 
-    def __readFile(self, filename):
-        print "Parsing log file..."
-        progress = ProgressBar()
-        for linenum, line in progress(enumerate(open(filename).readlines())):
-            try:
-                self.__parseLine(line)
-            except LogParsingError as e:
-                e.linenum = linenum
-                e.line = line
-                raise e
-            except Error as e:
-                e = LogParsingError(str(e))
-                e.linenum = linenum
-                e.line = line
-                raise e
-
-    def __parseLine(self, line):
+    def parseLine(self, line):
         if "Got update from scout" in line:
             #[time][pid][tid] Got update from scout: 192.168.1.2 is up,
             #                 bandwidth_down 43226 bandwidth_up 12739 bytes/sec RTT 97 ms
             #                 type wifi
-            self.__addNetwork(line)
+            self.__modifyNetwork(line)
         elif "Successfully bound" in line:
             # [time][pid][CSockSender 57] Successfully bound osfd 57 to 192.168.1.2:0
             self.__addConnection(line)
@@ -153,69 +155,125 @@ class IntNWPlotter(QMainWindow):
             #                          bw_down 244696 bw_up 107664 RTT 391
             #                          type wifi(peername 141.212.110.115)
             pass # No accepting-side log analysis yet.
-        elif "CSocketReceiver: recv failed" in line:
-            # [time][pid][CSockReceiver 57] CSocketReceiver: recv failed, rc = -1,
-            #                               errno=110
+        elif re.search(self.__receiver_exit_regex, line) != None:
+            # [time][pid][CSockReceiver 56] Exiting.
             self.__removeConnection(line)
         elif "Getting bytes to send from IROB" in line:
             # [time][pid][CSockSender 57] Getting bytes to send from IROB 6
+            timestamp = self.__getTimestamp(line)
             irob = int(line.strip().split()[-1])
-            network = self.__getNetwork(line)
+            network = self.__getNetworkType(line)
             self.__currentSendingIROB = irob
-            self.__addIROB(network, irob, download=False)
+            self.__addIROB(timestamp, network, irob, 'up')
         elif "...returning " in line:
             # [time][pid][CSockSender 57] ...returning 1216 bytes, seqno 0
             assert self.__currentSendingIROB != None
+            timestamp = self.__getTimestamp(line)
             datalen = int(line.strip().split()[3])
-            network = self.__getNetwork(line)
-            self.__addIROBBytes(network, self.__currentSendingIROB, datalen)
+            network = self.__getNetworkType(line)
+            self.__addIROBBytes(timestamp, network, self.__currentSendingIROB,
+                                datalen, 'up')
         elif "About to send message" in line:
             # [time][pid][CSockSender 57] About to send message:  Type: Begin_IROB(1)
             #                             Send labels: FG,SMALL IROB: 0 numdeps: 0
-            self.__addTransfer(line, download=False)
+            self.__addTransfer(line, 'up')
         elif "Received message" in line:
             # [time][pid][CSockReceiver 57] Received message:  Type: Begin_IROB(1)
             #                               Send labels: FG,SMALL IROB: 0 numdeps: 0
-            self.__addTransfer(line, download=True)
+            self.__addTransfer(line, 'down')
         else:
             pass # ignore it
 
     def __initRegexps(self):
         self.__irob_regex = re.compile("IROB: ([0-9]+)")
         self.__datalen_regex = re.compile("datalen: ([0-9]+)")
-        self.__type_regex = re.compile("Type: ([A-Za-z_]+)")
         self.__expected_bytes_regex = re.compile("expected_bytes: ([0-9]+)")
-        self.__new_network_regex = re.compile("scout: (.+) is up.+ type ([A-Za-z0-9]+)")
+        self.__network_regex = re.compile("scout: (.+) is (down|up).+ type ([A-Za-z0-9]+)")
+        self.__ip_regex = re.compile("([0-9]+(?:\.[0-9]+){3})")
+        self.__socket_regex = re.compile("\[CSock(?:Sender|Receiver) ([0-9]+)\]")
+        self.__timestamp_regex = re.compile("^\[([0-9]+\.[0-9]+)\]")
+        self.__intnw_message_type_regex = \
+            re.compile("(?:About to send|Received) message:  Type: ([A-Za-z_]+)")
+        self.__receiver_exit_regex = re.compile("\[CSockReceiver ([0-9]+)\] Exiting.")
 
-    def __getIROB(self, line):
+    def __getIROBId(self, line):
         return int(re.search(self.__irob_regex, line).group(1))
 
-    def __addNetwork(self, line):
-        # TODO
-        pass
+    def __getSocket(self, line):
+        return int(re.search(self.__socket_regex, line).group(1))
+
+    def __getIP(self, line):
+        return re.search(self.__ip_regex, line).group(1)
+
+    def __modifyNetwork(self, line):
+        timestamp = self.__getTimestamp(line)
+        ip, status, network_type = re.search(self.__network_regex, line).groups()
+        if network_type not in self.__networks:
+            self.__networks[network_type] = {
+                'down': {}, # download IROBs
+                'up': {}    # upload IROBs
+                }
+            self.__network_periods[network_type] = []
+
+        if status == 'down':
+            period = self.__network_periods[network_type][-1]
+            assert period['end'] == None
+            period['end'] = timestamp
+            
+            assert ip in self.__network_type_by_ip
+            del self.__network_type_by_ip[ip]
+        elif status == 'up':
+            periods = self.__network_periods[network_type]
+            if len(periods) > 0 and periods[-1]['end'] != None:
+                # two perfectly adjacent periods with no 'down' in between.  whatevs.
+                periods[-1]['end'] = timestamp
+                
+            periods.append({
+                'start': timestamp, 'end': None,
+                'ip': ip, 'sock': None
+                })
+            self.__network_type_by_ip[ip] = network_type
+        else: assert False
         
     def __addConnection(self, line):
-        # TODO
-        pass
+        sock = self.__getSocket(line)
+        ip = self.__getIP(line)
+        network_type = self.__network_type_by_ip[ip]
+        network_period = self.__network_periods[network_type][-1]
+
+        assert network_period['start'] != None
+        assert network_period['ip'] == ip
+        assert network_period['sock'] == None
+        network_period['sock'] = sock
+
+        assert sock not in self.__network_type_by_sock
+        self.__network_type_by_sock[sock] = network_type
         
     def __removeConnection(self, line):
-        # TODO
-        pass
+        sock = self.__getSocket(line)
+        network_type = self.__network_type_by_sock[sock]
+        network_period = self.__network_periods[network_type][-1]
+
+        network_period['sock'] = None
+        del self.__network_type_by_sock[sock]
+
+    def __getTimestamp(self, line):
+        return float(re.search(self.__timestamp_regex, line).group(1))
         
-    def __getNetwork(self, line):
-        # TODO
-        pass
+    def __getNetworkType(self, line):
+        sock = self.__getSocket(line)
+        return self.__network_type_by_sock[sock]
 
     def __getDatalen(self, line):
         return int(re.search(self.__datalen_regex, line).group(1))
 
-    def __getMessageType(self, line):
-        return re.search(self.__type_regex, line).group(1)
-    
     def __getExpectedBytes(self, line):
         return int(re.search(self.__expected_bytes_regex, line).group(1))
 
-    def __addTransfer(line, download):
+    def __getIntNWMessageType(self, line):
+        return re.search(self.__intnw_message_type_regex, line).group(1)
+
+    def __addTransfer(self, line, direction):
         # [time][pid][CSockSender 57] About to send message:  Type: Begin_IROB(1)
         #                             Send labels: FG,SMALL IROB: 0 numdeps: 0
         # [time][pid][CSockReceiver 57] Received message:  Type: IROB_chunk(3)
@@ -227,28 +285,32 @@ class IntNWPlotter(QMainWindow):
         # [time][pid][CSockReceiver 57] Received message:  Type: Ack(7)
         #                               Send labels:  num_acks: 0 IROB: 0
         #                               srv_time: 0.000997 qdelay: 0.000000
-        irob = self.__getIROB(line)
-        network = self.__getNetwork(line)
-        type = self.__getType(line)
+        timestamp = self.__getTimestamp(line)
+        network_type = self.__getNetworkType(line)
+        intnw_message_type = self.__getIntNWMessageType(line)
 
-        if type == "Begin_IROB":
+        if intnw_message_type == "Begin_IROB":
+            irob_id = self.__getIROBId(line)
             self.__currentSendingIROB = None
-            self.__addIROB(network, irob, download)
-        elif type == "IROB_chunk":
+            self.__addIROB(timestamp, network_type, irob_id, direction)
+        elif intnw_message_type == "IROB_chunk":
+            irob_id = self.__getIROBId(line)
             datalen = self.__getDatalen(line)
-            self.__addIROBBytes(network, irob, datalen, download)b
-        elif type == "End_IROB" and download:
+            self.__addIROBBytes(timestamp, network_type, irob_id, datalen, direction)
+        elif intnw_message_type == "End_IROB" and direction == 'down':
+            irob_id = self.__getIROBId(line)
             expected_bytes = self.__getExpectedBytes(line)
-            self.__finishReceivedIROB(network, irob, expected_bytes)
-        elif type == "Ack" and download:
-            self.__ackIROB(network, irob)
+            self.__finishReceivedIROB(timestamp, network_type, irob_id, expected_bytes)
+        elif intnw_message_type == "Ack" and direction == 'down':
+            irob_id = self.__getIROBId(line)
+            self.__ackIROB(timestamp, network_type, irob_id, 'up')
         else:
             pass # ignore other types of messages
 
-    def __getIROB(self, network, irob_id, download, start=None):
-        if network not in self.__networks:
-            raise LogParsingError("saw data on unknown network '%s'" % network)
-        irobs = self.__networks[network][download]
+    def __getIROB(self, network_type, irob_id, direction, start=None):
+        if network_type not in self.__networks:
+            raise LogParsingError("saw data on unknown network '%s'" % network_type)
+        irobs = self.__networks[network_type][direction]
         if irob_id not in irobs:
             if start != None:
                 irobs[irob_id] = IROB(start, irob_id)
@@ -257,26 +319,78 @@ class IntNWPlotter(QMainWindow):
             
         return irobs[irob_id]
     
-    def __addIROB(self, network, irob_id, download):
-        self.__getIROB(network, irob_id, download, start=timestamp)
+    def __addIROB(self, timestamp, network_type, irob_id, direction):
+        # TODO: deal with the case where the IROB announcement arrives after the data
+        self.__getIROB(network_type, irob_id, direction, start=timestamp)
 
-    def __addIROBBytes(self, timestamp, network, irob_id, datalen, download):
-        irob = self.__getIROB(network, irob_id, download)
-        irob.addData(timestamp, datalen)
+    def __addIROBBytes(self, timestamp, network_type, irob_id, datalen, direction):
+        irob = self.__getIROB(network_type, irob_id, direction)
+        irob.addBytes(timestamp, datalen)
 
-    def __finishReceivedIROB(self, timestamp, network, irob_id, expected_bytes):
-        irob = self.__getIROB(network, irob_id, True)
+    def __finishReceivedIROB(self, timestamp, network_type, irob_id, expected_bytes):
+        irob = self.__getIROB(network_type, irob_id, 'down')
         irob.finish(timestamp, expected_bytes)
 
-    def __markDroppedIROBs(self, timestamp, network):
-        # TODO: find all unfinished IROBs on network and mark then lost.
-        # TODO: 'unfinshed' means not completely received or not ACKed.
-        pass
+        # "finish" the IROB by marking it ACK'd.
+        # Strictly speaking, a received IROB isn't "finished" until
+        #  all expected bytes are received, but until the end_irob messasge
+        #  arrives, we don't know how many to expect, so we hold off on
+        #  marking it finished until then.
+        irob.ack(timestamp)
 
-    def __ackIROB(self, timestamp, network, irob_id):
-        irob = self.__getIROB(network, irob_id, True)
-        irob.ack()
+    def __markDroppedIROBs(self, timestamp, network_type):
+        for direction in ['down', 'up']:
+            for irob in self.__networks[network_type][direction].values():
+                if not irob.complete():
+                    irob.markDropped(timestamp)
+
+    def __ackIROB(self, timestamp, network_type, irob_id, direction):
+        irob = self.__getIROB(network_type, irob_id, direction)
+        irob.ack(timestamp)
+
     
+class IntNWPlotter(object):
+    def __init__(self, filename):
+        self.__windows = []
+        self.__currentPid = None
+        self.__pid_regex = re.compile("^\[[0-9]+\.[0-9]+\]\[([0-9]+)\]")
+        
+        self.__readFile(filename)
+        
+    def __getPid(self, line):
+        match = re.search(self.__pid_regex, line)
+        if match:
+            return int(match.group(1))
+
+        return None
+
+    def __readFile(self, filename):
+        print "Parsing log file..."
+        progress = ProgressBar()
+        for linenum, line in enumerate(progress(open(filename).readlines())):
+            try:
+                pid = self.__getPid(line)
+                if pid == None:
+                    continue
+                    
+                if pid != self.__currentPid:
+                    self.__windows.append(IntNWBehaviorPlot())
+                    self.__currentPid = pid
+                    
+                self.__windows[-1].parseLine(line)
+            except LogParsingError as e:
+                trace = sys.exc_info()[2]
+                e.setLine(linenum + 1, line)
+                raise e, None, trace
+            except Exception as e:
+                trace = sys.exc_info()[2]
+                e = LogParsingError(str(e))
+                e.setLine(linenum + 1, line)
+                raise e, None, trace
+
+    def show(self):
+        for window in self.__windows:
+            window.show()
     
 def main():
     parser = ArgumentParser()
