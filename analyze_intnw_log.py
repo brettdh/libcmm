@@ -185,6 +185,7 @@ class IntNWPlotter(QMainWindow):
         self.__datalen_regex = re.compile("datalen: ([0-9]+)")
         self.__type_regex = re.compile("Type: ([A-Za-z_]+)")
         self.__expected_bytes_regex = re.compile("expected_bytes: ([0-9]+)")
+        self.__new_network_regex = re.compile("scout: (.+) is up.+ type ([A-Za-z0-9]+)")
 
     def __getIROB(self, line):
         return int(re.search(self.__irob_regex, line).group(1))
