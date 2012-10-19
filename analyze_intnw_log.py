@@ -53,9 +53,13 @@ class LogParsingError(Exception):
                    self.line != None and ('\n' + self.line) or ""))
 
 class IROB(object):
-    def __init__(self, start, irob_id):
+    def __init__(self, plot, network_type, direction, start, irob_id):
+        self.__plot = plot
+        self.network_type = network_type
+        self.direction = direction
+        self.irob_id = irob_id
+        
         self.__start = start
-        self.__irob_id = irob_id
         self.__datalen = None
         self.__expected_bytes = None
         self.__completion_time = None
@@ -88,9 +92,24 @@ class IROB(object):
     def markDropped(self, timestamp):
         self.__drop_time = timestamp
 
+    def getDuration(self):
+        if self.complete():
+            return (self.__start, self.__completion_time)
+        else:
+            try:
+                assert self.__drop_time != None
+            except AssertionError as e:
+                import pdb; pdb.set_trace()
+                raise e
+                
+            return (self.__start, self.__drop_time)
+
     def draw(self, axes):
-        # TODO
-        pass
+        ypos = self.__plot.getIROBPosition(self)
+        yheight = self.__plot.getIROBHeight(self)
+        start, finish = [self.__plot.getAdjustedTime(ts) for ts in self.getDuration()]
+        axes.broken_barh([[start, finish]],
+                         [ypos - yheight / 2.0, ypos + yheight / 2.0])
 
 class IntNWBehaviorPlot(QDialog):
     def __init__(self, parent=None):
@@ -101,6 +120,8 @@ class IntNWBehaviorPlot(QDialog):
         self.__network_periods = {}
         self.__network_type_by_ip = {}
         self.__network_type_by_sock = {}
+
+        self.__start = None
 
         # TODO: infer plot title from file path
         self.__title = "IntNW"
@@ -137,11 +158,35 @@ class IntNWBehaviorPlot(QDialog):
     def on_draw(self):
         self.__axes.clear()
 
-        # TODO: draw the stuff.
+        for network_type in self.__networks:
+            network = self.__networks[network_type]
+            for direction in network:
+                irobs = network[direction]
+                for irob_id in irobs:
+                    irob = irobs[irob_id]
+                    irob.draw(self.__axes)
         
         self.__canvas.draw()
 
+    def getIROBPosition(self, irob):
+        # TODO: allow for simultaneous (stacked) IROB plotting.
+        
+        network_pos_offsets = {'wifi': 1.0, '3G': -1.0}
+        direction_pos_offsets = {'down': 0.5, 'up': -0.5}
+        return (network_pos_offsets[irob.network_type] +
+                direction_pos_offsets[irob.direction])
+        
+    def getIROBHeight(self, irob):
+        # TODO: adjust based on the number of stacked IROBs.
+        return 0.25
+
+    def getAdjustedTime(self, timestamp):
+        return timestamp - self.__start
+
     def parseLine(self, line):
+        if self.__start == None:
+            self.__start = self.__getTimestamp(line)
+
         if "Got update from scout" in line:
             #[time][pid][tid] Got update from scout: 192.168.1.2 is up,
             #                 bandwidth_down 43226 bandwidth_up 12739 bytes/sec RTT 97 ms
@@ -163,6 +208,7 @@ class IntNWBehaviorPlot(QDialog):
             timestamp = self.__getTimestamp(line)
             irob = int(line.strip().split()[-1])
             network = self.__getNetworkType(line)
+            
             self.__currentSendingIROB = irob
             self.__addIROB(timestamp, network, irob, 'up')
         elif "...returning " in line:
@@ -313,22 +359,30 @@ class IntNWBehaviorPlot(QDialog):
         irobs = self.__networks[network_type][direction]
         if irob_id not in irobs:
             if start != None:
-                irobs[irob_id] = IROB(start, irob_id)
+                irobs[irob_id] = IROB(self, network_type, direction, start, irob_id)
             else:
-                raise LogParsingError("Unknown IROB %d" % irob_id)
+                return None
             
         return irobs[irob_id]
+
+    def __getIROBOrThrow(self, network_type, irob_id, direction, start=None):
+        irob = self.__getIROB(network_type, irob_id, direction, start)
+        if irob == None:
+            raise LogParsingError("Unknown IROB %d" % irob_id)
     
     def __addIROB(self, timestamp, network_type, irob_id, direction):
         # TODO: deal with the case where the IROB announcement arrives after the data
-        self.__getIROB(network_type, irob_id, direction, start=timestamp)
+        self.__getIROBOrThrow(network_type, irob_id, direction, start=timestamp)
 
     def __addIROBBytes(self, timestamp, network_type, irob_id, datalen, direction):
-        irob = self.__getIROB(network_type, irob_id, direction)
+        # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+        # XXX: this is double-counting when chunk messages do appear.  fix it.
+        # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+        irob = self.__getIROBOrThrow(network_type, irob_id, direction)
         irob.addBytes(timestamp, datalen)
 
     def __finishReceivedIROB(self, timestamp, network_type, irob_id, expected_bytes):
-        irob = self.__getIROB(network_type, irob_id, 'down')
+        irob = self.__getIROBOrThrow(network_type, irob_id, 'down')
         irob.finish(timestamp, expected_bytes)
 
         # "finish" the IROB by marking it ACK'd.
@@ -345,7 +399,7 @@ class IntNWBehaviorPlot(QDialog):
                     irob.markDropped(timestamp)
 
     def __ackIROB(self, timestamp, network_type, irob_id, direction):
-        irob = self.__getIROB(network_type, irob_id, direction)
+        irob = self.__getIROBOrThrow(network_type, irob_id, direction)
         irob.ack(timestamp)
 
     
@@ -356,6 +410,11 @@ class IntNWPlotter(object):
         self.__pid_regex = re.compile("^\[[0-9]+\.[0-9]+\]\[([0-9]+)\]")
         
         self.__readFile(filename)
+        self.draw()
+
+    def draw(self):
+        for window in self.__windows:
+            window.on_draw()
         
     def __getPid(self, line):
         match = re.search(self.__pid_regex, line)
