@@ -344,9 +344,9 @@ CSocket::startup_workers()
 
 /* must not be holding sk->scheduling_state_lock. */
 bool 
-CSocket::matches(u_long send_labels)
+CSocket::matches(u_long send_labels, size_t num_bytes)
 {
-    return sk->csock_map->csock_matches(this, send_labels);
+    return sk->csock_map->csock_matches(this, send_labels, num_bytes);
 }
 
 /* must not be holding sk->scheduling_state_lock. */

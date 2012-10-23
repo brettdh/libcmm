@@ -548,11 +548,15 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
     ASSERT(psirob);
 
     u_long send_labels = pirob->get_send_labels();
+    size_t num_bytes = 0;
+    if (psirob->is_complete()) {
+        num_bytes = psirob->expected_bytes();
+    }
     bool redundant = psirob->should_send_on_all_networks();
 
     pthread_mutex_unlock(&sk->scheduling_state_lock);
 
-    if (csock->matches(send_labels)) {
+    if (csock->matches(send_labels, num_bytes)) {
         pthread_mutex_lock(&sk->scheduling_state_lock);
         pirob = sk->outgoing_irobs.find(id);
         if (!pirob) {
@@ -571,9 +575,10 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
     
     CSocketPtr match;
     if (sk->accepting_side) {
-        match = sk->csock_map->connected_csock_with_labels(send_labels);
+        match = sk->csock_map->connected_csock_with_labels(send_labels,
+                                                           num_bytes);
     } else {
-        match = sk->csock_map->new_csock_with_labels(send_labels);
+        match = sk->csock_map->new_csock_with_labels(send_labels, num_bytes);
     }
 
     pthread_mutex_lock(&sk->scheduling_state_lock);

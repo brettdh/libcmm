@@ -56,7 +56,7 @@ class CSocket {
     //void remove(void);
 
     /* must not be holding sk->scheduling_state_lock. */
-    bool matches(u_long send_labels);
+    bool matches(u_long send_labels, size_t num_bytes=0);
 
     // returns the network type of this CSocket: 
     //   currently NET_TYPE_WIFI or NET_TYPE_THREEG
