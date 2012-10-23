@@ -4,7 +4,7 @@ else
 DEBUG_FLAGS:=-g -DCMM_DEBUG
 endif
 
-INSTRUMENTS_DIR := $(HOME)/src/instruments/
+INSTRUMENTS_DIR := $(HOME)/src/instruments
 
 CXXFLAGS+=-Wall -Werror -I. -I/usr/local/include \
 	   -I./libancillary \
@@ -12,8 +12,8 @@ CXXFLAGS+=-Wall -Werror -I. -I/usr/local/include \
 	   -pthread -fPIC -m32 $(DEBUG_FLAGS) $(OPT_FLAGS) \
 	   -I$(INSTRUMENTS_DIR)/include -I$(INSTRUMENTS_DIR)/src
 #LIBTBB:=-ltbb_debug
-LDFLAGS:=-L.  -L/usr/local/lib -m32
-LIBS:=-lrt -lglib-2.0 -lboost_thread
+LDFLAGS:=-L.  -L/usr/local/lib -L$(INSTRUMENTS_DIR)/src -m32
+LIBS:=-lrt -lglib-2.0 -lboost_thread -lpowertutor -linstruments
 
 LIBRARIES:=libcmm.so
 EXECUTABLES:=cmm_test_sender cmm_test_receiver cdf_test\
@@ -61,7 +61,8 @@ libcmm.so: libcmm.o libcmm_ipc.o libcmm_external_ipc.o libcmm_net_restriction.o 
            intset.o cmm_socket_control.o irob_scheduling.o timeops.o \
            net_interface.o net_stats.o cmm_conn_bootstrapper.o \
            redundancy_strategy.o redundancy_strategy_instruments.o \
-		   network_chooser.o \
+		   network_chooser.o intnw_instruments_network_chooser.o \
+		   intnw_instruments_net_stats_wrapper.o \
            libcmm_shmem.o common.o libancillary/libancillary.a
 	$(CXX) -shared -o $@ $^ $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 

@@ -183,6 +183,9 @@ NetStats::report_send_event(irob_id_t irob_id, size_t bytes)
         if (striped_irobs->contains(irob_id)) {
             irob_was_striped = true;
         } else {
+            // TODO-MEASUREMENT: differentiate between striped IROBs
+            // TODO-MEASUREMENT:  and redundantly-sent IROBs.
+            // TODO-MEASUREMENT: redundantly-sent IROBs should still measure the networks.
             if (irob_iface_map->count(irob_id) == 0) {
                 (*irob_iface_map)[irob_id] = make_pair(local_addr, remote_addr);
             }
@@ -319,19 +322,22 @@ calculate_bw_latency(struct timeval latency_RTT, struct timeval bw_RTT,
     }
 }
 
-void 
+// returns true if a new measurement was obtained
+bool
 NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
                      struct timeval ack_qdelay, 
                      struct timeval *real_time,
                      double *bw_out, double *latency_seconds_out)
 {
+    bool new_measurement = false;
+    
     if (srv_time.tv_usec == -1) {
         /* the original ACK was dropped, so it's not wise to use 
          * this one for a measurement, since the srv_time is
          * invalid. */
         dbgprintf("Got ACK for IROB %ld, but srv_time is invalid. Ignoring.\n",
                   irob_id);
-        return;
+        return false;
     }
 
     {
@@ -339,7 +345,7 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
         if (striped_irobs->contains(irob_id)) {
             dbgprintf("Got ACK for IROB %ld, but it was striped.  Ignoring.\n",
                       irob_id);
-            return;
+            return false;
         }
     }
 
@@ -348,7 +354,7 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
         if (irob_measurements.find(irob_id) == irob_measurements.end()) {
             dbgprintf("Got ACK for IROB %ld, but I've forgotten it.  Ignoring.\n",
                       irob_id);
-            return;
+            return false;
         }
 
         IROBMeasurement measurement = irob_measurements[irob_id];
@@ -363,7 +369,7 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
             RTT = measurement.RTT();
         } catch (const InvalidEstimateException &e) {
             dbgprintf("Invalid measurement detected; ignoring\n");
-            return;
+            return false;
         }
 
         size_t req_size = measurement.num_bytes();
@@ -527,7 +533,8 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
 
                 // TODO: send bw_up estimate to remote peer as its bw_down.  Or maybe do that
                 //       in CSocketReceiver, after calling this.
-
+                
+                new_measurement = true;
                 if (bw_out) *bw_out = bw_est;
                 if (latency_seconds_out) *latency_seconds_out = (latency_est / 1000.0);
             }
@@ -538,6 +545,7 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
         last_srv_time = srv_time;
     }
     cache_save();
+    return new_measurement;
 }
 
 void

@@ -9,9 +9,6 @@ class PendingSenderIROB;
 class RedundancyStrategy {
   public:
     virtual bool shouldTransmitRedundantly(PendingSenderIROB *psirob) = 0;
-    virtual void reportNetStats(int type, 
-                                u_long new_observation,
-                                u_long current_estimate) {}
 
     static RedundancyStrategy *create(int type);
     static std::string describe_type(int type);

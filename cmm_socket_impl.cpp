@@ -1872,7 +1872,8 @@ bool
 CMMSocketImpl::net_available(u_long send_labels)
 {
     struct net_interface local_dummy, remote_dummy;
-    return csock_map->get_iface_pair_locked(send_labels, local_dummy, remote_dummy);
+    return csock_map->get_iface_pair_locked(send_labels, 1, 
+                                            local_dummy, remote_dummy);
 }
 
 bool 

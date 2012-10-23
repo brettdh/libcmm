@@ -34,12 +34,20 @@ class CSockMapping {
     bool csock_matches(CSocket *csock, 
                        u_long send_label,
                        bool ignore_trouble=false);
+    bool csock_matches(CSocket *csock, 
+                       u_long send_label, size_t num_bytes,
+                       bool ignore_trouble=false);
     bool csock_matches_ignore_trouble(CSocket *csock, 
                                       u_long send_label);
 
     CSocketPtr csock_with_labels(u_long send_label);
+    CSocketPtr csock_with_labels(u_long send_label, size_t num_bytes);
     CSocketPtr connected_csock_with_labels(u_long send_label, bool locked=true);
+    CSocketPtr connected_csock_with_labels(u_long send_label, size_t num_bytes,
+                                           bool locked=true);
     CSocketPtr new_csock_with_labels(u_long send_label, bool locked=true);
+    CSocketPtr new_csock_with_labels(u_long send_label, size_t bytes,
+                                     bool locked=true);
 
     // tries to get a CSocket suitable for the given labels.
     //  prefers connected csocks, but will create a new one if necessary.
@@ -54,11 +62,11 @@ class CSockMapping {
 
     bool get_local_iface_by_addr(struct in_addr addr, 
                                  struct net_interface& iface);
-    bool get_iface_pair(u_long send_label,
+    bool get_iface_pair(u_long send_label, size_t num_bytes,
                         struct net_interface& local_iface,
                         struct net_interface& remote_iface,
                         bool ignore_trouble=false);
-    bool get_iface_pair_locked(u_long send_label,
+    bool get_iface_pair_locked(u_long send_label, size_t num_bytes,
                                struct net_interface& local_iface,
                                struct net_interface& remote_iface,
                                bool ignore_trouble=false);
@@ -91,6 +99,8 @@ class CSockMapping {
     void set_redundancy_strategy(int type);
     int get_redundancy_strategy();
 
+    NetworkChooser *get_network_chooser();
+
     void pass_request_to_all_senders(PendingSenderIROB *psirob,
                                      const IROBSchedulingData& data);
 
@@ -107,12 +117,12 @@ class CSockMapping {
     template <typename Functor>
     int for_each_locked(Functor& f);
 
-    bool get_iface_pair_internal(u_long send_label, 
+    bool get_iface_pair_internal(u_long send_label, size_t num_bytes,
                                  struct net_interface& local_iface,
                                  struct net_interface& remote_iface,
                                  bool ignore_trouble,
                                  bool sockset_already_locked);
-    bool get_iface_pair_locked_internal(u_long send_label, 
+    bool get_iface_pair_locked_internal(u_long send_label, size_t num_bytes,
                                         struct net_interface& local_iface,
                                         struct net_interface& remote_iface,
                                         bool ignore_trouble,
@@ -120,6 +130,7 @@ class CSockMapping {
 
     bool csock_matches_internal(CSocket *csock, 
                                 u_long send_label,
+                                size_t num_bytes,
                                 bool ignore_trouble,
                                 bool sockset_already_locked);
 

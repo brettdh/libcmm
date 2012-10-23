@@ -10,22 +10,16 @@ class WrappedNetStats;
 
 class InstrumentsWrappedNetStats {
   public:
-    InstrumentsWrappedNetStats(double bw_up, double RTT_seconds);
+    InstrumentsWrappedNetStats();
     ~InstrumentsWrappedNetStats();
-    void report_upload(int datalen, double start, double duration);
 
     // add active measurement result to stats.
-    void update(double bw_up, double RTT_seconds);
-
-    // re-add the last active measurement result to the stats,
-    //  in order to make sure that the estimators have at least one observation.
-    void update();
+    void update(double bw_up, double bw_estimate,
+                double RTT_seconds, double RTT_estimate);
 
     double get_bandwidth_up(instruments_context_t ctx);
     double get_rtt(instruments_context_t ctx);
   private:
-    WrappedNetStats *stats;
-    
     instruments_external_estimator_t bw_up_estimator;
     instruments_external_estimator_t rtt_estimator;
 };

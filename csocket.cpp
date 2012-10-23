@@ -15,6 +15,8 @@
 #include <functional>
 #include "common.h"
 #include "net_interface.h"
+#include "libcmm_net_restriction.h"
+
 using std::max;
 
 #ifdef CMM_UNIT_TESTING
@@ -354,11 +356,13 @@ bool CSocket::is_fg()
             matches(CMM_LABEL_ONDEMAND|CMM_LABEL_LARGE));
 }
 
+/*
 bool CSocket::is_fg_ignore_trouble()
 {
     return (sk->csock_map->csock_matches_ignore_trouble(this, CMM_LABEL_ONDEMAND|CMM_LABEL_SMALL) ||
             sk->csock_map->csock_matches_ignore_trouble(this, CMM_LABEL_ONDEMAND|CMM_LABEL_LARGE));
 }
+*/
 
 // must be holding scheduling_state_lock
 // return true iff the csocket is busy sending app data
@@ -653,6 +657,18 @@ CSocket::update_net_restriction_stats(u_long labels, size_t bytes_sent, size_t b
         // should never happen; if unable to respect network restriction,
         //  the sending of that IROB should just fail.
         sk->update_net_restriction_stats(labels, bytes_sent, bytes_recvd);
+    }
+}
+
+int
+CSocket::network_type()
+{
+    if (fits_net_restriction(CMM_LABEL_WIFI_ONLY)) {
+        return NET_TYPE_WIFI;
+    } else {
+        // TODO: other network types might exist.
+        assert(fits_net_restriction(CMM_LABEL_THREEG_ONLY));
+        return NET_TYPE_THREEG;
     }
 }
 #endif

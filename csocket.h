@@ -58,11 +58,15 @@ class CSocket {
     /* must not be holding sk->scheduling_state_lock. */
     bool matches(u_long send_labels);
 
+    // returns the network type of this CSocket: 
+    //   currently NET_TYPE_WIFI or NET_TYPE_THREEG
+    int network_type();
+
     /* shortcut for (matches(CMM_LABEL_ONDEMAND|CMM_LABEL_SMALL) ||
      *               matches(CMM_LABEL_ONDEMAND|CMM_LABEL_LARGE))
      * must not be holding sk->scheduling_state_lock. */
     bool is_fg();
-    bool is_fg_ignore_trouble();
+    //bool is_fg_ignore_trouble();
 
     // return true iff the csocket is busy sending app data
     bool is_busy();

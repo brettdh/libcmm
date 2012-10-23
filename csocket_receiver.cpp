@@ -10,6 +10,7 @@
 #include "pthread_util.h"
 #include "cmm_timing.h"
 #include "libcmm_shmem.h"
+#include "network_chooser.h"
 
 CSocketReceiver::handler_fn_t CSocketReceiver::handlers[] = {
     &CSocketReceiver::unrecognized_control_msg, /* HELLO not expected */
@@ -475,6 +476,31 @@ CSocketReceiver::do_down_interface(struct CMMSocketControlHdr hdr)
 }
 
 void
+CSocketReceiver::report_ack(irob_id_t id, struct timeval srv_time,
+                            struct timeval ack_qdelay, 
+                            struct timeval *ack_time)
+{
+    double bw_out = 0.0, latency_seconds_out = 0.0;
+    bool new_measurement = 
+        csock->stats.report_ack(id, srv_time, 
+                                ack_qdelay, ack_time,
+                                &bw_out, &latency_seconds_out);
+
+    u_long bw_est, latency_ms_est;
+    bool estimates_valid =
+        (csock->stats.get_estimate(NET_STATS_BW_UP, bw_est) &&
+         csock->stats.get_estimate(NET_STATS_LATENCY, latency_ms_est));
+    
+    if (new_measurement && estimates_valid) {
+        NetworkChooser *chooser = sk->csock_map->get_network_chooser();
+        chooser->reportNetStats(csock->network_type(),
+                                bw_out, bw_est,
+                                latency_seconds_out,
+                                latency_ms_est / 1000.0);
+    }
+}
+
+void
 CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
 {
     struct timeval begin, end, diff;
@@ -493,7 +519,7 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
     };
     struct timeval ack_time;
     TIME(ack_time);
-    csock->stats.report_ack(id, srv_time, ack_qdelay, &ack_time);
+    report_ack(id, srv_time, ack_qdelay, &ack_time);
 
     sk->ack_received(id);
 
@@ -527,7 +553,7 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
 
         for (size_t i = 0; i < num_acks; i++) {
             id = ntohl(acked_irobs[i]);
-            csock->stats.report_ack(id, srv_time, ack_qdelay, &ack_time);
+            report_ack(id, srv_time, ack_qdelay, &ack_time);
             sk->ack_received(id);
 #ifdef CMM_TIMING
             {

@@ -13,7 +13,7 @@ class NetworkChooser {
   public:
     static NetworkChooser* create(int redundancy_strategy_type);
 
-    virtual void reset() {}
+    virtual void reset();
     
     // for use with CSockMapping::for_each
     void consider(CSocketPtr csock) {
@@ -22,13 +22,27 @@ class NetworkChooser {
     
     virtual void consider(struct net_interface local_iface, 
                           struct net_interface remote_iface) {}
-    virtual bool choose_networks(u_long send_label,
+    
+    bool choose_networks(u_long send_label,
+                         struct net_interface& local_iface,
+                         struct net_interface& remote_iface);
+
+    // if not available, num_bytes == 0.
+    virtual bool choose_networks(u_long send_label, size_t num_bytes,
                                  struct net_interface& local_iface,
                                  struct net_interface& remote_iface) = 0;
+    
+    virtual void reportNetStats(int network_type, 
+                                double new_bw,
+                                double new_bw_estimate,
+                                double new_latency_seconds,
+                                double new_latency_estimate) {}
 
     RedundancyStrategy *getRedundancyStrategy();
   protected:
     NetworkChooser();
+
+    bool has_match;
 
     // default: never redundant.
     //   subclasses should override this to replace
@@ -43,10 +57,9 @@ class PreferredNetwork : public NetworkChooser {
     struct net_interface local, remote;
   public:
     PreferredNetwork(int preferred_type_);
-    virtual void reset();
     virtual void consider(struct net_interface local_iface, 
                           struct net_interface remote_iface);
-    virtual bool choose_networks(u_long send_label,
+    virtual bool choose_networks(u_long send_label, size_t num_bytes,
                                  struct net_interface& local_iface,
                                  struct net_interface& remote_iface);
 };
@@ -81,7 +94,7 @@ class LabelMatcher : public NetworkChooser {
     virtual void consider(struct net_interface local_iface, 
                           struct net_interface remote_iface);
     
-    virtual bool choose_networks(u_long send_label,
+    virtual bool choose_networks(u_long send_label, size_t num_bytes,
                                  struct net_interface& local_iface,
                                  struct net_interface& remote_iface);
 };

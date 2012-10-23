@@ -152,7 +152,9 @@ class NetStats {
     //  instead of the current result of gettimeofday.
     //  This makes sense when a flurry of ACKs arrive at once; 
     //  we want to say that they all arrived at about the same time.
-    void report_ack(irob_id_t irob_id, struct timeval srv_time,
+    // If there was a new measurement, store its values into bw_out
+    //  and latency_seconds_out, and return true.  If not, return false.
+    bool report_ack(irob_id_t irob_id, struct timeval srv_time,
                     struct timeval ack_qdelay, 
                     struct timeval *real_time = NULL,
                     double *bw_out = NULL, double *latency_seconds_out = NULL);

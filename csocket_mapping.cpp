@@ -72,6 +72,12 @@ CSockMapping::get_redundancy_strategy()
     return redundancy_strategy_type;
 }
 
+NetworkChooser *
+CSockMapping::get_network_chooser()
+{
+    return network_chooser;
+}
+
 size_t
 CSockMapping::count()
 {
@@ -245,21 +251,31 @@ CSockMapping::teardown(struct net_interface iface, bool local)
 struct GlobalLabelMatch {
     CSockMapping *cskmap;
     u_long send_label;
+    size_t num_bytes;
 
-    GlobalLabelMatch(CSockMapping *cskmap_, u_long send_label_)
-        : cskmap(cskmap_), send_label(send_label_) {}
+    GlobalLabelMatch(CSockMapping *cskmap_, u_long send_label_,
+                     size_t num_bytes_)
+        : cskmap(cskmap_), send_label(send_label_), num_bytes(num_bytes_) {}
 
     bool operator()(CSocketPtr csock) {
         // already locked the sockset_mutex here, since I'm inside find_csock
-        return cskmap->csock_matches_internal(get_pointer(csock), send_label, false, true);
+        return cskmap->csock_matches_internal(get_pointer(csock), 
+                                              send_label, num_bytes,
+                                              false, true);
     }
 };
 
 CSocketPtr 
 CSockMapping::csock_with_labels(u_long send_label)
 {
+    return csock_with_labels(send_label, 0);
+}
+
+CSocketPtr 
+CSockMapping::csock_with_labels(u_long send_label, size_t num_bytes)
+{
     // return a CSocketPtr that matches send_label
-    return find_csock(GlobalLabelMatch(this, send_label));
+    return find_csock(GlobalLabelMatch(this, send_label, num_bytes));
 }
 
 struct IsNotBusy {
@@ -322,6 +338,13 @@ CSockMapping::csock_by_ifaces(struct net_interface local_iface,
 CSocketPtr 
 CSockMapping::connected_csock_with_labels(u_long send_label, bool locked)
 {
+    return connected_csock_with_labels(send_label, 0, locked);
+}
+
+CSocketPtr 
+CSockMapping::connected_csock_with_labels(u_long send_label, 
+                                          size_t num_bytes, bool locked)
+{
     network_chooser->reset();
     pair<struct net_interface, struct net_interface> iface_pair;
 
@@ -359,7 +382,7 @@ CSockMapping::connected_csock_with_labels(u_long send_label, bool locked)
         // no connected csocks
         return CSocketPtr();
     } else {
-        if (network_chooser->choose_networks(send_label, 
+        if (network_chooser->choose_networks(send_label, num_bytes, 
                                              iface_pair.first, iface_pair.second)) {
             return lookup[iface_pair];
         } else {
@@ -377,14 +400,25 @@ CSockMapping::csock_matches_ignore_trouble(CSocket *csock, u_long send_label)
 }
 
 /* must not be holding sk->scheduling_state_lock. */
-bool CSockMapping::csock_matches(CSocket *csock, u_long send_label, bool ignore_trouble)
+bool CSockMapping::csock_matches(CSocket *csock, u_long send_label, 
+                                 bool ignore_trouble)
+{
+    return csock_matches_internal(csock, send_label, 0, ignore_trouble, false);
+}
+
+/* must not be holding sk->scheduling_state_lock. */
+bool CSockMapping::csock_matches(CSocket *csock, u_long send_label, 
+                                 size_t num_bytes, bool ignore_trouble)
 {
     // TODO-REDUNDANCY: ignore_trouble won't be necessary; it will always ignore trouble
-    return csock_matches_internal(csock, send_label, ignore_trouble, false);
+    return csock_matches_internal(csock, send_label, num_bytes,
+                                  ignore_trouble, false);
 }
 
 // TODO-REDUNDANCY: ignore_trouble won't be necessary; it will always ignore trouble
-bool CSockMapping::csock_matches_internal(CSocket *csock, u_long send_label, bool ignore_trouble, 
+bool CSockMapping::csock_matches_internal(CSocket *csock, u_long send_label, 
+                                          size_t num_bytes,
+                                          bool ignore_trouble, 
                                           bool sockset_already_locked)
 {
     if (send_label == 0) {
@@ -392,7 +426,8 @@ bool CSockMapping::csock_matches_internal(CSocket *csock, u_long send_label, boo
     }
     
     struct net_interface local_iface, remote_iface;
-    if (!get_iface_pair_internal(send_label, local_iface, remote_iface,
+    if (!get_iface_pair_internal(send_label, num_bytes, 
+                                 local_iface, remote_iface,
                                  ignore_trouble, sockset_already_locked)) {
         // there is no interface pair that suits these labels;
         // therefore, csock must not be suitable!
@@ -405,18 +440,19 @@ bool CSockMapping::csock_matches_internal(CSocket *csock, u_long send_label, boo
 
 // TODO-REDUNDANCY: ignore_trouble won't be necessary; it will always ignore trouble
 bool
-CSockMapping::get_iface_pair(u_long send_label,
+CSockMapping::get_iface_pair(u_long send_label, size_t num_bytes,
                              struct net_interface& local_iface,
                              struct net_interface& remote_iface,
                              bool ignore_trouble)
 {
-    return get_iface_pair_internal(send_label, local_iface, remote_iface, 
+    return get_iface_pair_internal(send_label, num_bytes, 
+                                   local_iface, remote_iface, 
                                    ignore_trouble, false);
 }
 
 // TODO-REDUNDANCY: ignore_trouble won't be necessary; it will always ignore trouble
 bool
-CSockMapping::get_iface_pair_internal(u_long send_label, 
+CSockMapping::get_iface_pair_internal(u_long send_label, size_t num_bytes,
                                       struct net_interface& local_iface,
                                       struct net_interface& remote_iface,
                                       bool ignore_trouble,
@@ -424,24 +460,29 @@ CSockMapping::get_iface_pair_internal(u_long send_label,
 {
     CMMSocketImplPtr skp(sk);
     PthreadScopedRWLock lock(&skp->my_lock, false);
-    return get_iface_pair_locked_internal(send_label, local_iface, remote_iface,
-                                          ignore_trouble, sockset_already_locked);
+    return get_iface_pair_locked_internal(send_label, num_bytes,
+                                          local_iface, remote_iface,
+                                          ignore_trouble, 
+                                          sockset_already_locked);
 }
+
 
 // TODO-REDUNDANCY: ignore_trouble won't be necessary; it will always ignore trouble
 bool
-CSockMapping::get_iface_pair_locked(u_long send_label,
+CSockMapping::get_iface_pair_locked(u_long send_label, size_t num_bytes,
                                     struct net_interface& local_iface,
                                     struct net_interface& remote_iface,
                                     bool ignore_trouble)
 {
-    return get_iface_pair_locked_internal(send_label, local_iface, remote_iface,
+    return get_iface_pair_locked_internal(send_label, num_bytes,
+                                          local_iface, remote_iface,
                                           ignore_trouble, false);
 }
 
 // TODO-REDUNDANCY: ignore_trouble won't be necessary; it will always ignore trouble
 bool
-CSockMapping::get_iface_pair_locked_internal(u_long send_label,
+CSockMapping::get_iface_pair_locked_internal(u_long send_label, 
+                                             size_t num_bytes,
                                              struct net_interface& local_iface,
                                              struct net_interface& remote_iface,
                                              bool ignore_trouble,
@@ -479,7 +520,8 @@ CSockMapping::get_iface_pair_locked_internal(u_long send_label,
         }
     }
 
-    return network_chooser->choose_networks(send_label, local_iface, remote_iface);
+    return network_chooser->choose_networks(send_label, num_bytes,
+                                            local_iface, remote_iface);
 }
 
 CSocketPtr
@@ -536,8 +578,15 @@ CSockMapping::make_new_csocket(struct net_interface local_iface,
 CSocketPtr 
 CSockMapping::new_csock_with_labels(u_long send_label, bool grab_lock)
 {
+    return new_csock_with_labels(send_label, 0, grab_lock);
+}
+
+CSocketPtr 
+CSockMapping::new_csock_with_labels(u_long send_label, size_t num_bytes, 
+                                    bool grab_lock)
+{
     {
-        CSocketPtr csock = csock_with_labels(send_label);
+        CSocketPtr csock = csock_with_labels(send_label, num_bytes);
         if (csock) {
             return csock;
         }
@@ -546,9 +595,11 @@ CSockMapping::new_csock_with_labels(u_long send_label, bool grab_lock)
     struct net_interface local_iface, remote_iface;
     bool result;
     if (grab_lock) {
-        result = get_iface_pair(send_label, local_iface, remote_iface);
+        result = get_iface_pair(send_label, num_bytes, 
+                                local_iface, remote_iface);
     } else {
-        result = get_iface_pair_locked(send_label, local_iface, remote_iface);
+        result = get_iface_pair_locked(send_label, num_bytes,
+                                       local_iface, remote_iface);
     }
     if (!result) {
         /* Can't make a suitable connection for this send label */
@@ -562,8 +613,12 @@ int
 CSockMapping::get_csock(PendingSenderIROB *psirob, CSocket*& csock)
 {
     u_long send_labels = 0;
+    size_t num_bytes = 0;
     if (psirob) {
         send_labels = psirob->get_send_labels();
+        if (psirob->is_complete()) {
+            num_bytes = psirob->expected_bytes();
+        }
     }
 
     struct net_interface local, remote;
@@ -571,12 +626,14 @@ CSockMapping::get_csock(PendingSenderIROB *psirob, CSocket*& csock)
     //  if it's troubled, it'll hand off its data to another socket
     //  (or drop it)
     // TODO-REDUNDANCY: swap trouble check for should-be-redundant check
-    if (get_iface_pair_locked(send_labels, local, remote, true)) {
+    if (get_iface_pair_locked(send_labels, num_bytes, local, remote, true)) {
         // avoid using sockets that aren't yet connected; if connect() times out,
         //   it might take a long time to send anything
-        csock = get_pointer(connected_csock_with_labels(send_labels, false));
+        csock = get_pointer(connected_csock_with_labels(send_labels, num_bytes,
+                                                        false));
         if (!csock) {
-            csock = get_pointer(new_csock_with_labels(send_labels, false));
+            csock = get_pointer(new_csock_with_labels(send_labels, num_bytes,
+                                                      false));
         }
         if (!csock) {
             csock = get_pointer(csock_by_ifaces(local, remote));

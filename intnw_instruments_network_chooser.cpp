@@ -1,4 +1,6 @@
 #include "intnw_instruments_network_chooser.h"
+#include "intnw_instruments_net_stats_wrapper.h"
+#include "libcmm_net_restriction.h"
 #include <assert.h>
 #include "libpowertutor.h"
 
@@ -13,7 +15,7 @@ struct strategy_args {
     InstrumentsWrappedNetStats **net_stats;
 };
 
-static double
+double
 network_transfer_time(instruments_context_t ctx, void *strategy_arg, void *chooser_arg)
 {
     struct strategy_args *args = (struct strategy_args *)strategy_arg;
@@ -23,7 +25,7 @@ network_transfer_time(instruments_context_t ctx, void *strategy_arg, void *choos
                                                 bytelen);
 }
 
-static double
+double
 network_transfer_energy_cost(instruments_context_t ctx, void *strategy_arg, void *chooser_arg)
 {
     struct strategy_args *args = (struct strategy_args *)strategy_arg;
@@ -34,7 +36,7 @@ network_transfer_energy_cost(instruments_context_t ctx, void *strategy_arg, void
                                                   bytelen);
 }
 
-static double
+double
 network_transfer_data_cost(instruments_context_t ctx, void *strategy_arg, void *chooser_arg)
 {
     struct strategy_args *args = (struct strategy_args *)strategy_arg;
@@ -90,14 +92,11 @@ IntNWInstrumentsNetworkChooser::calculateTransferMobileData(InstrumentsWrappedNe
 }
 
 
-IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser(
-    InstrumentsWrappedNetStats *wifi,
-    InstrumentsWrappedNetStats *cellular
-)
+IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
+    : wifi_present(false), needs_reevaluation(true), chosen_strategy_type(-1)
 {
-    // no ownership transfer here.
-    wifi_stats = wifi;
-    cellular_stats = cellular;
+    wifi_stats = new InstrumentsWrappedNetStats;
+    cellular_stats = new InstrumentsWrappedNetStats;
 
     for (int i = 0; i < NUM_STRATEGIES - 1; ++i) {
         strategy_args[i] = new struct strategy_args;
@@ -121,13 +120,13 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser(
     //EvalMethod method = EMPIRICAL_ERROR_BINNED;
 
     evaluator = register_strategy_set_with_method(strategies, NUM_STRATEGIES, method);
-
-    wifi_stats->update();
-    cellular_stats->update();
 }
 
 IntNWInstrumentsNetworkChooser::~IntNWInstrumentsNetworkChooser()
 {
+    delete wifi_stats;
+    delete cellular_stats;
+
     free_strategy_evaluator(evaluator);
 
     for (int i = 0; i < NUM_STRATEGIES; ++i) {
@@ -138,7 +137,80 @@ IntNWInstrumentsNetworkChooser::~IntNWInstrumentsNetworkChooser()
     }
 }
 
-int IntNWInstrumentsNetworkChooser::chooseNetwork(int bytelen)
+bool 
+IntNWInstrumentsNetworkChooser::
+choose_networks(u_long send_label, size_t num_bytes,
+                struct net_interface& local_iface,
+                struct net_interface& remote_iface)
+{
+    // XXX:  don't really want to require this, but it's 
+    // XXX:   true for the redundancy experiments.
+    // TODO: make sure that CSockMapping calls the 
+    // TODO:  right version of choose_networks.
+    if (num_bytes == 0) {
+        // TODO: can we apply the brute force method
+        // TODO:  without knowing the size of the data?
+        return label_matcher.choose_networks(send_label, num_bytes,
+                                             local_iface, remote_iface);
+    }
+
+    assert(has_match);
+    
+    if (!wifi_present) {
+        local_iface = cellular_local;
+        remote_iface = cellular_remote;
+        return true;
+    }
+
+    if (needs_reevaluation) {
+        chosen_strategy_type = chooseNetwork(num_bytes);
+        needs_reevaluation = false;
+    }
+
+    if (chosen_strategy_type == NETWORK_CHOICE_WIFI ||
+        chosen_strategy_type == NETWORK_CHOICE_BOTH) {
+        local_iface = wifi_local;
+        remote_iface = wifi_remote;
+    } else {
+        assert(chosen_strategy_type == NETWORK_CHOICE_CELLULAR);
+        local_iface = cellular_local;
+        remote_iface = cellular_remote;
+    }
+    return true;
+}
+
+void 
+IntNWInstrumentsNetworkChooser::consider(struct net_interface local_iface, 
+                                         struct net_interface remote_iface)
+{
+    // pass it to a delegate matcher in case choose_networks
+    //  gets called without knowing how many bytes will be sent
+    label_matcher.consider(local_iface, remote_iface);
+    
+    has_match = true;
+    if (matches_type(NET_TYPE_WIFI, local_iface, remote_iface)) {
+        wifi_present = true;
+        wifi_local = local_iface;
+        wifi_remote = remote_iface;
+    } else if (matches_type(NET_TYPE_THREEG, local_iface, remote_iface)) {
+        cellular_local = local_iface;
+        cellular_remote = remote_iface;
+    } else assert(false);
+}
+
+void
+IntNWInstrumentsNetworkChooser::reset()
+{
+    NetworkChooser::reset();
+    wifi_present = false;
+    needs_reevaluation = true;
+    chosen_strategy_type = -1;
+}
+
+
+
+int 
+IntNWInstrumentsNetworkChooser::chooseNetwork(int bytelen)
 {
     instruments_strategy_t chosen = choose_strategy(evaluator, (void *)bytelen);
     return getStrategyIndex(chosen);
@@ -199,4 +271,29 @@ double IntNWInstrumentsNetworkChooser::getEnergyWeight()
 double IntNWInstrumentsNetworkChooser::getDataWeight()
 {
     return get_data_cost_weight();
+}
+
+void
+IntNWInstrumentsNetworkChooser::reportNetStats(int network_type, 
+                                               double new_bw,
+                                               double new_bw_estimate,
+                                               double new_latency_seconds,
+                                               double new_latency_estimate)
+{
+    InstrumentsWrappedNetStats *stats = NULL;
+    switch (network_type) {
+    case NET_TYPE_WIFI:
+        stats = wifi_stats;
+        break;
+    case NET_TYPE_THREEG:
+        stats = cellular_stats;
+        break;
+    default:
+        assert(false);
+        break;
+    }
+
+    stats->update(new_bw, new_bw_estimate, 
+                  new_latency_seconds, new_latency_estimate);
+    needs_reevaluation = true;
 }

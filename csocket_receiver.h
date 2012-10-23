@@ -41,6 +41,10 @@ class CSocketReceiver : public CMMThread {
     typedef void (CSocketReceiver::*handler_fn_t)(struct CMMSocketControlHdr);
 
     static handler_fn_t handlers[];
+
+    void report_ack(irob_id_t id, struct timeval srv_time,
+                    struct timeval ack_qdelay, 
+                    struct timeval *ack_time);
 };
 
 #endif

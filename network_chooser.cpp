@@ -18,8 +18,7 @@ NetworkChooser::create(int redundancy_strategy_type)
     case INTNW_NEVER_REDUNDANT:
         return new LabelMatcher;
     case INTNW_REDUNDANT:
-        // TODO: hook into NetStats for the CSocketMapping
-        //return new IntNWInstrumentsNetworkChooser;
+        return new IntNWInstrumentsNetworkChooser;
     case ALWAYS_REDUNDANT:
         return new AlwaysRedundant;
     default:
@@ -48,15 +47,24 @@ NetworkChooser::getRedundancyStrategy()
     return redundancyStrategy;
 }
 
+void
+NetworkChooser::reset()
+{
+    has_match = false;
+}
+
+bool 
+NetworkChooser::choose_networks(u_long send_label,
+                                struct net_interface& local_iface,
+                                struct net_interface& remote_iface)
+{
+    return choose_networks(send_label, 0, local_iface, remote_iface);
+}
+
+
 PreferredNetwork::PreferredNetwork(int preferred_type_)
 {
     preferred_type = preferred_type_;
-}
-
-void
-PreferredNetwork::reset()
-{
-    has_match = false;
 }
 
 void
@@ -71,7 +79,7 @@ PreferredNetwork::consider(struct net_interface local_iface,
 }
 
 bool 
-PreferredNetwork::choose_networks(u_long send_label,
+PreferredNetwork::choose_networks(u_long send_label, size_t num_bytes,
                                   struct net_interface& local_iface,
                                   struct net_interface& remote_iface)
 {
@@ -126,7 +134,7 @@ LabelMatcher::consider(struct net_interface local_iface,
 }
 
 bool 
-LabelMatcher::choose_networks(u_long send_label,
+LabelMatcher::choose_networks(u_long send_label, size_t num_bytes,
                               struct net_interface& local_iface,
                               struct net_interface& remote_iface)
 {
