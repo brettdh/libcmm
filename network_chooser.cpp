@@ -1,5 +1,8 @@
 #include "network_chooser.h"
+#include "intnw_instruments_network_chooser.h"
 #include "libcmm_net_restriction.h"
+
+#include "redundancy_strategy.h"
 
 #include <map>
 using std::make_pair;
@@ -13,12 +16,36 @@ NetworkChooser::create(int redundancy_strategy_type)
     case WIFI_PREFERRED:
         return new PreferredNetwork(NET_TYPE_WIFI);
     case INTNW_NEVER_REDUNDANT:
-    case INTNW_REDUNDANT:
-    case ALWAYS_REDUNDANT:
         return new LabelMatcher;
+    case INTNW_REDUNDANT:
+        // TODO: hook into NetStats for the CSocketMapping
+        //return new IntNWInstrumentsNetworkChooser;
+    case ALWAYS_REDUNDANT:
+        return new AlwaysRedundant;
     default:
         assert(0);
     }
+}
+
+NetworkChooser::NetworkChooser()
+    : redundancyStrategy(NULL)
+{
+    reset();
+    setRedundancyStrategy();
+}
+
+void
+NetworkChooser::setRedundancyStrategy()
+{
+    assert(redundancyStrategy == NULL);
+    redundancyStrategy = RedundancyStrategy::create(INTNW_NEVER_REDUNDANT);
+}
+
+RedundancyStrategy *
+NetworkChooser::getRedundancyStrategy()
+{
+    assert(redundancyStrategy != NULL);
+    return redundancyStrategy;
 }
 
 PreferredNetwork::PreferredNetwork(int preferred_type_)
@@ -155,4 +182,17 @@ LabelMatcher::choose_networks(u_long send_label,
         return true;
     }
     return false;
+}
+
+
+AlwaysRedundant::AlwaysRedundant()
+    : PreferredNetwork(NET_TYPE_WIFI)
+{
+}
+
+void
+AlwaysRedundant::setRedundancyStrategy()
+{
+    assert(redundancyStrategy == NULL);
+    redundancyStrategy = RedundancyStrategy::create(ALWAYS_REDUNDANT);
 }

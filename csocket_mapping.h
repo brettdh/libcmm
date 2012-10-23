@@ -24,7 +24,6 @@ typedef std::map<u_long, std::map<u_long, CSocketPtr> > CSockLabelMap;
 class CMMSocketImpl;
 
 class PendingSenderIROB;
-class RedundancyStrategy;
 class NetworkChooser;
 class IROBSchedulingData;
 
@@ -125,7 +124,7 @@ class CSockMapping {
                                 bool sockset_already_locked);
 
     int redundancy_strategy_type;
-    RedundancyStrategy *redundancy_strategy;
+    //RedundancyStrategy *redundancy_strategy;
     void check_redundancy(PendingSenderIROB *psirob);
 
     NetworkChooser *network_chooser;

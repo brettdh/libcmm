@@ -7,11 +7,12 @@
 #include "libcmm.h"
 #include "csocket.h"
 
+class RedundancyStrategy;
+
 class NetworkChooser {
   public:
     static NetworkChooser* create(int redundancy_strategy_type);
 
-    NetworkChooser() { reset(); }
     virtual void reset() {}
     
     // for use with CSockMapping::for_each
@@ -24,6 +25,16 @@ class NetworkChooser {
     virtual bool choose_networks(u_long send_label,
                                  struct net_interface& local_iface,
                                  struct net_interface& remote_iface) = 0;
+
+    RedundancyStrategy *getRedundancyStrategy();
+  protected:
+    NetworkChooser();
+
+    // default: never redundant.
+    //   subclasses should override this to replace
+    //   the default with a custom redundancy strategy
+    virtual void setRedundancyStrategy();
+    RedundancyStrategy *redundancyStrategy;
 };
 
 class PreferredNetwork : public NetworkChooser {
@@ -75,5 +86,12 @@ class LabelMatcher : public NetworkChooser {
                                  struct net_interface& remote_iface);
 };
 
+
+class AlwaysRedundant : public PreferredNetwork {
+  public:
+    AlwaysRedundant();
+  protected:
+    virtual void setRedundancyStrategy();
+};
 
 #endif /* _NETWORK_CHOOSER_H_INCLUDED_AV9G84UBOV */

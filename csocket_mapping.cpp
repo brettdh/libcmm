@@ -44,7 +44,6 @@ CSockMapping::CSockMapping(CMMSocketImplPtr sk_)
     : sk(sk_)
 {
     RWLOCK_INIT(&sockset_mutex, NULL);
-    redundancy_strategy = NULL;
     network_chooser = NULL;
     set_redundancy_strategy(INTNW_NEVER_REDUNDANT);
 }
@@ -54,16 +53,13 @@ CSockMapping::~CSockMapping()
     PthreadScopedRWLock lock(&sockset_mutex, true);
     available_csocks.clear();
     
-    delete redundancy_strategy;
     delete network_chooser;
 }
 
 void
 CSockMapping::set_redundancy_strategy(int type)
 {
-    delete redundancy_strategy;
     delete network_chooser;
-    redundancy_strategy = RedundancyStrategy::create(type);
     network_chooser = NetworkChooser::create(type);
 
     redundancy_strategy_type = type;
@@ -72,7 +68,7 @@ CSockMapping::set_redundancy_strategy(int type)
 int 
 CSockMapping::get_redundancy_strategy()
 {
-    assert(redundancy_strategy && network_chooser);
+    assert(network_chooser);
     return redundancy_strategy_type;
 }
 
@@ -618,6 +614,8 @@ CSockMapping::check_redundancy(PendingSenderIROB *psirob)
         return;
     }
 
+    RedundancyStrategy *redundancy_strategy = 
+        network_chooser->getRedundancyStrategy();
     if (redundancy_strategy->shouldTransmitRedundantly(psirob)) {
         psirob->mark_send_on_all_networks();
     }
