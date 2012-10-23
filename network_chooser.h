@@ -100,9 +100,9 @@ class LabelMatcher : public NetworkChooser {
 };
 
 
-class AlwaysRedundant : public PreferredNetwork {
+class AlwaysRedundantChooser : public PreferredNetwork {
   public:
-    AlwaysRedundant();
+    AlwaysRedundantChooser();
   protected:
     virtual void setRedundancyStrategy();
 };

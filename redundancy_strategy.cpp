@@ -1,6 +1,6 @@
 #include "redundancy_strategy.h"
 #include "redundancy_strategy_trivial.h"
-#include "redundancy_strategy_instruments.h"
+#include "intnw_instruments_network_chooser.h"
 #include "libcmm.h"
 
 #include <assert.h>
@@ -42,7 +42,7 @@ RedundancyStrategy::create(int type)
     case ALWAYS_REDUNDANT:
         return new AlwaysRedundant;
     case INTNW_REDUNDANT:
-        return new RedundancyStrategyInstruments;
+        // shouldn't be here.  the Chooser calls the constructor itself.
     default:
         assert(0);
     }

@@ -1,5 +1,8 @@
+INSTRUMENTS_DIR := $(HOME)/src/instruments
+
 CXXFLAGS:=-Wall -Werror -I. -I.. -I../libancillary -m32 -g -DCMM_UNIT_TESTING -DCMM_DEBUG -pthread \
-	   $(shell pkg-config --cflags --libs glib-2.0)
+	   $(shell pkg-config --cflags --libs glib-2.0) \
+	   -I$(INSTRUMENTS_DIR)/src -I$(INSTRUMENTS_DIR)/include
 LDFLAGS:=-L. -L..  -lcppunit -ldl -pthread -lrt -lglib-2.0 -lboost_thread
 
 EXECUTABLES=run_unit_tests run_lib_tests run_remote_tests run_thunk_tests run_trickle_tests \

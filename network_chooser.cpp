@@ -20,7 +20,7 @@ NetworkChooser::create(int redundancy_strategy_type)
     case INTNW_REDUNDANT:
         return new IntNWInstrumentsNetworkChooser;
     case ALWAYS_REDUNDANT:
-        return new AlwaysRedundant;
+        return new AlwaysRedundantChooser;
     default:
         assert(0);
     }
@@ -193,13 +193,13 @@ LabelMatcher::choose_networks(u_long send_label, size_t num_bytes,
 }
 
 
-AlwaysRedundant::AlwaysRedundant()
+AlwaysRedundantChooser::AlwaysRedundantChooser()
     : PreferredNetwork(NET_TYPE_WIFI)
 {
 }
 
 void
-AlwaysRedundant::setRedundancyStrategy()
+AlwaysRedundantChooser::setRedundancyStrategy()
 {
     assert(redundancyStrategy == NULL);
     redundancyStrategy = RedundancyStrategy::create(ALWAYS_REDUNDANT);

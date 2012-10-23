@@ -297,3 +297,26 @@ IntNWInstrumentsNetworkChooser::reportNetStats(int network_type,
                   new_latency_seconds, new_latency_estimate);
     needs_reevaluation = true;
 }
+
+void
+IntNWInstrumentsNetworkChooser::setRedundancyStrategy()
+{
+    assert(redundancyStrategy == NULL);
+    redundancyStrategy = 
+        new IntNWInstrumentsNetworkChooser::RedundancyStrategy(this);
+}
+
+IntNWInstrumentsNetworkChooser::RedundancyStrategy::
+RedundancyStrategy(IntNWInstrumentsNetworkChooser *chooser_)
+    : chooser(chooser_)
+{
+}
+
+bool 
+IntNWInstrumentsNetworkChooser::RedundancyStrategy::
+shouldTransmitRedundantly(PendingSenderIROB *psirob)
+{
+    assert(chooser->has_match);
+    assert(chooser->chosen_strategy_type != -1);
+    return (chooser->chosen_strategy_type == NETWORK_CHOICE_BOTH);
+}

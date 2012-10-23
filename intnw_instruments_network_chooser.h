@@ -2,6 +2,7 @@
 #define _INTNW_INSTRUMENTS_NETWORK_CHOOSER_H_
 
 #include "network_chooser.h"
+#include "redundancy_strategy.h"
 #include "intnw_instruments_net_stats_wrapper.h"
 #include <instruments.h>
 
@@ -40,7 +41,19 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooser {
                                 double new_bw_estimate,
                                 double new_latency,
                                 double new_latency_estimate);
+    
+    class RedundancyStrategy : public ::RedundancyStrategy {
+      public:
+        RedundancyStrategy(IntNWInstrumentsNetworkChooser *chooser_);
+        virtual bool shouldTransmitRedundantly(PendingSenderIROB *psirob);
+        virtual int getType() { return INTNW_REDUNDANT; }
+      private:
+        IntNWInstrumentsNetworkChooser *chooser;
+    };
 
+  protected:
+    virtual void setRedundancyStrategy();
+    
   private:
     bool wifi_present;
     bool needs_reevaluation;
