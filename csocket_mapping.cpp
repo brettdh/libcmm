@@ -168,7 +168,8 @@ CSockMapping::setup(struct net_interface iface, bool local,
             matches[i]->remote_iface = iface;
         }
         matches[i]->stats.update(matches[i]->local_iface,
-                                 matches[i]->remote_iface);
+                                 matches[i]->remote_iface,
+                                 network_chooser, matches[i]->network_type());
     }
 
     CMMSocketImplPtr skp(sk);
@@ -562,6 +563,8 @@ CSockMapping::make_new_csocket(struct net_interface local_iface,
         /* cleanup if constructor throws */
         
         available_csocks.insert(csock);
+        
+        csock->stats.getStats(network_chooser, csock->network_type());
     }
 
     csock->startup_workers(); // sender thread calls phys_connect()

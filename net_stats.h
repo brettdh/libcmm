@@ -9,6 +9,7 @@
 #include "intset.h"
 #include <map>
 
+class NetworkChooser;
 
 class Estimate {
   public:
@@ -171,7 +172,11 @@ class NetStats {
 
     // Add an external spot observation (from the scout).
     void update(struct net_interface local_iface,
-                struct net_interface remote_iface);
+                struct net_interface remote_iface,
+                NetworkChooser *network_chooser,
+                int network_type);
+
+    void getStats(NetworkChooser *network_chooser, int network_type);
 
     NetStats(struct net_interface local_iface, 
              struct net_interface remote_iface);

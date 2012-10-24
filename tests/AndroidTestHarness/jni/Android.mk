@@ -63,6 +63,7 @@ LOCAL_SRC_FILES := \
      ./android_run_tests.cpp \
      $(addprefix ../../, end_to_end_tests_base.cpp \
 			end_to_end_tests_remote.cpp \
+			remote_tests.cpp \
 			test_common.cpp) \
 	$(addprefix ../../../, net_interface.cpp cmm_socket_control.cpp debug.cpp)
 #	$(addprefix ../../, spotty_network_failure_test.cpp)
@@ -102,7 +103,7 @@ LOCAL_CFLAGS := $(common_CFLAGS)
 LOCAL_LDLIBS := -llog
 LOCAL_STATIC_LIBRARIES := libcppunit
 LOCAL_SHARED_LIBRARIES := libcmm libinstruments libpowertutor libmocktime
-include $(BUILD_EXECUTABLE)
+#include $(BUILD_EXECUTABLE)
 
 # spotty network failure test runner
 

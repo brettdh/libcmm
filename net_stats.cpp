@@ -3,6 +3,8 @@
 #include "pthread_util.h"
 #include <netinet/in.h>
 
+#include "network_chooser.h"
+
 // tcp.h is temperamental.
 #include <netinet/tcp.h>
 //#include <linux/tcp.h>
@@ -76,8 +78,23 @@ NetStats::NetStats(struct net_interface local_iface,
 }
 
 void
+NetStats::getStats(NetworkChooser *network_chooser, int network_type)
+{
+    u_long bw_est, latency_est;
+    if (net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est) &&
+        net_estimates.estimates[NET_STATS_LATENCY].get_estimate(latency_est)) {
+        double latency_seconds = latency_est / 1000.0;
+        network_chooser->reportNetStats(network_type, 
+                                        bw_est, bw_est,
+                                        latency_seconds, latency_seconds);
+    }
+}
+
+void
 NetStats::update(struct net_interface local_iface,
-                 struct net_interface remote_iface)
+                 struct net_interface remote_iface,
+                 NetworkChooser *network_chooser,
+                 int network_type)
 {
     {
         PthreadScopedRWLock lock(&my_lock, true);
@@ -95,6 +112,15 @@ NetStats::update(struct net_interface local_iface,
                       spot_latency);
             net_estimates.estimates[NET_STATS_LATENCY].add_observation(spot_latency);
             //net_estimates.estimates[NET_STATS_LATENCY].reset(spot_latency);
+        }
+        if (spot_bandwidth > 0 && spot_latency > 0) {
+            u_long bw_est, latency_est;
+            if (net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est) &&
+                net_estimates.estimates[NET_STATS_LATENCY].get_estimate(latency_est)) {
+                network_chooser->reportNetStats(network_type, 
+                                                spot_bandwidth, bw_est,
+                                                spot_latency, latency_est);
+            }
         }
     }
     cache_save();

@@ -2,6 +2,7 @@
 #include "intnw_instruments_net_stats_wrapper.h"
 
 InstrumentsWrappedNetStats::InstrumentsWrappedNetStats()
+    : first_update(true) 
 {
     bw_up_estimator = create_external_estimator();
     rtt_estimator = create_external_estimator();
@@ -30,7 +31,17 @@ void InstrumentsWrappedNetStats::update(double bw_up, double bw_estimate,
         // ignore; not a real measurement
         return;
     }
-    
-    add_observation(bw_up_estimator, bw_up, bw_estimate);
-    add_observation(rtt_estimator, RTT_seconds, RTT_estimate);
+
+    do {
+        add_observation(bw_up_estimator, bw_up, bw_estimate);
+        add_observation(rtt_estimator, RTT_seconds, RTT_estimate);
+    } while (was_first_update());
+}
+
+bool
+InstrumentsWrappedNetStats::was_first_update()
+{
+    bool ret = first_update;
+    first_update = false;
+    return ret;
 }

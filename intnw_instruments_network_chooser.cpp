@@ -115,8 +115,8 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
 
     strategies[NETWORK_CHOICE_BOTH] = make_redundant_strategy(strategies, 2);
 
-    //EvalMethod method = EMPIRICAL_ERROR_ALL_SAMPLES_INTNW;
-    EvalMethod method = EMPIRICAL_ERROR_BINNED_INTNW;
+    EvalMethod method = EMPIRICAL_ERROR_ALL_SAMPLES_INTNW;
+    //EvalMethod method = EMPIRICAL_ERROR_BINNED_INTNW;
     //EvalMethod method = EMPIRICAL_ERROR_BINNED;
 
     evaluator = register_strategy_set_with_method(strategies, NUM_STRATEGIES, method);

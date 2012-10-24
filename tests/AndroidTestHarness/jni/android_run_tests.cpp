@@ -26,6 +26,9 @@ using CppUnit::TestFailure;
 bool g_receiver = false;
 char *g_hostname = (char*)"meatball.eecs.umich.edu";
 
+#include "libcmm.h"
+int g_network_strategy = INTNW_REDUNDANT; //INTNW_NEVER_REDUNDANT;
+
 #ifdef __cplusplus
 extern "C" {
 #endif    
@@ -143,6 +146,7 @@ Java_edu_umich_intnw_androidtestharness_AndroidTestHarness_runTests(
         runner.addTest(registry.makeTest());
         
         runner.run(result);
+        DEBUG_LOG("Finished running tests\n");
     } catch (int e) {
         DEBUG_LOG("Running tests failed!\n");
     } catch (exception &e) {

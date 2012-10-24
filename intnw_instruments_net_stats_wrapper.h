@@ -22,6 +22,11 @@ class InstrumentsWrappedNetStats {
   private:
     instruments_external_estimator_t bw_up_estimator;
     instruments_external_estimator_t rtt_estimator;
+
+    // used to do a "double-update" on the first real update,
+    //  so that I get an error value in the distribution.
+    bool first_update;
+    bool was_first_update();
 };
 
 #endif /* _INTNW_INSTRUMENTS_NET_STATS_WRAPPER_H_ */
