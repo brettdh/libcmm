@@ -27,7 +27,6 @@ RedundancyStrategy::get_type(const std::string& name)
             return i;
         }
     }
-    assert(0);
     return -1;
 }
 

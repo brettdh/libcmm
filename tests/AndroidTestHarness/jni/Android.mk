@@ -3,7 +3,25 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_MODULE := cmm
-LOCAL_SRC_FILES := ../../../libs/armeabi/libcmm.so
+LOCAL_SRC_FILES := ../../../obj/local/$(TARGET_ARCH_ABI)/libcmm.so
+include $(PREBUILT_SHARED_LIBRARY)
+
+include $(CLEAR_VARS)
+
+LOCAL_MODULE := instruments
+LOCAL_SRC_FILES := ../../../obj/local/$(TARGET_ARCH_ABI)/libinstruments.so
+include $(PREBUILT_SHARED_LIBRARY)
+
+include $(CLEAR_VARS)
+
+LOCAL_MODULE := powertutor
+LOCAL_SRC_FILES := ../../../obj/local/$(TARGET_ARCH_ABI)/libpowertutor.so
+include $(PREBUILT_SHARED_LIBRARY)
+
+include $(CLEAR_VARS)
+
+LOCAL_MODULE := mocktime
+LOCAL_SRC_FILES := ../../../obj/local/$(TARGET_ARCH_ABI)/libmocktime.so
 include $(PREBUILT_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
@@ -54,7 +72,7 @@ LOCAL_C_INCLUDES := $(common_C_INCLUDES)
 LOCAL_CFLAGS := $(common_CFLAGS)
 LOCAL_LDLIBS := -llog
 LOCAL_STATIC_LIBRARIES := libcppunit
-LOCAL_SHARED_LIBRARIES := libcmm libssl libcrypto
+LOCAL_SHARED_LIBRARIES := libcmm libssl libcrypto libinstruments libpowertutor libmocktime
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -83,7 +101,7 @@ LOCAL_C_INCLUDES := $(common_C_INCLUDES)
 LOCAL_CFLAGS := $(common_CFLAGS)
 LOCAL_LDLIBS := -llog
 LOCAL_STATIC_LIBRARIES := libcppunit
-LOCAL_SHARED_LIBRARIES := libcmm
+LOCAL_SHARED_LIBRARIES := libcmm libinstruments libpowertutor libmocktime
 include $(BUILD_EXECUTABLE)
 
 # spotty network failure test runner

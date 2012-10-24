@@ -10,8 +10,12 @@ using std::exception;
 
 using CppUnit::TestFactoryRegistry;
 
+#include "test_common.h"
+#include "libcmm.h"
+
 bool g_receiver = false;
 char *g_hostname = (char*)"localhost";
+int g_network_strategy = INTNW_NEVER_REDUNDANT;
 
 static void run_all_tests()
 {
@@ -25,13 +29,20 @@ static void run_all_tests()
 int main(int argc, char *argv[])
 {
     int ch;
-    while ((ch = getopt(argc, argv, "lh:")) != -1) {
+    while ((ch = getopt(argc, argv, "lh:s:")) != -1) {
         switch (ch) {
         case 'l':
             g_receiver = true;
             break;
         case 'h':
             g_hostname = optarg;
+            break;
+        case 's':
+            g_network_strategy = get_redundancy_strategy_type(optarg);
+            if (g_network_strategy == -1) {
+                DEBUG_LOG("Unrecognized network strategy: %s\n", optarg);
+                exit(1);
+            }
             break;
         case '?':
             exit(EXIT_FAILURE);
@@ -44,6 +55,7 @@ int main(int argc, char *argv[])
         run_all_tests();
     } catch (exception& e) {
         cout << e.what() << endl;
+        return 1;
     }
     return 0;
 }
