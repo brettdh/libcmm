@@ -1,6 +1,6 @@
 INSTRUMENTS_DIR := $(HOME)/src/instruments
 
-CXXFLAGS:=-Wall -Werror -I. -I.. -I../libancillary -m32 -g -DCMM_UNIT_TESTING -DCMM_DEBUG -pthread \
+CXXFLAGS:=-Wall -Werror -I. -I.. -I../libancillary -m32 -g -DCMM_DEBUG -pthread \
 	   $(shell pkg-config --cflags --libs glib-2.0) \
 	   -I$(INSTRUMENTS_DIR)/src -I$(INSTRUMENTS_DIR)/include
 LDFLAGS:=-L. -L..  -lcppunit -ldl -pthread -lrt -lglib-2.0 -lboost_thread
@@ -18,24 +18,30 @@ test: run_unit_tests run_lib_tests
 	./run_unit_tests; ./run_lib_tests
 
 %.o: %.cpp %.h
-	g++ $(CXXFLAGS) -c -o $@ $<
+	g++ $(CXXFLAGS) -DCMM_UNIT_TESTING -c -o $@ $<
 
 %.o: ../%.cpp ../%.h
-	g++ $(CXXFLAGS) -c -o $@ $<
+	g++ $(CXXFLAGS) -DCMM_UNIT_TESTING -c -o $@ $<
 
 %.o: %.cpp
-	g++ $(CXXFLAGS) -c -o $@ $<
+	g++ $(CXXFLAGS) -DCMM_UNIT_TESTING -c -o $@ $<
 
 %.o: ../%.cpp
-	g++ $(CXXFLAGS) -c -o $@ $<
+	g++ $(CXXFLAGS) -DCMM_UNIT_TESTING -c -o $@ $<
 
 pending_irob.o: ../pending_irob.cpp ../pending_irob.h
-	g++ $(CXXFLAGS) -c -o $@ $<
+	g++ $(CXXFLAGS) -DCMM_UNIT_TESTING -c -o $@ $<
 
 pending_receiver_irob.o: ../pending_receiver_irob.cpp ../pending_receiver_irob.h
-	g++ $(CXXFLAGS) -c -o $@ $<
+	g++ $(CXXFLAGS) -DCMM_UNIT_TESTING -c -o $@ $<
 
 timeops.o: ../timeops.cpp ../timeops.h
+	g++ $(CXXFLAGS) -DCMM_UNIT_TESTING -c -o $@ $<
+
+run_all_tests_unit.o: run_all_tests.cpp
+	g++ $(CXXFLAGS) -DCMM_UNIT_TESTING -c -o $@ $<
+
+run_all_tests.o: run_all_tests.cpp
 	g++ $(CXXFLAGS) -c -o $@ $<
 
 
@@ -56,8 +62,8 @@ SUPPORTOBJS := pending_irob.o intset.o debug.o pending_receiver_irob.o \
 #shmem_test.o shmem_test_common.o libcmm_shmem.o ../libancillary/libancillary.a 
 
 run_unit_tests:: shmem_test_helper
-run_unit_tests:: run_all_tests.o StdioOutputter.o $(TESTOBJS) $(SUPPORTOBJS)
-	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
+run_unit_tests:: run_all_tests_unit.o StdioOutputter.o $(TESTOBJS) $(SUPPORTOBJS)
+	g++ -o $@ $^ $(CXXFLAGS) -DCMM_UNIT_TESTING $(LDFLAGS)
 
 LIBTESTOBJS:=end_to_end_tests_base.o end_to_end_tests_forked.o forked_tests.o
 

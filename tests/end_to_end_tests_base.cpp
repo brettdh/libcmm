@@ -127,6 +127,8 @@ EndToEndTestsBase::setRemoteHost(const char *hostname_)
     hostname = strdup(hostname_);
 }
 
+extern int g_network_strategy;
+
 void
 EndToEndTestsBase::startSender()
 {
@@ -134,6 +136,11 @@ EndToEndTestsBase::startSender()
     handle_error(data_sock < 0, "cmm_socket");
 
     socketSetup();
+
+    int rc = cmm_setsockopt(data_sock, SOL_SOCKET,
+                            SO_CMM_REDUNDANCY_STRATEGY,
+                            &g_network_strategy, sizeof(g_network_strategy));
+    handle_error(rc < 0, "cmm_setsockopt");
 
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
@@ -160,7 +167,7 @@ EndToEndTestsBase::startSender()
     socklen_t addrlen = sizeof(addr);
 
     DEBUG_LOG("Sender is connecting...\n");
-    int rc = cmm_connect(data_sock, (struct sockaddr*)&addr, addrlen);
+    rc = cmm_connect(data_sock, (struct sockaddr*)&addr, addrlen);
     handle_error(rc < 0, "cmm_connect");
 
     DEBUG_LOG("Sender is connected.\n");

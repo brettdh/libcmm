@@ -15,7 +15,9 @@ using CppUnit::TestFactoryRegistry;
 
 bool g_receiver = false;
 char *g_hostname = (char*)"localhost";
+#ifndef CMM_UNIT_TESTING
 int g_network_strategy = INTNW_NEVER_REDUNDANT;
+#endif
 
 static void run_all_tests()
 {
@@ -38,11 +40,13 @@ int main(int argc, char *argv[])
             g_hostname = optarg;
             break;
         case 's':
+#ifndef CMM_UNIT_TESTING
             g_network_strategy = get_redundancy_strategy_type(optarg);
             if (g_network_strategy == -1) {
                 DEBUG_LOG("Unrecognized network strategy: %s\n", optarg);
                 exit(1);
             }
+#endif
             break;
         case '?':
             exit(EXIT_FAILURE);
