@@ -11,3 +11,7 @@ multi_app_test_helper
 intnw_header_size
 socket_api_tests_remote
 
+fake_intnw_test
+proxy_socket_test
+run_socket_api_tests
+run_spotty_network_failure_test
