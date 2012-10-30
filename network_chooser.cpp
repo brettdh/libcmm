@@ -16,14 +16,19 @@ NetworkChooser::create(int redundancy_strategy_type)
     switch (redundancy_strategy_type) {
     case CELLULAR_ONLY:
         impl = new PreferredNetwork(NET_TYPE_THREEG);
+        break;
     case WIFI_PREFERRED:
         impl = new PreferredNetwork(NET_TYPE_WIFI);
+        break;
     case INTNW_NEVER_REDUNDANT:
         impl = new LabelMatcher;
+        break;
     case INTNW_REDUNDANT:
         impl = new IntNWInstrumentsNetworkChooser;
+        break;
     case ALWAYS_REDUNDANT:
         impl = new AlwaysRedundantChooser;
+        break;
     default:
         assert(0);
     }
