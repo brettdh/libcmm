@@ -1,6 +1,7 @@
 #include "intnw_instruments_network_chooser.h"
 #include "intnw_instruments_net_stats_wrapper.h"
 #include "libcmm_net_restriction.h"
+#include "debug.h"
 #include <assert.h>
 #include "libpowertutor.h"
 
@@ -95,6 +96,8 @@ IntNWInstrumentsNetworkChooser::calculateTransferMobileData(InstrumentsWrappedNe
 IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
     : wifi_present(false), needs_reevaluation(true), chosen_strategy_type(-1)
 {
+    dbgprintf("creating InstrumentsNetworkChooser %p\n", this);
+
     wifi_stats = new InstrumentsWrappedNetStats;
     cellular_stats = new InstrumentsWrappedNetStats;
 
@@ -104,6 +107,10 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
     }
     strategy_args[NETWORK_CHOICE_WIFI]->net_stats = &wifi_stats;
     strategy_args[NETWORK_CHOICE_CELLULAR]->net_stats = &cellular_stats;
+
+    // BUG: for some reason, the net_stats pointer-pointer that gets set here
+    // BUG:  is getting clobbered at some point.  wifi_stats and cellular_stats
+    // BUG:  themselves are fine; it's the strategy_args content that gets clobbered.
     
     for (int i = NETWORK_CHOICE_WIFI; i <= NETWORK_CHOICE_CELLULAR; ++i) {
         strategies[i] = 
@@ -124,6 +131,8 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
 
 IntNWInstrumentsNetworkChooser::~IntNWInstrumentsNetworkChooser()
 {
+    dbgprintf("destroying InstrumentsNetworkChooser %p\n", this);
+    
     delete wifi_stats;
     delete cellular_stats;
 
@@ -201,7 +210,7 @@ IntNWInstrumentsNetworkChooser::consider(struct net_interface local_iface,
 void
 IntNWInstrumentsNetworkChooser::reset()
 {
-    NetworkChooser::reset();
+    NetworkChooserImpl::reset();
     wifi_present = false;
     needs_reevaluation = true;
     chosen_strategy_type = -1;

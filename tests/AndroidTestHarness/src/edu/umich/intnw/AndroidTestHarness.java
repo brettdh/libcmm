@@ -43,6 +43,8 @@ public class AndroidTestHarness extends Activity
         mBtnStartTests.setOnClickListener(mStartTestsListener);
         
         mTxtHostname = (EditText) findViewById(R.id.hostname);
+
+        runTests();
     }
     
     static {
@@ -63,7 +65,7 @@ public class AndroidTestHarness extends Activity
                                            "Started running tests.", 
                                            Toast.LENGTH_SHORT).show();                        }
                     });
-                    runTests(mTxtHostname.getText().toString());
+                    runTests();
 
                     mBtnStartTests.post(new Runnable() {
                         public void run() {
@@ -78,6 +80,10 @@ public class AndroidTestHarness extends Activity
             }).start();
         }
     };
+
+    private void runTests() {
+        runTests(mTxtHostname.getText().toString());
+    }
     
     public native void runTests(String hostname);
     

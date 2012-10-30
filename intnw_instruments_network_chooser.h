@@ -1,7 +1,7 @@
 #ifndef _INTNW_INSTRUMENTS_NETWORK_CHOOSER_H_
 #define _INTNW_INSTRUMENTS_NETWORK_CHOOSER_H_
 
-#include "network_chooser.h"
+#include "network_chooser_impl.h"
 #include "redundancy_strategy.h"
 #include "intnw_instruments_net_stats_wrapper.h"
 #include <instruments.h>
@@ -16,7 +16,7 @@
 struct strategy_args;
 class InstrumentsWrappedNetStats;
 
-class IntNWInstrumentsNetworkChooser : public NetworkChooser {
+class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
   public:
     IntNWInstrumentsNetworkChooser();
     ~IntNWInstrumentsNetworkChooser();

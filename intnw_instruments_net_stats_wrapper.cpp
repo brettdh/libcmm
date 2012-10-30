@@ -1,15 +1,20 @@
 #include "intnw_net_stats_wrapper.h"
 #include "intnw_instruments_net_stats_wrapper.h"
+#include "debug.h"
 
 InstrumentsWrappedNetStats::InstrumentsWrappedNetStats()
     : first_update(true) 
 {
+    dbgprintf("creating InstrumentsWrappedNetStats %p\n", this);
+    
     bw_up_estimator = create_external_estimator();
     rtt_estimator = create_external_estimator();
 }
 
 InstrumentsWrappedNetStats::~InstrumentsWrappedNetStats()
 {
+    dbgprintf("destroying InstrumentsWrappedNetStats %p\n", this);
+
     free_external_estimator(bw_up_estimator);
     free_external_estimator(rtt_estimator);
 }

@@ -346,7 +346,6 @@ CSocketPtr
 CSockMapping::connected_csock_with_labels(u_long send_label, 
                                           size_t num_bytes, bool locked)
 {
-    network_chooser->reset();
     pair<struct net_interface, struct net_interface> iface_pair;
 
     CMMSocketImplPtr skp(sk);
@@ -367,11 +366,14 @@ CSockMapping::connected_csock_with_labels(u_long send_label,
         return CSocketPtr();
     }
 
+    GuardedNetworkChooser guarded_chooser = network_chooser->getGuardedChooser();
+    guarded_chooser->reset();
+
     for (CSockSet::iterator it = available_csocks.begin();
          it != available_csocks.end(); it++) {
         CSocketPtr csock = *it;
         if (csock->is_connected()) {
-            network_chooser->consider(csock);
+            guarded_chooser->consider(csock);
             
             // keep track of the local/remote iface pair so I don't have to 
             //  iterate twice
@@ -383,7 +385,7 @@ CSockMapping::connected_csock_with_labels(u_long send_label,
         // no connected csocks
         return CSocketPtr();
     } else {
-        if (network_chooser->choose_networks(send_label, num_bytes, 
+        if (guarded_chooser->choose_networks(send_label, num_bytes, 
                                              iface_pair.first, iface_pair.second)) {
             return lookup[iface_pair];
         } else {
@@ -497,8 +499,9 @@ CSockMapping::get_iface_pair_locked_internal(u_long send_label,
         remote_iface = *skp->remote_ifaces.begin();
         return true;
     }
-    
-    network_chooser->reset();
+
+    GuardedNetworkChooser guarded_chooser = network_chooser->getGuardedChooser();
+    guarded_chooser->reset();
     vector<CSocketPtr> csocks; // only one per iface pair
     for (NetInterfaceSet::iterator i = skp->local_ifaces.begin();
          i != skp->local_ifaces.end(); ++i) {
@@ -510,7 +513,7 @@ CSockMapping::get_iface_pair_locked_internal(u_long send_label,
                 existing_csock = csocks[0];
             }
             if (!existing_csock || count() == 1) {
-                network_chooser->consider(*i, *j);
+                guarded_chooser->consider(*i, *j);
             } else {
                 char local_ip[16], remote_ip[16];
                 get_ip_string(i->ip_addr, local_ip);
@@ -521,7 +524,7 @@ CSockMapping::get_iface_pair_locked_internal(u_long send_label,
         }
     }
 
-    return network_chooser->choose_networks(send_label, num_bytes,
+    return guarded_chooser->choose_networks(send_label, num_bytes,
                                             local_iface, remote_iface);
 }
 
