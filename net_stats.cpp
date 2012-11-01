@@ -117,9 +117,11 @@ NetStats::update(struct net_interface local_iface,
             u_long bw_est, latency_est;
             if (net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est) &&
                 net_estimates.estimates[NET_STATS_LATENCY].get_estimate(latency_est)) {
+                double spot_latency_seconds = spot_latency / 1000.0;
+                double latency_est_seconds = latency_est / 1000.0;
                 network_chooser->reportNetStats(network_type, 
                                                 spot_bandwidth, bw_est,
-                                                spot_latency, latency_est);
+                                                spot_latency_seconds, latency_est_seconds);
             }
         }
     }
