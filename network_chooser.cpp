@@ -9,6 +9,8 @@
 #include "intnw_instruments_network_chooser.h"
 #include "libcmm_net_restriction.h"
 
+#include "pending_sender_irob.h"
+
 NetworkChooser* 
 NetworkChooser::create(int redundancy_strategy_type)
 {
@@ -92,8 +94,16 @@ NetworkChooserGuard::choose_networks(u_long send_label, size_t num_bytes,
                                      struct net_interface& local_iface,
                                      struct net_interface& remote_iface)
 {
-    return chooser->impl->choose_networks(send_label, num_bytes,
-                                          local_iface, remote_iface);
+    bool result = chooser->impl->choose_networks(send_label, num_bytes,
+                                                 local_iface, remote_iface);
+
+    char local_ip[16], remote_ip[16];
+    get_ip_string(local_iface.ip_addr, local_ip);
+    get_ip_string(remote_iface.ip_addr, remote_ip);
+
+    dbgprintf("Decided to send %d bytes over connection %s -> %s\n",
+              num_bytes, local_ip, remote_ip);
+    return result;
 }
     
 void 
@@ -108,9 +118,13 @@ NetworkChooser::reportNetStats(int network_type,
                          new_latency_seconds, new_latency_estimate);
 }
 
-RedundancyStrategy *
-NetworkChooser::getRedundancyStrategy()
+bool
+NetworkChooser::shouldTransmitRedundantly(PendingSenderIROB *psirob)
 {
     PthreadScopedLock guard(&lock);
-    return impl->getRedundancyStrategy();
+    bool redundant = impl->shouldTransmitRedundantly(psirob);
+    if (redundant) {
+        dbgprintf("Decided to send IROB %ld redundantly\n", psirob->get_id());
+    }
+    return redundant;
 }

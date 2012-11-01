@@ -31,7 +31,7 @@ class NetworkChooserImpl {
                                 double new_latency_seconds,
                                 double new_latency_estimate) {}
 
-    RedundancyStrategy *getRedundancyStrategy();
+    bool shouldTransmitRedundantly(PendingSenderIROB *psirob);
   protected:
     NetworkChooserImpl();
 

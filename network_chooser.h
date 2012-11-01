@@ -8,6 +8,7 @@
 #include "libcmm.h"
 #include "csocket.h"
 
+class PendingSenderIROB;
 class RedundancyStrategy;
 class NetworkChooserImpl;
 
@@ -59,7 +60,7 @@ class NetworkChooser {
                         double new_latency_seconds,
                         double new_latency_estimate);
 
-    RedundancyStrategy *getRedundancyStrategy();
+    bool shouldTransmitRedundantly(PendingSenderIROB *psirob);
 
     ~NetworkChooser();
   private:

@@ -21,11 +21,11 @@ NetworkChooserImpl::setRedundancyStrategy()
     redundancyStrategy = RedundancyStrategy::create(INTNW_NEVER_REDUNDANT);
 }
 
-RedundancyStrategy *
-NetworkChooserImpl::getRedundancyStrategy()
+bool
+NetworkChooserImpl::shouldTransmitRedundantly(PendingSenderIROB *psirob)
 {
     assert(redundancyStrategy != NULL);
-    return redundancyStrategy;
+    return redundancyStrategy->shouldTransmitRedundantly(psirob);
 }
 
 void

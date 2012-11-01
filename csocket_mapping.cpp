@@ -677,9 +677,7 @@ CSockMapping::check_redundancy(PendingSenderIROB *psirob)
         return;
     }
 
-    RedundancyStrategy *redundancy_strategy = 
-        network_chooser->getRedundancyStrategy();
-    if (redundancy_strategy->shouldTransmitRedundantly(psirob)) {
+    if (network_chooser->shouldTransmitRedundantly(psirob)) {
         psirob->mark_send_on_all_networks();
     }
 }
