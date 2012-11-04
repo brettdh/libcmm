@@ -200,8 +200,8 @@ class IntNWBehaviorPlot(QDialog):
             #                          bw_down 244696 bw_up 107664 RTT 391
             #                          type wifi(peername 141.212.110.115)
             pass # No accepting-side log analysis yet.
-        elif re.search(self.__receiver_exit_regex, line) != None:
-            # [time][pid][CSockReceiver 56] Exiting.
+        elif re.search(self.__csocket_destroyed_regex, line) != None:
+            # [time][pid][CSockSender 57] CSocket 57 is being destroyed
             self.__removeConnection(line)
         elif "Getting bytes to send from IROB" in line:
             # [time][pid][CSockSender 57] Getting bytes to send from IROB 6
@@ -240,7 +240,7 @@ class IntNWBehaviorPlot(QDialog):
         self.__timestamp_regex = re.compile("^\[([0-9]+\.[0-9]+)\]")
         self.__intnw_message_type_regex = \
             re.compile("(?:About to send|Received) message:  Type: ([A-Za-z_]+)")
-        self.__receiver_exit_regex = re.compile("\[CSockReceiver ([0-9]+)\] Exiting.")
+        self.__csocket_destroyed_regex = re.compile("CSocket .+ is being destroyed")
 
     def __getIROBId(self, line):
         return int(re.search(self.__irob_regex, line).group(1))
@@ -369,6 +369,7 @@ class IntNWBehaviorPlot(QDialog):
         irob = self.__getIROB(network_type, irob_id, direction, start)
         if irob == None:
             raise LogParsingError("Unknown IROB %d" % irob_id)
+        return irob
     
     def __addIROB(self, timestamp, network_type, irob_id, direction):
         # TODO: deal with the case where the IROB announcement arrives after the data
@@ -443,7 +444,7 @@ class IntNWPlotter(object):
                 raise e, None, trace
             except Exception as e:
                 trace = sys.exc_info()[2]
-                e = LogParsingError(str(e))
+                e = LogParsingError(repr(e) + ": " + str(e))
                 e.setLine(linenum + 1, line)
                 raise e, None, trace
 

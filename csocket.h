@@ -34,6 +34,7 @@ class CSocket {
   public:
     int osfd;
     int oserr; // if non-zero, there was an error.
+    bool connection_failed;
     boost::shared_ptr<CMMSocketImpl> sk;
     //CMMSocketSender *sendr;
     //CMMSocketReceiver *recvr;

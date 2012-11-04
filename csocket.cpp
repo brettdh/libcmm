@@ -263,7 +263,7 @@ CSocket::phys_connect()
         dbgprintf("Received confirmation; csocket %d is now connected\n", osfd);
     } catch (int rc) {
         PthreadScopedLock lock(&csock_lock);
-        osfd = -1;
+        connection_failed = true;
         pthread_cond_broadcast(&csock_cv);
         return rc;
     }
@@ -293,7 +293,7 @@ CSocket::send_confirmation()
 
         PthreadScopedLock lock(&csock_lock);
         close(osfd);
-        osfd = -1;
+        connection_failed = true;
         pthread_cond_broadcast(&csock_cv);
         return -1;
     }
@@ -315,11 +315,11 @@ int
 CSocket::wait_until_connected()
 {
     PthreadScopedLock lock(&csock_lock);
-    while (!connected && osfd != -1) {
+    while (!connected && !connection_failed) {
         pthread_cond_wait(&csock_cv, &csock_lock);
     }
 
-    if (osfd == -1) {
+    if (connection_failed) {
         return -1;
     }
     return 0;

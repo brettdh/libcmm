@@ -628,19 +628,18 @@ CMMSocketImpl::mc_connect(const struct sockaddr *serv_addr,
 int 
 CMMSocketImpl::set_all_sockopts(int osfd)
 {
-    if (osfd != -1) {
-        for (SockOptHash::const_iterator i = sockopts.begin(); i != sockopts.end(); i++) {
-            int level = i->first;
-            const SockOptNames &optnames = i->second;
-            for (SockOptNames::const_iterator j = optnames.begin();
-                 j != optnames.end(); j++) {
-                int optname = j->first;
-                const struct sockopt &opt = j->second;
-                int rc = setsockopt(osfd, level, optname, 
-                                    opt.optval, opt.optlen);
-                if (rc < 0) {
-                    return rc;
-                }
+    assert(osfd != -1);
+    for (SockOptHash::const_iterator i = sockopts.begin(); i != sockopts.end(); i++) {
+        int level = i->first;
+        const SockOptNames &optnames = i->second;
+        for (SockOptNames::const_iterator j = optnames.begin();
+             j != optnames.end(); j++) {
+            int optname = j->first;
+            const struct sockopt &opt = j->second;
+            int rc = setsockopt(osfd, level, optname, 
+                                opt.optval, opt.optlen);
+            if (rc < 0) {
+                return rc;
             }
         }
     }
