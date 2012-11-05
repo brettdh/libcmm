@@ -109,8 +109,8 @@ class IROB(object):
         ypos = self.__plot.getIROBPosition(self)
         yheight = self.__plot.getIROBHeight(self)
         start, finish = [self.__plot.getAdjustedTime(ts) for ts in self.getDuration()]
-        axes.broken_barh([[start, finish]],
-                         [ypos - yheight / 2.0, ypos + yheight / 2.0])
+        axes.broken_barh([[start, finish-start]],
+                         [ypos - yheight / 2.0, yheight])
 
 class IntNWBehaviorPlot(QDialog):
     def __init__(self, parent=None):
@@ -121,6 +121,11 @@ class IntNWBehaviorPlot(QDialog):
         self.__network_periods = {}
         self.__network_type_by_ip = {}
         self.__network_type_by_sock = {}
+
+        self.__network_pos_offsets = {'wifi': 1.0, '3G': -1.0}
+        self.__direction_pos_offsets = {'down': 0.5, 'up': -0.5}
+
+        self.__irob_colors = {'wifi': 'blue', '3G': 'red'}
 
         self.__start = None
 
@@ -159,6 +164,16 @@ class IntNWBehaviorPlot(QDialog):
     def on_draw(self):
         self.__axes.clear()
 
+        yticks = []
+        yticklabels = []
+        for network, pos in self.__network_pos_offsets.items():
+            for direction, offset in self.__direction_pos_offsets.items():
+                label = "%s %s" % (network, direction)
+                yticks.append(pos + offset)
+                yticklabels.append(label)
+        self.__axes.set_yticks(yticks)
+        self.__axes.set_yticklabels(yticklabels)
+
         for network_type in self.__networks:
             network = self.__networks[network_type]
             for direction in network:
@@ -172,14 +187,15 @@ class IntNWBehaviorPlot(QDialog):
     def getIROBPosition(self, irob):
         # TODO: allow for simultaneous (stacked) IROB plotting.
         
-        network_pos_offsets = {'wifi': 1.0, '3G': -1.0}
-        direction_pos_offsets = {'down': 0.5, 'up': -0.5}
-        return (network_pos_offsets[irob.network_type] +
-                direction_pos_offsets[irob.direction])
+        return (self.__network_pos_offsets[irob.network_type] +
+                self.__direction_pos_offsets[irob.direction])
         
     def getIROBHeight(self, irob):
         # TODO: adjust based on the number of stacked IROBs.
         return 0.25
+
+    def getIROBColor(self, irob):
+        return self.__irob_colors[irob.network_type]
 
     def getAdjustedTime(self, timestamp):
         return timestamp - self.__start
