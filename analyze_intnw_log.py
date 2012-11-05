@@ -83,7 +83,8 @@ class IROB(object):
     def complete(self):
         return (self.__acked and
                 (self.__datalen != None and
-                 self.__datalen == self.__expected_bytes))
+                 (self.direction == "up" or
+                  self.__datalen == self.__expected_bytes)))
     
     def __checkIfComplete(self, timestamp):
         if self.complete():
@@ -296,12 +297,16 @@ class IntNWBehaviorPlot(QDialog):
         self.__network_type_by_sock[sock] = network_type
         
     def __removeConnection(self, line):
+        timestamp = self.__getTimestamp(line)
         sock = self.__getSocket(line)
-        network_type = self.__network_type_by_sock[sock]
-        network_period = self.__network_periods[network_type][-1]
+        if sock in self.__network_type_by_sock:
+            network_type = self.__network_type_by_sock[sock]
+            network_period = self.__network_periods[network_type][-1]
+            
+            network_period['sock'] = None
+            del self.__network_type_by_sock[sock]
 
-        network_period['sock'] = None
-        del self.__network_type_by_sock[sock]
+            self.__markDroppedIROBs(timestamp, network_type)
 
     def __getTimestamp(self, line):
         return float(re.search(self.__timestamp_regex, line).group(1))
