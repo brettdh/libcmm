@@ -141,7 +141,7 @@ class IROB(object):
                       [ypos], marker='x', color='black', markeredgewidth=2.0)
 
 class IntNWBehaviorPlot(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, measurements_only, parent=None):
         QDialog.__init__(self, parent)
 
         self.__initRegexps()
@@ -149,6 +149,8 @@ class IntNWBehaviorPlot(QDialog):
         self.__network_periods = {}
         self.__network_type_by_ip = {}
         self.__network_type_by_sock = {}
+
+        self.__measurements_only = measurements_only
 
         self.__irob_height = 0.25
         self.__network_pos_offsets = {'wifi': 1.0, '3G': -1.0}
@@ -194,12 +196,18 @@ class IntNWBehaviorPlot(QDialog):
     def on_draw(self):
         self.__axes.clear()
 
-        self.__setupAxes()
-        self.__drawWifi()
-        self.__drawIROBs(False)
-        self.__drawIROBs(True)
+        if self.__measurements_only:
+            self.__plotMeasurements()
+        else:
+            self.__setupAxes()
+            self.__drawWifi()
+            self.__drawIROBs(False)
+            self.__drawIROBs(True)
         
         self.__canvas.draw()
+
+    def __plotMeasurements(self):
+        raise NotImplementedError()
 
     def __setupAxes(self):
         yticks = []
@@ -298,6 +306,9 @@ class IntNWBehaviorPlot(QDialog):
             # [time][pid][CSockReceiver 57] Received message:  Type: Begin_IROB(1)
             #                               Send labels: FG,SMALL IROB: 0 numdeps: 0
             self.__addTransfer(line, 'down')
+        elif "bandwidth: obs" in line:
+            # TODO
+            pass
         else:
             pass # ignore it
 
@@ -485,11 +496,12 @@ class IntNWBehaviorPlot(QDialog):
 
     
 class IntNWPlotter(object):
-    def __init__(self, filename):
+    def __init__(self, filename, measurements_only):
         self.__windows = []
         self.__currentPid = None
         self.__pid_regex = re.compile("^\[[0-9]+\.[0-9]+\]\[([0-9]+)\]")
-        
+
+        self.__measurements_only = measurements_only
         self.__readFile(filename)
         self.draw()
 
@@ -514,7 +526,7 @@ class IntNWPlotter(object):
                     continue
                     
                 if pid != self.__currentPid:
-                    self.__windows.append(IntNWBehaviorPlot())
+                    self.__windows.append(IntNWBehaviorPlot(self.__measurements_only))
                     self.__currentPid = pid
                     
                 self.__windows[-1].parseLine(line)
@@ -535,11 +547,12 @@ class IntNWPlotter(object):
 def main():
     parser = ArgumentParser()
     parser.add_argument("filename")
+    parser.add_argument("--measurements", action="store_true", default=False)
     args = parser.parse_args()
 
     app = QApplication(sys.argv)
     
-    plotter = IntNWPlotter(args.filename)
+    plotter = IntNWPlotter(args.filename, args.measurements)
     plotter.show()
     app.exec_()
 
