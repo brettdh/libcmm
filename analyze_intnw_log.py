@@ -151,6 +151,7 @@ class IntNWBehaviorPlot(QDialog):
         self.__network_type_by_sock = {}
 
         self.__measurements_only = measurements_only
+        self.__estimates = {} # estimates[network_type][bandwidth|latency] -> [values]
 
         self.__irob_height = 0.25
         self.__network_pos_offsets = {'wifi': 1.0, '3G': -1.0}
@@ -197,6 +198,7 @@ class IntNWBehaviorPlot(QDialog):
         self.__axes.clear()
 
         if self.__measurements_only:
+            self.__plotTrace()
             self.__plotMeasurements()
         else:
             self.__setupAxes()
@@ -205,6 +207,9 @@ class IntNWBehaviorPlot(QDialog):
             self.__drawIROBs(True)
         
         self.__canvas.draw()
+
+    def __plotTrace(self):
+        raise NotImplementedError()
 
     def __plotMeasurements(self):
         raise NotImplementedError()
@@ -306,9 +311,22 @@ class IntNWBehaviorPlot(QDialog):
             # [time][pid][CSockReceiver 57] Received message:  Type: Begin_IROB(1)
             #                               Send labels: FG,SMALL IROB: 0 numdeps: 0
             self.__addTransfer(line, 'down')
-        elif "bandwidth: obs" in line:
-            # TODO
-            pass
+        elif "network estimator" in line:
+            network_type = re.search(self.__network_estimator_regex, line).group(1)
+            self.__currentNetworkEstimator = network_type
+            if network_type not in self.__estimates:
+                self.__estimates[network_type] = {}
+        elif "bandwidth: obs" in line or "latency: obs" in line:
+            bw_match = re.search(self.__network_bandwidth_regex, line)
+            lat_match = re.search(self.__network_latency_regex, line)
+            for match, name in zip((bw_match, lat_match), ("bandwidth", "latency")):
+                if match:
+                    obs, est = match.groups()
+                    all_estimates = self.__estimates[self.__currentNetworkEstimator]
+                    if name not in all_estimates:
+                        all_estimates[name] = []
+                    estimates = all_estimates[name]
+                    estimates.append((obs, est))
         else:
             pass # ignore it
 
@@ -323,7 +341,13 @@ class IntNWBehaviorPlot(QDialog):
         self.__intnw_message_type_regex = \
             re.compile("(?:About to send|Received) message:  Type: ([A-Za-z_]+)")
         self.__csocket_destroyed_regex = re.compile("CSocket .+ is being destroyed")
-
+        self.__network_estimator_regex = \
+            re.compile("Adding new stats to (.+) network estimator")
+        self.__network_bandwidth_regex = \
+            re.compile("bandwidth: obs (.+) est (.+)")
+        self.__network_latency_regex = \
+            re.compile("latency: obs (.+) est (.+)")
+        
     def __getIROBId(self, line):
         return int(re.search(self.__irob_regex, line).group(1))
 
