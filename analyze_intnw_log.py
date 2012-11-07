@@ -35,7 +35,8 @@ from matplotlib.figure import Figure
 
 from progressbar import ProgressBar
 
-debug = True
+debug = False
+#debug = True
 def dprint(msg):
     if debug:
         print msg
@@ -141,7 +142,7 @@ class IROB(object):
                       [ypos], marker='x', color='black', markeredgewidth=2.0)
 
 class IntNWBehaviorPlot(QDialog):
-    def __init__(self, measurements_only, parent=None):
+    def __init__(self, measurements_only, network_trace_file, parent=None):
         QDialog.__init__(self, parent)
 
         self.__initRegexps()
@@ -151,6 +152,7 @@ class IntNWBehaviorPlot(QDialog):
         self.__network_type_by_sock = {}
 
         self.__measurements_only = measurements_only
+        self.__network_trace_file = network_trace_file
         self.__estimates = {} # estimates[network_type][bandwidth|latency] -> [values]
 
         self.__irob_height = 0.25
@@ -184,15 +186,30 @@ class IntNWBehaviorPlot(QDialog):
         # 
         hbox = QHBoxLayout()
 
-        widgets = [] # TODO: add any GUI widgets if needed
-        for w in widgets:
-            hbox.addWidget(w)
-            hbox.setAlignment(w, Qt.AlignVCenter)
-        
+        if self.__measurements_only:
+            self.__setupMeasurementWidgets(hbox)
+            
         vbox = QVBoxLayout(self)
         vbox.addWidget(self.__canvas)
         vbox.addWidget(self.__mpl_toolbar)
         vbox.addLayout(hbox)
+
+    def __setupMeasurementWidgets(self, hbox):
+        self.__show_wifi = QCheckBox("wifi")
+        self.__show_threeg = QCheckBox("3G")
+        self.__show_trace = QCheckBox("Trace display")
+        checks = [self.__show_wifi, self.__show_threeg, self.__show_trace]
+
+        networks = QVBoxLayout()
+        networks.addWidget(self.__show_wifi)
+        networks.addWidget(self.__show_threeg)
+        hbox.addLayout(networks)
+
+        hbox.addWidget(self.__show_trace)
+
+        for check in checks:
+            check.setChecked(True)
+            self.connect(check, SIGNAL("stateChanged(int)"), self.on_draw)
         
     def on_draw(self):
         self.__axes.clear()
@@ -209,10 +226,67 @@ class IntNWBehaviorPlot(QDialog):
         self.__canvas.draw()
 
     def __plotTrace(self):
-        raise NotImplementedError()
+        colors = {'wifi': (.7, .7, 1.0), '3G': (1.0, .7, .7)}
+        field_group_indices = {'wifi': 1, '3G': 4}
+        rtt_field_offset = 2
+        start = None
+        timestamps = {'wifi': [], '3G': []}
+        rtts = {'wifi': [], '3G': []}
+        checks = {'wifi': self.__show_wifi, '3G': self.__show_threeg}
+        
+        if self.__network_trace_file:
+            for line in open(self.__network_trace_file).readlines():
+                fields = line.strip().split()
+                timestamp = float(fields[0])
+                if not start:
+                    start = timestamp
+                rel_timestamp = timestamp - start
+
+                for network_type in self.__estimates:
+                    last_estimate = self.__estimates[network_type]['latency'][-1]
+                    if rel_timestamp > self.getAdjustedTime(last_estimate['timestamp']):
+                        continue
+                    
+                    field_index = field_group_indices[network_type] + rtt_field_offset
+                    rtt = float(fields[field_index]) / 1000.0
+                    timestamps[network_type].append(rel_timestamp)
+                    rtts[network_type].append(rtt)
+                    
+            for network_type in timestamps:
+                if self.__show_trace.isChecked() and checks[network_type].isChecked():
+                    self.__axes.plot(timestamps[network_type], rtts[network_type],
+                                     color=colors[network_type],
+                                     label=network_type + " trace")
 
     def __plotMeasurements(self):
-        raise NotImplementedError()
+        markers = {'wifi': 's', '3G': 'o'}
+        checks = {'wifi': self.__show_wifi, '3G': self.__show_threeg}
+        for network_type in self.__estimates:
+            if not checks[network_type].isChecked():
+                continue
+            
+            # TODO: support toggle between bandwidth & latency
+            estimates = self.__estimates[network_type]['latency']
+            times = [self.getAdjustedTime(e['timestamp']) for e in estimates]
+
+             # RTT = latency * 2
+            observations = [e['observation'] * 2.0 for e in estimates]
+            estimated_values = [e['estimate'] * 2.0 for e in estimates]
+
+            # shift estimtates one to the right, so we're plotting
+            #  each observation at the same time as the PREVIOUS estimate
+            #  (this visualizes the error samples that the decision algorithm uses)
+            estimated_values = [estimated_values[0]] + estimated_values[:-1]
+
+            color = self.__irob_colors[network_type]
+            self.__axes.plot(times, estimated_values, label=network_type + " prev-estimates",
+                             color=color)
+            self.__axes.plot(times, observations, label=network_type + " observations",
+                             linestyle='none', marker=markers[network_type], markersize=3,
+                             color=color)
+            self.__axes.set_xlabel("Time (seconds)")
+            self.__axes.set_ylabel("RTT (seconds)")
+            self.__axes.legend()
 
     def __setupAxes(self):
         yticks = []
@@ -312,21 +386,24 @@ class IntNWBehaviorPlot(QDialog):
             #                               Send labels: FG,SMALL IROB: 0 numdeps: 0
             self.__addTransfer(line, 'down')
         elif "network estimator" in line:
+            timestamp = self.__getTimestamp(line)
             network_type = re.search(self.__network_estimator_regex, line).group(1)
-            self.__currentNetworkEstimator = network_type
             if network_type not in self.__estimates:
                 self.__estimates[network_type] = {}
-        elif "bandwidth: obs" in line or "latency: obs" in line:
+                
+            print "got observation: ", line
             bw_match = re.search(self.__network_bandwidth_regex, line)
             lat_match = re.search(self.__network_latency_regex, line)
             for match, name in zip((bw_match, lat_match), ("bandwidth", "latency")):
                 if match:
                     obs, est = match.groups()
-                    all_estimates = self.__estimates[self.__currentNetworkEstimator]
+                    all_estimates = self.__estimates[network_type]
                     if name not in all_estimates:
                         all_estimates[name] = []
                     estimates = all_estimates[name]
-                    estimates.append((obs, est))
+                    estimates.append({'timestamp': float(timestamp),
+                                      'observation': float(obs),
+                                      'estimate': float(est)})
         else:
             pass # ignore it
 
@@ -343,10 +420,11 @@ class IntNWBehaviorPlot(QDialog):
         self.__csocket_destroyed_regex = re.compile("CSocket .+ is being destroyed")
         self.__network_estimator_regex = \
             re.compile("Adding new stats to (.+) network estimator")
-        self.__network_bandwidth_regex = \
-            re.compile("bandwidth: obs (.+) est (.+)")
-        self.__network_latency_regex = \
-            re.compile("latency: obs (.+) est (.+)")
+
+        float_regex = "([0-9]+\.[0-9]+)"
+        stats_regex = "obs %s est %s" % (float_regex, float_regex)
+        self.__network_bandwidth_regex = re.compile("bandwidth: " + stats_regex)
+        self.__network_latency_regex = re.compile("latency: " + stats_regex)
         
     def __getIROBId(self, line):
         return int(re.search(self.__irob_regex, line).group(1))
@@ -520,12 +598,13 @@ class IntNWBehaviorPlot(QDialog):
 
     
 class IntNWPlotter(object):
-    def __init__(self, filename, measurements_only):
+    def __init__(self, filename, measurements_only, network_trace_file):
         self.__windows = []
         self.__currentPid = None
         self.__pid_regex = re.compile("^\[[0-9]+\.[0-9]+\]\[([0-9]+)\]")
 
         self.__measurements_only = measurements_only
+        self.__network_trace_file = network_trace_file
         self.__readFile(filename)
         self.draw()
 
@@ -550,7 +629,8 @@ class IntNWPlotter(object):
                     continue
                     
                 if pid != self.__currentPid:
-                    self.__windows.append(IntNWBehaviorPlot(self.__measurements_only))
+                    self.__windows.append(IntNWBehaviorPlot(self.__measurements_only,
+                                                            self.__network_trace_file))
                     self.__currentPid = pid
                     
                 self.__windows[-1].parseLine(line)
@@ -572,11 +652,12 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("filename")
     parser.add_argument("--measurements", action="store_true", default=False)
+    parser.add_argument("--network-trace-file", default=None)
     args = parser.parse_args()
 
     app = QApplication(sys.argv)
     
-    plotter = IntNWPlotter(args.filename, args.measurements)
+    plotter = IntNWPlotter(args.filename, args.measurements, args.network_trace_file)
     plotter.show()
     app.exec_()
 

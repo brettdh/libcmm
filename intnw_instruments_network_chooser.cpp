@@ -302,7 +302,7 @@ IntNWInstrumentsNetworkChooser::reportNetStats(int network_type,
         break;
     }
 
-    dbgprintf("Adding new stats to %s network estimator\n"
+    dbgprintf("Adding new stats to %s network estimator:"
               "   bandwidth: obs %f est %f  latency: obs %f est %f\n",
               net_type_name(network_type),
               new_bw, new_bw_estimate, new_latency_seconds, new_latency_estimate);
