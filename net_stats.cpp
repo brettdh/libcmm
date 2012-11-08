@@ -80,6 +80,7 @@ NetStats::NetStats(struct net_interface local_iface,
 void
 NetStats::getStats(NetworkChooser *network_chooser, int network_type)
 {
+#ifndef CMM_UNIT_TESTING
     u_long bw_est, latency_est;
     if (net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est) &&
         net_estimates.estimates[NET_STATS_LATENCY].get_estimate(latency_est)) {
@@ -88,6 +89,7 @@ NetStats::getStats(NetworkChooser *network_chooser, int network_type)
                                         bw_est, bw_est,
                                         latency_seconds, latency_seconds);
     }
+#endif
 }
 
 void
@@ -114,6 +116,7 @@ NetStats::update(struct net_interface local_iface,
             //net_estimates.estimates[NET_STATS_LATENCY].reset(spot_latency);
         }
         if (spot_bandwidth > 0 && spot_latency > 0) {
+#ifndef CMM_UNIT_TESTING
             u_long bw_est, latency_est;
             if (net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est) &&
                 net_estimates.estimates[NET_STATS_LATENCY].get_estimate(latency_est)) {
@@ -123,6 +126,7 @@ NetStats::update(struct net_interface local_iface,
                                                 spot_bandwidth, bw_est,
                                                 spot_latency_seconds, latency_est_seconds);
             }
+#endif
         }
     }
     cache_save();
