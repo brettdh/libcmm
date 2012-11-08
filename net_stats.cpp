@@ -550,6 +550,9 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
                 }
                 dbgprintf_plain("\n");
             
+                if (bw_out) *bw_out = bw_est;
+                if (latency_seconds_out) *latency_seconds_out = (latency_est / 1000.0);
+                
                 dbgprintf("New estimates: bw_up ");
                 if (net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est)) {
                     dbgprintf_plain("%lu bytes/sec, ", bw_est);
@@ -567,8 +570,6 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
                 //       in CSocketReceiver, after calling this.
                 
                 new_measurement = true;
-                if (bw_out) *bw_out = bw_est;
-                if (latency_seconds_out) *latency_seconds_out = (latency_est / 1000.0);
             }
         }
 
