@@ -46,7 +46,7 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
     : oserr(0), sk(sk_),
       local_iface(local_iface_), remote_iface(remote_iface_),
       stats(local_iface, remote_iface),
-      csock_sendr(NULL), csock_recvr(NULL), connected(false),
+      csock_sendr(NULL), csock_recvr(NULL), connected(false), connection_failed(false),
       accepting(false),
       irob_indexes(local_iface_.labels), busy(false)
 {

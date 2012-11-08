@@ -11,6 +11,10 @@ class RedundancyStrategy;
 
 class NetworkChooserImpl {
   public:
+    // reset the state set by consider() to prepare for a 
+    //  new round of consider() calls followed by a choose_networks() call.
+    // The chooser should NOT reset state that can be maintained
+    //  between calls to choose_networks.
     virtual void reset();
     
     virtual void consider(struct net_interface local_iface, 

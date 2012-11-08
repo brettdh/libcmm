@@ -80,6 +80,7 @@ NetStats::NetStats(struct net_interface local_iface,
 void
 NetStats::getStats(NetworkChooser *network_chooser, int network_type)
 {
+#ifndef CMM_UNIT_TESTING
     u_long bw_est, latency_est;
     if (net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est) &&
         net_estimates.estimates[NET_STATS_LATENCY].get_estimate(latency_est)) {
@@ -88,6 +89,7 @@ NetStats::getStats(NetworkChooser *network_chooser, int network_type)
                                         bw_est, bw_est,
                                         latency_seconds, latency_seconds);
     }
+#endif
 }
 
 void
@@ -114,6 +116,7 @@ NetStats::update(struct net_interface local_iface,
             //net_estimates.estimates[NET_STATS_LATENCY].reset(spot_latency);
         }
         if (spot_bandwidth > 0 && spot_latency > 0) {
+#ifndef CMM_UNIT_TESTING
             u_long bw_est, latency_est;
             if (net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est) &&
                 net_estimates.estimates[NET_STATS_LATENCY].get_estimate(latency_est)) {
@@ -123,6 +126,7 @@ NetStats::update(struct net_interface local_iface,
                                                 spot_bandwidth, bw_est,
                                                 spot_latency_seconds, latency_est_seconds);
             }
+#endif
         }
     }
     cache_save();
@@ -546,6 +550,9 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
                 }
                 dbgprintf_plain("\n");
             
+                if (bw_out) *bw_out = bw_est;
+                if (latency_seconds_out) *latency_seconds_out = (latency_est / 1000.0);
+                
                 dbgprintf("New estimates: bw_up ");
                 if (net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est)) {
                     dbgprintf_plain("%lu bytes/sec, ", bw_est);
@@ -563,8 +570,6 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
                 //       in CSocketReceiver, after calling this.
                 
                 new_measurement = true;
-                if (bw_out) *bw_out = bw_est;
-                if (latency_seconds_out) *latency_seconds_out = (latency_est / 1000.0);
             }
         }
 
