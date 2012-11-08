@@ -34,7 +34,6 @@ class CSocket {
   public:
     int osfd;
     int oserr; // if non-zero, there was an error.
-    bool connection_failed;
     boost::shared_ptr<CMMSocketImpl> sk;
     //CMMSocketSender *sendr;
     //CMMSocketReceiver *recvr;
@@ -138,6 +137,7 @@ class CSocket {
     pthread_mutex_t csock_lock;
     pthread_cond_t csock_cv;
     bool connected;
+    bool connection_failed;
 
     // to distinguish between connecting and accepting sockets
     bool accepting;
