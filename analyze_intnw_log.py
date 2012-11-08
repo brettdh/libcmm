@@ -109,16 +109,15 @@ class IROB(object):
         if self.complete():
             return (self.__start, self.__completion_time)
         else:
-            try:
-                assert self.__drop_time != None
-            except AssertionError as e:
-                import pdb; pdb.set_trace()
-                raise e
-            
             if self.__acked:
                 end = self.__last_activity
             else:
-                end = self.__drop_time
+                try:
+                    assert self.__drop_time != None
+                    end = self.__drop_time
+                except AssertionError as e:
+                    import pdb; pdb.set_trace()
+                    raise e
             return (self.__start, end)
 
     def __str__(self):
@@ -210,6 +209,19 @@ class IntNWBehaviorPlot(QDialog):
         for check in checks:
             check.setChecked(True)
             self.connect(check, SIGNAL("stateChanged(int)"), self.on_draw)
+
+        
+        self.__bandwidth_toggle = QRadioButton("Bandwidth")
+        self.__latency_toggle = QRadioButton("Latency")
+        
+        self.__latency_toggle.setChecked(True)
+        self.connect(self.__bandwidth_toggle, SIGNAL("toggled(bool)"), self.on_draw)
+        self.connect(self.__latency_toggle, SIGNAL("toggled(bool)"), self.on_draw)
+
+        toggles = QVBoxLayout()
+        toggles.addWidget(self.__bandwidth_toggle)
+        toggles.addWidget(self.__latency_toggle)
+        hbox.addLayout(toggles)
         
     def on_draw(self):
         self.__axes.clear()
@@ -225,14 +237,34 @@ class IntNWBehaviorPlot(QDialog):
         
         self.__canvas.draw()
 
+    def __whatToPlot(self):
+        if self.__bandwidth_toggle.isChecked():
+            return 'bandwidth'
+        elif self.__latency_toggle.isChecked():
+            return 'latency'
+        else: assert False
+
+    def __getYAxisLabel(self):
+        labels = {'bandwidth': 'Bandwidth (bytes/sec)',
+                  'latency': 'RTT (seconds)'}
+        return labels[self.__whatToPlot()]
+
     def __plotTrace(self):
         colors = {'wifi': (.7, .7, 1.0), '3G': (1.0, .7, .7)}
         field_group_indices = {'wifi': 1, '3G': 4}
-        rtt_field_offset = 2
+
+        # XXX: assuming bandwidth-up.  not the case on the server side.
+        field_offsets = {'bandwidth': 1, 'latency': 2}
+        
         start = None
         timestamps = {'wifi': [], '3G': []}
-        rtts = {'wifi': [], '3G': []}
+        values = {'wifi': [], '3G': []}
         checks = {'wifi': self.__show_wifi, '3G': self.__show_threeg}
+
+        what_to_plot = self.__whatToPlot()
+        conversion = 1.0
+        if what_to_plot == 'latency':
+            conversion = 1.0 / 1000.0
         
         if self.__network_trace_file:
             for line in open(self.__network_trace_file).readlines():
@@ -243,35 +275,42 @@ class IntNWBehaviorPlot(QDialog):
                 rel_timestamp = timestamp - start
 
                 for network_type in self.__estimates:
-                    last_estimate = self.__estimates[network_type]['latency'][-1]
+                    last_estimate = self.__estimates[network_type][what_to_plot][-1]
                     if rel_timestamp > self.getAdjustedTime(last_estimate['timestamp']):
                         continue
                     
-                    field_index = field_group_indices[network_type] + rtt_field_offset
-                    rtt = float(fields[field_index]) / 1000.0
+                    field_index = (field_group_indices[network_type] +
+                                   field_offsets[what_to_plot])
+                    value = float(fields[field_index]) * conversion
                     timestamps[network_type].append(rel_timestamp)
-                    rtts[network_type].append(rtt)
+                    values[network_type].append(value)
                     
             for network_type in timestamps:
                 if self.__show_trace.isChecked() and checks[network_type].isChecked():
-                    self.__axes.plot(timestamps[network_type], rtts[network_type],
+                    self.__axes.plot(timestamps[network_type], values[network_type],
                                      color=colors[network_type],
                                      label=network_type + " trace")
 
     def __plotMeasurements(self):
         markers = {'wifi': 's', '3G': 'o'}
         checks = {'wifi': self.__show_wifi, '3G': self.__show_threeg}
+
+        what_to_plot = self.__whatToPlot()
+        
         for network_type in self.__estimates:
             if not checks[network_type].isChecked():
                 continue
             
-            # TODO: support toggle between bandwidth & latency
-            estimates = self.__estimates[network_type]['latency']
+            estimates = self.__estimates[network_type][what_to_plot]
             times = [self.getAdjustedTime(e['timestamp']) for e in estimates]
 
-             # RTT = latency * 2
-            observations = [e['observation'] * 2.0 for e in estimates]
-            estimated_values = [e['estimate'] * 2.0 for e in estimates]
+            txform = 1.0
+            if what_to_plot == 'latency':
+                # RTT = latency * 2
+                txform = 2.0
+            
+            observations = [e['observation'] * txform for e in estimates]
+            estimated_values = [e['estimate'] * txform for e in estimates]
 
             # shift estimtates one to the right, so we're plotting
             #  each observation at the same time as the PREVIOUS estimate
@@ -285,7 +324,7 @@ class IntNWBehaviorPlot(QDialog):
                              linestyle='none', marker=markers[network_type], markersize=3,
                              color=color)
             self.__axes.set_xlabel("Time (seconds)")
-            self.__axes.set_ylabel("RTT (seconds)")
+            self.__axes.set_ylabel(self.__getYAxisLabel())
             self.__axes.legend()
 
     def __setupAxes(self):
@@ -353,6 +392,11 @@ class IntNWBehaviorPlot(QDialog):
         elif "Successfully bound" in line:
             # [time][pid][CSockSender 57] Successfully bound osfd 57 to 192.168.1.2:0
             self.__addConnection(line)
+        elif "Adding connection" in line:
+            # [time][pid][Listener 13] Adding connection 14 from 192.168.1.2
+            #                          bw_down 43226 bw_up 12739 RTT 97
+            #                          type wifi(peername 141.212.110.115)
+            self.__addIncomingConnection(line)
         elif "Adding connection" in line:
             # [time][pid][Listener 13] Adding connection 14 from 192.168.1.2
             #                          bw_down 244696 bw_up 107664 RTT 391
@@ -478,6 +522,9 @@ class IntNWBehaviorPlot(QDialog):
 
         assert sock not in self.__network_type_by_sock
         self.__network_type_by_sock[sock] = network_type
+
+    def __addIncomingConnection(self, line):
+        raise NotImplementedError() # TODO
         
     def __removeConnection(self, line):
         timestamp = self.__getTimestamp(line)
