@@ -677,7 +677,7 @@ CSockMapping::check_redundancy(PendingSenderIROB *psirob)
     u_long send_labels = psirob->get_send_labels();
     if (!(send_labels & CMM_LABEL_ONDEMAND &&
           send_labels & CMM_LABEL_SMALL)) {
-        dbgprintf("IROB %d is not (FG & SMALL); no redundancy\n", id);
+        dbgprintf("IROB %ld is not (FG & SMALL); no redundancy\n", id);
         return;
     }
 

@@ -15,7 +15,7 @@ NetworkChooserImpl::NetworkChooserImpl()
 void
 NetworkChooserImpl::setRedundancyStrategy()
 { 
-    dbgprintf("In NetworkChooserImpl::setRedundancyStrategy\n", this);
+    dbgprintf("In NetworkChooserImpl::setRedundancyStrategy\n");
 
     assert(redundancyStrategy == NULL);
     redundancyStrategy = RedundancyStrategy::create(INTNW_NEVER_REDUNDANT);
