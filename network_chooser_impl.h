@@ -36,6 +36,7 @@ class NetworkChooserImpl {
                                 double new_latency_estimate) {}
 
     bool shouldTransmitRedundantly(PendingSenderIROB *psirob);
+    virtual void setRedundancyStrategy();
   protected:
     NetworkChooserImpl();
 
@@ -44,7 +45,6 @@ class NetworkChooserImpl {
     // default: never redundant.
     //   subclasses should override this to replace
     //   the default with a custom redundancy strategy
-    virtual void setRedundancyStrategy();
     RedundancyStrategy *redundancyStrategy;
 };
 

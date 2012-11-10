@@ -666,7 +666,10 @@ CSockMapping::get_csock(PendingSenderIROB *psirob, CSocket*& csock)
 void
 CSockMapping::check_redundancy(PendingSenderIROB *psirob)
 {
+    irob_id_t id = psirob->get_id();
+    dbgprintf("Checking whether to send IROB %ld redundantly...\n", id);
     if (count_locked() <= 1) {
+        dbgprintf("No extra interfaces; no redundancy\n");
         // no redundancy possible
         return;
     }
@@ -674,11 +677,15 @@ CSockMapping::check_redundancy(PendingSenderIROB *psirob)
     u_long send_labels = psirob->get_send_labels();
     if (!(send_labels & CMM_LABEL_ONDEMAND &&
           send_labels & CMM_LABEL_SMALL)) {
+        dbgprintf("IROB %d is not (FG & SMALL); no redundancy\n", id);
         return;
     }
 
     if (network_chooser->shouldTransmitRedundantly(psirob)) {
+        dbgprintf("Decided to send IROB %ld redundantly\n", id);
         psirob->mark_send_on_all_networks();
+    } else {
+        dbgprintf("Decided NOT to send IROB %ld redundantly\n", id);
     }
 }
 

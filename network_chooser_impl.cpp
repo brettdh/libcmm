@@ -10,13 +10,13 @@ using std::make_pair;
 NetworkChooserImpl::NetworkChooserImpl()
     : redundancyStrategy(NULL)
 {
-    reset();
-    setRedundancyStrategy();
 }
 
 void
 NetworkChooserImpl::setRedundancyStrategy()
-{
+{ 
+    dbgprintf("In NetworkChooserImpl::setRedundancyStrategy\n", this);
+
     assert(redundancyStrategy == NULL);
     redundancyStrategy = RedundancyStrategy::create(INTNW_NEVER_REDUNDANT);
 }

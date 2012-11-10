@@ -34,6 +34,12 @@ NetworkChooser::create(int redundancy_strategy_type)
     default:
         assert(0);
     }
+
+    dbgprintf("Constructing NetworkChooserImpl %p\n", impl);
+    
+    impl->reset();
+    impl->setRedundancyStrategy();
+
     return new NetworkChooser(impl);
 }
 
@@ -123,8 +129,5 @@ NetworkChooser::shouldTransmitRedundantly(PendingSenderIROB *psirob)
 {
     PthreadScopedLock guard(&lock);
     bool redundant = impl->shouldTransmitRedundantly(psirob);
-    if (redundant) {
-        dbgprintf("Decided to send IROB %ld redundantly\n", psirob->get_id());
-    }
     return redundant;
 }

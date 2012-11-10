@@ -11,6 +11,10 @@ using std::max;
 #include <instruments_private.h>
 #include <resource_weights.h>
 
+static const char *strategy_names[NUM_STRATEGIES] = {
+    "wifi", "3G", "redundant"
+};
+
 struct strategy_args {
     IntNWInstrumentsNetworkChooser *chooser;
     InstrumentsWrappedNetStats **net_stats;
@@ -108,10 +112,6 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
     strategy_args[NETWORK_CHOICE_WIFI]->net_stats = &wifi_stats;
     strategy_args[NETWORK_CHOICE_CELLULAR]->net_stats = &cellular_stats;
 
-    // BUG: for some reason, the net_stats pointer-pointer that gets set here
-    // BUG:  is getting clobbered at some point.  wifi_stats and cellular_stats
-    // BUG:  themselves are fine; it's the strategy_args content that gets clobbered.
-    
     for (int i = NETWORK_CHOICE_WIFI; i <= NETWORK_CHOICE_CELLULAR; ++i) {
         strategies[i] = 
             make_strategy(network_transfer_time, 
@@ -175,6 +175,8 @@ choose_networks(u_long send_label, size_t num_bytes,
         chosen_strategy_type = chooseNetwork(num_bytes);
         needs_reevaluation = false;
     }
+
+    dbgprintf("chooseNetwork: %s\n", strategy_names[chosen_strategy_type]);
 
     if (chosen_strategy_type == NETWORK_CHOICE_WIFI ||
         chosen_strategy_type == NETWORK_CHOICE_BOTH) {
@@ -314,6 +316,7 @@ IntNWInstrumentsNetworkChooser::reportNetStats(int network_type,
 void
 IntNWInstrumentsNetworkChooser::setRedundancyStrategy()
 {
+    dbgprintf("setting IntNWInstrumentsNetworkChooser::RedundancyStrategy\n");
     assert(redundancyStrategy == NULL);
     redundancyStrategy = 
         new IntNWInstrumentsNetworkChooser::RedundancyStrategy(this);
@@ -329,7 +332,11 @@ bool
 IntNWInstrumentsNetworkChooser::RedundancyStrategy::
 shouldTransmitRedundantly(PendingSenderIROB *psirob)
 {
+    // BUG: this is never called.  WHY NOT?  virtual issues?
+
     assert(chooser->has_match);
     assert(chooser->chosen_strategy_type != -1);
+    dbgprintf("shouldTransmitRedundantly: Chosen network strategy: %s\n",
+              strategy_names[chooser->chosen_strategy_type]);
     return (chooser->chosen_strategy_type == NETWORK_CHOICE_BOTH);
 }
