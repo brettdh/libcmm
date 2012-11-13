@@ -72,7 +72,10 @@ class IROB(object):
         self.__drop_time = None
         self.__last_activity = None
         self.__acked = False
-        
+
+        # if true, mark as strange on plot
+        self.__abnormal_end = False
+
     def addBytes(self, timestamp, bytes):
         if self.__datalen == None:
             self.__datalen = 0
@@ -112,12 +115,12 @@ class IROB(object):
             if self.__acked:
                 end = self.__last_activity
             else:
-                try:
-                    assert self.__drop_time != None
+                if self.__drop_time != None:
                     end = self.__drop_time
-                except AssertionError as e:
-                    import pdb; pdb.set_trace()
-                    raise e
+                else:
+                    end = self.__last_activity
+                    self.__abnormal_end = True
+                    
             return (self.__start, end)
 
     def __str__(self):
@@ -133,12 +136,10 @@ class IROB(object):
                          [ypos - yheight / 2.0, yheight],
                          color=self.__plot.getIROBColor(self))
 
-    def drawIfDropped(self, axes):
         if self.__drop_time != None:
-            timestamp = self.getDuration()[1]
-            ypos = self.__plot.getIROBPosition(self)
-            axes.plot([self.__plot.getAdjustedTime(timestamp)],
-                      [ypos], marker='x', color='black', markeredgewidth=2.0)
+            axes.plot([finish], [ypos], marker='x', color='black', markeredgewidth=2.0)
+        elif self.__abnormal_end:
+            axes.plot([finish], [ypos], marker='*', color='black')
 
 class IntNWBehaviorPlot(QDialog):
     def __init__(self, measurements_only, network_trace_file, parent=None):
@@ -232,8 +233,7 @@ class IntNWBehaviorPlot(QDialog):
         else:
             self.__setupAxes()
             self.__drawWifi()
-            self.__drawIROBs(False)
-            self.__drawIROBs(True)
+            self.__drawIROBs()
         
         self.__canvas.draw()
 
@@ -338,17 +338,14 @@ class IntNWBehaviorPlot(QDialog):
         self.__axes.set_yticks(yticks)
         self.__axes.set_yticklabels(yticklabels)
 
-    def __drawIROBs(self, drops):
+    def __drawIROBs(self):
         for network_type in self.__networks:
             network = self.__networks[network_type]
             for direction in network:
                 irobs = network[direction]
                 for irob_id in irobs:
                     irob = irobs[irob_id]
-                    if drops:
-                        irob.drawIfDropped(self.__axes)
-                    else:
-                        irob.draw(self.__axes)
+                    irob.draw(self.__axes)
 
     def __drawWifi(self):
         if "wifi" not in self.__network_periods:
