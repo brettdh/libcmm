@@ -340,7 +340,8 @@ PendingReceiverIROB::recvdbytes()
 }
 
 PendingReceiverIROBLattice::PendingReceiverIROBLattice(CMMSocketImpl *sk_)
-    : sk(sk_), partially_read_irob()
+    : sk(sk_), ready_irobs("received irobs", "ready irobs"), 
+      partially_read_irob()
 {
 }
 

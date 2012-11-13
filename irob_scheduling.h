@@ -34,12 +34,12 @@ struct IROBSchedulingData {
 
   private:
     friend class IROBPrioritySet;
-    struct IROBSchedulingIndexes *owner;
 };
 
 class IROBPrioritySet {
     typedef std::set<IROBSchedulingData> TaskSet;
   public:
+    IROBPrioritySet(const std::string& level_, const std::string& type_);
     void insert(IROBSchedulingData data);
     bool pop(IROBSchedulingData& data);
     bool remove(irob_id_t id, IROBSchedulingData& data);
@@ -65,14 +65,18 @@ class IROBPrioritySet {
     friend class IROBSchedulingData;
     friend class IROBSchedulingIndexes;
     TaskSet tasks;
-    struct IROBSchedulingIndexes *owner;
+
+    // "csocket", "multisocket", or "received irobs", depending on where it lives
+    // (just for debugging info)
+    std::string level;
+    std::string type;
 
     void transfer(irob_id_t id, u_long new_labels,
                   IROBPrioritySet& other);
 };
 
 struct IROBSchedulingIndexes {
-    IROBSchedulingIndexes(u_long send_labels_);
+    explicit IROBSchedulingIndexes(const std::string& level);
 
     // Copy all of other's data items to this.
     void add(const IROBSchedulingIndexes& other);
@@ -88,8 +92,6 @@ struct IROBSchedulingIndexes {
 
     IROBPrioritySet resend_requests;
     IROBPrioritySet waiting_data_checks;
-
-    u_long send_labels;
 
   private:
     void transfer(irob_id_t id, u_long new_labels,

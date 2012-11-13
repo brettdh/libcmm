@@ -489,7 +489,7 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
       remote_shutdown(false),
       goodbye_sent(false),
       incoming_irobs(this),
-      irob_indexes(0),
+      irob_indexes("multisocket"),
       sending_goodbye(false)
 {
     // gets updated on first FG activity

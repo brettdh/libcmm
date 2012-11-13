@@ -48,7 +48,7 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
       stats(local_iface, remote_iface),
       csock_sendr(NULL), csock_recvr(NULL), connected(false), connection_failed(false),
       accepting(false),
-      irob_indexes(local_iface_.labels), busy(false)
+      irob_indexes("csocket"), busy(false)
 {
     pthread_mutex_init(&csock_lock, NULL);
     pthread_cond_init(&csock_cv, NULL);

@@ -46,6 +46,8 @@ class CSocketSender : public CMMThread {
     void resend_request(const IROBSchedulingData& data);
     void send_data_check(const IROBSchedulingData& data);
 
+    bool nothingToSend();
+
     struct DataInFlight {
         bool data_inflight;
         struct timespec rel_trouble_timeout;

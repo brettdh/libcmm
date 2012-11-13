@@ -1,6 +1,7 @@
 #include "irob_scheduling.h"
 #include <set>
-using std::set;
+#include <string>
+using std::set; using std::string;
 #include "common.h"
 #include "debug.h"
 #include "timeops.h"
@@ -8,7 +9,7 @@ using std::set;
 IROBSchedulingData::IROBSchedulingData()
     : id(-1), chunks_ready(false),
       resend_request(CMM_RESEND_REQUEST_NONE),
-      data_check(false), send_labels(0), owner(NULL)
+      data_check(false), send_labels(0)
 {
     completion_time.tv_sec = -1;
     completion_time.tv_usec = 0;
@@ -18,7 +19,7 @@ IROBSchedulingData::IROBSchedulingData(irob_id_t id_, bool chunks_ready_,
                                        u_long send_labels_)
     : id(id_), chunks_ready(chunks_ready_),
       resend_request(CMM_RESEND_REQUEST_NONE),
-      data_check(false), send_labels(send_labels_), owner(NULL)
+      data_check(false), send_labels(send_labels_)
 {
     completion_time.tv_sec = -1;
     completion_time.tv_usec = 0;
@@ -28,7 +29,7 @@ IROBSchedulingData::IROBSchedulingData(irob_id_t id_,
                                        resend_request_type_t resend_request_,
                                        u_long send_labels_)
     : id(id_), chunks_ready(false),
-      resend_request(resend_request_), data_check(false), send_labels(send_labels_), owner(NULL)
+      resend_request(resend_request_), data_check(false), send_labels(send_labels_)
 {
     completion_time.tv_sec = -1;
     completion_time.tv_usec = 0;
@@ -40,7 +41,7 @@ IROBSchedulingData::IROBSchedulingData(irob_id_t id_,
     : id(id_), chunks_ready(false), 
       resend_request(CMM_RESEND_REQUEST_NONE),
       completion_time(completion_time_),
-      data_check(false), send_labels(send_labels_), owner(NULL)
+      data_check(false), send_labels(send_labels_)
 {
 }
 
@@ -57,18 +58,20 @@ IROBSchedulingData::operator<(const IROBSchedulingData& other) const
         return false;
     }
 
-    return (//(owner && (owner->send_labels & send_labels)) ||
-            (timercmp(&completion_time, &other.completion_time, <)) ||
+    return ((timercmp(&completion_time, &other.completion_time, <)) ||
             (id < other.id));
+}
+
+IROBPrioritySet::IROBPrioritySet(const string& level_, const string& type_)
+    : level(level_), type(type_)
+{
 }
 
 void 
 IROBPrioritySet::insert(IROBSchedulingData data)
 {
-    //TODO: do something more interesting.
-    dbgprintf("Inserting scheduling request for IROB %ld (%s)\n",
-              data.id, data.chunks_ready ? "chunk" : "irob");
-    data.owner = owner;
+    dbgprintf("Inserting %s-level scheduling request for IROB %ld (%s)\n",
+              level.c_str(), data.id, type.c_str());
     tasks.insert(data);
 }
 
@@ -77,8 +80,8 @@ IROBPrioritySet::pop(IROBSchedulingData& data)
 {
     bool ret = pop_item(tasks, data);
     if (ret) {
-        dbgprintf("Grabbing scheduling request for IROB %ld (%s)\n",
-                  data.id, data.chunks_ready ? "chunk" : "irob");
+        dbgprintf("Grabbing %s-level scheduling request for IROB %ld (%s)\n",
+                  level.c_str(), data.id, type.c_str());
     }
     return ret;
 }
@@ -91,8 +94,8 @@ IROBPrioritySet::remove(irob_id_t id, IROBSchedulingData& data)
     if (pos != tasks.end()) {
         data = *pos;
         tasks.erase(pos);
-        dbgprintf("Grabbing scheduling request for IROB %ld (%s)\n",
-                  data.id, data.chunks_ready ? "chunk" : "irob");
+        dbgprintf("Grabbing %s-level scheduling request for IROB %ld (%s)\n",
+                  level.c_str(), data.id, type.c_str());
         return true;
     }
     return false;
@@ -109,15 +112,14 @@ IROBPrioritySet::transfer(irob_id_t id, u_long new_labels,
     }
 }
 
-IROBSchedulingIndexes::IROBSchedulingIndexes(u_long send_labels_) 
-    : send_labels(send_labels_) 
+IROBSchedulingIndexes::IROBSchedulingIndexes(const string& level) 
+    : new_irobs(level, "new irobs"),
+      new_chunks(level, "new chunks"),
+      finished_irobs(level, "finished irobs"),
+      waiting_acks(level, "waiting acks"),
+      resend_requests(level, "resend requests"),
+      waiting_data_checks(level, "waiting data-checks")
 {
-    new_irobs.owner = this;
-    new_chunks.owner = this;
-    finished_irobs.owner = this;
-    waiting_acks.owner = this;
-    resend_requests.owner = this;
-    waiting_data_checks.owner = this;
 }
 
 void

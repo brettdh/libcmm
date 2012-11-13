@@ -91,6 +91,19 @@ int CSocketSender::TroubleChecker::operator()(CSocketPtr csock)
 }
 */
 
+bool
+CSocketSender::nothingToSend()
+{
+    return (csock->irob_indexes.waiting_acks.empty()
+            && sk->irob_indexes.waiting_acks.empty()
+            && csock->irob_indexes.resend_requests.empty()
+            && sk->irob_indexes.resend_requests.empty()
+            && sk->outgoing_irobs.empty()
+            && sk->down_local_ifaces.empty()
+            && csock->irob_indexes.waiting_data_checks.empty()
+            && sk->irob_indexes.waiting_data_checks.empty());
+}
+
 void
 CSocketSender::Run()
 {
@@ -132,47 +145,38 @@ CSocketSender::Run()
         PthreadScopedLock lock(&sk->scheduling_state_lock);
 
         while (1) {
-            if (sk->shutting_down) {
-                 if (csock->irob_indexes.waiting_acks.empty()
-                     && sk->irob_indexes.waiting_acks.empty()
-                     && csock->irob_indexes.resend_requests.empty()
-                     && sk->irob_indexes.resend_requests.empty()
-                     && sk->outgoing_irobs.empty()
-                     && sk->down_local_ifaces.empty()
-                     && csock->irob_indexes.waiting_data_checks.empty()
-                     && sk->irob_indexes.waiting_data_checks.empty()) {
-                    if (!sk->goodbye_sent && !sk->sending_goodbye) {
-                        sk->sending_goodbye = true;
-                        goodbye();
-                    }
-                    
-                    if (!sk->remote_shutdown &&
-                        csock->csock_recvr != NULL) {
-                        struct timespec rel_timeout_ts = {
-                            120, 0 // 2-minute shutdown timeout
-                        };
-                        struct timespec shutdown_timeout = abs_time(rel_timeout_ts);
-                        
-                        int rc = pthread_cond_timedwait(&sk->scheduling_state_cv,
-                                                        &sk->scheduling_state_lock,
-                                                        &shutdown_timeout);
-
-                        if (rc == 0) {
-                            // loop back around and check if there are acks waiting.
-                            //  If I don't check this, I may hang the remote side
-                            //  waiting for that one last ack, which I'll never send
-                            //  because I'm waiting for the goodbye.
-                            continue;
-                        } else {
-                            dbgprintf("Timed out waiting for goodbye; shutting down\n");
-                            shutdown(csock->osfd, SHUT_RD); // tell reader to exit
-                        }
-                    }
-                    // at this point, either we've received the remote end's
-                    //  GOODBYE message, or we know we won't receive it
-                    //  on this CSocket, so we're done.
-                    return;
+            if (sk->shutting_down && nothingToSend()) {
+                if (!sk->goodbye_sent && !sk->sending_goodbye) {
+                    sk->sending_goodbye = true;
+                    goodbye();
                 }
+                
+                if (!sk->remote_shutdown &&
+                    csock->csock_recvr != NULL) {
+                    struct timespec rel_timeout_ts = {
+                        120, 0 // 2-minute shutdown timeout
+                    };
+                    struct timespec shutdown_timeout = abs_time(rel_timeout_ts);
+                    
+                    int rc = pthread_cond_timedwait(&sk->scheduling_state_cv,
+                                                    &sk->scheduling_state_lock,
+                                                    &shutdown_timeout);
+                    
+                    if (rc == 0) {
+                        // loop back around and check if there are acks waiting.
+                        //  If I don't check this, I may hang the remote side
+                        //  waiting for that one last ack, which I'll never send
+                        //  because I'm waiting for the goodbye.
+                        continue;
+                    } else {
+                        dbgprintf("Timed out waiting for goodbye; shutting down\n");
+                        shutdown(csock->osfd, SHUT_RD); // tell reader to exit
+                    }
+                }
+                // at this point, either we've received the remote end's
+                //  GOODBYE message, or we know we won't receive it
+                //  on this CSocket, so we're done.
+                return;
             }
             
             if (csock->csock_recvr == NULL) {
@@ -775,6 +779,10 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
 
     irob_id_t id = data.id;
 
+    // XXX: this is problematic, I think.  Now that
+    // XXX:  'was_announced' is per-CSocket, I'm getting multiple
+    // XXX:  announcements on the same CSocket and none at all on others, sometimes.
+    // XXX:  need to consider loss+retransmission separately, I think.
     if (!psirob->was_announced(get_pointer(csock))) {
         // only try to delegate if this is the first Begin_IROB 
         //  sent for this IROB.  Otherwise, it's a retransmission
@@ -956,9 +964,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
             }
         } else {
             IROBSchedulingData new_chunk(id, true, data.send_labels);
-            if (pirob->is_anonymous()) {
-                csock->irob_indexes.new_chunks.insert(new_chunk);
-            } else if (pirob->get_num_chunks() > 0) {
+            if (pirob->is_anonymous() || pirob->get_num_chunks() > 0) {
                 csock->irob_indexes.new_chunks.insert(new_chunk);
             }
         }
