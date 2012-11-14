@@ -162,6 +162,8 @@ class IntNWBehaviorPlot(QDialog):
 
         self.__irob_colors = {'wifi': 'blue', '3G': 'red'}
 
+        self.__choose_network_calls = []
+
         self.__start = None
 
         # TODO: infer plot title from file path
@@ -232,10 +234,13 @@ class IntNWBehaviorPlot(QDialog):
             self.__plotMeasurements()
         else:
             self.__setupAxes()
+            self.__setTraceEnd()
             self.__drawWifi()
             self.__drawIROBs()
         
         self.__canvas.draw()
+
+        self.__printStats()
 
     def __whatToPlot(self):
         if self.__bandwidth_toggle.isChecked():
@@ -338,6 +343,12 @@ class IntNWBehaviorPlot(QDialog):
         self.__axes.set_yticks(yticks)
         self.__axes.set_yticklabels(yticklabels)
 
+    def __setTraceEnd(self):
+        for network_type in self.__network_periods:
+            periods = self.__network_periods[network_type]
+            if periods:
+                periods[-1]['end'] = self.__end
+
     def __drawIROBs(self):
         for network_type in self.__networks:
             network = self.__networks[network_type]
@@ -351,7 +362,7 @@ class IntNWBehaviorPlot(QDialog):
         if "wifi" not in self.__network_periods:
             # not done parsing yet
             return
-        
+
         bars = [(self.getAdjustedTime(period['start']),
                  period['end'] - period['start'])
                 for period in self.__network_periods['wifi']]
@@ -359,7 +370,11 @@ class IntNWBehaviorPlot(QDialog):
         height = [vertical_bounds[0] - self.__irob_height / 2.0,
                   vertical_bounds[1] - vertical_bounds[0] + self.__irob_height]
         self.__axes.broken_barh(bars, height, color="green", alpha=0.3)
-        
+
+    def __printStats(self):
+        if self.__choose_network_calls:
+            print ("%f seconds in chooseNetwork (%d calls)" %
+                   (sum(self.__choose_network_calls), len(self.__choose_network_calls)))
 
     def getIROBPosition(self, irob):
         # TODO: allow for simultaneous (stacked) IROB plotting.
@@ -378,8 +393,11 @@ class IntNWBehaviorPlot(QDialog):
         return timestamp - self.__start
 
     def parseLine(self, line):
+        timestamp = self.__getTimestamp(line)
         if self.__start == None:
-            self.__start = self.__getTimestamp(line)
+            self.__start = timestamp
+            
+        self.__end = timestamp
 
         if "Got update from scout" in line:
             #[time][pid][tid] Got update from scout: 192.168.1.2 is up,
@@ -404,7 +422,6 @@ class IntNWBehaviorPlot(QDialog):
             self.__removeConnection(line)
         elif "Getting bytes to send from IROB" in line:
             # [time][pid][CSockSender 57] Getting bytes to send from IROB 6
-            timestamp = self.__getTimestamp(line)
             irob = int(line.strip().split()[-1])
             network = self.__getNetworkType(line)
             
@@ -413,7 +430,6 @@ class IntNWBehaviorPlot(QDialog):
         elif "...returning " in line:
             # [time][pid][CSockSender 57] ...returning 1216 bytes, seqno 0
             assert self.__currentSendingIROB != None
-            timestamp = self.__getTimestamp(line)
             datalen = int(line.strip().split()[3])
             network = self.__getNetworkType(line)
             self.__addIROBBytes(timestamp, network, self.__currentSendingIROB,
@@ -427,12 +443,11 @@ class IntNWBehaviorPlot(QDialog):
             #                               Send labels: FG,SMALL IROB: 0 numdeps: 0
             self.__addTransfer(line, 'down')
         elif "network estimator" in line:
-            timestamp = self.__getTimestamp(line)
             network_type = re.search(self.__network_estimator_regex, line).group(1)
             if network_type not in self.__estimates:
                 self.__estimates[network_type] = {}
                 
-            print "got observation: ", line
+            dprint("got observation: %s" % line)
             bw_match = re.search(self.__network_bandwidth_regex, line)
             lat_match = re.search(self.__network_latency_regex, line)
             for match, name in zip((bw_match, lat_match), ("bandwidth", "latency")):
@@ -445,8 +460,13 @@ class IntNWBehaviorPlot(QDialog):
                     estimates.append({'timestamp': float(timestamp),
                                       'observation': float(obs),
                                       'estimate': float(est)})
+        elif "chooseNetwork" in line:
+            duration = timestamp - self.__getTimestamp(self.__last_line)
+            self.__choose_network_calls.append(duration)
         else:
             pass # ignore it
+            
+        self.__last_line = line
 
     def __initRegexps(self):
         self.__irob_regex = re.compile("IROB: ([0-9]+)")
@@ -458,7 +478,7 @@ class IntNWBehaviorPlot(QDialog):
         self.__timestamp_regex = re.compile("^\[([0-9]+\.[0-9]+)\]")
         self.__intnw_message_type_regex = \
             re.compile("(?:About to send|Received) message:  Type: ([A-Za-z_]+)")
-        self.__csocket_destroyed_regex = re.compile("CSocket .+ is being destroyed")
+        self.__csocket_destroyed_regex = re.compile("CSocket (.+) is being destroyed")
         self.__network_estimator_regex = \
             re.compile("Adding new stats to (.+) network estimator")
 
@@ -525,7 +545,7 @@ class IntNWBehaviorPlot(QDialog):
         
     def __removeConnection(self, line):
         timestamp = self.__getTimestamp(line)
-        sock = self.__getSocket(line)
+        sock = int(re.search(self.__csocket_destroyed_regex, line).group(1))
         if sock in self.__network_type_by_sock:
             network_type = self.__network_type_by_sock[sock]
             network_period = self.__network_periods[network_type][-1]
