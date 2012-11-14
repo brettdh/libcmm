@@ -74,6 +74,7 @@ public class ConnectivityListener extends BroadcastReceiver {
         for (int type : ifaces.keySet()) {
             NetUpdate network = ifaces.get(type);
             if (network != null) {
+                Log.d(TAG, "Adding network: " + network.ipAddr);
                 mScoutService.updateNetwork(network.ipAddr, 
                                             network.bw_down_Bps,
                                             network.bw_up_Bps, 
@@ -270,10 +271,13 @@ public class ConnectivityListener extends BroadcastReceiver {
                 NetUpdate prevNet = ifaces.get(networkInfo.getType());
                 if (prevNet != null && !prevNet.ipAddr.equals(ipAddr)) {
                     // put down the old network's IP addr
+                    Log.d(TAG, String.format("Clearing network (IP changed from %s to %s)",
+                                             prevNet.ipAddr, ipAddr));
                     mScoutService.updateNetwork(prevNet.ipAddr, 0, 0, 0, true,
                                                 Constants.netTypeFromAndroidType(networkInfo.getType()));
                 }
                 
+                boolean ignore = false;
                 NetUpdate network;
                 if (networkInfo.isConnected()) {
                     network = prevNet;
@@ -283,8 +287,12 @@ public class ConnectivityListener extends BroadcastReceiver {
                         network.connected = true;
                     }
                     if (prevNet != null && prevNet.ipAddr.equals(ipAddr)) {
-                        // preserve existing stats
+                        // preserve existing stats; don't send this 'update' to IntNW apps
+                        // just ignore it
+                        ignore = true;
+                        Log.d(TAG, String.format("Ignoring network update for %s (no change)", ipAddr));
                     } else if (networkInfo.getType() == ConnectivityManager.TYPE_MOBILE) {
+                        Log.d(TAG, String.format("Reusing old mobile network stats for %s", ipAddr));
                         network.setStats(lastMobileStats);
                     } else {
                         BreadcrumbsNetworkStats bcStats = null;
@@ -292,10 +300,12 @@ public class ConnectivityListener extends BroadcastReceiver {
                             bcStats = BreadcrumbsNetworkStats.lookupCurrentAP(mScoutService);
                         }
                         if (bcStats != null) {
+                            Log.d(TAG, String.format("Got wifi network stats for %s from breadcrumbs db", ipAddr));
                             network.setStats(bcStats);
                         } else {
                             // optimistic fake estimate while we wait for 
                             //  real measurements
+                            Log.d(TAG, String.format("Set fake wifi network stats for %s (no db entry)", ipAddr));
                             network.setNoStats();
                         }
                     }
@@ -307,19 +317,21 @@ public class ConnectivityListener extends BroadcastReceiver {
                     ifaces.put(networkInfo.getType(), network);
 
                 } else {
+                    Log.d(TAG, String.format("Interface no longer connected: %s", ipAddr));
                     ifaces.put(networkInfo.getType(), null);
                     network = new NetUpdate(ipAddr);
                     network.type = networkInfo.getType();
                     network.connected = false;
                 }
-                
-                // TODO: real network measurements here
-                mScoutService.updateNetwork(ipAddr, 
-                                            bw_down_Bps, bw_up_Bps, rtt_ms,
-                                            !networkInfo.isConnected(),
-                                            Constants.netTypeFromAndroidType(networkInfo.getType()));
-                mScoutService.logUpdate(network);
-                
+
+                if (!ignore) {
+                    // TODO: real network measurements here
+                    mScoutService.updateNetwork(ipAddr, 
+                                                bw_down_Bps, bw_up_Bps, rtt_ms,
+                                                !networkInfo.isConnected(),
+                                                Constants.netTypeFromAndroidType(networkInfo.getType()));
+                    mScoutService.logUpdate(network);
+                }
             } catch (NetworkStatusException e) {
                 // ignore; already logged
             } catch (SocketException e) {
