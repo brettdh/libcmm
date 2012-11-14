@@ -225,7 +225,6 @@ CSocket::phys_connect()
         hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
         hdr.send_labels = 0;
         hdr.op.new_interface.ip_addr = local_iface.ip_addr;
-        hdr.op.new_interface.labels = htonl(local_iface.labels);
         hdr.op.new_interface.bandwidth_down = htonl(local_iface.bandwidth_down);
         hdr.op.new_interface.bandwidth_up = htonl(local_iface.bandwidth_up);
         hdr.op.new_interface.RTT = htonl(local_iface.RTT);

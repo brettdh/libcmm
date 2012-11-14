@@ -126,22 +126,6 @@ static void libcmm_deinit(void)
  * queued handlers that can now be processed. */
 void process_interface_update(struct net_interface iface, bool down)
 {
-    /* 1) Read a message from the queue to determine what labels
-     *    are available.
-     * 2) For each available label, look through the queues for thunks
-     *    with matching labels and execute the handlers, removing the thunks
-     *    from the queues.  
-     *    NOTE: we need to make sure this matching strategy
-     *      is the same one employed by the kernel.  That's not really ideal.
-     *    EDIT: well, sorta.  The kernel will eventually have to tell us
-     *      what application-level labels an interface matches, even though
-     *      that may change over time.
-     * 3) Clean up.
-     */
-
-    //dbgprintf_always("Signalled by scout\n");
-    
-    /* bitmask of all available bit labels ORed together */
     dbgprintf("Got update from scout: %s is %s, bandwidth_down %lu bandwidth_up %lu bytes/sec "
               "RTT %lu ms type %s\n",
               inet_ntoa(iface.ip_addr), down?"down":"up",

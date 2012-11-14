@@ -171,7 +171,6 @@ ListenerThread::Run()
 //         if (sk->isLoopbackOnly()) {
 //             remote_iface.ip_addr.s_addr = htonl(INADDR_LOOPBACK);
 //             remote_iface.ip_addr.s_addr = htonl(INADDR_LOOPBACK);
-//             remote_iface.labels = 0;
 //             remote_iface.bandwidth = 100000000;
 //             remote_iface.RTT = 0;
 //         } else {
@@ -205,7 +204,6 @@ ListenerThread::Run()
         //remote_iface.ip_addr = remote_addr.sin_addr; 
         remote_iface.ip_addr = hdr.op.new_interface.ip_addr; // internal if NAT'd
         //remote_iface.external_ip_addr = remote_addr.sin_addr;
-        remote_iface.labels = ntohl(hdr.op.new_interface.labels);
         remote_iface.bandwidth_down = ntohl(hdr.op.new_interface.bandwidth_down);
         remote_iface.bandwidth_up = ntohl(hdr.op.new_interface.bandwidth_up);
         remote_iface.RTT = ntohl(hdr.op.new_interface.RTT);

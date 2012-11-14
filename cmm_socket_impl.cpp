@@ -73,7 +73,6 @@ bool CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
     struct net_interface new_listener;
     memset(&new_listener.ip_addr, 0, sizeof(new_listener.ip_addr));
     new_listener.ip_addr = hdr.op.new_interface.ip_addr;
-    new_listener.labels = ntohl(hdr.op.new_interface.labels);
     new_listener.bandwidth_down = ntohl(hdr.op.new_interface.bandwidth_down);
     new_listener.bandwidth_up = ntohl(hdr.op.new_interface.bandwidth_up);
     new_listener.RTT = ntohl(hdr.op.new_interface.RTT);
@@ -132,9 +131,9 @@ bool CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
             // For now we just consider it 'unknown.'
         }
     }
-    dbgprintf("Got new remote interface %s with labels %lu, "
+    dbgprintf("Got new remote interface %s, "
               "bandwidth_down %lu bytes/sec bandwidth_up %lu bytes/sec RTT %lu ms\n",
-              inet_ntoa(new_listener.ip_addr), new_listener.labels,
+              inet_ntoa(new_listener.ip_addr),
               new_listener.bandwidth_down, new_listener.bandwidth_up, new_listener.RTT);
     return false;
 }
@@ -202,13 +201,12 @@ void CMMSocketImpl::send_local_listener(int bootstrap_sock,
     memset(&hdr, 0, sizeof(hdr));
     hdr.type = htons(CMM_CONTROL_MSG_NEW_INTERFACE);
     hdr.op.new_interface.ip_addr = iface.ip_addr;
-    hdr.op.new_interface.labels = htonl(iface.labels);
     hdr.op.new_interface.bandwidth_down = htonl(iface.bandwidth_down);
     hdr.op.new_interface.bandwidth_up = htonl(iface.bandwidth_up);
     hdr.op.new_interface.RTT = htonl(iface.RTT);
     hdr.op.new_interface.type = htonl(iface.type);
-    dbgprintf("Sending local interface info: %s with labels %lu\n",
-              inet_ntoa(iface.ip_addr), iface.labels);
+    dbgprintf("Sending local interface info: %s\n",
+              inet_ntoa(iface.ip_addr));
     int rc = send(bootstrap_sock, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr)) {
         perror("send");
@@ -282,7 +280,6 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
             if (ip_sockaddr->sin_addr.s_addr == htonl(INADDR_LOOPBACK)) {
                 struct net_interface localhost;
                 localhost.ip_addr.s_addr = htonl(INADDR_LOOPBACK);
-                localhost.labels = 0;
                 localhost.bandwidth_down = 100000000;
                 localhost.bandwidth_up = 100000000;
                 localhost.RTT = 0;
@@ -301,7 +298,6 @@ CMMSocketImpl::connection_bootstrap(const struct sockaddr *remote_addr,
                     bootstrap_iface.bandwidth_down = 1250000;
                     bootstrap_iface.bandwidth_up = 1250000;
                     bootstrap_iface.RTT = 0;
-                    bootstrap_iface.labels = 0;
                     bootstrap_iface.type = 0;
                     remote_ifaces.insert(bootstrap_iface);
                 }
@@ -1334,8 +1330,7 @@ CMMSocketImpl::interface_up(struct net_interface up_iface)
 
     pthread_mutex_lock(&hashmaps_mutex);
 
-    dbgprintf("Bringing up %s, label %lu\n",
-              inet_ntoa(up_iface.ip_addr), up_iface.labels);
+    dbgprintf("Bringing up %s\n", inet_ntoa(up_iface.ip_addr));
     
     ifaces.insert(up_iface);
 
@@ -1366,8 +1361,7 @@ CMMSocketImpl::interface_down(struct net_interface down_iface)
 
     pthread_mutex_lock(&hashmaps_mutex);
 
-    dbgprintf("Bringing down %s, label %lu\n",
-              inet_ntoa(down_iface.ip_addr), down_iface.labels);
+    dbgprintf("Bringing down %s\n", inet_ntoa(down_iface.ip_addr));
     ifaces.erase(down_iface);
 
     /* put down the sockets connected on now-unavailable networks. */

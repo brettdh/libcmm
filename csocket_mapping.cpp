@@ -768,7 +768,6 @@ CSockMapping::add_connection(int sock,
         //ASSERT(0);
 
         local_iface.ip_addr = local_addr;
-        local_iface.labels = 0; /* will get updated by the scout */
         CMMSocket::interface_up(local_iface);
     }
     struct net_interface dummy;
