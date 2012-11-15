@@ -142,10 +142,11 @@ class IROB(object):
             axes.plot([finish], [ypos], marker='*', color='black')
 
 class IntNWBehaviorPlot(QDialog):
-    def __init__(self, measurements_only, network_trace_file, parent=None):
+    def __init__(self, run, measurements_only, network_trace_file, parent=None):
         QDialog.__init__(self, parent)
 
         self.__initRegexps()
+        self.__run = run
         self.__networks = {}
         self.__network_periods = {}
         self.__network_type_by_ip = {}
@@ -167,8 +168,7 @@ class IntNWBehaviorPlot(QDialog):
         self.__start = None
 
         # TODO: infer plot title from file path
-        self.__title = "IntNW"
-        self.setWindowTitle(self.__title)
+        self.__title = "IntNW - Run %d" % self.__run
 
         self.create_main_frame()
         self.on_draw()
@@ -227,6 +227,8 @@ class IntNWBehaviorPlot(QDialog):
         hbox.addLayout(toggles)
         
     def on_draw(self):
+        self.setWindowTitle(self.__title)
+
         self.__axes.clear()
 
         if self.__measurements_only:
@@ -463,6 +465,14 @@ class IntNWBehaviorPlot(QDialog):
         elif "chooseNetwork" in line:
             duration = timestamp - self.__getTimestamp(self.__last_line)
             self.__choose_network_calls.append(duration)
+        elif "redundancy_strategy_type" in line:
+            # [timestamp][pid][Bootstrapper 49] Sending hello:  Type: Hello(0)
+            #                                   Send labels:  listen port: 42424
+            #                                   num_ifaces: 2 
+            #                                   redundancy_strategy_type: intnw_redundant
+            redundancy_strategy = \
+                re.search(self.__redundancy_strategy_regex, line).group(1)
+            self.__title = "IntNW - " + redundancy_strategy + (" - Run %d" % self.__run)
         else:
             pass # ignore it
             
@@ -486,6 +496,9 @@ class IntNWBehaviorPlot(QDialog):
         stats_regex = "obs %s est %s" % (float_regex, float_regex)
         self.__network_bandwidth_regex = re.compile("bandwidth: " + stats_regex)
         self.__network_latency_regex = re.compile("latency: " + stats_regex)
+
+        self.__redundancy_strategy_regex = \
+            re.compile("redundancy_strategy_type: ([a-z_]+)\s*")
         
     def __getIROBId(self, line):
         return int(re.search(self.__irob_regex, line).group(1))
@@ -693,7 +706,8 @@ class IntNWPlotter(object):
                     continue
                     
                 if pid != self.__currentPid:
-                    self.__windows.append(IntNWBehaviorPlot(self.__measurements_only,
+                    self.__windows.append(IntNWBehaviorPlot(len(self.__windows) + 1,
+                                                            self.__measurements_only,
                                                             self.__network_trace_file))
                     self.__currentPid = pid
                     
