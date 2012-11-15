@@ -115,7 +115,7 @@ NetStats::update(struct net_interface local_iface,
             net_estimates.estimates[NET_STATS_LATENCY].add_observation(spot_latency);
             //net_estimates.estimates[NET_STATS_LATENCY].reset(spot_latency);
         }
-        if (spot_bandwidth > 0 && spot_latency > 0) {
+        if (network_chooser && spot_bandwidth > 0 && spot_latency > 0) {
 #ifndef CMM_UNIT_TESTING
             u_long bw_est, latency_est;
             if (net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est) &&

@@ -101,7 +101,7 @@ void send_bytes(int sock, char *buf, size_t bytes)
 }
 
 void send_bytes_by_chunk(int sock, char *buf, size_t bytes, size_t chunksize,
-                         u_long stutter_ms, 
+                         long stutter_ms, 
                          struct timeval *avg_time, struct timeval *avg_stutter_time)
 {
     struct timeval total_time = {0,0};
@@ -140,7 +140,7 @@ void send_bytes_by_chunk(int sock, char *buf, size_t bytes, size_t chunksize,
 
 #ifndef NOMULTISOCK
 void send_bytes_by_chunk_one_irob(int sock, char *buf, size_t bytes, size_t chunksize,
-                                  u_long stutter_ms, 
+                                  long stutter_ms, 
                                   struct timeval *avg_time, struct timeval *avg_stutter_time)
 {
     struct timeval total_time = {0, 0};
@@ -192,7 +192,7 @@ void send_bytes_by_chunk_one_irob(int sock, char *buf, size_t bytes, size_t chun
 }
 #endif
 
-typedef void (*send_chunk_fn_t)(int, char *, size_t, size_t, u_long, 
+typedef void (*send_chunk_fn_t)(int, char *, size_t, size_t, long, 
                                 struct timeval *, struct timeval *);
 
 int srv_connect(const char *hostname);
@@ -214,7 +214,7 @@ ssize_t read_bytes(int sock, void *buf, size_t count)
 }
 
 void run_all_chunksizes(const char *hostname, int minchunksize, 
-                        char *buf, int bytes, u_long stutter_ms, 
+                        char *buf, int bytes, long stutter_ms, 
                         send_chunk_fn_t send_chunk_fn)
 {
     struct timeval begin, end, diff;
@@ -285,7 +285,7 @@ int main(int argc, char *argv[])
     int ch;
     int mbytes = 0, kbytes = 0, bytes = 0;
     int minchunksize = 64;
-    u_long stutter_ms = 0;
+    long stutter_ms = 0;
     while ((ch = getopt(argc, argv, "lb:k:m:s:c:")) != -1) {
         switch (ch) {
         case 'l':

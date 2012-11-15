@@ -849,15 +849,14 @@ int main(int argc, char *argv[])
     
     /* Add the interfaces, wizard-of-oz-style */
     struct net_interface ifs[2] = {
-        {{0}, CMM_LABEL_ONDEMAND, fg_bandwidth, fg_bandwidth,  fg_RTT, 0},
-        {{0}, CMM_LABEL_BACKGROUND, bg_bandwidth, bg_bandwidth, bg_RTT, 0}
+        {{0}, CMM_LABEL_ONDEMAND, fg_bandwidth, fg_bandwidth,  (int) fg_RTT},
+        {{0}, CMM_LABEL_BACKGROUND, bg_bandwidth, bg_bandwidth, (int) bg_RTT}
     };
     const char *ifnames[2] = {fg_iface_name, bg_iface_name};
 
     size_t num_ifs = 2;
     if (!bg_iface_name) {
         num_ifs = 1;
-        ifs[0].labels = 0; // only available interface, so use it for everything
     }
 
     for (size_t i = 0; i < num_ifs; i++) {

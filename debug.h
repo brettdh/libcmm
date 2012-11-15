@@ -7,6 +7,8 @@
 #define CDECL 
 #endif
 
+#include <unistd.h>
+
 #include <pthread.h>
 extern pthread_key_t thread_name_key;
 #define MAX_NAME_LEN 20

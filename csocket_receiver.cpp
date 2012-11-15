@@ -511,12 +511,12 @@ CSocketReceiver::do_ack(struct CMMSocketControlHdr hdr)
 
     irob_id_t id = ntohl(hdr.op.ack.id);
     struct timeval srv_time = {
-        ntohl(hdr.op.ack.srv_time.tv_sec),
-        ntohl(hdr.op.ack.srv_time.tv_usec)
+        (time_t) ntohl(hdr.op.ack.srv_time.tv_sec),
+        (suseconds_t) ntohl(hdr.op.ack.srv_time.tv_usec)
     };
     struct timeval ack_qdelay = {
-        ntohl(hdr.op.ack.qdelay.tv_sec),
-        ntohl(hdr.op.ack.qdelay.tv_usec)
+        (time_t) ntohl(hdr.op.ack.qdelay.tv_sec),
+        (suseconds_t) ntohl(hdr.op.ack.qdelay.tv_usec)
     };
     struct timeval ack_time;
     TIME(ack_time);
