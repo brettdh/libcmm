@@ -1801,6 +1801,9 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
         return;
     }
 
+    dbgprintf("Tearing down all connections on %s interface %s\n",
+              local ? "local" : "remote", inet_ntoa(iface.ip_addr));
+
     // Restart bootstrapper if it's using this interface
     //  (and if it's still running)
     bootstrapper->restart(iface);

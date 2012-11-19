@@ -243,6 +243,9 @@ CSockMapping::teardown(struct net_interface iface, bool local)
         CSocketPtr victim = victims.back();
         victims.pop_back();
         available_csocks.erase(victim);
+
+        dbgprintf("Tearing down CSocket %d (%s interface %s is gone\n",
+                  victim->osfd, local ? "local" : "remote", inet_ntoa(iface.ip_addr));
         shutdown(victim->osfd, SHUT_RDWR); /* tells the sender/receiver threads to exit */
     }
 }
