@@ -156,6 +156,9 @@ class IntNWBehaviorPlot(QDialog):
         self.__network_trace_file = network_trace_file
         self.__estimates = {} # estimates[network_type][bandwidth|latency] -> [values]
 
+        # app-level sessions from the trace_replayer.log file
+        self.__sessions = []
+
         self.__irob_height = 0.25
         self.__network_pos_offsets = {'wifi': 1.0, '3G': -1.0}
         self.__direction_pos_offsets = {'down': self.__irob_height / 2.0,
@@ -173,6 +176,9 @@ class IntNWBehaviorPlot(QDialog):
         self.create_main_frame()
         self.on_draw()
 
+    def setSessions(self, sessions):
+        self.__sessions = sessions
+        
     def create_main_frame(self):
         self.__frame = QWidget()
         self.__dpi = 100
@@ -200,19 +206,23 @@ class IntNWBehaviorPlot(QDialog):
         self.__show_wifi = QCheckBox("wifi")
         self.__show_threeg = QCheckBox("3G")
         self.__show_trace = QCheckBox("Trace display")
-        checks = [self.__show_wifi, self.__show_threeg, self.__show_trace]
+        self.__show_legend = QCheckBox("Legend")
+        checks = [self.__show_wifi, self.__show_threeg,
+                  self.__show_trace, self.__show_legend]
 
         networks = QVBoxLayout()
         networks.addWidget(self.__show_wifi)
         networks.addWidget(self.__show_threeg)
         hbox.addLayout(networks)
 
-        hbox.addWidget(self.__show_trace)
+        options = QVBoxLayout()
+        options.addWidget(self.__show_trace)
+        options.addWidget(self.__show_legend)
+        hbox.addLayout(options)
 
         for check in checks:
             check.setChecked(True)
             self.connect(check, SIGNAL("stateChanged(int)"), self.on_draw)
-
         
         self.__bandwidth_toggle = QRadioButton("Bandwidth")
         self.__latency_toggle = QRadioButton("Latency")
@@ -239,10 +249,9 @@ class IntNWBehaviorPlot(QDialog):
             self.__setTraceEnd()
             self.__drawWifi()
             self.__drawIROBs()
+            self.__drawSessions()
         
         self.__canvas.draw()
-
-        self.__printStats()
 
     def __whatToPlot(self):
         if self.__bandwidth_toggle.isChecked():
@@ -272,7 +281,7 @@ class IntNWBehaviorPlot(QDialog):
         conversion = 1.0
         if what_to_plot == 'latency':
             conversion = 1.0 / 1000.0
-        
+
         if self.__network_trace_file:
             for line in open(self.__network_trace_file).readlines():
                 fields = line.strip().split()
@@ -332,7 +341,8 @@ class IntNWBehaviorPlot(QDialog):
                              color=color)
             self.__axes.set_xlabel("Time (seconds)")
             self.__axes.set_ylabel(self.__getYAxisLabel())
-            self.__axes.legend()
+            if self.__show_legend.isChecked():
+                self.__axes.legend()
 
     def __setupAxes(self):
         yticks = []
@@ -360,6 +370,16 @@ class IntNWBehaviorPlot(QDialog):
                     irob = irobs[irob_id]
                     irob.draw(self.__axes)
 
+    def __drawSessions(self):
+        if self.__sessions:
+            timestamps = [self.getAdjustedTime(s['start']) for s in self.__sessions]
+            session_times = [s['end'] - s['start'] for s in self.__sessions]
+
+            session_axes = self.__axes.twinx()
+            session_axes.plot(timestamps, session_times, marker='o', markersize=3,
+                              color='black')
+                
+
     def __drawWifi(self):
         if "wifi" not in self.__network_periods:
             # not done parsing yet
@@ -373,7 +393,7 @@ class IntNWBehaviorPlot(QDialog):
                   vertical_bounds[1] - vertical_bounds[0] + self.__irob_height]
         self.__axes.broken_barh(bars, height, color="green", alpha=0.3)
 
-    def __printStats(self):
+    def printStats(self):
         if self.__choose_network_calls:
             print ("%f seconds in chooseNetwork (%d calls)" %
                    (sum(self.__choose_network_calls), len(self.__choose_network_calls)))
@@ -675,19 +695,26 @@ class IntNWBehaviorPlot(QDialog):
 
     
 class IntNWPlotter(object):
-    def __init__(self, filename, measurements_only, network_trace_file):
+    def __init__(self, filename, measurements_only,
+                 network_trace_file, trace_replayer_log):
         self.__windows = []
         self.__currentPid = None
         self.__pid_regex = re.compile("^\[[0-9]+\.[0-9]+\]\[([0-9]+)\]")
 
         self.__measurements_only = measurements_only
         self.__network_trace_file = network_trace_file
+        self.__trace_replayer_log = trace_replayer_log
         self.__readFile(filename)
         self.draw()
+        self.printStats()
 
     def draw(self):
         for window in self.__windows:
             window.on_draw()
+
+    def printStats(self):
+        for window in self.__windows:
+            window.printStats()
         
     def __getPid(self, line):
         match = re.search(self.__pid_regex, line)
@@ -696,7 +723,36 @@ class IntNWPlotter(object):
 
         return None
 
+    def __readSessions(self, filename):
+        runs = []
+        for linenum, line in enumerate(open(filename).readlines()):
+            fields = line.strip().split()
+            if "Redundancy strategy" in line:
+                runs.append([])
+            else:
+                try:
+                    timestamp = float(fields[0])
+                except ValueError:
+                    continue
+
+            sessions = runs[-1]
+            if "Executing:" in line and fields[2] == "at":
+                # start of a session
+                transfer = {'start': timestamp, 'end': None}
+                sessions.append(transfer)
+            elif (("Waiting to execute" in line and fields[4] == "at") or
+                  "Waiting until trace end" in line):
+                  # end of a session
+                if len(sessions) > 0:
+                    sessions[-1]['end'] = timestamp
+        return runs
+
     def __readFile(self, filename):
+        # this log file is small.
+        session_runs = None
+        if self.__trace_replayer_log:
+            session_runs = self.__readSessions(self.__trace_replayer_log)
+        
         print "Parsing log file..."
         progress = ProgressBar()
         for linenum, line in enumerate(progress(open(filename).readlines())):
@@ -710,6 +766,9 @@ class IntNWPlotter(object):
                                                             self.__measurements_only,
                                                             self.__network_trace_file))
                     self.__currentPid = pid
+                    if session_runs:
+                        sessions = session_runs[len(self.__windows) - 1]
+                        self.__windows[-1].setSessions(sessions)
                     
                 self.__windows[-1].parseLine(line)
             except LogParsingError as e:
@@ -731,11 +790,14 @@ def main():
     parser.add_argument("filename")
     parser.add_argument("--measurements", action="store_true", default=False)
     parser.add_argument("--network-trace-file", default=None)
+    parser.add_argument("--trace-replayer-log", default=None)
     args = parser.parse_args()
 
     app = QApplication(sys.argv)
     
-    plotter = IntNWPlotter(args.filename, args.measurements, args.network_trace_file)
+    plotter = IntNWPlotter(args.filename, args.measurements,
+                           args.network_trace_file,
+                           args.trace_replayer_log)
     plotter.show()
     app.exec_()
 
