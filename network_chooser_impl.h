@@ -52,7 +52,6 @@ class NetworkChooserImpl {
 
 class PreferredNetwork : public NetworkChooserImpl {
     int preferred_type;
-    bool has_match;
     struct net_interface local, remote;
   public:
     PreferredNetwork(int preferred_type_);
@@ -71,7 +70,6 @@ class PreferredNetwork : public NetworkChooserImpl {
 class LabelMatcher : public NetworkChooserImpl {
     u_long max_bw;
     u_long min_RTT;
-    bool has_match;
     bool has_wifi_match;
     bool has_threeg_match;
     std::pair<struct net_interface, struct net_interface> max_bw_iface_pair;

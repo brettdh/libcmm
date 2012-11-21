@@ -380,7 +380,10 @@ CSockMapping::connected_csock_with_labels(u_long send_label,
             
             // keep track of the local/remote iface pair so I don't have to 
             //  iterate twice
-            lookup[make_pair(csock->local_iface, csock->remote_iface)] = csock;
+            pair<struct net_interface, struct net_interface> key = 
+                make_pair(csock->local_iface, csock->remote_iface);
+            assert(lookup.count(key) == 0);
+            lookup[key] = csock;
         }
     }
 
@@ -390,6 +393,7 @@ CSockMapping::connected_csock_with_labels(u_long send_label,
     } else {
         if (guarded_chooser->choose_networks(send_label, num_bytes, 
                                              iface_pair.first, iface_pair.second)) {
+            assert(lookup.count(iface_pair) > 0);
             return lookup[iface_pair];
         } else {
             return CSocketPtr();
