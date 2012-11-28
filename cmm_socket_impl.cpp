@@ -1618,6 +1618,7 @@ CMMSocketImpl::mc_setsockopt(int level, int optname,
             return -1;
         }
         csock_map->set_redundancy_strategy(type);
+        return 0;
     }
 
     if (optname == O_NONBLOCK) {
