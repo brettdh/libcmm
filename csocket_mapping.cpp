@@ -91,6 +91,20 @@ CSockMapping::count_locked()
     return available_csocks.size();
 }
 
+size_t 
+CSockMapping::count_connected_locked()
+{
+    size_t num_connected_csocks = 0;
+    for (CSockSet::iterator it = available_csocks.begin();
+         it != available_csocks.end(); it++) {
+        CSocketPtr csock = *it;
+        if (csock->is_connected()) {
+            ++num_connected_csocks;
+        }
+    }
+    return num_connected_csocks;
+}
+
 bool
 CSockMapping::empty()
 {
@@ -671,7 +685,7 @@ CSockMapping::check_redundancy(PendingSenderIROB *psirob)
 {
     irob_id_t id = psirob->get_id();
     dbgprintf("Checking whether to send IROB %ld redundantly...\n", id);
-    if (count_locked() <= 1) {
+    if (count_connected_locked() <= 1) {
         dbgprintf("No extra interfaces; no redundancy\n");
         // no redundancy possible
         return;

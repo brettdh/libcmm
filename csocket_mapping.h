@@ -73,6 +73,7 @@ class CSockMapping {
 
     size_t count();
     size_t count_locked();
+    size_t count_connected_locked();
     bool empty();
     
     bool can_satisfy_network_restrictions(u_long send_labels);
