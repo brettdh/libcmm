@@ -216,6 +216,8 @@ IntNWInstrumentsNetworkChooser::reset()
     wifi_present = false;
     needs_reevaluation = true;
     chosen_strategy_type = -1;
+
+    label_matcher.reset();
 }
 
 
@@ -332,8 +334,6 @@ bool
 IntNWInstrumentsNetworkChooser::RedundancyStrategy::
 shouldTransmitRedundantly(PendingSenderIROB *psirob)
 {
-    // BUG: this is never called.  WHY NOT?  virtual issues?
-
     assert(chooser->has_match);
     assert(chooser->chosen_strategy_type != -1);
     dbgprintf("shouldTransmitRedundantly: Chosen network strategy: %s\n",
