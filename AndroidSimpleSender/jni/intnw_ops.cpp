@@ -17,6 +17,13 @@
 
 #include <jni.h>
 
+#include <string>
+#include <sstream>
+#include <iomanip>
+#include <map>
+using std::string; using std::ostringstream; using std::setw; using std::setfill;
+using std::map;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -34,6 +41,7 @@ static const int CHUNK_SIZE = 40;
 static const short LISTEN_PORT = 4242;
 static mc_socket_t shared_sock = -1;
 static pthread_mutex_t socket_lock = PTHREAD_MUTEX_INITIALIZER;
+static map<string, struct timeval> send_times;
 
 class ReplyThread {
     JNIEnv *jenv;
@@ -70,6 +78,8 @@ class ReplyThread {
                 break;
             }
             
+            ostringstream resp_ss;
+            string response;
             char buf[CHUNK_SIZE];
             memset(buf, 0, CHUNK_SIZE);
             DEBUG_LOG("Receiving reply\n");
@@ -86,9 +96,27 @@ class ReplyThread {
             
             buf[CHUNK_SIZE-1] = '\0';
             DEBUG_LOG("Echo: %*s\n", (int)(CHUNK_SIZE - 1), buf);
+
+            pthread_mutex_lock(&socket_lock);
+            struct timeval send_time = {0, 0};
+            if (send_times.count(buf) > 0) {
+                send_time = send_times[buf];
+                send_times.erase(buf);
+            }
+            pthread_mutex_unlock(&socket_lock);
+
+            resp_ss << buf;
+            if (send_time.tv_sec > 0) {
+                struct timeval now, diff;
+                gettimeofday(&now, NULL);
+                timersub(&now, &send_time, &diff);
+                resp_ss << " (" << diff.tv_sec << "."
+                        << setw(6) << setfill('0') << diff.tv_usec << ")";
+            }
+            response = resp_ss.str();
             
             //Tell Android activity about the reply message
-            jstring responseString = jenv->NewStringUTF(buf);
+            jstring responseString = jenv->NewStringUTF(response.c_str());
             jenv->CallVoidMethod(jobj, mid, responseString, foreground);
         }
     }
@@ -161,6 +189,11 @@ static int send_message(bool fg, int seqno)
     pthread_mutex_lock(&socket_lock);
     u_long labels = fg ? CMM_LABEL_ONDEMAND : CMM_LABEL_BACKGROUND;
     labels |= CMM_LABEL_SMALL;
+    
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    send_times[buf] = now;
+
     rc = cmm_write_with_deps(shared_sock, buf, CHUNK_SIZE, 0, NULL,
                              labels, NULL, NULL, NULL);
     pthread_mutex_unlock(&socket_lock);

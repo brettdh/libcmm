@@ -17,7 +17,8 @@ public class SimpleSender extends Activity
     private int bg_seqno = 0;
     private Thread replyThread;
 
-    private final String TEST_SERVER_IP = "141.212.113.120";
+    //private final String TEST_SERVER_IP = "141.212.113.120";
+    private final String TEST_SERVER_IP = "141.212.110.115"; // emulation box/forwarder
     
     /** Called when the activity is first created. */
     @Override
