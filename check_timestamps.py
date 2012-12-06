@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2.7
 
 def check_file_generic(f, get_num):
     print "Evaluating %s for non-monotonicity" % f
@@ -10,16 +10,20 @@ def check_file_generic(f, get_num):
         if t is not None:
             times.append(get_num(line))
         
-    for i,x in enumerate(times):
-        if i > 0 and times[i] < times[i-1]:
-            print "%f: %f" % (times[i-1], times[i] - times[i-1])
+    # times is a list of (timestamp_string, timestamp_float) tuples
+    for i in xrange(len(times)):
+        if i > 0 and times[i][1] < times[i-1][1]:
+            print "%s: %f" % (times[i-1][0], times[i][1] - times[i-1][1])
+
+_unix_float_timestamp = "([0-9]+\.[0-9]+)"
+import re
 
 def check_file_intnw(f):
     def get_timestamp(line):
-        import re
-        m = re.search("^\[([0-9]+\.[0-9]+)\]", line)
+        m = re.search("^\[%s\]" % _unix_float_timestamp, line)
         if m:
-            return float(m.group(1))
+            ts_str = m.group(1)
+            return ts_str, float(ts_str)
         return None
 
     check_file_generic(f, get_timestamp)
@@ -27,12 +31,31 @@ def check_file_intnw(f):
 def check_file_trace_replayer(f):
     def get_timestamp(line):
         try:
-            return float(line.split()[0])
+            ts_str = line.split()[0]
+            m = re.search(_unix_float_timestamp, ts_str)
+            if m:
+                return ts_str, float(ts_str)
         except (ValueError, IndexError):
-            return None
+            pass # fall through
+        return None
         
     check_file_generic(f, get_timestamp)
 
+def check_file_timing(f):
+    def get_timestamp(line):
+        from dateutil import parser
+        fields = line.strip().split()
+        if len(fields) < 6:
+            return None
+        datestr = " ".join(fields)
+        
+        try:
+            d = parser.parse(datestr)
+            return datestr, time.mktime(d.timetuple())
+        except ValueError:
+            return None
+    
+    check_file_generic(f, get_timestamp);
 
 from argparse import ArgumentParser
 import os.path
@@ -43,7 +66,7 @@ if __name__ == '__main__':
     parser.add_argument("filename")
     args = parser.parse_args()
 
-    choices = ['intnw.log', 'trace_replayer.log']
+    choices = ['intnw.log', 'trace_replayer.log', 'timing.log']
     
     # trim leading path
     file_base = os.path.basename(args.filename)
