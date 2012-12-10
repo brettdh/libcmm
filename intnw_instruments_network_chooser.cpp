@@ -52,16 +52,30 @@ network_transfer_data_cost(instruments_context_t ctx, void *strategy_arg, void *
 }
 
 double
+IntNWInstrumentsNetworkChooser::getBandwidthUp(instruments_context_t ctx,
+                                               InstrumentsWrappedNetStats *net_stats)
+{
+    double bw = net_stats->get_bandwidth_up(ctx);
+    return max(1.0, bw); // TODO: revisit.  This is a hack to avoid bogus calculations.
+}
+
+double
+IntNWInstrumentsNetworkChooser::getRttSeconds(instruments_context_t ctx,
+                                              InstrumentsWrappedNetStats *net_stats)
+{
+    double rtt_seconds = net_stats->get_rtt(ctx);
+    return max(0.0, rtt_seconds); // TODO: revisit.  This is a hack to avoid bogus calculations.
+}
+
+double
 IntNWInstrumentsNetworkChooser::calculateTransferTime(instruments_context_t ctx,
                                                       InstrumentsWrappedNetStats *net_stats,
                                                       int bytelen)
 {
     assert(net_stats);
-    double bw = net_stats->get_bandwidth_up(ctx);
-    double rtt_seconds = net_stats->get_rtt(ctx);
+    double bw = getBandwidthUp(ctx, net_stats);
+    double rtt_seconds = getRttSeconds(ctx, net_stats);
 
-    bw = max(1.0, bw); // TODO: revisit.  This is a hack to avoid bogus calculations.
-    rtt_seconds = max(0.0, rtt_seconds);
     return (bytelen / bw) + rtt_seconds;
 }
 
@@ -79,8 +93,8 @@ IntNWInstrumentsNetworkChooser::calculateTransferEnergy(instruments_context_t ct
         type = TYPE_MOBILE;
     } else assert(0);
     
-    double bw = net_stats->get_bandwidth_up(ctx);
-    double rtt_seconds = net_stats->get_rtt(ctx);
+    double bw = getBandwidthUp(ctx, net_stats);
+    double rtt_seconds = getRttSeconds(ctx, net_stats);
     
     return estimate_energy_cost(type, bytelen, bw, rtt_seconds * 1000.0);
 }

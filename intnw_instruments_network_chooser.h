@@ -78,6 +78,13 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
 
     double getEnergyWeight();
     double getDataWeight();
+
+    // wrappers to avoid bogus calculations.
+    double getBandwidthUp(instruments_context_t ctx,
+                          InstrumentsWrappedNetStats *net_stats);
+    double getRttSeconds(instruments_context_t ctx,
+                         InstrumentsWrappedNetStats *net_stats);
+
     
     double calculateTransferTime(instruments_context_t ctx,
                                  InstrumentsWrappedNetStats *net_stats,
