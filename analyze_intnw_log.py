@@ -105,7 +105,7 @@ class IROB(object):
 
     def markDropped(self, timestamp):
         if self.__drop_time == None:
-            dprint("Dropped %s at %f" % (self, timestamp))
+            print("Dropped %s at %f" % (self, timestamp))
             self.__drop_time = timestamp
 
     def getDuration(self):
@@ -141,6 +141,12 @@ class IROB(object):
         elif self.__abnormal_end:
             axes.plot([finish], [ypos], marker='*', color='black')
 
+timestamp_regex = re.compile("^\[([0-9]+\.[0-9]+)\]")
+
+def getTimestamp(line):
+    return float(re.search(timestamp_regex, line).group(1))
+            
+
 class IntNWBehaviorPlot(QDialog):
     def __init__(self, run, measurements_only, network_trace_file, parent=None):
         QDialog.__init__(self, parent)
@@ -151,13 +157,20 @@ class IntNWBehaviorPlot(QDialog):
         self.__network_periods = {}
         self.__network_type_by_ip = {}
         self.__network_type_by_sock = {}
+        self.__placeholder_sockets = {} # for when connection begins before scout msg
 
         self.__measurements_only = measurements_only
         self.__network_trace_file = network_trace_file
         self.__estimates = {} # estimates[network_type][bandwidth|latency] -> [values]
 
+        # second axes to plot times on
+        self.__session_axes = None
+
         # app-level sessions from the trace_replayer.log file
         self.__sessions = []
+
+        # redundancy decision calculations from instruments.log
+        self.__redundancy_decisions = []
 
         self.__irob_height = 0.25
         self.__network_pos_offsets = {'wifi': 1.0, '3G': -1.0}
@@ -178,6 +191,9 @@ class IntNWBehaviorPlot(QDialog):
 
     def setSessions(self, sessions):
         self.__sessions = sessions
+
+    def setRedundancyDecisions(self, redundancy_decisions):
+        self.__redundancy_decisions = redundancy_decisions
         
     def create_main_frame(self):
         self.__frame = QWidget()
@@ -196,19 +212,33 @@ class IntNWBehaviorPlot(QDialog):
 
         if self.__measurements_only:
             self.__setupMeasurementWidgets(hbox)
+        else:
+            self.__setupActivityWidgets(hbox)
             
         vbox = QVBoxLayout(self)
         vbox.addWidget(self.__canvas)
         vbox.addWidget(self.__mpl_toolbar)
         vbox.addLayout(hbox)
 
+    def __setupActivityWidgets(self, hbox):
+        self.__show_sessions = QCheckBox("Session times")
+        self.__show_decisions = QCheckBox("Redundancy decisions")
+        checks = [self.__show_sessions, self.__show_decisions]
+        
+        for check in checks:
+            check.setChecked(True)
+            hbox.addWidget(check)
+            self.connect(check, SIGNAL("stateChanged(int)"), self.on_draw)
+
     def __setupMeasurementWidgets(self, hbox):
         self.__show_wifi = QCheckBox("wifi")
         self.__show_threeg = QCheckBox("3G")
         self.__show_trace = QCheckBox("Trace display")
         self.__show_legend = QCheckBox("Legend")
+        self.__show_decisions = QCheckBox("Redundancy decisions")
         checks = [self.__show_wifi, self.__show_threeg,
-                  self.__show_trace, self.__show_legend]
+                  self.__show_trace, self.__show_legend,
+                  self.__show_decisions]
 
         networks = QVBoxLayout()
         networks.addWidget(self.__show_wifi)
@@ -218,6 +248,7 @@ class IntNWBehaviorPlot(QDialog):
         options = QVBoxLayout()
         options.addWidget(self.__show_trace)
         options.addWidget(self.__show_legend)
+        options.addWidget(self.__show_decisions)
         hbox.addLayout(options)
 
         for check in checks:
@@ -240,16 +271,19 @@ class IntNWBehaviorPlot(QDialog):
         self.setWindowTitle(self.__title)
 
         self.__axes.clear()
+        self.__getSessionAxes().clear()
 
         if self.__measurements_only:
             self.__plotTrace()
             self.__plotMeasurements()
+            self.__drawRedundancyDecisions()
         else:
             self.__setupAxes()
             self.__setTraceEnd()
             self.__drawWifi()
             self.__drawIROBs()
             self.__drawSessions()
+            self.__drawRedundancyDecisions()
         
         self.__canvas.draw()
 
@@ -345,15 +379,18 @@ class IntNWBehaviorPlot(QDialog):
                 self.__axes.legend()
 
     def __setupAxes(self):
-        yticks = []
-        yticklabels = []
+        yticks = {}
         for network, pos in self.__network_pos_offsets.items():
             for direction, offset in self.__direction_pos_offsets.items():
                 label = "%s %s" % (network, direction)
-                yticks.append(pos + offset)
-                yticklabels.append(label)
-        self.__axes.set_yticks(yticks)
-        self.__axes.set_yticklabels(yticklabels)
+                yticks[pos + offset] = label
+
+        min_tick = min(yticks.keys())
+        max_tick = max(yticks.keys())
+        self.__axes.set_ylim(min_tick - self.__irob_height,
+                             max_tick + self.__irob_height)
+        self.__axes.set_yticks(yticks.keys())
+        self.__axes.set_yticklabels(yticks.values())
 
     def __setTraceEnd(self):
         for network_type in self.__network_periods:
@@ -370,15 +407,31 @@ class IntNWBehaviorPlot(QDialog):
                     irob = irobs[irob_id]
                     irob.draw(self.__axes)
 
+    def __getSessionAxes(self):
+        if self.__session_axes == None:
+            self.__session_axes = self.__axes.twinx()
+        return self.__session_axes
+
     def __drawSessions(self):
-        if self.__sessions:
+        if self.__sessions and self.__show_sessions.isChecked():
             timestamps = [self.getAdjustedTime(s['start']) for s in self.__sessions]
             session_times = [s['end'] - s['start'] for s in self.__sessions]
 
-            session_axes = self.__axes.twinx()
-            session_axes.plot(timestamps, session_times, marker='o', markersize=3,
-                              color='black')
-                
+            ax = self.__getSessionAxes()
+            ax.plot(timestamps, session_times, marker='o', markersize=3,
+                    color='black')
+
+    def __drawRedundancyDecisions(self):
+        if self.__redundancy_decisions and self.__show_decisions.isChecked():
+            timestamps = [self.getAdjustedTime(d.timestamp)
+                          for d in self.__redundancy_decisions]
+            redundancy_benefits = [d.benefit for d in self.__redundancy_decisions]
+            redundancy_costs = [d.cost for d in self.__redundancy_decisions]
+
+            ax = self.__getSessionAxes()
+            ax.plot(timestamps, redundancy_benefits, marker='o',
+                    markersize=3, color='green')
+            ax.plot(timestamps, redundancy_costs, marker='o', markersize=3, color='orange')
 
     def __drawWifi(self):
         if "wifi" not in self.__network_periods:
@@ -415,7 +468,7 @@ class IntNWBehaviorPlot(QDialog):
         return timestamp - self.__start
 
     def parseLine(self, line):
-        timestamp = self.__getTimestamp(line)
+        timestamp = getTimestamp(line)
         if self.__start == None:
             self.__start = timestamp
             
@@ -483,7 +536,7 @@ class IntNWBehaviorPlot(QDialog):
                                       'observation': float(obs),
                                       'estimate': float(est)})
         elif "chooseNetwork" in line:
-            duration = timestamp - self.__getTimestamp(self.__last_line)
+            duration = timestamp - getTimestamp(self.__last_line)
             self.__choose_network_calls.append(duration)
         elif "redundancy_strategy_type" in line:
             # [timestamp][pid][Bootstrapper 49] Sending hello:  Type: Hello(0)
@@ -505,7 +558,6 @@ class IntNWBehaviorPlot(QDialog):
         self.__network_regex = re.compile("scout: (.+) is (down|up).+ type ([A-Za-z0-9]+)")
         self.__ip_regex = re.compile("([0-9]+(?:\.[0-9]+){3})")
         self.__socket_regex = re.compile("\[CSock(?:Sender|Receiver) ([0-9]+)\]")
-        self.__timestamp_regex = re.compile("^\[([0-9]+\.[0-9]+)\]")
         self.__intnw_message_type_regex = \
             re.compile("(?:About to send|Received) message:  Type: ([A-Za-z_]+)")
         self.__csocket_destroyed_regex = re.compile("CSocket (.+) is being destroyed")
@@ -530,7 +582,7 @@ class IntNWBehaviorPlot(QDialog):
         return re.search(self.__ip_regex, line).group(1)
 
     def __modifyNetwork(self, line):
-        timestamp = self.__getTimestamp(line)
+        timestamp = getTimestamp(line)
         ip, status, network_type = re.search(self.__network_regex, line).groups()
         if network_type not in self.__networks:
             self.__networks[network_type] = {
@@ -556,12 +608,27 @@ class IntNWBehaviorPlot(QDialog):
                 'start': timestamp, 'end': None,
                 'ip': ip, 'sock': None
                 })
+
+            placeholder = (ip in self.__network_type_by_ip and
+                           self.__network_type_by_ip[ip] == "placeholder")
             self.__network_type_by_ip[ip] = network_type
+            if placeholder:
+                sock = self.__placeholder_sockets[ip]
+                del self.__placeholder_sockets[ip]
+                self.__addNetworkPeriod(sock, ip)
         else: assert False
         
     def __addConnection(self, line):
         sock = self.__getSocket(line)
         ip = self.__getIP(line)
+        if ip not in self.__network_type_by_ip:
+            self.__network_type_by_ip[ip] = "placeholder"
+            assert ip not in self.__placeholder_sockets
+            self.__placeholder_sockets[ip] = sock
+        else:
+            self.__addNetworkPeriod(sock, ip)
+
+    def __addNetworkPeriod(self, sock, ip):
         network_type = self.__network_type_by_ip[ip]
         network_period = self.__network_periods[network_type][-1]
 
@@ -577,7 +644,7 @@ class IntNWBehaviorPlot(QDialog):
         raise NotImplementedError() # TODO
         
     def __removeConnection(self, line):
-        timestamp = self.__getTimestamp(line)
+        timestamp = getTimestamp(line)
         sock = int(re.search(self.__csocket_destroyed_regex, line).group(1))
         if sock in self.__network_type_by_sock:
             network_type = self.__network_type_by_sock[sock]
@@ -588,9 +655,6 @@ class IntNWBehaviorPlot(QDialog):
 
             self.__markDroppedIROBs(timestamp, network_type)
 
-    def __getTimestamp(self, line):
-        return float(re.search(self.__timestamp_regex, line).group(1))
-        
     def __getNetworkType(self, line):
         sock = self.__getSocket(line)
         return self.__network_type_by_sock[sock]
@@ -616,7 +680,7 @@ class IntNWBehaviorPlot(QDialog):
         # [time][pid][CSockReceiver 57] Received message:  Type: Ack(7)
         #                               Send labels:  num_acks: 0 IROB: 0
         #                               srv_time: 0.000997 qdelay: 0.000000
-        timestamp = self.__getTimestamp(line)
+        timestamp = getTimestamp(line)
         network_type = self.__getNetworkType(line)
         intnw_message_type = self.__getIntNWMessageType(line)
 
@@ -693,18 +757,25 @@ class IntNWBehaviorPlot(QDialog):
         irob.ack(timestamp)
         dprint("Acked %s at %f" % (irob, timestamp))
 
+class RedundancyDecision(object):
+    def __init__(self, timestamp):
+        self.timestamp = timestamp;
+        self.benefit = None
+        self.cost = None
     
 class IntNWPlotter(object):
-    def __init__(self, filename, measurements_only,
-                 network_trace_file, trace_replayer_log):
+    def __init__(self, args):
         self.__windows = []
         self.__currentPid = None
         self.__pid_regex = re.compile("^\[[0-9]+\.[0-9]+\]\[([0-9]+)\]")
+        self.__session_regex = re.compile("start ([0-9]+\.[0-9]+)" + 
+                                          ".+duration ([0-9]+\.[0-9]+)")
 
-        self.__measurements_only = measurements_only
-        self.__network_trace_file = network_trace_file
-        self.__trace_replayer_log = trace_replayer_log
-        self.__readFile(filename)
+        self.__measurements_only = args.measurements
+        self.__network_trace_file = args.network_trace_file
+        self.__trace_replayer_log = args.trace_replayer_log
+        self.__redundancy_eval_log = args.redundancy_eval_log
+        self.__readFile(args.filename)
         self.draw()
         self.printStats()
 
@@ -723,12 +794,29 @@ class IntNWPlotter(object):
 
         return None
 
-    def __readSessions(self, filename):
+    def __getSession(self, line):
+        match = re.search(self.__session_regex, line)
+        if not match:
+            raise LogParsingError("expected timestamp and duration")
+
+        return [float(s) for s in match.groups()]
+
+    def __readSessions(self):
+        filename = self.__trace_replayer_log
         runs = []
         for linenum, line in enumerate(open(filename).readlines()):
             fields = line.strip().split()
             if "Redundancy strategy" in line:
                 runs.append([])
+            elif "Session times:" in line:
+                # start over with the better list of sessions
+                runs[-1] = []
+            elif "  Session" in line:
+                timestamp, duration = self.__getSession(line)
+                transfer = {'start': timestamp, 'end': timestamp + duration}
+
+                sessions = runs[-1]
+                sessions.append(transfer)
             else:
                 try:
                     timestamp = float(fields[0])
@@ -747,11 +835,39 @@ class IntNWPlotter(object):
                     sessions[-1]['end'] = timestamp
         return runs
 
+    def __readRedundancyDecisions(self):
+        filename = self.__redundancy_eval_log
+        runs = []
+        last_pid = 0
+        for linenum, line in enumerate(open(filename).readlines()):
+            pid = self.__getPid(line)
+            if pid != last_pid:
+                runs.append([])
+            last_pid = pid
+
+            current_run = runs[-1]
+            
+            timestamp = getTimestamp(line)
+            fields = line.strip().split()
+            if "Redundant strategy benefit" in line:
+                decision = RedundancyDecision(timestamp)
+                decision.benefit = float(fields[4])
+                print "Redundancy benefit: %f" % decision.benefit
+                
+                current_run.append(decision)
+            elif "Redundant strategy cost" in line:
+                decision = current_run[-1]
+                decision.cost = float(fields[4])
+                print "Redundancy cost: %f" % decision.cost
+        return runs
+
     def __readFile(self, filename):
-        # this log file is small.
         session_runs = None
+        redundancy_decisions = None
         if self.__trace_replayer_log:
-            session_runs = self.__readSessions(self.__trace_replayer_log)
+            session_runs = self.__readSessions()
+        if self.__redundancy_eval_log:
+            redundancy_decisions_runs = self.__readRedundancyDecisions()
         
         print "Parsing log file..."
         progress = ProgressBar()
@@ -766,9 +882,13 @@ class IntNWPlotter(object):
                                                             self.__measurements_only,
                                                             self.__network_trace_file))
                     self.__currentPid = pid
+                    window_num = len(self.__windows) - 1
                     if session_runs:
-                        sessions = session_runs[len(self.__windows) - 1]
+                        sessions = session_runs[window_num]
                         self.__windows[-1].setSessions(sessions)
+                    if redundancy_decisions_runs:
+                        redundancy_decisions = redundancy_decisions_runs[window_num]
+                        self.__windows[-1].setRedundancyDecisions(redundancy_decisions)
                     
                 self.__windows[-1].parseLine(line)
             except LogParsingError as e:
@@ -791,13 +911,12 @@ def main():
     parser.add_argument("--measurements", action="store_true", default=False)
     parser.add_argument("--network-trace-file", default=None)
     parser.add_argument("--trace-replayer-log", default=None)
+    parser.add_argument("--redundancy-eval-log", default=None)
     args = parser.parse_args()
 
     app = QApplication(sys.argv)
     
-    plotter = IntNWPlotter(args.filename, args.measurements,
-                           args.network_trace_file,
-                           args.trace_replayer_log)
+    plotter = IntNWPlotter(args)
     plotter.show()
     app.exec_()
 
