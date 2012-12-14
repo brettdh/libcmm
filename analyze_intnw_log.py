@@ -22,7 +22,7 @@
 # Borrows heavily from
 #   http://eli.thegreenplace.net/2009/01/20/matplotlib-with-pyqt-guis/
 
-import sys, re
+import sys, re, os
 from argparse import ArgumentParser
 
 from PyQt4.QtCore import *
@@ -165,6 +165,7 @@ class IntNWBehaviorPlot(QDialog):
 
         # second axes to plot times on
         self.__session_axes = None
+        self.__user_set_max_time = None
 
         # app-level sessions from the trace_replayer.log file
         self.__sessions = []
@@ -216,19 +217,38 @@ class IntNWBehaviorPlot(QDialog):
             self.__setupActivityWidgets(hbox)
             
         vbox = QVBoxLayout(self)
-        vbox.addWidget(self.__canvas)
-        vbox.addWidget(self.__mpl_toolbar)
-        vbox.addLayout(hbox)
+        vbox.addWidget(self.__canvas, stretch=100)
+        vbox.addWidget(self.__mpl_toolbar, stretch=1)
+        vbox.addLayout(hbox, stretch=1)
 
     def __setupActivityWidgets(self, hbox):
         self.__show_sessions = QCheckBox("Session times")
         self.__show_decisions = QCheckBox("Redundancy decisions")
         checks = [self.__show_sessions, self.__show_decisions]
-        
+
+        left_box = QVBoxLayout()
         for check in checks:
             check.setChecked(True)
-            hbox.addWidget(check)
+            left_box.addWidget(check)
             self.connect(check, SIGNAL("stateChanged(int)"), self.on_draw)
+
+        hbox.addLayout(left_box, stretch=1)
+
+        self.__max_time = QLineEdit("")
+        self.connect(self.__max_time, SIGNAL("returnPressed()"), self.updateMaxTime)
+
+        labeled_input = QVBoxLayout()
+        labeled_input.addWidget(QLabel("Max time"))
+        labeled_input.addWidget(self.__max_time)
+        hbox.addLayout(labeled_input, stretch=1)
+
+    def updateMaxTime(self):
+        try:
+            maxtime = float(self.__max_time.text())
+            self.__user_set_max_time = maxtime
+            self.on_draw()
+        except ValueError:
+            pass
 
     def __setupMeasurementWidgets(self, hbox):
         self.__show_wifi = QCheckBox("wifi")
@@ -410,6 +430,8 @@ class IntNWBehaviorPlot(QDialog):
     def __getSessionAxes(self):
         if self.__session_axes == None:
             self.__session_axes = self.__axes.twinx()
+        if self.__user_set_max_time:
+            self.__session_axes.set_ylim(0.0, self.__user_set_max_time)
         return self.__session_axes
 
     def __drawSessions(self):
@@ -773,9 +795,10 @@ class IntNWPlotter(object):
 
         self.__measurements_only = args.measurements
         self.__network_trace_file = args.network_trace_file
-        self.__trace_replayer_log = args.trace_replayer_log
-        self.__redundancy_eval_log = args.redundancy_eval_log
-        self.__readFile(args.filename)
+        self.__intnw_log = args.basedir + "/intnw.log"
+        self.__trace_replayer_log = args.basedir + "/trace_replayer.log"
+        self.__redundancy_eval_log = args.basedir + "/instruments.log"
+        self.__readFile(self.__intnw_log)
         self.draw()
         self.printStats()
 
@@ -837,6 +860,9 @@ class IntNWPlotter(object):
 
     def __readRedundancyDecisions(self):
         filename = self.__redundancy_eval_log
+        if not os.path.exists(filename):
+            return
+        
         runs = []
         last_pid = 0
         for linenum, line in enumerate(open(filename).readlines()):
@@ -907,11 +933,9 @@ class IntNWPlotter(object):
     
 def main():
     parser = ArgumentParser()
-    parser.add_argument("filename")
+    parser.add_argument("basedir")
     parser.add_argument("--measurements", action="store_true", default=False)
     parser.add_argument("--network-trace-file", default=None)
-    parser.add_argument("--trace-replayer-log", default=None)
-    parser.add_argument("--redundancy-eval-log", default=None)
     args = parser.parse_args()
 
     app = QApplication(sys.argv)
