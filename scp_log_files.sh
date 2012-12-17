@@ -16,7 +16,7 @@ LOCAL_DIR=$2
 REMOTE_FILES=${FILES// / $REMOTE_DIR\/}
 
 if [ -d $LOCAL_DIR ]; then
-    scp -B $REMOTE_FILES $LOCAL_DIR
+    scp $REMOTE_FILES $LOCAL_DIR
 else
     echo "Error: $LOCAL_DIR doesn't exist"
     exit 1
