@@ -33,6 +33,8 @@ from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
 from matplotlib.figure import Figure
 
+from itertools import product
+
 from progressbar import ProgressBar
 
 debug = False
@@ -105,7 +107,7 @@ class IROB(object):
 
     def markDropped(self, timestamp):
         if self.__drop_time == None:
-            print("Dropped %s at %f" % (self, timestamp))
+            dprint("Dropped %s at %f" % (self, timestamp))
             self.__drop_time = timestamp
 
     def getDuration(self):
@@ -161,7 +163,10 @@ class IntNWBehaviorPlot(QDialog):
 
         self.__measurements_only = measurements_only
         self.__network_trace_file = network_trace_file
-        self.__estimates = {} # estimates[network_type][bandwidth|latency] -> [values]
+        self.__trace = None
+
+        # estimates[network_type][bandwidth|latency] -> [values]
+        self.__estimates = {'wifi': {}, '3G': {}}
 
         # second axes to plot times on
         self.__session_axes = None
@@ -188,7 +193,6 @@ class IntNWBehaviorPlot(QDialog):
         self.__title = "IntNW - Run %d" % self.__run
 
         self.create_main_frame()
-        self.on_draw()
 
     def setSessions(self, sessions):
         self.__sessions = sessions
@@ -319,47 +323,65 @@ class IntNWBehaviorPlot(QDialog):
                   'latency': 'RTT (seconds)'}
         return labels[self.__whatToPlot()]
 
-    def __plotTrace(self):
-        colors = {'wifi': (.7, .7, 1.0), '3G': (1.0, .7, .7)}
-        field_group_indices = {'wifi': 1, '3G': 4}
-
-        # XXX: assuming bandwidth-up.  not the case on the server side.
-        field_offsets = {'bandwidth': 1, 'latency': 2}
+    class NetworkTrace(object):
+        def __init__(self, trace_file, window, estimates):
+            value_names = ['bandwidth', 'latency']
+            
+            field_group_indices = {'wifi': 1, '3G': 4}
         
-        start = None
-        timestamps = {'wifi': [], '3G': []}
-        values = {'wifi': [], '3G': []}
-        checks = {'wifi': self.__show_wifi, '3G': self.__show_threeg}
+            # XXX: assuming bandwidth-up.  not the case on the server side.
+            field_offsets = {'bandwidth': 1, 'latency': 2}
 
-        what_to_plot = self.__whatToPlot()
-        conversion = 1.0
-        if what_to_plot == 'latency':
-            conversion = 1.0 / 1000.0
+            self.__start = None
 
-        if self.__network_trace_file:
-            for line in open(self.__network_trace_file).readlines():
+            self.__timestamps = {'wifi': {'bandwidth': [], 'latency': []},
+                                 '3G': {'bandwidth': [], 'latency': []},}
+            self.__values = {'wifi': {'bandwidth': [], 'latency': []},
+                             '3G': {'bandwidth': [], 'latency': []},}
+
+            conversions = {'bandwidth': 1.0, 'latency': 1.0 / 1000.0}
+
+            last_estimates = {}
+            for network_type, what_to_plot in product(estimates, value_names):
+                last_estimate_time = estimates[network_type][what_to_plot][-1]['timestamp']
+                last_estimates[network_type] = last_estimate_time
+
+            for line in open(trace_file).readlines():
                 fields = line.strip().split()
                 timestamp = float(fields[0])
-                if not start:
-                    start = timestamp
-                rel_timestamp = timestamp - start
+                if not self.__start:
+                    self.__start = timestamp
+                rel_timestamp = timestamp - self.__start
 
-                for network_type in self.__estimates:
-                    last_estimate = self.__estimates[network_type][what_to_plot][-1]
-                    if rel_timestamp > self.getAdjustedTime(last_estimate['timestamp']):
+                for network_type, what_to_plot in product(estimates, value_names):
+                    last_estimate = last_estimates[network_type]
+                    if rel_timestamp > window.getAdjustedTime(last_estimate):
                         continue
-                    
+
                     field_index = (field_group_indices[network_type] +
                                    field_offsets[what_to_plot])
-                    value = float(fields[field_index]) * conversion
-                    timestamps[network_type].append(rel_timestamp)
-                    values[network_type].append(value)
-                    
-            for network_type in timestamps:
-                if self.__show_trace.isChecked() and checks[network_type].isChecked():
-                    self.__axes.plot(timestamps[network_type], values[network_type],
-                                     color=colors[network_type],
-                                     label=network_type + " trace")
+                    value = float(fields[field_index]) * conversions[what_to_plot]
+                    self.__timestamps[network_type][what_to_plot].append(rel_timestamp)
+                    self.__values[network_type][what_to_plot].append(value)
+
+        def plot(self, axes, what_to_plot, checks):
+            colors = {'wifi': (.7, .7, 1.0), '3G': (1.0, .7, .7)}
+            
+            for network_type in self.__timestamps:
+                if (checks[network_type].isChecked()):
+                    axes.plot(self.__timestamps[network_type][what_to_plot],
+                              self.__values[network_type][what_to_plot],
+                              color=colors[network_type],
+                              label=network_type + " trace")
+
+    def __plotTrace(self):
+        if self.__network_trace_file and not self.__trace:
+            cls = IntNWBehaviorPlot.NetworkTrace
+            self.__trace = cls(self.__network_trace_file, self, self.__estimates)
+            
+        checks = {'wifi': self.__show_wifi, '3G': self.__show_threeg}
+        if self.__show_trace.isChecked():
+            self.__trace.plot(self.__axes, self.__whatToPlot(), checks)
 
     def __plotMeasurements(self):
         markers = {'wifi': 's', '3G': 'o'}
@@ -472,6 +494,11 @@ class IntNWBehaviorPlot(QDialog):
         if self.__choose_network_calls:
             print ("%f seconds in chooseNetwork (%d calls)" %
                    (sum(self.__choose_network_calls), len(self.__choose_network_calls)))
+
+        self.__printRedundancyBenefitAnalysis()
+
+    def __printRedundancyBenefitAnalysis(self):
+        pass
 
     def getIROBPosition(self, irob):
         # TODO: allow for simultaneous (stacked) IROB plotting.
@@ -878,13 +905,13 @@ class IntNWPlotter(object):
             if "Redundant strategy benefit" in line:
                 decision = RedundancyDecision(timestamp)
                 decision.benefit = float(fields[4])
-                print "Redundancy benefit: %f" % decision.benefit
+                dprint("Redundancy benefit: %f" % decision.benefit)
                 
                 current_run.append(decision)
             elif "Redundant strategy cost" in line:
                 decision = current_run[-1]
                 decision.cost = float(fields[4])
-                print "Redundancy cost: %f" % decision.cost
+                dprint("Redundancy cost: %f" % decision.cost)
         return runs
 
     def __readFile(self, filename):
