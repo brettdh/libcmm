@@ -1,0 +1,65 @@
+MISSION
+
+Analyze the driving trace to find the "window of opportunity" for redundancy.
+How much benefit is possible?  When benefit is not possible, why not?
+
+POSSIBLE REASONS "WHY NOT" (applicable for all applications)
+
+1) No redundancy exists (e.g. only one network)
+2) One option (network) is clearly the better choice
+3) Lack of "trouble mode" or failure anticipation (periodic re-evaluation)
+4) No history
+5) Conditions change after the decision is made (e.g. wifi arrives)
+
+HOW TO QUANTIFY THE IMPACT OF EACH OF THESE FIVE
+
+1) No redundancy exists (e.g. only one network)
+
+  Count sessions that begin during single-network periods.
+  (According to the scout, not according to the trace.)
+
+2) One option (network) is clearly the better choice
+
+  Define "clearly."
+    - let f(session_id) = abs(time_on_wifi - time_on_3G).
+      let "clearly" mean f(current_session) > stdev(f)
+  Count the number of matching sessions.
+
+3) Lack of "trouble mode" or failure anticipation (periodic re-evaluation)
+
+  Count the sessions that start in a wifi transition period
+    but don't finish until after the transition
+  "Transition period": what the scout thinks is a multi-network
+    period but really has no wifi according to the trace
+
+4) No history
+
+  This applies to any transfers done while the estimated benefit
+    of redundancy is zero, because no error has been encountered yet.
+    (That's the extreme; the general expression of this is any situation
+     when the estimated error is less than the real error to be encountered.)
+  
+  From a purely analytical standpoint, if there's no error, any strategy 
+    will stick to wifi until wifi fails, since it won't be getting any error 
+    estimates from the 3G network. (But see comments on lack of active
+    measurement).  Thus, a first approximation of the impact of the lack of 
+    history can include all sessions up until the first 3G transfer.
+
+  Note that this would double-count with (3).
+
+5) Conditions change after the decision is made (e.g. wifi arrives)
+
+  This one's simple.  For every session, check the IROB timing,
+  and check whether wifi arrives in between the start and finish of 
+  the session.  The general case is that of periodic re-evaluation.
+
+  Note: even the always-redundant strategy doesn't re-evaluate
+  its decisions or retransmit when wifi arrives.  All strategies SHOULD
+  do this, and it's simple to implement.  (At a glance, though, I think
+  the impact will be quite small on the driving trace.)
+
+***
+6) Lack of active measurement
+
+This would contribute in the same way as (4).  It's probably worth 
+experimenting with, but for the present analysis I'm not considering it.
