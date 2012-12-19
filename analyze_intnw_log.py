@@ -37,6 +37,9 @@ from itertools import product
 
 from progressbar import ProgressBar
 
+sys.path.append("../../scripts/nistnet_scripts/traces")
+import mobility_trace
+
 debug = False
 #debug = True
 def dprint(msg):
@@ -165,7 +168,7 @@ class IntNWBehaviorPlot(QDialog):
         self.__network_trace_file = network_trace_file
         self.__trace = None
 
-        # estimates[network_type][bandwidth|latency] -> [values]
+        # estimates[network_type][bandwidth_up|latency] -> [values]
         self.__estimates = {'wifi': {}, '3G': {}}
 
         # second axes to plot times on
@@ -279,15 +282,15 @@ class IntNWBehaviorPlot(QDialog):
             check.setChecked(True)
             self.connect(check, SIGNAL("stateChanged(int)"), self.on_draw)
         
-        self.__bandwidth_toggle = QRadioButton("Bandwidth")
+        self.__bandwidth_up_toggle = QRadioButton("Bandwidth (up)")
         self.__latency_toggle = QRadioButton("Latency")
         
         self.__latency_toggle.setChecked(True)
-        self.connect(self.__bandwidth_toggle, SIGNAL("toggled(bool)"), self.on_draw)
+        self.connect(self.__bandwidth_up_toggle, SIGNAL("toggled(bool)"), self.on_draw)
         self.connect(self.__latency_toggle, SIGNAL("toggled(bool)"), self.on_draw)
 
         toggles = QVBoxLayout()
-        toggles.addWidget(self.__bandwidth_toggle)
+        toggles.addWidget(self.__bandwidth_up_toggle)
         toggles.addWidget(self.__latency_toggle)
         hbox.addLayout(toggles)
         
@@ -312,57 +315,58 @@ class IntNWBehaviorPlot(QDialog):
         self.__canvas.draw()
 
     def __whatToPlot(self):
-        if self.__bandwidth_toggle.isChecked():
-            return 'bandwidth'
+        if self.__bandwidth_up_toggle.isChecked():
+            return 'bandwidth_up'
         elif self.__latency_toggle.isChecked():
             return 'latency'
         else: assert False
 
     def __getYAxisLabel(self):
-        labels = {'bandwidth': 'Bandwidth (bytes/sec)',
+        labels = {'bandwidth_up': 'Bandwidth (up) (bytes/sec)',
                   'latency': 'RTT (seconds)'}
         return labels[self.__whatToPlot()]
 
     class NetworkTrace(object):
         def __init__(self, trace_file, window, estimates):
-            value_names = ['bandwidth', 'latency']
+            self.__priv_trace = mobility_trace.NetworkTrace(trace_file)
+            
+            value_names = ['bandwidth_up', 'latency']
             
             field_group_indices = {'wifi': 1, '3G': 4}
         
             # XXX: assuming bandwidth-up.  not the case on the server side.
-            field_offsets = {'bandwidth': 1, 'latency': 2}
+            field_offsets = {'bandwidth_up': 1, 'latency': 2}
 
             self.__start = None
 
-            self.__timestamps = {'wifi': {'bandwidth': [], 'latency': []},
-                                 '3G': {'bandwidth': [], 'latency': []},}
-            self.__values = {'wifi': {'bandwidth': [], 'latency': []},
-                             '3G': {'bandwidth': [], 'latency': []},}
+            self.__timestamps = {'wifi': {'bandwidth_up': [], 'latency': []},
+                                 '3G': {'bandwidth_up': [], 'latency': []},}
+            self.__values = {'wifi': {'bandwidth_up': [], 'latency': []},
+                             '3G': {'bandwidth_up': [], 'latency': []},}
 
-            conversions = {'bandwidth': 1.0, 'latency': 1.0 / 1000.0}
+            conversions = {'bandwidth_up': 1.0, 'latency': 1.0 / 1000.0}
+
+            def getTraceKey(net_type, value_type):
+                net_type = net_type.replace("3G", "cellular")
+                value_type = value_type.replace("bandwidth_", "").replace("latency", "RTT")
+                return ("%s_%s" % (net_type, value_type))
 
             last_estimates = {}
             for network_type, what_to_plot in product(estimates, value_names):
                 last_estimate_time = estimates[network_type][what_to_plot][-1]['timestamp']
                 last_estimates[network_type] = last_estimate_time
 
-            for line in open(trace_file).readlines():
-                fields = line.strip().split()
-                timestamp = float(fields[0])
-                if not self.__start:
-                    self.__start = timestamp
-                rel_timestamp = timestamp - self.__start
-
-                for network_type, what_to_plot in product(estimates, value_names):
-                    last_estimate = last_estimates[network_type]
-                    if rel_timestamp > window.getAdjustedTime(last_estimate):
-                        continue
-
-                    field_index = (field_group_indices[network_type] +
-                                   field_offsets[what_to_plot])
-                    value = float(fields[field_index]) * conversions[what_to_plot]
-                    self.__timestamps[network_type][what_to_plot].append(rel_timestamp)
-                    self.__values[network_type][what_to_plot].append(value)
+            for network_type, what_to_plot in product(estimates, value_names):
+                key = getTraceKey(network_type, what_to_plot)
+                last_estimate_time = window.getAdjustedTime(last_estimates[network_type])
+                times = self.__priv_trace.getData('start', 0, last_estimate_time)
+                values = self.__priv_trace.getData(key, 0, last_estimate_time)
+                
+                self.__start = times[0]
+                self.__timestamps[network_type][what_to_plot] = \
+                    map(lambda x: x-self.__start, times)
+                self.__values[network_type][what_to_plot] = \
+                    map(lambda x: x * conversions[what_to_plot], values)
 
         def plot(self, axes, what_to_plot, checks):
             colors = {'wifi': (.7, .7, 1.0), '3G': (1.0, .7, .7)}
@@ -574,7 +578,7 @@ class IntNWBehaviorPlot(QDialog):
             dprint("got observation: %s" % line)
             bw_match = re.search(self.__network_bandwidth_regex, line)
             lat_match = re.search(self.__network_latency_regex, line)
-            for match, name in zip((bw_match, lat_match), ("bandwidth", "latency")):
+            for match, name in zip((bw_match, lat_match), ("bandwidth_up", "latency")):
                 if match:
                     obs, est = match.groups()
                     all_estimates = self.__estimates[network_type]
