@@ -113,6 +113,9 @@ class IROB(object):
             dprint("Dropped %s at %f" % (self, timestamp))
             self.__drop_time = timestamp
 
+    def wasDropped(self):
+        return bool(self.__drop_time)
+
     def getDuration(self):
         if self.complete():
             return (self.__start, self.__completion_time)
@@ -177,6 +180,7 @@ class IntNWBehaviorPlot(QDialog):
 
         # app-level sessions from the trace_replayer.log file
         self.__sessions = []
+        self.__debug_sessions = [] # sessions to highlight on the plot for debugging
 
         # redundancy decision calculations from instruments.log
         self.__redundancy_decisions = []
@@ -231,11 +235,14 @@ class IntNWBehaviorPlot(QDialog):
     def __setupActivityWidgets(self, hbox):
         self.__show_sessions = QCheckBox("Session times")
         self.__show_decisions = QCheckBox("Redundancy decisions")
-        checks = [self.__show_sessions, self.__show_decisions]
+        self.__show_debugging = QCheckBox("Debugging")
+        checks = [self.__show_sessions, self.__show_decisions,
+                  self.__show_debugging]
 
         left_box = QVBoxLayout()
         for check in checks:
-            check.setChecked(True)
+            if check is not self.__show_debugging:
+                check.setChecked(True)
             left_box.addWidget(check)
             self.connect(check, SIGNAL("stateChanged(int)"), self.on_draw)
 
@@ -311,6 +318,9 @@ class IntNWBehaviorPlot(QDialog):
             self.__drawIROBs()
             self.__drawSessions()
             self.__drawRedundancyDecisions()
+
+            if self.__show_debugging.isChecked():
+                self.__drawDebugging()
         
         self.__canvas.draw()
 
@@ -460,14 +470,23 @@ class IntNWBehaviorPlot(QDialog):
             self.__session_axes.set_ylim(0.0, self.__user_set_max_time)
         return self.__session_axes
 
-    def __drawSessions(self):
+    def __drawSessions(self, **kwargs):
         if self.__sessions and self.__show_sessions.isChecked():
-            timestamps = [self.getAdjustedTime(s['start']) for s in self.__sessions]
-            session_times = [s['end'] - s['start'] for s in self.__sessions]
+            self.__drawSomeSessions(self.__sessions, **kwargs)
 
-            ax = self.__getSessionAxes()
-            ax.plot(timestamps, session_times, marker='o', markersize=3,
-                    color='black')
+    def __drawSomeSessions(self, sessions, **kwargs):
+        timestamps = [self.getAdjustedTime(s['start']) for s in sessions]
+        session_times = [s['end'] - s['start'] for s in sessions]
+        
+        if 'marker' not in kwargs:
+            kwargs['marker'] = 'o'
+        if 'markersize' not in kwargs:
+            kwargs['markersize'] = 3
+        if 'color' not in kwargs:
+            kwargs['color'] = 'black'
+            
+        ax = self.__getSessionAxes()
+        ax.plot(timestamps, session_times, **kwargs)
 
     def __drawRedundancyDecisions(self):
         if self.__redundancy_decisions and self.__show_decisions.isChecked():
@@ -481,14 +500,19 @@ class IntNWBehaviorPlot(QDialog):
                     markersize=3, color='green')
             ax.plot(timestamps, redundancy_costs, marker='o', markersize=3, color='orange')
 
+    def __getWifiPeriods(self):
+        wifi_periods = filter(lambda p: p['end'] is not None,
+                              self.__network_periods['wifi'])
+        return [(self.getAdjustedTime(period['start']),
+                 period['end'] - period['start'])
+                for period in wifi_periods]
+
     def __drawWifi(self):
         if "wifi" not in self.__network_periods:
             # not done parsing yet
             return
 
-        bars = [(self.getAdjustedTime(period['start']),
-                 period['end'] - period['start'])
-                for period in self.__network_periods['wifi']]
+        bars = self.__getWifiPeriods()
         vertical_bounds = self.__axes.get_ylim()
         height = [vertical_bounds[0] - self.__irob_height / 2.0,
                   vertical_bounds[1] - vertical_bounds[0] + self.__irob_height]
@@ -502,7 +526,90 @@ class IntNWBehaviorPlot(QDialog):
         self.__printRedundancyBenefitAnalysis()
 
     def __printRedundancyBenefitAnalysis(self):
-        pass
+        if "wifi" not in self.__network_periods:
+            # not done parsing yet
+            return
+
+        wifi_periods = self.__getWifiPeriods()
+        num_sessions = len(self.__sessions)
+
+        def one_network_only(session):
+            session_start = self.getAdjustedTime(session['start'])
+            for start, length in wifi_periods:
+                if session_start >= start and session_start <= (start + length):
+                    return False
+            return True
+
+        # XXX: could do this more efficiently by marking it
+        # XXX: when we first read the log.
+        single_network_sessions = filter(one_network_only, self.__sessions)
+        print ("Single network sessions: %d/%d (%.2f%%)" %
+               (len(single_network_sessions), num_sessions,
+                len(single_network_sessions)/float(num_sessions) * 100))
+
+        def duration(session):
+            return session['end'] - session['start']
+
+        def failed_over(session):
+            session_start = self.getAdjustedTime(session['start'])
+            session_end = session_start + duration(session)
+
+            if one_network_only(session):
+                return False
+            
+            for start, length in wifi_periods:
+                if (session_start >= start and session_start <= (start + length) and
+                    session_end > (start + length)):
+                        return True
+
+            matching_irobs = self.__getIROBs(session_start, session_end)
+            # irobs['wifi']['down'] => [IROB(),...]
+            
+            # get just the irobs without the dictionary keys
+            irobs = sum([v.values() for v in matching_irobs.values()], [])
+            # list of lists of IROBs
+            irobs = sum(irobs, [])
+            # list of IROBs
+
+            print "Session: ", session
+            print "  IROBs: ", irobs
+
+            dropped_irobs = filter(lambda x: x.wasDropped(), irobs)
+            return len(dropped_irobs) > 0
+
+        failover_sessions = filter(failed_over, self.__sessions)
+        print ("Failover sessions: %d/%d (%.2f%%), total %f seconds" %
+               (len(failover_sessions), num_sessions,
+                len(failover_sessions)/float(num_sessions) * 100,
+                sum([duration(s) for s in failover_sessions])))
+        
+        self.__debug_sessions = failover_sessions
+
+    def __getIROBs(self, start, end):
+        """Get all IROBs that start in the specified time range.
+
+        Returns a dictionary: d[network_type][direction] => [IROB(),...]
+
+        start -- relative starting time
+        end -- relative ending time
+
+        """
+        matching_irobs = {}
+        def time_matches(irob):
+            irob_start, irob_end = [self.getAdjustedTime(t) for t in irob.getDuration()]
+            return (irob_start >= start and irob_end <= end)
+            
+        for network_type, direction in product(['wifi', '3G'], ['down', 'up']):
+            irobs = self.__networks[network_type][direction].values()
+            matching_irobs[network_type] = {}
+            matching_irobs[network_type][direction] = filter(time_matches, irobs)
+        return matching_irobs
+
+    def __drawDebugging(self):
+        self.__drawSomeSessions(self.__debug_sessions,
+                                marker='s', color='red', markersize=10,
+                                markerfacecolor='none', linestyle='none')
+
 
     def getIROBPosition(self, irob):
         # TODO: allow for simultaneous (stacked) IROB plotting.
@@ -829,6 +936,7 @@ class IntNWPlotter(object):
         self.__intnw_log = args.basedir + "/intnw.log"
         self.__trace_replayer_log = args.basedir + "/trace_replayer.log"
         self.__redundancy_eval_log = args.basedir + "/instruments.log"
+        
         self.__readFile(self.__intnw_log)
         self.draw()
         self.printStats()
@@ -967,13 +1075,15 @@ def main():
     parser.add_argument("basedir")
     parser.add_argument("--measurements", action="store_true", default=False)
     parser.add_argument("--network-trace-file", default=None)
+    parser.add_argument("--noplot", action="store_true", default=False)
     args = parser.parse_args()
 
     app = QApplication(sys.argv)
     
     plotter = IntNWPlotter(args)
-    plotter.show()
-    app.exec_()
+    if not args.noplot:
+        plotter.show()
+        app.exec_()
 
 if __name__ == '__main__':
     main()
