@@ -540,15 +540,17 @@ class IntNWBehaviorPlot(QDialog):
                     return False
             return True
 
+        def duration(session):
+            return session['end'] - session['start']
+
         # XXX: could do this more efficiently by marking it
         # XXX: when we first read the log.
         single_network_sessions = filter(one_network_only, self.__sessions)
-        print ("Single network sessions: %d/%d (%.2f%%)" %
+        print ("Single network sessions: %d/%d (%.2f%%), total time %f seconds" %
                (len(single_network_sessions), num_sessions,
-                len(single_network_sessions)/float(num_sessions) * 100))
+                len(single_network_sessions)/float(num_sessions) * 100,
+                sum([duration(s) for s in single_network_sessions])))
 
-        def duration(session):
-            return session['end'] - session['start']
 
         def failed_over(session):
             session_start = self.getAdjustedTime(session['start'])
@@ -571,8 +573,8 @@ class IntNWBehaviorPlot(QDialog):
             irobs = sum(irobs, [])
             # list of IROBs
 
-            print "Session: ", session
-            print "  IROBs: ", irobs
+            dprint("Session: %s" % session)
+            dprint("  IROBs: " % irobs)
 
             dropped_irobs = filter(lambda x: x.wasDropped(), irobs)
             return len(dropped_irobs) > 0
@@ -584,6 +586,28 @@ class IntNWBehaviorPlot(QDialog):
                 sum([duration(s) for s in failover_sessions])))
         
         self.__debug_sessions = failover_sessions
+
+        # check the sessions that started in a single-network period
+        # but finished after wifi arrived.
+        def needed_reevaluation(session):
+            session_start = self.getAdjustedTime(session['start'])
+            session_end = session_start + duration(session)
+            for start, length in wifi_periods:
+                if session_start >= start and session_start <= (start + length):
+                    return False
+                # didn't start during this wifi period.
+                # did this wifi period come in the middle of the session?
+                if start > session_start and start < session_end:
+                    # wifi arrived sometime during session
+                    return True
+            return False
+
+        reevaluation_sessions = filter(needed_reevaluation, self.__sessions)
+        print ("Needed-reevaluation sessions: %d/%d (%.2f%%)" %
+               (len(reevaluation_sessions), num_sessions,
+                len(reevaluation_sessions)/float(num_sessions) * 100))
+
+        self.__debug_sessions = reevaluation_sessions
 
     def __getIROBs(self, start, end):
         """Get all IROBs that start in the specified time range.

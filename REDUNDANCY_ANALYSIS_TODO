@@ -25,6 +25,9 @@ HOW TO QUANTIFY THE IMPACT OF EACH OF THESE FIVE
       let "clearly" mean f(current_session) > stdev(f)
   Count the number of matching sessions.
 
+  ...this was the original idea, but so far I've done this by simply
+  looking at the latency plot of the trace.
+
 3) Lack of "trouble mode" or failure anticipation (periodic re-evaluation)
 
   Count the sessions that start in a wifi transition period
@@ -63,3 +66,81 @@ HOW TO QUANTIFY THE IMPACT OF EACH OF THESE FIVE
 
 This would contribute in the same way as (4).  It's probably worth 
 experimenting with, but for the present analysis I'm not considering it.
+
+
+
+Observations:
+
+Of the 57 sessions, 40-45 of these (70-80%) take place when only one
+network is available.  These sessions sum to 40-48 seconds.
+
+The remaining sessions sum to these times with extreme
+strategies:
+  Always-redundant: 6-13 seconds
+  Never-redundant: 32 seconds (one run)
+
+Of the sessions where redundancy is an option, two of these
+consistently occur such that the benefit of redundancy is dominated by
+failover delay avoidance (total 15 seconds, one run).  In one run, I
+have seen one other session with failover delay impact of ~8 seconds.
+
+  * Aside on failover: this redundancy is essentially free,
+    since you would end up having to send the data on cellular anyway.
+    This might add the possibility of a more interesting redundancy 
+    scenario, since the benefit from mitigating failover is much
+    greater than that of mitigating variance.
+
+As for transfers occuring when one network clearly dominates the
+other: considering latency as the limiting factor, if I consider
+sessions in isolation, I see a couple instances where the wifi latency
+is tens to hundreds of milliseconds less than the 3G latency (in the
+trace), but these periods are brief and are usually accompanied by a
+nearby wifi latency spike.  I think this effect would be more
+pronounced on a walking trace (which might explain the lack of
+redundancy benefit on the walking trace, though I haven't verified
+this yet).
+
+At the start of the trace, the wifi latency is higher than the 3G
+latency, and IntNW has this information from the initial active
+measurement of 3G and the previously-saved measurement of wifi.
+Since there's no error history, IntNW decides not to send redundantly
+for the first few transfers.  The missed savings from redundnacy for
+these transfers sums to about one second.
+
+What of the remaining 3-10 seconds? ...
+
+In a few cases, wifi does arrive after the redundancy decision has
+already been made.  This happens occasionally for always-redundant,
+since it doesn't react to this event.  The impact is negligible,
+though, because cellular is actually better at that point.
+
+More interestingly, there are some transfers where the transfer starts
+very close to the arrival of wifi; in some runs it hits wifi, and in
+other runs it doesn't (but wifi arrives before the transfer
+finishes).  This only amounts to 1-2 transfers, but the total impact
+is 1-2 seconds.
+
+The rest of the redundancy benefit appears to come from some transfers
+about 1/3 through the trace, where the networks are variable and the
+estimates lead to several suboptimal single-network choices.  The
+brute-force method can achieve this benefit, but only if the cost is
+low enough.
+
+Summary:
+
+1) Failover delay dominates the availble redundancy benefit.
+2) Implementing failure anticipation / detection will help, but it
+   won't catch the first one, due to lack of history. (Well, fast
+   failure detection like trouble-mode would catch the first one.)
+3) Lack of history impacts the first several transfers (until I have
+   measurements on both networks), but the effect is small.
+4) Wifi arrival post-decision impacts a few transfers too; the effect
+   is small, but a little bigger than (3).
+5) The networks are variable enough that I don't really see periods
+   where one network dominates the other, at least not for long.
+
+Hypothesis: if I implement the failure anticipation/detection and
+history, there may be a strategy that catches that low-hanging fruit
+(and maybe that provided by re-evaluation on wifi arrival)
+but doesn't transmit redundantly all the time, thus saving some energy
+and data compared to the always-redundant strategy.
