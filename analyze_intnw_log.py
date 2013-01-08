@@ -63,6 +63,35 @@ class LogParsingError(Exception):
                    self.msg,
                    self.line != None and ('\n' + self.line) or ""))
 
+
+def stepwise_variance(data):
+    '''Returns a list with the step-by-step variance computed on data.
+    Algorithm borrowed from
+    http://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#On-line_algorithm
+    which cites Knuth's /The Art of Computer Programming/, Volume 1.
+
+    '''
+    n = 0
+    mean = 0.0
+    M2 = 0.0
+    variances = [0.0]
+    
+    for x in data:
+        if x == 0.0:
+            # ignore observations where wifi isn't present
+            variances.append(0.0)
+            continue
+        n += 1
+        delta = x - mean
+        mean += delta / n
+        M2 += delta * (x - mean)
+        
+        if n > 1:
+            variances.append(M2 / (n - 1))
+            
+    assert len(variances) == len(data)
+    return variances
+
 class IROB(object):
     def __init__(self, plot, network_type, direction, start, irob_id):
         self.__plot = plot
@@ -267,12 +296,15 @@ class IntNWBehaviorPlot(QDialog):
     def __setupMeasurementWidgets(self, hbox):
         self.__show_wifi = QCheckBox("wifi")
         self.__show_threeg = QCheckBox("3G")
+        self.__show_measurements = QCheckBox("Measurements")
         self.__show_trace = QCheckBox("Trace display")
+        self.__show_trace_variance = QCheckBox("Trace variance (std-dev)")
         self.__show_legend = QCheckBox("Legend")
         self.__show_decisions = QCheckBox("Redundancy decisions")
         checks = [self.__show_wifi, self.__show_threeg,
-                  self.__show_trace, self.__show_legend,
-                  self.__show_decisions]
+                  self.__show_measurements,
+                  self.__show_trace, self.__show_trace_variance,
+                  self.__show_legend, self.__show_decisions]
 
         networks = QVBoxLayout()
         networks.addWidget(self.__show_wifi)
@@ -280,7 +312,9 @@ class IntNWBehaviorPlot(QDialog):
         hbox.addLayout(networks)
 
         options = QVBoxLayout()
+        options.addWidget(self.__show_measurements)
         options.addWidget(self.__show_trace)
+        options.addWidget(self.__show_trace_variance)
         options.addWidget(self.__show_legend)
         options.addWidget(self.__show_decisions)
         hbox.addLayout(options)
@@ -338,6 +372,7 @@ class IntNWBehaviorPlot(QDialog):
 
     class NetworkTrace(object):
         def __init__(self, trace_file, window, estimates):
+            self.__window = window
             self.__priv_trace = mobility_trace.NetworkTrace(trace_file)
             
             value_names = ['bandwidth_up', 'latency']
@@ -361,12 +396,17 @@ class IntNWBehaviorPlot(QDialog):
                 value_type = value_type.replace("bandwidth_", "").replace("latency", "RTT")
                 return ("%s_%s" % (net_type, value_type))
 
+            def pairs():
+                for network_type, what_to_plot in product(estimates, value_names):
+                    yield network_type, what_to_plot
+            self.__pairs = pairs
+
             last_estimates = {}
-            for network_type, what_to_plot in product(estimates, value_names):
+            for network_type, what_to_plot in self.__pairs():
                 last_estimate_time = estimates[network_type][what_to_plot][-1]['timestamp']
                 last_estimates[network_type] = last_estimate_time
 
-            for network_type, what_to_plot in product(estimates, value_names):
+            for network_type, what_to_plot in self.__pairs():
                 key = getTraceKey(network_type, what_to_plot)
                 last_estimate_time = window.getAdjustedTime(last_estimates[network_type])
                 times = self.__priv_trace.getData('start', 0, last_estimate_time)
@@ -378,15 +418,51 @@ class IntNWBehaviorPlot(QDialog):
                 self.__values[network_type][what_to_plot] = \
                     map(lambda x: x * conversions[what_to_plot], values)
 
-        def plot(self, axes, what_to_plot, checks):
-            colors = {'wifi': (.7, .7, 1.0), '3G': (1.0, .7, .7)}
-            
+            self.__computeVariance(self.__values)
+
+        def __computeVariance(self, values):
+            # values dictionary is populated in __init__
+            self.__upper_variance_values = {}
+            self.__lower_variance_values = {}
+            for network_type, what_to_plot in self.__pairs():
+                values = self.__values[network_type][what_to_plot]
+                variances = stepwise_variance(values)
+                std_devs = [v ** .5 for v in variances]
+
+                uppers = [v + stddev for v, stddev in zip(values, std_devs)]
+                lowers = [v - stddev for v, stddev in zip(values, std_devs)]
+
+                if network_type not in self.__upper_variance_values:
+                    self.__upper_variance_values[network_type] = {}
+                    self.__lower_variance_values[network_type] = {}
+                self.__upper_variance_values[network_type][what_to_plot] = uppers
+                self.__lower_variance_values[network_type][what_to_plot] = lowers
+
+        plot_colors = {'wifi': (.7, .7, 1.0), '3G': (1.0, .7, .7)}
+
+        # whiten up the colors for the variance plotting
+        variance_colors = {name: map(lambda v: v + ((1.0 - v) * 0.5), color)
+                        for name, color in plot_colors.items()}
+        
+        def __plot(self, axes, what_to_plot, checks, values, colors, labeler):
             for network_type in self.__timestamps:
                 if (checks[network_type].isChecked()):
                     axes.plot(self.__timestamps[network_type][what_to_plot],
-                              self.__values[network_type][what_to_plot],
+                              values[network_type][what_to_plot],
                               color=colors[network_type],
-                              label=network_type + " trace")
+                              label=labeler(network_type))
+
+        def plot(self, axes, what_to_plot, checks):
+            self.__plot(axes, what_to_plot, checks, self.__values,
+                        type(self).plot_colors,
+                        lambda network_type: network_type + " trace")
+
+        def plotVariance(self, axes, what_to_plot, checks):
+            self.__plot(axes, what_to_plot, checks, self.__upper_variance_values,
+                        type(self).variance_colors, lambda x: None)
+            self.__plot(axes, what_to_plot, checks, self.__lower_variance_values,
+                        type(self).variance_colors, lambda x: None)
+
 
     def __plotTrace(self):
         if self.__network_trace_file and not self.__trace:
@@ -396,6 +472,9 @@ class IntNWBehaviorPlot(QDialog):
         checks = {'wifi': self.__show_wifi, '3G': self.__show_threeg}
         if self.__show_trace.isChecked():
             self.__trace.plot(self.__axes, self.__whatToPlot(), checks)
+            if self.__show_trace_variance.isChecked():
+                self.__trace.plotVariance(self.__axes, self.__whatToPlot(), checks)
+        self.__axes.set_ylim(0.0, self.__axes.get_ylim()[1])
 
     def __plotMeasurements(self):
         markers = {'wifi': 's', '3G': 'o'}
@@ -424,11 +503,13 @@ class IntNWBehaviorPlot(QDialog):
             estimated_values = [estimated_values[0]] + estimated_values[:-1]
 
             color = self.__irob_colors[network_type]
-            self.__axes.plot(times, estimated_values, label=network_type + " prev-estimates",
-                             color=color)
-            self.__axes.plot(times, observations, label=network_type + " observations",
-                             linestyle='none', marker=markers[network_type], markersize=3,
-                             color=color)
+            if self.__show_measurements.isChecked():
+                self.__axes.plot(times, estimated_values,
+                                 label=network_type + " prev-estimates",
+                                 color=color)
+                self.__axes.plot(times, observations, label=network_type + " observations",
+                                 linestyle='none', marker=markers[network_type],
+                                 markersize=3, color=color)
             self.__axes.set_xlabel("Time (seconds)")
             self.__axes.set_ylabel(self.__getYAxisLabel())
             if self.__show_legend.isChecked():
