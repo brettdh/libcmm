@@ -322,6 +322,20 @@ class IntNWBehaviorPlot(QDialog):
         for check in checks:
             check.setChecked(True)
             self.connect(check, SIGNAL("stateChanged(int)"), self.on_draw)
+
+        error_plot_method_label = QLabel("Error plotting")
+        self.__plot_measurements_and_estimates = QRadioButton("Prev-estimate")
+        self.__plot_error_bars = QRadioButton("Error bars")
+
+        self.__plot_measurements_and_estimates.setChecked(True)
+        self.connect(self.__plot_measurements_and_estimates,
+                       SIGNAL("toggled(bool)"), self.on_draw)
+        self.connect(self.__plot_error_bars, SIGNAL("toggled(bool)"), self.on_draw)
+
+        error_toggles = QVBoxLayout()
+        error_toggles.addWidget(self.__plot_measurements_and_estimates)
+        error_toggles.addWidget(self.__plot_error_bars)
+        hbox.addLayout(error_toggles)
         
         self.__bandwidth_up_toggle = QRadioButton("Bandwidth (up)")
         self.__latency_toggle = QRadioButton("Latency")
@@ -424,6 +438,7 @@ class IntNWBehaviorPlot(QDialog):
             # values dictionary is populated in __init__
             self.__upper_variance_values = {}
             self.__lower_variance_values = {}
+            self.__variance_values = {}
             for network_type, what_to_plot in self.__pairs():
                 values = self.__values[network_type][what_to_plot]
                 variances = stepwise_variance(values)
@@ -435,22 +450,30 @@ class IntNWBehaviorPlot(QDialog):
                 if network_type not in self.__upper_variance_values:
                     self.__upper_variance_values[network_type] = {}
                     self.__lower_variance_values[network_type] = {}
+                    self.__variance_values[network_type] = {}
                 self.__upper_variance_values[network_type][what_to_plot] = uppers
                 self.__lower_variance_values[network_type][what_to_plot] = lowers
+                self.__variance_values[network_type][what_to_plot] = std_devs
 
         plot_colors = {'wifi': (.7, .7, 1.0), '3G': (1.0, .7, .7)}
 
         # whiten up the colors for the variance plotting
-        variance_colors = {name: map(lambda v: v + ((1.0 - v) * 0.5), color)
+        variance_colors = {name: map(lambda v: v + ((1.0 - v) * 0.75), color)
                         for name, color in plot_colors.items()}
-        
-        def __plot(self, axes, what_to_plot, checks, values, colors, labeler):
+        variance_colors = {name: color + (0.25,) for name, color in plot_colors.items()}
+
+        def __ploteach(self, plotter, checks):
             for network_type in self.__timestamps:
                 if (checks[network_type].isChecked()):
-                    axes.plot(self.__timestamps[network_type][what_to_plot],
-                              values[network_type][what_to_plot],
-                              color=colors[network_type],
-                              label=labeler(network_type))
+                    plotter(network_type)
+                
+        def __plot(self, axes, what_to_plot, checks, values, colors, labeler):
+            def plotter(network_type):
+                axes.plot(self.__timestamps[network_type][what_to_plot],
+                          values[network_type][what_to_plot],
+                          color=colors[network_type],
+                          label=labeler(network_type))
+            self.__ploteach(plotter, checks)
 
         def plot(self, axes, what_to_plot, checks):
             self.__plot(axes, what_to_plot, checks, self.__values,
@@ -458,10 +481,16 @@ class IntNWBehaviorPlot(QDialog):
                         lambda network_type: network_type + " trace")
 
         def plotVariance(self, axes, what_to_plot, checks):
-            self.__plot(axes, what_to_plot, checks, self.__upper_variance_values,
-                        type(self).variance_colors, lambda x: None)
-            self.__plot(axes, what_to_plot, checks, self.__lower_variance_values,
-                        type(self).variance_colors, lambda x: None)
+            #self.__plot(axes, what_to_plot, checks, self.__upper_variance_values,
+            #            type(self).variance_colors, lambda x: None)
+            #self.__plot(axes, what_to_plot, checks, self.__lower_variance_values,
+            #            type(self).variance_colors, lambda x: None)
+            def plotter(network_type):
+                axes.errorbar(self.__timestamps[network_type][what_to_plot],
+                              self.__values[network_type][what_to_plot],
+                              yerr=self.__variance_values[network_type][what_to_plot],
+                              color=type(self).variance_colors[network_type])
+            self.__ploteach(plotter, checks)
 
 
     def __plotTrace(self):
@@ -477,7 +506,6 @@ class IntNWBehaviorPlot(QDialog):
         self.__axes.set_ylim(0.0, self.__axes.get_ylim()[1])
 
     def __plotMeasurements(self):
-        markers = {'wifi': 's', '3G': 'o'}
         checks = {'wifi': self.__show_wifi, '3G': self.__show_threeg}
 
         what_to_plot = self.__whatToPlot()
@@ -497,23 +525,70 @@ class IntNWBehaviorPlot(QDialog):
             observations = [e['observation'] * txform for e in estimates]
             estimated_values = [e['estimate'] * txform for e in estimates]
 
-            # shift estimtates one to the right, so we're plotting
-            #  each observation at the same time as the PREVIOUS estimate
-            #  (this visualizes the error samples that the decision algorithm uses)
-            estimated_values = [estimated_values[0]] + estimated_values[:-1]
-
-            color = self.__irob_colors[network_type]
             if self.__show_measurements.isChecked():
-                self.__axes.plot(times, estimated_values,
-                                 label=network_type + " prev-estimates",
-                                 color=color)
-                self.__axes.plot(times, observations, label=network_type + " observations",
-                                 linestyle='none', marker=markers[network_type],
-                                 markersize=3, color=color)
-            self.__axes.set_xlabel("Time (seconds)")
-            self.__axes.set_ylabel(self.__getYAxisLabel())
-            if self.__show_legend.isChecked():
-                self.__axes.legend()
+                plotter = self.__plotMeasurementsAndEstimates
+                if self.__plot_error_bars.isChecked():
+                    plotter = self.__plotMeasurementErrorBars
+                plotter(times, observations, estimated_values, network_type)
+
+            
+        self.__axes.set_xlabel("Time (seconds)")
+        self.__axes.set_ylabel(self.__getYAxisLabel())
+        if self.__show_legend.isChecked():
+            self.__axes.legend()
+
+    def __plotEstimates(self, times, estimated_values, network_type):
+        self.__axes.plot(times, estimated_values,
+                         label=network_type + " estimates",
+                         color=self.__irob_colors[network_type])
+
+    def __plotObservations(self, times, observations, network_type):
+        markers = {'wifi': 's', '3G': 'o'}
+        self.__axes.plot(times, observations, label=network_type + " observations",
+                         linestyle='none', marker=markers[network_type],
+                         markersize=3, color=self.__irob_colors[network_type])
+
+
+    def __plotMeasurementsAndEstimates(self, times, observations, estimated_values,
+                                       network_type):
+        # shift estimates one to the right, so we're plotting
+        #  each observation at the same time as the PREVIOUS estimate
+        #  (this visualizes the error samples that the decision algorithm uses)
+        estimated_values = [estimated_values[0]] + estimated_values[:-1]
+
+        self.__plotEstimates(times, estimated_values, network_type)
+        self.__plotObservations(times, observations, network_type)
+
+    def __plotMeasurementErrorBars(self, times, observations, estimated_values,
+                                   network_type):
+        # take running average of recorded error, plot as error bar
+        # (asymmetric positive/negative errors)
+        positive_errors = []
+        positive_error_mean = 0.0
+        negative_errors = []
+        negative_error_mean = 0.0
+        pos_n = 0
+        neg_n = 0
+        
+        shifted_estimates = [estimated_values[0]] + estimated_values[:-1]
+        for error in [obs - est for obs, est in zip(observations, shifted_estimates)]:
+            if error >= 0.0:
+                pos_n += 1
+                positive_error_mean += (error - positive_error_mean) / pos_n
+            else:
+                neg_n += 1
+                negative_error_mean += ((-error) - negative_error_mean) / neg_n
+                
+            positive_errors.append(positive_error_mean)
+            negative_errors.append(negative_error_mean)
+
+        print zip(times, positive_errors)
+
+        self.__plotEstimates(times, estimated_values, network_type)
+        self.__axes.errorbar(times, estimated_values,
+                             yerr=[negative_errors, positive_errors],
+                             color=self.__irob_colors[network_type])
+        self.__plotObservations(times, observations, network_type)
 
     def __setupAxes(self):
         yticks = {}
