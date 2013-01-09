@@ -242,7 +242,6 @@ class IntNWBehaviorPlot(QDialog):
         self.__figure = Figure((5,4), self.__dpi) # 5" x 4"
         self.__canvas = FigureCanvas(self.__figure)
         self.__canvas.setParent(self.__frame)
-        self.__axes = self.__figure.add_subplot(111)
 
         self.__mpl_toolbar = NavigationToolbar(self.__canvas, self.__frame)
 
@@ -335,8 +334,11 @@ class IntNWBehaviorPlot(QDialog):
         error_toggles = QVBoxLayout()
         error_toggles.addWidget(self.__plot_measurements_and_estimates)
         error_toggles.addWidget(self.__plot_error_bars)
-        hbox.addLayout(error_toggles)
-        
+
+        error_box = QGroupBox()
+        error_box.setLayout(error_toggles)
+        hbox.addWidget(error_box)
+
         self.__bandwidth_up_toggle = QRadioButton("Bandwidth (up)")
         self.__latency_toggle = QRadioButton("Latency")
         
@@ -347,14 +349,18 @@ class IntNWBehaviorPlot(QDialog):
         toggles = QVBoxLayout()
         toggles.addWidget(self.__bandwidth_up_toggle)
         toggles.addWidget(self.__latency_toggle)
-        hbox.addLayout(toggles)
+
+        toggle_box = QGroupBox()
+        toggle_box.setLayout(toggles)
+        hbox.addWidget(toggle_box)
         
     def on_draw(self):
         self.setWindowTitle(self.__title)
 
-        self.__axes.clear()
-        self.__getSessionAxes().clear()
-
+        self.__figure.clear()
+        self.__axes = self.__figure.add_subplot(111)
+        self.__session_axes = None
+        
         if self.__measurements_only:
             self.__plotTrace()
             self.__plotMeasurements()
@@ -582,8 +588,6 @@ class IntNWBehaviorPlot(QDialog):
             positive_errors.append(positive_error_mean)
             negative_errors.append(negative_error_mean)
 
-        print zip(times, positive_errors)
-
         self.__plotEstimates(times, estimated_values, network_type)
         self.__axes.errorbar(times, estimated_values,
                              yerr=[negative_errors, positive_errors],
@@ -619,8 +623,8 @@ class IntNWBehaviorPlot(QDialog):
                     irob = irobs[irob_id]
                     irob.draw(self.__axes)
 
-    def __getSessionAxes(self):
-        if self.__session_axes == None:
+    def __getSessionAxes(self, reset=False):
+        if self.__session_axes == None or reset:
             self.__session_axes = self.__axes.twinx()
         if self.__user_set_max_time:
             self.__session_axes.set_ylim(0.0, self.__user_set_max_time)
