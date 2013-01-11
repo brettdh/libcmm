@@ -863,22 +863,21 @@ class IntNWBehaviorPlot(QDialog):
             self.__addTransfer(line, 'down')
         elif "network estimator" in line:
             network_type = re.search(self.__network_estimator_regex, line).group(1)
-            if network_type not in self.__estimates:
-                self.__estimates[network_type] = {}
-                
             dprint("got observation: %s" % line)
             bw_match = re.search(self.__network_bandwidth_regex, line)
             lat_match = re.search(self.__network_latency_regex, line)
-            for match, name in zip((bw_match, lat_match), ("bandwidth_up", "latency")):
-                if match:
-                    obs, est = match.groups()
-                    all_estimates = self.__estimates[network_type]
-                    if name not in all_estimates:
-                        all_estimates[name] = []
-                    estimates = all_estimates[name]
-                    estimates.append({'timestamp': float(timestamp),
-                                      'observation': float(obs),
-                                      'estimate': float(est)})
+            bw = bw_match.groups() if bw_match else None
+            latency = lat_match.groups() if lat_match else None
+            
+            self.__addEstimates(network_type, timestamp, bw=bw, latency=latency)
+        elif "New spot values" in line:
+            # TODO: parse values, call self.__addNetworkObservation
+            network_type = self.__getNetworkType(line)
+            pass
+        elif "New estimates" in line:
+            # TODO: parse values, call self.__addNetworkEstimate
+            network_type = self.__getNetworkType(line)
+            pass
         elif "chooseNetwork" in line:
             duration = timestamp - getTimestamp(self.__last_line)
             self.__choose_network_calls.append(duration)
@@ -971,6 +970,34 @@ class IntNWBehaviorPlot(QDialog):
             self.__placeholder_sockets[ip] = sock
         else:
             self.__addNetworkPeriod(sock, ip)
+
+    def __addEstimates(self, network_type, timestamp, bw=None, latency=None):
+        if network_type not in self.__estimates:
+            self.__estimates[network_type] = {}
+                
+        for values, name in zip((bw, latency), ("bandwidth_up", "latency")):
+            if values:
+                obs, est = values
+                self.__addNetworkObservation(network_type, name,
+                                             float(timestamp), float(obs))
+                self.__addNetworkEstimate(network_type, name, float(est))
+
+    def __getEstimates(self, network_type, name):
+        all_estimates = self.__estimates[network_type]
+        if name not in all_estimates:
+            all_estimates[name] = []
+        return all_estimates[name]
+                
+    def __addNetworkObservation(self, network_type, name, timestamp, obs):
+        estimates = self.__getEstimates(network_type, name)
+        estimates.append({'timestamp': float(timestamp),
+                          'observation': float(obs),
+                          'estimate': None})
+
+    def __addNetworkEstimate(self, network_type, name, est):
+        estimates = self.__getEstimates(network_type, name)
+        estimates[-1]['estimate'] = est
+        # TODO: double-check.
 
     def __addNetworkPeriod(self, sock, ip):
         network_type = self.__network_type_by_ip[ip]
