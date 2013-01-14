@@ -185,7 +185,8 @@ def getTimestamp(line):
             
 
 class IntNWBehaviorPlot(QDialog):
-    def __init__(self, run, measurements_only, network_trace_file, parent=None):
+    def __init__(self, run, measurements_only, network_trace_file,
+                 cross_country_latency, parent=None):
         QDialog.__init__(self, parent)
 
         self.__initRegexps()
@@ -198,10 +199,12 @@ class IntNWBehaviorPlot(QDialog):
 
         self.__measurements_only = measurements_only
         self.__network_trace_file = network_trace_file
+        self.__cross_country_latency = cross_country_latency
         self.__trace = None
 
         # estimates[network_type][bandwidth_up|latency] -> [values]
-        self.__estimates = {'wifi': {}, '3G': {}}
+        self.__estimates = {'wifi': {'bandwidth_up': [], 'latency': []},
+                            '3G': {'bandwidth_up': [], 'latency': []}}
 
         # second axes to plot times on
         self.__session_axes = None
@@ -417,26 +420,37 @@ class IntNWBehaviorPlot(QDialog):
                 return ("%s_%s" % (net_type, value_type))
 
             def pairs():
-                for network_type, what_to_plot in product(estimates, value_names):
+                for network_type, what_to_plot in product(estimates.keys(), value_names):
                     yield network_type, what_to_plot
             self.__pairs = pairs
 
             last_estimates = {}
             for network_type, what_to_plot in self.__pairs():
-                last_estimate_time = estimates[network_type][what_to_plot][-1]['timestamp']
-                last_estimates[network_type] = last_estimate_time
+                cur_estimates = estimates[network_type][what_to_plot]
+                if len(cur_estimates) > 0:
+                    last_estimates[network_type] = cur_estimates[-1]['timestamp']
 
             for network_type, what_to_plot in self.__pairs():
                 key = getTraceKey(network_type, what_to_plot)
-                last_estimate_time = window.getAdjustedTime(last_estimates[network_type])
+                if network_type in last_estimates:
+                    last_estimate_time = \
+                        window.getAdjustedTime(last_estimates[network_type])
+                else:
+                    last_estimate_time = 1200.0 # XXX: hardcoding hack.
+
                 times = self.__priv_trace.getData('start', 0, last_estimate_time)
                 values = self.__priv_trace.getData(key, 0, last_estimate_time)
+
+                def convert(value):
+                    value = conversions[what_to_plot] * value
+                    if what_to_plot == "latency":
+                        value = self.__window.getAdjustedTraceLatency(value)
+                    return value
                 
                 self.__start = times[0]
                 self.__timestamps[network_type][what_to_plot] = \
                     map(lambda x: x-self.__start, times)
-                self.__values[network_type][what_to_plot] = \
-                    map(lambda x: x * conversions[what_to_plot], values)
+                self.__values[network_type][what_to_plot] = map(convert, values)
 
             self.__computeVariance(self.__values)
 
@@ -501,8 +515,8 @@ class IntNWBehaviorPlot(QDialog):
 
     def __plotTrace(self):
         if self.__network_trace_file and not self.__trace:
-            cls = IntNWBehaviorPlot.NetworkTrace
-            self.__trace = cls(self.__network_trace_file, self, self.__estimates)
+            self.__trace = IntNWBehaviorPlot.NetworkTrace(self.__network_trace_file,
+                                                          self, self.__estimates)
             
         checks = {'wifi': self.__show_wifi, '3G': self.__show_threeg}
         if self.__show_trace.isChecked():
@@ -531,7 +545,7 @@ class IntNWBehaviorPlot(QDialog):
             observations = [e['observation'] * txform for e in estimates]
             estimated_values = [e['estimate'] * txform for e in estimates]
 
-            if self.__show_measurements.isChecked():
+            if self.__show_measurements.isChecked() and len(observations) > 0:
                 plotter = self.__plotMeasurementsAndEstimates
                 if self.__plot_error_bars.isChecked():
                     plotter = self.__plotMeasurementErrorBars
@@ -810,6 +824,13 @@ class IntNWBehaviorPlot(QDialog):
 
     def getAdjustedTime(self, timestamp):
         return timestamp - self.__start
+
+    def getAdjustedTraceLatency(self, latency):
+        if not self.__cross_country_latency or latency < 0.0001:
+            return latency
+        
+        LATENCY_ADJUSTMENT = 0.100 # 100ms cross-country
+        return latency + LATENCY_ADJUSTMENT
 
     def parseLine(self, line):
         timestamp = getTimestamp(line)
@@ -1147,6 +1168,7 @@ class IntNWPlotter(object):
         self.__intnw_log = args.basedir + "/intnw.log"
         self.__trace_replayer_log = args.basedir + "/trace_replayer.log"
         self.__redundancy_eval_log = args.basedir + "/instruments.log"
+        self.__cross_country_latency = args.cross_country_latency
         
         self.__readFile(self.__intnw_log)
         self.draw()
@@ -1254,9 +1276,11 @@ class IntNWPlotter(object):
                     continue
                     
                 if pid != self.__currentPid:
-                    self.__windows.append(IntNWBehaviorPlot(len(self.__windows) + 1,
-                                                            self.__measurements_only,
-                                                            self.__network_trace_file))
+                    window = IntNWBehaviorPlot(len(self.__windows) + 1,
+                                               self.__measurements_only,
+                                               self.__network_trace_file,
+                                               self.__cross_country_latency)
+                    self.__windows.append(window)
                     self.__currentPid = pid
                     window_num = len(self.__windows) - 1
                     if session_runs:
@@ -1287,6 +1311,8 @@ def main():
     parser.add_argument("--measurements", action="store_true", default=False)
     parser.add_argument("--network-trace-file", default=None)
     parser.add_argument("--noplot", action="store_true", default=False)
+    parser.add_argument("--cross-country-latency", action="store_true", default=False,
+                        help="Add 100ms latency when plotting the trace.")
     args = parser.parse_args()
 
     app = QApplication(sys.argv)
