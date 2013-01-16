@@ -33,6 +33,9 @@ from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
 from matplotlib.figure import Figure
 
+import numpy as np
+import scipy.stats as stats
+
 from itertools import product
 
 from progressbar import ProgressBar
@@ -91,6 +94,9 @@ def stepwise_variance(data):
             
     assert len(variances) == len(data)
     return variances
+
+def update_running_mean(mean, value, n):
+    return mean + ((value - mean) / (n+1))
 
 class IROB(object):
     def __init__(self, plot, network_type, direction, start, irob_id):
@@ -185,6 +191,8 @@ def getTimestamp(line):
             
 
 class IntNWBehaviorPlot(QDialog):
+    CONFIDENCE_ALPHA = 0.10
+    
     def __init__(self, run, measurements_only, network_trace_file,
                  cross_country_latency, parent=None):
         QDialog.__init__(self, parent)
@@ -328,15 +336,20 @@ class IntNWBehaviorPlot(QDialog):
         error_plot_method_label = QLabel("Error plotting")
         self.__plot_measurements_and_estimates = QRadioButton("Prev-estimate")
         self.__plot_error_bars = QRadioButton("Error bars")
+        self.__plot_confidence_overlap = \
+            QRadioButton("%d%% CI overlap" %
+                         (100*(1 - IntNWBehaviorPlot.CONFIDENCE_ALPHA)))
 
-        self.__plot_measurements_and_estimates.setChecked(True)
+        self.__plot_error_bars.setChecked(True)
         self.connect(self.__plot_measurements_and_estimates,
                        SIGNAL("toggled(bool)"), self.on_draw)
         self.connect(self.__plot_error_bars, SIGNAL("toggled(bool)"), self.on_draw)
+        self.connect(self.__plot_confidence_overlap, SIGNAL("toggled(bool)"), self.on_draw)
 
         error_toggles = QVBoxLayout()
         error_toggles.addWidget(self.__plot_measurements_and_estimates)
         error_toggles.addWidget(self.__plot_error_bars)
+        error_toggles.addWidget(self.__plot_confidence_overlap)
 
         error_box = QGroupBox()
         error_box.setLayout(error_toggles)
@@ -368,6 +381,8 @@ class IntNWBehaviorPlot(QDialog):
             self.__plotTrace()
             self.__plotMeasurements()
             self.__drawRedundancyDecisions()
+
+            self.__axes.set_ylim(0.0, self.__axes.get_ylim()[1])
         else:
             self.__setupAxes()
             self.__setTraceEnd()
@@ -523,7 +538,6 @@ class IntNWBehaviorPlot(QDialog):
             self.__trace.plot(self.__axes, self.__whatToPlot(), checks)
             if self.__show_trace_variance.isChecked():
                 self.__trace.plotVariance(self.__axes, self.__whatToPlot(), checks)
-        self.__axes.set_ylim(0.0, self.__axes.get_ylim()[1])
 
     def __plotMeasurements(self):
         checks = {'wifi': self.__show_wifi, '3G': self.__show_threeg}
@@ -546,9 +560,15 @@ class IntNWBehaviorPlot(QDialog):
             estimated_values = [e['estimate'] * txform for e in estimates]
 
             if self.__show_measurements.isChecked() and len(observations) > 0:
-                plotter = self.__plotMeasurementsAndEstimates
-                if self.__plot_error_bars.isChecked():
+                if self.__plot_measurements_and_estimates.isChecked():
+                    plotter = self.__plotMeasurementsAndEstimates
+                elif self.__plot_error_bars.isChecked():
                     plotter = self.__plotMeasurementErrorBars
+                elif self.__plot_confidence_overlap.isChecked():
+                    plotter = self.__plotConfidenceOverlap
+                else:
+                    assert False
+                    
                 plotter(times, observations, estimated_values, network_type)
 
             
@@ -579,34 +599,95 @@ class IntNWBehaviorPlot(QDialog):
         self.__plotEstimates(times, estimated_values, network_type)
         self.__plotObservations(times, observations, network_type)
 
-    def __plotMeasurementErrorBars(self, times, observations, estimated_values,
-                                   network_type):
-        # take running average of recorded error, plot as error bar
-        # (asymmetric positive/negative errors)
+    def __error_values(self, observations, estimated_values):
+        shifted_estimates = [estimated_values[0]] + estimated_values[:-1]
+        for error in [est - obs for obs, est in zip(observations, shifted_estimates)]:
+            yield error
+
+    def __running_average_error(self, observations, estimated_values):
         positive_errors = []
         positive_error_mean = 0.0
         negative_errors = []
         negative_error_mean = 0.0
         pos_n = 0
         neg_n = 0
-        
-        shifted_estimates = [estimated_values[0]] + estimated_values[:-1]
-        for error in [obs - est for obs, est in zip(observations, shifted_estimates)]:
+
+        for error in self.__error_values(observations, estimated_values):
             if error >= 0.0:
                 pos_n += 1
-                positive_error_mean += (error - positive_error_mean) / pos_n
+                positive_error_mean = \
+                    update_running_mean(positive_error_mean, error, pos_n)
             else:
                 neg_n += 1
-                negative_error_mean += ((-error) - negative_error_mean) / neg_n
+                negative_error_mean = \
+                    update_running_mean(negative_error_mean, -error, neg_n)
                 
             positive_errors.append(positive_error_mean)
             negative_errors.append(negative_error_mean)
+
+        return positive_errors, negative_errors
+
+    def __plotMeasurementErrorBars(self, times, observations, estimated_values,
+                                   network_type):
+        # take running average of recorded error, plot as error bar
+        # (asymmetric positive/negative errors)
+        positive_errors, negative_errors = \
+            self.__running_average_error(observations, estimated_values)
 
         self.__plotEstimates(times, estimated_values, network_type)
         self.__axes.errorbar(times, estimated_values,
                              yerr=[negative_errors, positive_errors],
                              color=self.__irob_colors[network_type])
         self.__plotObservations(times, observations, network_type)
+
+    def __plotConfidenceOverlap(self, times, observations, estimated_values, network_type):
+        error_means = []
+        error_mean = 0.0
+        error_n = 0
+        error_bound_upper = []
+        error_bound_lower = []
+        error_values = list(self.__error_values(observations, estimated_values))
+        for error in error_values:
+            error_n += 1
+            error_mean = update_running_mean(error_mean, error, error_n)
+            error_means.append(error_mean)
+
+
+        # FOR PLOT TESTING.  TODO: remove and implement confidence interval.
+        #error_bound_upper, error_bound_lower = \
+        #    self.__running_average_error(observations, estimated_values)
+
+        error_variances = stepwise_variance(error_values)
+        error_stddevs = [v ** 0.5 for v in error_variances]
+        def ci(stddev, n):
+            t = stats.t.ppf(1 - IntNWBehaviorPlot.CONFIDENCE_ALPHA/2.0, n-1)
+            return t * stddev / (n ** 0.5)
+
+        error_confidence_intervals = [0.0]
+        error_confidence_intervals += \
+            [ci(stddev, min(n+1, 2)) for n, stddev in enumerate(error_stddevs)][1:]
+
+        error_adjusted_estimates = np.array(estimated_values) - np.array(error_means)
+
+        if True: #self.__error_error_ci.isChecked():
+            bound_widths = np.array(error_confidence_intervals)
+        else:
+            #assert self.__error_error_stddev.isChecked():
+            bound_widths = np.array(error_stddevs)
+        
+        upper = error_adjusted_estimates + bound_widths
+        lower = error_adjusted_estimates - bound_widths
+        self.__axes.fill_between(times, upper, lower,
+                                 facecolor=self.__irob_colors[network_type],
+                                 alpha=0.5)
+
+        self.__axes.plot(times, error_adjusted_estimates,
+                         color=self.__irob_colors[network_type],
+                         linestyle='--', linewidth=0.5)
+                                 
+        self.__plotEstimates(times, estimated_values, network_type)
+        self.__plotObservations(times, observations, network_type)
+        
 
     def __setupAxes(self):
         yticks = {}
