@@ -341,6 +341,7 @@ class IntNWBehaviorPlot(QDialog):
         self.__error_error_ci = \
             QRadioButton("%d%% CI" % (100*(1 - IntNWBehaviorPlot.CONFIDENCE_ALPHA)))
         self.__error_error_stddev = QRadioButton("std-dev")
+        self.__error_error_mean = QRadioButton("mean (+/-)")
 
         self.__plot_error_bars.setChecked(True)
         self.__error_error_ci.setChecked(True)
@@ -351,6 +352,7 @@ class IntNWBehaviorPlot(QDialog):
         self.connect(self.__plot_colored_error_regions, SIGNAL("toggled(bool)"), self.on_draw)
         self.connect(self.__error_error_ci, SIGNAL("toggled(bool)"), self.on_draw)
         self.connect(self.__error_error_stddev, SIGNAL("toggled(bool)"), self.on_draw)
+        self.connect(self.__error_error_mean, SIGNAL("toggled(bool)"), self.on_draw)
 
         error_toggles = QVBoxLayout()
         error_toggles.addWidget(self.__plot_measurements_and_estimates)
@@ -363,6 +365,7 @@ class IntNWBehaviorPlot(QDialog):
         error_interval_toggles = QVBoxLayout()
         error_interval_toggles.addWidget(self.__error_error_ci)
         error_interval_toggles.addWidget(self.__error_error_stddev)
+        error_interval_toggles.addWidget(self.__error_error_mean)
 
         self.__error_interval_box = QGroupBox()
         self.__error_interval_box.setLayout(error_interval_toggles)
@@ -680,10 +683,6 @@ class IntNWBehaviorPlot(QDialog):
             error_means.append(error_mean)
 
 
-        # FOR PLOT TESTING.  TODO: remove and implement confidence interval.
-        #error_bound_upper, error_bound_lower = \
-        #    self.__running_average_error(observations, estimated_values)
-
         error_variances = stepwise_variance(error_values)
         error_stddevs = [v ** 0.5 for v in error_variances]
         def ci(stddev, n):
@@ -694,16 +693,26 @@ class IntNWBehaviorPlot(QDialog):
         error_confidence_intervals += \
             [ci(stddev, min(n+1, 2)) for n, stddev in enumerate(error_stddevs)][1:]
 
-        error_adjusted_estimates = np.array(estimated_values) - np.array(error_means)
+        estimates_array = np.array(estimated_values)
+        error_adjusted_estimates = estimates_array - np.array(error_means)
 
         if self.__error_error_ci.isChecked():
             bound_widths = np.array(error_confidence_intervals)
-        else:
-            assert self.__error_error_stddev.isChecked()
+            upper = error_adjusted_estimates + bound_widths
+            lower = error_adjusted_estimates - bound_widths
+        elif self.__error_error_stddev.isChecked():
             bound_widths = np.array(error_stddevs)
+            upper = error_adjusted_estimates + bound_widths
+            lower = error_adjusted_estimates - bound_widths
+        elif self.__error_error_mean.isChecked():
+            error_bound_lower, error_bound_upper = \
+                self.__running_average_error(observations, estimated_values)
+
+            upper = estimates_array + error_bound_upper
+            lower = estimates_array - error_bound_lower
+        else:
+            assert False
         
-        upper = error_adjusted_estimates + bound_widths
-        lower = error_adjusted_estimates - bound_widths
         self.__axes.fill_between(times, upper, lower,
                                  facecolor=self.__irob_colors[network_type],
                                  alpha=0.5)
@@ -1125,8 +1134,8 @@ class IntNWBehaviorPlot(QDialog):
 
     def __addNetworkEstimate(self, network_type, name, est):
         estimates = self.__getEstimates(network_type, name)
+        assert estimates[-1]['estimate'] is None
         estimates[-1]['estimate'] = est
-        # TODO: double-check.
 
     def __addNetworkPeriod(self, sock, ip):
         network_type = self.__network_type_by_ip[ip]
