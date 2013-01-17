@@ -335,25 +335,43 @@ class IntNWBehaviorPlot(QDialog):
 
         error_plot_method_label = QLabel("Error plotting")
         self.__plot_measurements_and_estimates = QRadioButton("Prev-estimate")
-        self.__plot_error_bars = QRadioButton("Error bars")
-        self.__plot_confidence_overlap = \
-            QRadioButton("%d%% CI overlap" %
-                         (100*(1 - IntNWBehaviorPlot.CONFIDENCE_ALPHA)))
+        self.__plot_error_bars = QRadioButton("Mean error bars")
+        self.__plot_colored_error_regions = QRadioButton("Colored regions")
+        
+        self.__error_error_ci = \
+            QRadioButton("%d%% CI" % (100*(1 - IntNWBehaviorPlot.CONFIDENCE_ALPHA)))
+        self.__error_error_stddev = QRadioButton("std-dev")
 
         self.__plot_error_bars.setChecked(True)
+        self.__error_error_ci.setChecked(True)
+        
         self.connect(self.__plot_measurements_and_estimates,
                        SIGNAL("toggled(bool)"), self.on_draw)
         self.connect(self.__plot_error_bars, SIGNAL("toggled(bool)"), self.on_draw)
-        self.connect(self.__plot_confidence_overlap, SIGNAL("toggled(bool)"), self.on_draw)
+        self.connect(self.__plot_colored_error_regions, SIGNAL("toggled(bool)"), self.on_draw)
+        self.connect(self.__error_error_ci, SIGNAL("toggled(bool)"), self.on_draw)
+        self.connect(self.__error_error_stddev, SIGNAL("toggled(bool)"), self.on_draw)
 
         error_toggles = QVBoxLayout()
         error_toggles.addWidget(self.__plot_measurements_and_estimates)
         error_toggles.addWidget(self.__plot_error_bars)
-        error_toggles.addWidget(self.__plot_confidence_overlap)
+        error_toggles.addWidget(self.__plot_colored_error_regions)
 
         error_box = QGroupBox()
         error_box.setLayout(error_toggles)
-        hbox.addWidget(error_box)
+
+        error_interval_toggles = QVBoxLayout()
+        error_interval_toggles.addWidget(self.__error_error_ci)
+        error_interval_toggles.addWidget(self.__error_error_stddev)
+
+        self.__error_interval_box = QGroupBox()
+        self.__error_interval_box.setLayout(error_interval_toggles)
+
+        all_error_toggles = QHBoxLayout()
+        all_error_toggles.addWidget(error_box)
+        all_error_toggles.addWidget(self.__error_interval_box)
+
+        hbox.addLayout(all_error_toggles)
 
         self.__bandwidth_up_toggle = QRadioButton("Bandwidth (up)")
         self.__latency_toggle = QRadioButton("Latency")
@@ -378,6 +396,9 @@ class IntNWBehaviorPlot(QDialog):
         self.__session_axes = None
         
         if self.__measurements_only:
+            self.__error_interval_box.setEnabled(
+                self.__plot_colored_error_regions.isChecked())
+            
             self.__plotTrace()
             self.__plotMeasurements()
             self.__drawRedundancyDecisions()
@@ -564,8 +585,8 @@ class IntNWBehaviorPlot(QDialog):
                     plotter = self.__plotMeasurementsAndEstimates
                 elif self.__plot_error_bars.isChecked():
                     plotter = self.__plotMeasurementErrorBars
-                elif self.__plot_confidence_overlap.isChecked():
-                    plotter = self.__plotConfidenceOverlap
+                elif self.__plot_colored_error_regions.isChecked():
+                    plotter = self.__plotColoredErrorRegions
                 else:
                     assert False
                     
@@ -635,12 +656,18 @@ class IntNWBehaviorPlot(QDialog):
             self.__running_average_error(observations, estimated_values)
 
         self.__plotEstimates(times, estimated_values, network_type)
-        self.__axes.errorbar(times, estimated_values,
-                             yerr=[negative_errors, positive_errors],
+
+        # A positive error is an overestimate.
+        #    e.g. the latency was 30ms but I thought it was 100ms.
+        #    This should be plotted as an error bar *below* the estimate line.
+        # And vice versa.
+        yerr = [positive_errors, negative_errors]
+        
+        self.__axes.errorbar(times, estimated_values, yerr=yerr,
                              color=self.__irob_colors[network_type])
         self.__plotObservations(times, observations, network_type)
 
-    def __plotConfidenceOverlap(self, times, observations, estimated_values, network_type):
+    def __plotColoredErrorRegions(self, times, observations, estimated_values, network_type):
         error_means = []
         error_mean = 0.0
         error_n = 0
@@ -669,10 +696,10 @@ class IntNWBehaviorPlot(QDialog):
 
         error_adjusted_estimates = np.array(estimated_values) - np.array(error_means)
 
-        if True: #self.__error_error_ci.isChecked():
+        if self.__error_error_ci.isChecked():
             bound_widths = np.array(error_confidence_intervals)
         else:
-            #assert self.__error_error_stddev.isChecked():
+            assert self.__error_error_stddev.isChecked()
             bound_widths = np.array(error_stddevs)
         
         upper = error_adjusted_estimates + bound_widths
