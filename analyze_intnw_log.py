@@ -80,10 +80,6 @@ def stepwise_variance(data):
     variances = [0.0]
     
     for x in data:
-        if x == 0.0:
-            # ignore observations where wifi isn't present
-            variances.append(0.0)
-            continue
         n += 1
         delta = x - mean
         mean += delta / n
@@ -91,12 +87,18 @@ def stepwise_variance(data):
         
         if n > 1:
             variances.append(M2 / (n - 1))
-            
+
     assert len(variances) == len(data)
     return variances
 
 def update_running_mean(mean, value, n):
     return mean + ((value - mean) / (n+1))
+
+def alpha_to_percent(alpha):
+    return 100.0 * (1 - alpha)
+
+def percent_to_alpha(percent):
+    return 1.0 - (percent / 100.0)
 
 class IROB(object):
     def __init__(self, plot, network_type, direction, start, irob_id):
@@ -192,8 +194,10 @@ def getTimestamp(line):
 
 class IntNWBehaviorPlot(QDialog):
     CONFIDENCE_ALPHA = 0.10
+    #CONFIDENCE_ALPHA = 0.05
+    #CONFIDENCE_ALPHA = 0.01
     
-    def __init__(self, run, measurements_only, network_trace_file,
+    def __init__(self, run, start, measurements_only, network_trace_file,
                  cross_country_latency, parent=None):
         QDialog.__init__(self, parent)
 
@@ -218,6 +222,8 @@ class IntNWBehaviorPlot(QDialog):
         self.__session_axes = None
         self.__user_set_max_time = None
 
+        self.__alpha = IntNWBehaviorPlot.CONFIDENCE_ALPHA
+
         # app-level sessions from the trace_replayer.log file
         self.__sessions = []
         self.__debug_sessions = [] # sessions to highlight on the plot for debugging
@@ -234,7 +240,7 @@ class IntNWBehaviorPlot(QDialog):
 
         self.__choose_network_calls = []
 
-        self.__start = None
+        self.__start = start
 
         # TODO: infer plot title from file path
         self.__title = "IntNW - Run %d" % self.__run
@@ -303,6 +309,14 @@ class IntNWBehaviorPlot(QDialog):
         except ValueError:
             pass
 
+    def updateAlpha(self):
+        try:
+            alpha = percent_to_alpha(float(self.__ci_percent.text()))
+            self.__alpha = alpha
+            self.on_draw()
+        except ValueError:
+            pass
+
     def __setupMeasurementWidgets(self, hbox):
         self.__show_wifi = QCheckBox("wifi")
         self.__show_threeg = QCheckBox("3G")
@@ -339,7 +353,7 @@ class IntNWBehaviorPlot(QDialog):
         self.__plot_colored_error_regions = QRadioButton("Colored regions")
         
         self.__error_error_ci = \
-            QRadioButton("%d%% CI" % (100*(1 - IntNWBehaviorPlot.CONFIDENCE_ALPHA)))
+            QRadioButton("%d%% CI" % alpha_to_percent(IntNWBehaviorPlot.CONFIDENCE_ALPHA))
         self.__error_error_stddev = QRadioButton("std-dev")
         self.__error_error_mean = QRadioButton("mean (+/-)")
 
@@ -354,6 +368,12 @@ class IntNWBehaviorPlot(QDialog):
         self.connect(self.__error_error_stddev, SIGNAL("toggled(bool)"), self.on_draw)
         self.connect(self.__error_error_mean, SIGNAL("toggled(bool)"), self.on_draw)
 
+        percent = alpha_to_percent(IntNWBehaviorPlot.CONFIDENCE_ALPHA)
+        self.__ci_percent = QLineEdit("%d" % percent)
+        self.__ci_percent.setMaxLength(3)
+        self.__ci_percent.setFixedWidth(80)
+        self.connect(self.__ci_percent, SIGNAL("returnPressed()"), self.updateAlpha)
+
         error_toggles = QVBoxLayout()
         error_toggles.addWidget(self.__plot_measurements_and_estimates)
         error_toggles.addWidget(self.__plot_error_bars)
@@ -363,7 +383,11 @@ class IntNWBehaviorPlot(QDialog):
         error_box.setLayout(error_toggles)
 
         error_interval_toggles = QVBoxLayout()
-        error_interval_toggles.addWidget(self.__error_error_ci)
+        ci_toggle = QHBoxLayout()
+        ci_toggle.addWidget(self.__error_error_ci)
+        ci_toggle.addWidget(self.__ci_percent)
+        ci_toggle.addWidget(QLabel("%"))
+        error_interval_toggles.addLayout(ci_toggle)
         error_interval_toggles.addWidget(self.__error_error_stddev)
         error_interval_toggles.addWidget(self.__error_error_mean)
 
@@ -686,12 +710,12 @@ class IntNWBehaviorPlot(QDialog):
         error_variances = stepwise_variance(error_values)
         error_stddevs = [v ** 0.5 for v in error_variances]
         def ci(stddev, n):
-            t = stats.t.ppf(1 - IntNWBehaviorPlot.CONFIDENCE_ALPHA/2.0, n-1)
+            t = stats.t.ppf(1 - self.__alpha/2.0, n-1)
             return t * stddev / (n ** 0.5)
 
         error_confidence_intervals = [0.0]
         error_confidence_intervals += \
-            [ci(stddev, min(n+1, 2)) for n, stddev in enumerate(error_stddevs)][1:]
+            [ci(stddev, max(n+1, 2)) for n, stddev in enumerate(error_stddevs)][1:]
 
         estimates_array = np.array(estimated_values)
         error_adjusted_estimates = estimates_array - np.array(error_means)
@@ -949,6 +973,11 @@ class IntNWBehaviorPlot(QDialog):
         LATENCY_ADJUSTMENT = 0.100 # 100ms cross-country
         return latency + LATENCY_ADJUSTMENT
 
+    def setStart(self, start):
+        # for resetting the experiment start, to avoid including the
+        #  setup transfers and waiting time at the server.
+        self.__start = start
+
     def parseLine(self, line):
         timestamp = getTimestamp(line)
         if self.__start == None:
@@ -968,7 +997,7 @@ class IntNWBehaviorPlot(QDialog):
             # [time][pid][Listener 13] Adding connection 14 from 192.168.1.2
             #                          bw_down 43226 bw_up 12739 RTT 97
             #                          type wifi(peername 141.212.110.115)
-            self.__addIncomingConnection(line)
+            self.__addIncomingConnection(line, timestamp)
         elif "Adding connection" in line:
             # [time][pid][Listener 13] Adding connection 14 from 192.168.1.2
             #                          bw_down 244696 bw_up 107664 RTT 391
@@ -1005,7 +1034,9 @@ class IntNWBehaviorPlot(QDialog):
             bw_match = re.search(self.__network_bandwidth_regex, line)
             lat_match = re.search(self.__network_latency_regex, line)
             bw = bw_match.groups() if bw_match else None
+            bw = bw if float(bw[0]) > 0.0 else None
             latency = lat_match.groups() if lat_match else None
+            latency = latency if float(latency[0]) > 0.0 else None
             
             self.__addEstimates(network_type, timestamp, bw=bw, latency=latency)
         elif "New spot values" in line:
@@ -1037,7 +1068,10 @@ class IntNWBehaviorPlot(QDialog):
         self.__datalen_regex = re.compile("datalen: ([0-9]+)")
         self.__expected_bytes_regex = re.compile("expected_bytes: ([0-9]+)")
         self.__network_regex = re.compile("scout: (.+) is (down|up).+ type ([A-Za-z0-9]+)")
-        self.__ip_regex = re.compile("([0-9]+(?:\.[0-9]+){3})")
+
+        ip_regex_string = "([0-9]+(?:\.[0-9]+){3})"
+        self.__ip_regex = re.compile(ip_regex_string)
+        
         self.__socket_regex = re.compile("\[CSock(?:Sender|Receiver) ([0-9]+)\]")
         self.__intnw_message_type_regex = \
             re.compile("(?:About to send|Received) message:  Type: ([A-Za-z_]+)")
@@ -1052,6 +1086,10 @@ class IntNWBehaviorPlot(QDialog):
 
         self.__redundancy_strategy_regex = \
             re.compile("redundancy_strategy_type: ([a-z_]+)\s*")
+
+        self.__incoming_connection_regex = \
+            re.compile("Adding connection ([0-9]+) from " + ip_regex_string +
+                       ".+type ([A-Za-z0-9]+)")
         
     def __getIROBId(self, line):
         return int(re.search(self.__irob_regex, line).group(1))
@@ -1062,9 +1100,7 @@ class IntNWBehaviorPlot(QDialog):
     def __getIP(self, line):
         return re.search(self.__ip_regex, line).group(1)
 
-    def __modifyNetwork(self, line):
-        timestamp = getTimestamp(line)
-        ip, status, network_type = re.search(self.__network_regex, line).groups()
+    def __addNetworkType(self, network_type):
         if network_type not in self.__networks:
             self.__networks[network_type] = {
                 'down': {}, # download IROBs
@@ -1072,6 +1108,11 @@ class IntNWBehaviorPlot(QDialog):
                 }
             self.__network_periods[network_type] = []
 
+    def __modifyNetwork(self, line):
+        timestamp = getTimestamp(line)
+        ip, status, network_type = re.search(self.__network_regex, line).groups()
+        self.__addNetworkType(network_type)
+        
         if status == 'down':
             period = self.__network_periods[network_type][-1]
             assert period['end'] == None
@@ -1080,24 +1121,28 @@ class IntNWBehaviorPlot(QDialog):
             assert ip in self.__network_type_by_ip
             del self.__network_type_by_ip[ip]
         elif status == 'up':
-            periods = self.__network_periods[network_type]
-            if len(periods) > 0 and periods[-1]['end'] == None:
-                # two perfectly adjacent periods with no 'down' in between.  whatevs.
-                periods[-1]['end'] = timestamp
-                
-            periods.append({
-                'start': timestamp, 'end': None,
-                'ip': ip, 'sock': None
-                })
-
+            self.__startNetworkPeriod(network_type, ip,
+                                      start=timestamp, end=None, sock=None)
+            
             placeholder = (ip in self.__network_type_by_ip and
                            self.__network_type_by_ip[ip] == "placeholder")
             self.__network_type_by_ip[ip] = network_type
             if placeholder:
                 sock = self.__placeholder_sockets[ip]
                 del self.__placeholder_sockets[ip]
-                self.__addNetworkPeriod(sock, ip)
+                self.__addNetworkPeriodSocket(sock, ip)
         else: assert False
+
+    def __startNetworkPeriod(self, network_type, ip, start, end=None, sock=None):
+        periods = self.__network_periods[network_type]
+        if len(periods) > 0 and periods[-1]['end'] == None:
+            # two perfectly adjacent periods with no 'down' in between.  whatevs.
+            periods[-1]['end'] = start
+
+        periods.append({
+            'start': start, 'end': end,
+            'ip': ip, 'sock': sock
+            })
         
     def __addConnection(self, line):
         sock = self.__getSocket(line)
@@ -1107,7 +1152,7 @@ class IntNWBehaviorPlot(QDialog):
             assert ip not in self.__placeholder_sockets
             self.__placeholder_sockets[ip] = sock
         else:
-            self.__addNetworkPeriod(sock, ip)
+            self.__addNetworkPeriodSocket(sock, ip)
 
     def __addEstimates(self, network_type, timestamp, bw=None, latency=None):
         if network_type not in self.__estimates:
@@ -1127,6 +1172,9 @@ class IntNWBehaviorPlot(QDialog):
         return all_estimates[name]
                 
     def __addNetworkObservation(self, network_type, name, timestamp, obs):
+        if obs == 0.0:
+            debug_trace()
+            
         estimates = self.__getEstimates(network_type, name)
         estimates.append({'timestamp': float(timestamp),
                           'observation': float(obs),
@@ -1137,7 +1185,7 @@ class IntNWBehaviorPlot(QDialog):
         assert estimates[-1]['estimate'] is None
         estimates[-1]['estimate'] = est
 
-    def __addNetworkPeriod(self, sock, ip):
+    def __addNetworkPeriodSocket(self, sock, ip):
         network_type = self.__network_type_by_ip[ip]
         network_period = self.__network_periods[network_type][-1]
 
@@ -1149,8 +1197,16 @@ class IntNWBehaviorPlot(QDialog):
         assert sock not in self.__network_type_by_sock
         self.__network_type_by_sock[sock] = network_type
 
-    def __addIncomingConnection(self, line):
-        raise NotImplementedError() # TODO
+    def __addIncomingConnection(self, line, timestamp):
+        match = re.search(self.__incoming_connection_regex, line)
+        sock, ip, network_type = match.groups()
+        sock = int(sock)
+
+        self.__addNetworkType(network_type)
+        self.__startNetworkPeriod(network_type, ip, start=timestamp, end=None, sock=None)
+        
+        self.__network_type_by_ip[ip] = network_type
+        self.__addNetworkPeriodSocket(sock, ip)
         
     def __removeConnection(self, line):
         timestamp = getTimestamp(line)
@@ -1280,11 +1336,17 @@ class IntNWPlotter(object):
         self.__session_regex = re.compile("start ([0-9]+\.[0-9]+)" + 
                                           ".+duration ([0-9]+\.[0-9]+)")
 
+        intnw_log = "intnw.log"
+        trace_replayer_log = "trace_replayer.log"
+        instruments_log = "instruments.log"
+        if args.server:
+            intnw_log = trace_replayer_log = instruments_log = "replayer_server.log"
+
         self.__measurements_only = args.measurements
         self.__network_trace_file = args.network_trace_file
-        self.__intnw_log = args.basedir + "/intnw.log"
-        self.__trace_replayer_log = args.basedir + "/trace_replayer.log"
-        self.__redundancy_eval_log = args.basedir + "/instruments.log"
+        self.__intnw_log = args.basedir + "/" + intnw_log
+        self.__trace_replayer_log = args.basedir + "/" + trace_replayer_log
+        self.__redundancy_eval_log = args.basedir + "/" + instruments_log
         self.__cross_country_latency = args.cross_country_latency
         
         self.__readFile(self.__intnw_log)
@@ -1318,10 +1380,10 @@ class IntNWPlotter(object):
         runs = []
         for linenum, line in enumerate(open(filename).readlines()):
             fields = line.strip().split()
-            if "Redundancy strategy" in line:
-                runs.append([])
-            elif "Session times:" in line:
+            if "Session times:" in line:
                 # start over with the better list of sessions
+                if len(runs[-1]) == 0:
+                    runs = runs[:-1]
                 runs[-1] = []
             elif "  Session" in line:
                 timestamp, duration = self.__getSession(line)
@@ -1332,19 +1394,26 @@ class IntNWPlotter(object):
             else:
                 try:
                     timestamp = float(fields[0])
-                except ValueError:
+                except (ValueError, IndexError):
                     continue
 
-            sessions = runs[-1]
             if "Executing:" in line and fields[2] == "at":
                 # start of a session
                 transfer = {'start': timestamp, 'end': None}
-                sessions.append(transfer)
+                runs[-1].append(transfer)
             elif (("Waiting to execute" in line and fields[4] == "at") or
                   "Waiting until trace end" in line):
-                  # end of a session
-                if len(sessions) > 0:
-                    sessions[-1]['end'] = timestamp
+                if len(runs) == 0:
+                    # new run
+                    runs.append([])
+                elif len(runs[-1]) > 0:
+                    # end of a session
+                    runs[-1][-1]['end'] = timestamp
+            elif "Done with trace replay" in line:
+                runs.append([])
+
+        if len(runs[-1]) == 0:
+            runs = runs[:-1]
         return runs
 
     def __readRedundancyDecisions(self):
@@ -1393,7 +1462,8 @@ class IntNWPlotter(object):
                     continue
                     
                 if pid != self.__currentPid:
-                    window = IntNWBehaviorPlot(len(self.__windows) + 1,
+                    start = session_runs[len(self.__windows)][0]['start']
+                    window = IntNWBehaviorPlot(len(self.__windows) + 1, start, 
                                                self.__measurements_only,
                                                self.__network_trace_file,
                                                self.__cross_country_latency)
@@ -1421,6 +1491,23 @@ class IntNWPlotter(object):
     def show(self):
         for window in self.__windows:
             window.show()
+
+           
+def exception_hook(type, value, tb):
+    from PyQt4.QtCore import pyqtRemoveInputHook 
+    import traceback, pdb
+    traceback.print_exception(type, value, tb)
+    pyqtRemoveInputHook()
+    pdb.pm()
+
+def debug_trace():
+    from PyQt4.QtCore import pyqtRemoveInputHook 
+    import pdb
+    pyqtRemoveInputHook()
+    pdb.set_trace()
+
+import sys
+sys.excepthook = exception_hook
     
 def main():
     parser = ArgumentParser()
@@ -1430,6 +1517,8 @@ def main():
     parser.add_argument("--noplot", action="store_true", default=False)
     parser.add_argument("--cross-country-latency", action="store_true", default=False,
                         help="Add 100ms latency when plotting the trace.")
+    parser.add_argument("--server", action="store_true", default=False,
+                        help="Look in replayer_server.log for all logging.")
     args = parser.parse_args()
 
     app = QApplication(sys.argv)

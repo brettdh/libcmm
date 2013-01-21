@@ -9,7 +9,7 @@ if [ $# != 2 ]; then
     usage $0
 fi
 
-FILES=" intnw.log trace_replayer.log timing.log instruments.log"
+FILES=" intnw.log trace_replayer.log timing.log instruments.log replayer_server.log"
 
 REMOTE_DIR=$1
 LOCAL_DIR=$2
