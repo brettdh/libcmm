@@ -1,5 +1,6 @@
 #!/usr/bin/env python2.7
 
+'''
 # Things I want this tool to show:
 # 1) Application data that's sent or received
 #    a) With annotations: IROB numbers, data size, dependencies
@@ -22,6 +23,8 @@
 # Borrows heavily from
 #   http://eli.thegreenplace.net/2009/01/20/matplotlib-with-pyqt-guis/
 
+'''
+
 import sys, re, os
 from argparse import ArgumentParser
 
@@ -42,6 +45,7 @@ from progressbar import ProgressBar
 
 sys.path.append("../../scripts/nistnet_scripts/traces")
 import mobility_trace
+from mobility_trace import NetworkChooser
 
 debug = False
 #debug = True
@@ -66,6 +70,8 @@ class LogParsingError(Exception):
                    self.msg,
                    self.line != None and ('\n' + self.line) or ""))
 
+class IROBError(Exception):
+    pass
 
 def stepwise_variance(data):
     '''Returns a list with the step-by-step variance computed on data.
@@ -99,6 +105,26 @@ def alpha_to_percent(alpha):
 
 def percent_to_alpha(percent):
     return 1.0 - (percent / 100.0)
+
+def error_values(observations, estimated_values):
+    shifted_estimates = [estimated_values[0]] + estimated_values[:-1]
+    for error in [est - obs for obs, est in zip(observations, shifted_estimates)]:
+        yield error
+
+def get_value_at(timestamps, values, time):
+    '''Assuming zip(timestamps, values) is a list of periods
+    described (somehow) by the corresponding values,
+    return the value in effect at time 'time'.
+    A value is 'in effect' from timestamps[i] until timestamps[i+1].
+
+    Assumes timestamps is a sorted list.
+
+    '''
+    from bisect import bisect_right
+    pos = bisect_right(timestamps, time)
+    assert pos != 0 # timestamp must occur after first observation
+    return values[pos - 1]
+
 
 class IROB(object):
     def __init__(self, plot, network_type, direction, start, irob_id):
@@ -139,6 +165,11 @@ class IROB(object):
                 (self.__datalen != None and
                  (self.direction == "up" or
                   self.__datalen >= self.__expected_bytes)))
+
+    def getSize(self):
+        if not self.__datalen:
+            raise IROBError("expected to find IROB size")
+        return self.__datalen
      
     def __checkIfComplete(self, timestamp):
         self.__last_activity = timestamp
@@ -152,6 +183,9 @@ class IROB(object):
 
     def wasDropped(self):
         return bool(self.__drop_time)
+
+    def getStart(self):
+        return self.__start
 
     def getDuration(self):
         if self.complete():
@@ -203,7 +237,7 @@ class IntNWBehaviorPlot(QDialog):
 
         self.__initRegexps()
         self.__run = run
-        self.__networks = {}
+        self.__networks = {} # {network_type => {direction => {id => IROB} } }
         self.__network_periods = {}
         self.__network_type_by_ip = {}
         self.__network_type_by_sock = {}
@@ -402,14 +436,17 @@ class IntNWBehaviorPlot(QDialog):
 
         self.__bandwidth_up_toggle = QRadioButton("Bandwidth (up)")
         self.__latency_toggle = QRadioButton("Latency")
+        self.__tx_time_toggle = QRadioButton("Predicted transfer time (up)")
         
         self.__latency_toggle.setChecked(True)
         self.connect(self.__bandwidth_up_toggle, SIGNAL("toggled(bool)"), self.on_draw)
         self.connect(self.__latency_toggle, SIGNAL("toggled(bool)"), self.on_draw)
+        self.connect(self.__tx_time_toggle, SIGNAL("toggled(bool)"), self.on_draw)
 
         toggles = QVBoxLayout()
         toggles.addWidget(self.__bandwidth_up_toggle)
         toggles.addWidget(self.__latency_toggle)
+        toggles.addWidget(self.__tx_time_toggle)
 
         toggle_box = QGroupBox()
         toggle_box.setLayout(toggles)
@@ -449,11 +486,14 @@ class IntNWBehaviorPlot(QDialog):
             return 'bandwidth_up'
         elif self.__latency_toggle.isChecked():
             return 'latency'
+        elif self.__tx_time_toggle.isChecked():
+            return 'tx_time'
         else: assert False
 
     def __getYAxisLabel(self):
         labels = {'bandwidth_up': 'Bandwidth (up) (bytes/sec)',
-                  'latency': 'RTT (seconds)'}
+                  'latency': 'RTT (seconds)',
+                  'tx_time': 'Transfer time (up) (seconds)'}
         return labels[self.__whatToPlot()]
 
     class NetworkTrace(object):
@@ -515,13 +555,15 @@ class IntNWBehaviorPlot(QDialog):
                     map(lambda x: x-self.__start, times)
                 self.__values[network_type][what_to_plot] = map(convert, values)
 
-            self.__computeVariance(self.__values)
+            self.__computeVariance()
 
-        def __computeVariance(self, values):
+            
+        def __computeVariance(self):
             # values dictionary is populated in __init__
             self.__upper_variance_values = {}
             self.__lower_variance_values = {}
             self.__variance_values = {}
+            
             for network_type, what_to_plot in self.__pairs():
                 values = self.__values[network_type][what_to_plot]
                 variances = stepwise_variance(values)
@@ -538,11 +580,52 @@ class IntNWBehaviorPlot(QDialog):
                 self.__lower_variance_values[network_type][what_to_plot] = lowers
                 self.__variance_values[network_type][what_to_plot] = std_devs
 
+        def addTransfers(self, transfers):
+            '''Add transfers to the trace for the purpose of
+            plotting their transfer times.
+
+            transfers -- [(start_time, size),...]   (upstream transmissions only).
+            '''
+            
+            self.__transfers = transfers
+
+            class SingleNetwork(NetworkChooser):
+                def __init__(self, network_type):
+                    types = {'wifi': NetworkChooser.WIFI, '3G': NetworkChooser.CELLULAR}
+                    self.network_type = types[network_type]
+                    
+                def chooseNetwork(self, duration, bytelen):
+                    return self.network_type
+
+            network_choosers = {type_name: SingleNetwork(type_name) 
+                                for type_name in self.__values.keys()}
+
+            for network_type in self.__values:
+                network_chooser = network_choosers[network_type]
+                tx_results = [self.__priv_trace.timeToUpload(network_chooser, *txfer)
+                              for txfer in self.__transfers]
+
+                def get_time(tx_result):
+                    if (tx_result.getNetworkUsed() == network_chooser.network_type and
+                        (tx_result.getNetworkUsed() == NetworkChooser.CELLULAR or
+                         tx_result.cellular_recovery_start is None)):
+                        return tx_result.tx_time
+                    else:
+                        return 0.0
+                    
+                times = map(get_time, tx_results)
+                self.__timestamps[network_type]['tx_time'] = [t[0] for t in self.__transfers]
+                self.__values[network_type]['tx_time'] = times
+
+            # redo these calculations.  XXX: is this stdev calculation
+            #  still appropriate?  probably not.
+            self.__computeVariance()
+
         plot_colors = {'wifi': (.7, .7, 1.0), '3G': (1.0, .7, .7)}
 
         # whiten up the colors for the variance plotting
-        variance_colors = {name: map(lambda v: v + ((1.0 - v) * 0.75), color)
-                        for name, color in plot_colors.items()}
+        #variance_colors = {name: map(lambda v: v + ((1.0 - v) * 0.75), color)
+        #                   for name, color in plot_colors.items()}
         variance_colors = {name: color + (0.25,) for name, color in plot_colors.items()}
 
         def __ploteach(self, plotter, checks):
@@ -552,10 +635,11 @@ class IntNWBehaviorPlot(QDialog):
                 
         def __plot(self, axes, what_to_plot, checks, values, colors, labeler):
             def plotter(network_type):
-                axes.plot(self.__timestamps[network_type][what_to_plot],
-                          values[network_type][what_to_plot],
+                axes.plot(self.__timestamps[network_type][what_to_plot], 
+                          self.__values[network_type][what_to_plot],
                           color=colors[network_type],
                           label=labeler(network_type))
+            
             self.__ploteach(plotter, checks)
 
         def plot(self, axes, what_to_plot, checks):
@@ -564,15 +648,16 @@ class IntNWBehaviorPlot(QDialog):
                         lambda network_type: network_type + " trace")
 
         def plotVariance(self, axes, what_to_plot, checks):
-            #self.__plot(axes, what_to_plot, checks, self.__upper_variance_values,
-            #            type(self).variance_colors, lambda x: None)
-            #self.__plot(axes, what_to_plot, checks, self.__lower_variance_values,
-            #            type(self).variance_colors, lambda x: None)
             def plotter(network_type):
-                axes.errorbar(self.__timestamps[network_type][what_to_plot],
-                              self.__values[network_type][what_to_plot],
-                              yerr=self.__variance_values[network_type][what_to_plot],
-                              color=type(self).variance_colors[network_type])
+                if (what_to_plot in self.__values[network_type] and
+                    what_to_plot in self.__variance_values[network_type]):
+                    cur_values = self.__values[network_type][what_to_plot]
+                    cur_errors = self.__variance_values[network_type][what_to_plot]
+                    
+                    axes.errorbar(self.__timestamps[network_type][what_to_plot],
+                                  cur_values, yerr=cur_errors,
+                                  color=type(self).variance_colors[network_type])
+            
             self.__ploteach(plotter, checks)
 
 
@@ -580,6 +665,29 @@ class IntNWBehaviorPlot(QDialog):
         if self.__network_trace_file and not self.__trace:
             self.__trace = IntNWBehaviorPlot.NetworkTrace(self.__network_trace_file,
                                                           self, self.__estimates)
+            all_irobs = {}
+            transfers = []
+
+            def get_transfer(irob):
+                return (self.getAdjustedTime(irob.getStart()), irob.getSize())
+                
+            for network_type in self.__networks:
+                irobs = self.__networks[network_type]['up']
+                for irob_id in irobs:
+                    new_irob = irobs[irob_id]
+                    if irob_id in all_irobs:
+                        old_irob = all_irobs[irob_id]
+                        all_irobs[irob_id] = min(old_irob, new_irob, 
+                                                 key=lambda x: x.getStart())
+                    else:
+                        all_irobs[irob_id] = new_irob
+                        
+            irob_list = sorted(all_irobs.values(), key=lambda x: x.getStart())
+            def within_bounds(irob):
+                start = self.getAdjustedTime(irob.getStart())
+                return start > 0.0
+            transfers = [get_transfer(irob) for irob in irob_list if within_bounds(irob)]
+            self.__trace.addTransfers(transfers)
             
         checks = {'wifi': self.__show_wifi, '3G': self.__show_threeg}
         if self.__show_trace.isChecked():
@@ -588,8 +696,23 @@ class IntNWBehaviorPlot(QDialog):
                 self.__trace.plotVariance(self.__axes, self.__whatToPlot(), checks)
 
     def __plotMeasurements(self):
-        checks = {'wifi': self.__show_wifi, '3G': self.__show_threeg}
+        what_to_plot = self.__whatToPlot()
+        if what_to_plot == "tx_time":
+            self.__plotEstimatedTransferTimes()
+        else:
+            self.__plotMeasurementsSimple()
+            
+        self.__axes.set_xlabel("Time (seconds)")
+        self.__axes.set_ylabel(self.__getYAxisLabel())
+        if self.__show_legend.isChecked():
+            self.__axes.legend()
 
+    def __plotEstimatedTransferTimes(self):
+        # TODO: implement
+        pass
+
+    def __plotMeasurementsSimple(self):
+        checks = {'wifi': self.__show_wifi, '3G': self.__show_threeg}
         what_to_plot = self.__whatToPlot()
         
         for network_type in self.__estimates:
@@ -619,12 +742,6 @@ class IntNWBehaviorPlot(QDialog):
                     
                 plotter(times, observations, estimated_values, network_type)
 
-            
-        self.__axes.set_xlabel("Time (seconds)")
-        self.__axes.set_ylabel(self.__getYAxisLabel())
-        if self.__show_legend.isChecked():
-            self.__axes.legend()
-
     def __plotEstimates(self, times, estimated_values, network_type):
         self.__axes.plot(times, estimated_values,
                          label=network_type + " estimates",
@@ -647,11 +764,6 @@ class IntNWBehaviorPlot(QDialog):
         self.__plotEstimates(times, estimated_values, network_type)
         self.__plotObservations(times, observations, network_type)
 
-    def __error_values(self, observations, estimated_values):
-        shifted_estimates = [estimated_values[0]] + estimated_values[:-1]
-        for error in [est - obs for obs, est in zip(observations, shifted_estimates)]:
-            yield error
-
     def __running_average_error(self, observations, estimated_values):
         positive_errors = []
         positive_error_mean = 0.0
@@ -660,7 +772,7 @@ class IntNWBehaviorPlot(QDialog):
         pos_n = 0
         neg_n = 0
 
-        for error in self.__error_values(observations, estimated_values):
+        for error in error_values(observations, estimated_values):
             if error >= 0.0:
                 pos_n += 1
                 positive_error_mean = \
@@ -700,7 +812,7 @@ class IntNWBehaviorPlot(QDialog):
         error_n = 0
         error_bound_upper = []
         error_bound_lower = []
-        error_values = list(self.__error_values(observations, estimated_values))
+        error_values = list(error_values(observations, estimated_values))
         for error in error_values:
             error_n += 1
             error_mean = update_running_mean(error_mean, error, error_n)
@@ -924,7 +1036,7 @@ class IntNWBehaviorPlot(QDialog):
 
         self.__debug_sessions = reevaluation_sessions
 
-    def __getIROBs(self, start, end):
+    def __getIROBs(self, start=-1.0, end=None):
         """Get all IROBs that start in the specified time range.
 
         Returns a dictionary: d[network_type][direction] => [IROB(),...]
@@ -933,6 +1045,9 @@ class IntNWBehaviorPlot(QDialog):
         end -- relative ending time
 
         """
+        if end is None:
+            end = self.__end + 1.0
+
         matching_irobs = {}
         def time_matches(irob):
             irob_start, irob_end = [self.getAdjustedTime(t) for t in irob.getDuration()]
