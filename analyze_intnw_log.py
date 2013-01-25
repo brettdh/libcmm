@@ -40,6 +40,7 @@ import numpy as np
 import scipy.stats as stats
 
 from itertools import product
+from bisect import bisect_right
 
 from progressbar import ProgressBar
 
@@ -72,6 +73,17 @@ class LogParsingError(Exception):
 
 class IROBError(Exception):
     pass
+
+def stepwise_mean(data):
+    means = []
+    mean = 0.0
+    n = 0
+    for value in data:
+        n += 1
+        mean = update_running_mean(mean, value, n)
+        means.append(mean)
+        
+    return means
 
 def stepwise_variance(data):
     '''Returns a list with the step-by-step variance computed on data.
@@ -106,7 +118,7 @@ def alpha_to_percent(alpha):
 def percent_to_alpha(percent):
     return 1.0 - (percent / 100.0)
 
-def error_values(observations, estimated_values):
+def get_error_values(observations, estimated_values):
     shifted_estimates = [estimated_values[0]] + estimated_values[:-1]
     for error in [est - obs for obs, est in zip(observations, shifted_estimates)]:
         yield error
@@ -120,10 +132,15 @@ def get_value_at(timestamps, values, time):
     Assumes timestamps is a sorted list.
 
     '''
-    from bisect import bisect_right
     pos = bisect_right(timestamps, time)
     assert pos != 0 # timestamp must occur after first observation
     return values[pos - 1]
+
+def network_metric_pairs():
+    network_types = ['wifi', '3G']
+    metrics = ['bandwidth_up', 'latency']
+    for n, m in product(network_types, metrics):
+        yield n, m
 
 
 class IROB(object):
@@ -382,7 +399,6 @@ class IntNWBehaviorPlot(QDialog):
             self.connect(check, SIGNAL("stateChanged(int)"), self.on_draw)
 
         error_plot_method_label = QLabel("Error plotting")
-        self.__plot_measurements_and_estimates = QRadioButton("Prev-estimate")
         self.__plot_error_bars = QRadioButton("Mean error bars")
         self.__plot_colored_error_regions = QRadioButton("Colored regions")
         
@@ -394,8 +410,6 @@ class IntNWBehaviorPlot(QDialog):
         self.__plot_error_bars.setChecked(True)
         self.__error_error_ci.setChecked(True)
         
-        self.connect(self.__plot_measurements_and_estimates,
-                       SIGNAL("toggled(bool)"), self.on_draw)
         self.connect(self.__plot_error_bars, SIGNAL("toggled(bool)"), self.on_draw)
         self.connect(self.__plot_colored_error_regions, SIGNAL("toggled(bool)"), self.on_draw)
         self.connect(self.__error_error_ci, SIGNAL("toggled(bool)"), self.on_draw)
@@ -409,7 +423,6 @@ class IntNWBehaviorPlot(QDialog):
         self.connect(self.__ci_percent, SIGNAL("returnPressed()"), self.updateAlpha)
 
         error_toggles = QVBoxLayout()
-        error_toggles.addWidget(self.__plot_measurements_and_estimates)
         error_toggles.addWidget(self.__plot_error_bars)
         error_toggles.addWidget(self.__plot_colored_error_regions)
 
@@ -522,18 +535,13 @@ class IntNWBehaviorPlot(QDialog):
                 value_type = value_type.replace("bandwidth_", "").replace("latency", "RTT")
                 return ("%s_%s" % (net_type, value_type))
 
-            def pairs():
-                for network_type, what_to_plot in product(estimates.keys(), value_names):
-                    yield network_type, what_to_plot
-            self.__pairs = pairs
-
             last_estimates = {}
-            for network_type, what_to_plot in self.__pairs():
+            for network_type, what_to_plot in network_metric_pairs():
                 cur_estimates = estimates[network_type][what_to_plot]
                 if len(cur_estimates) > 0:
                     last_estimates[network_type] = cur_estimates[-1]['timestamp']
 
-            for network_type, what_to_plot in self.__pairs():
+            for network_type, what_to_plot in network_metric_pairs():
                 key = getTraceKey(network_type, what_to_plot)
                 if network_type in last_estimates:
                     last_estimate_time = \
@@ -564,7 +572,7 @@ class IntNWBehaviorPlot(QDialog):
             self.__lower_variance_values = {}
             self.__variance_values = {}
             
-            for network_type, what_to_plot in self.__pairs():
+            for network_type, what_to_plot in network_metric_pairs():
                 values = self.__values[network_type][what_to_plot]
                 variances = stepwise_variance(values)
                 std_devs = [v ** .5 for v in variances]
@@ -665,28 +673,7 @@ class IntNWBehaviorPlot(QDialog):
         if self.__network_trace_file and not self.__trace:
             self.__trace = IntNWBehaviorPlot.NetworkTrace(self.__network_trace_file,
                                                           self, self.__estimates)
-            all_irobs = {}
-            transfers = []
-
-            def get_transfer(irob):
-                return (self.getAdjustedTime(irob.getStart()), irob.getSize())
-                
-            for network_type in self.__networks:
-                irobs = self.__networks[network_type]['up']
-                for irob_id in irobs:
-                    new_irob = irobs[irob_id]
-                    if irob_id in all_irobs:
-                        old_irob = all_irobs[irob_id]
-                        all_irobs[irob_id] = min(old_irob, new_irob, 
-                                                 key=lambda x: x.getStart())
-                    else:
-                        all_irobs[irob_id] = new_irob
-                        
-            irob_list = sorted(all_irobs.values(), key=lambda x: x.getStart())
-            def within_bounds(irob):
-                start = self.getAdjustedTime(irob.getStart())
-                return start > 0.0
-            transfers = [get_transfer(irob) for irob in irob_list if within_bounds(irob)]
+            transfers = self.__getAllUploads()
             self.__trace.addTransfers(transfers)
             
         checks = {'wifi': self.__show_wifi, '3G': self.__show_threeg}
@@ -708,8 +695,130 @@ class IntNWBehaviorPlot(QDialog):
             self.__axes.legend()
 
     def __plotEstimatedTransferTimes(self):
-        # TODO: implement
-        pass
+        checks = {'wifi': self.__show_wifi, '3G': self.__show_threeg}
+
+        rel_times = {}
+        network_errors = {}
+        for network_type, metric in network_metric_pairs():
+            if network_type not in network_errors:
+                rel_times[network_type] = {}
+                network_errors[network_type] = {}
+
+            cur_times, observations, estimated_values = \
+                self.__getAllEstimates(network_type, metric)
+            rel_times[network_type][metric] = cur_times
+            network_errors[network_type][metric] = \
+                list(get_error_values(observations, estimated_values))
+
+        def get_errors(network_type, tx_start):
+            errors = {}
+            for metric in rel_times[network_type]:
+                cur_times = rel_times[network_type][metric]
+                cur_errors = network_errors[network_type][metric]
+                
+                pos = bisect_right(cur_times, tx_start)
+                assert pos > 0
+                errors[metric] = cur_errors[:pos]
+                
+            return errors
+
+        def get_estimates(network_type, tx_start):
+            estimates = {}
+            for metric in rel_times[network_type]:
+                cur_times = rel_times[network_type][metric]
+                cur_estimates = self.__getAllEstimates(network_type, metric)[2]
+                
+                pos = bisect_right(cur_times, tx_start)
+                assert pos > 0
+                estimates[metric] = cur_estimates[pos - 1]
+            
+            return estimates
+            
+        def transfer_time(bw, latency, size):
+            return (size / bw) + latency
+
+        transfers = self.__getAllUploads()
+        
+        predicted_transfer_durations = {'wifi': [], '3G': []}
+        transfer_error_bounds = {'wifi': ([],[]), '3G': ([],[])}
+        transfer_error_means = {'wifi': [], '3G': []}
+        for network_type in ['wifi', '3G']:
+            if not checks[network_type].isChecked():
+                continue
+
+            for tx_start, tx_size in transfers:
+                cur_estimates = get_estimates(network_type, tx_start)
+                est_tx_time = transfer_time(cur_estimates['bandwidth_up'],
+                                            cur_estimates['latency'], tx_size)
+                predicted_transfer_durations[network_type].append(est_tx_time)
+
+                cur_errors = get_errors(network_type, tx_start)
+                transfer_times_with_error = []
+                for bandwidth_err, latency_err in product(cur_errors['bandwidth_up'], 
+                                                          cur_errors['latency']):
+                    bandwidth = cur_estimates['bandwidth_up'] - bandwidth_err
+                    latency = cur_estimates['latency'] - latency_err
+                    transfer_times_with_error.append(transfer_time(bandwidth, latency, tx_size))
+
+                transfer_time_errors = [est_tx_time - tx_time for tx_time in 
+                                        transfer_times_with_error]
+                transfer_time_error_means = stepwise_mean(transfer_time_errors)
+                error_calculator = self.__getErrorCalculator()
+                lower_errors, upper_errors = \
+                    error_calculator([est_tx_time] * len(transfer_time_errors),
+                                     transfer_time_errors, transfer_time_error_means)
+
+                # use the last error as the cumulative error for transfer time
+                transfer_error_bounds[network_type][0].append(lower_errors[-1])
+                transfer_error_bounds[network_type][1].append(upper_errors[-1])
+                transfer_error_means[network_type].append(transfer_time_error_means[-1])
+        
+            plotter = self.__getPlotter()
+            times = [tx_start for tx_start, tx_size in transfers]
+            plotter(times, predicted_transfer_durations[network_type], 
+                    transfer_error_means[network_type],
+                    transfer_error_bounds[network_type], network_type)
+            
+            self.__plotEstimates(times, predicted_transfer_durations[network_type], network_type)
+            
+
+    def __getAllUploads(self):
+        all_irobs = {}
+        
+        def get_transfer(irob):
+            return (self.getAdjustedTime(irob.getStart()), irob.getSize())
+                
+        for network_type in self.__networks:
+            irobs = self.__networks[network_type]['up']
+            for irob_id in irobs:
+                new_irob = irobs[irob_id]
+                if irob_id in all_irobs:
+                    old_irob = all_irobs[irob_id]
+                    all_irobs[irob_id] = min(old_irob, new_irob, 
+                                             key=lambda x: x.getStart())
+                else:
+                    all_irobs[irob_id] = new_irob
+                        
+        irob_list = sorted(all_irobs.values(), key=lambda x: x.getStart())
+        def within_bounds(irob):
+            start = self.getAdjustedTime(irob.getStart())
+            return start > 0.0
+        transfers = [get_transfer(irob) for irob in irob_list if within_bounds(irob)]
+        return transfers
+
+    def __getAllEstimates(self, network_type, what_to_plot):
+        estimates = self.__estimates[network_type][what_to_plot]
+        times = [self.getAdjustedTime(e['timestamp']) for e in estimates]
+        
+        txform = 1.0
+        if what_to_plot == 'latency':
+            # RTT = latency * 2
+            txform = 2.0
+            
+        observations = [e['observation'] * txform for e in estimates]
+        estimated_values = [e['estimate'] * txform for e in estimates]
+
+        return times, observations, estimated_values
 
     def __plotMeasurementsSimple(self):
         checks = {'wifi': self.__show_wifi, '3G': self.__show_threeg}
@@ -718,29 +827,91 @@ class IntNWBehaviorPlot(QDialog):
         for network_type in self.__estimates:
             if not checks[network_type].isChecked():
                 continue
-            
-            estimates = self.__estimates[network_type][what_to_plot]
-            times = [self.getAdjustedTime(e['timestamp']) for e in estimates]
 
-            txform = 1.0
-            if what_to_plot == 'latency':
-                # RTT = latency * 2
-                txform = 2.0
-            
-            observations = [e['observation'] * txform for e in estimates]
-            estimated_values = [e['estimate'] * txform for e in estimates]
+            times, observations, estimated_values = \
+                self.__getAllEstimates(network_type, what_to_plot)
 
             if self.__show_measurements.isChecked() and len(observations) > 0:
-                if self.__plot_measurements_and_estimates.isChecked():
-                    plotter = self.__plotMeasurementsAndEstimates
-                elif self.__plot_error_bars.isChecked():
-                    plotter = self.__plotMeasurementErrorBars
-                elif self.__plot_colored_error_regions.isChecked():
-                    plotter = self.__plotColoredErrorRegions
-                else:
-                    assert False
-                    
-                plotter(times, observations, estimated_values, network_type)
+                error_values = list(get_error_values(observations, estimated_values))
+                error_means = stepwise_mean(error_values)
+
+                error_calculator = self.__getErrorCalculator()
+                plotter = self.__getPlotter()
+
+                error_bounds = error_calculator(estimated_values, error_values, error_means)
+                plotter(times, estimated_values, error_means, error_bounds, network_type)
+                
+                self.__plotEstimates(times, estimated_values, network_type)
+                self.__plotObservations(times, observations, network_type)
+
+    def __getErrorCalculator(self):
+        if self.__error_error_ci.isChecked():
+            return self.__getConfidenceInterval
+        elif self.__error_error_stddev.isChecked():
+            return self.__getErrorStddev
+        elif self.__error_error_mean.isChecked():
+            return self.__getErrorMean
+        else:
+            assert False
+
+    def __getPlotter(self):
+        if self.__plot_error_bars.isChecked():
+            return self.__plotMeasurementErrorBars
+        elif self.__plot_colored_error_regions.isChecked():
+            return self.__plotColoredErrorRegions
+        else:
+            assert False
+
+    def __getConfidenceInterval(self, estimated_values, error_values, error_means):
+        error_variances = stepwise_variance(error_values)
+        error_stddevs = [v ** 0.5 for v in error_variances]
+        def ci(stddev, n):
+            t = stats.t.ppf(1 - self.__alpha/2.0, n-1)
+            return t * stddev / (n ** 0.5)
+
+        error_confidence_intervals = [0.0]
+        error_confidence_intervals += \
+            [ci(stddev, max(n+1, 2)) for n, stddev in enumerate(error_stddevs)][1:]
+
+        estimates = np.array(estimated_values)
+        means = np.array(error_means)
+        intervals = np.array(error_confidence_intervals)
+        return estimates - means - intervals, estimates - means + intervals
+
+    def __getErrorStddev(self, estimated_values, error_values, error_means):
+        error_variances = stepwise_variance(error_values)
+        error_stddevs = [v ** 0.5 for v in error_variances]
+
+        estimates = np.array(estimated_values)
+        means = np.array(error_means)
+        stddevs = np.array(error_stddevs)
+        return estimates - means - stddevs, estimates - means + stddevs
+
+    def __getErrorMean(self, estimated_values, error_values, error_means):
+        positive_errors = []
+        positive_error_mean = 0.0
+        negative_errors = []
+        negative_error_mean = 0.0
+        pos_n = 0
+        neg_n = 0
+
+        for error in error_values:
+            if error >= 0.0:
+                pos_n += 1
+                positive_error_mean = \
+                    update_running_mean(positive_error_mean, error, pos_n)
+            else:
+                neg_n += 1
+                negative_error_mean = \
+                    update_running_mean(negative_error_mean, -error, neg_n)
+                
+            positive_errors.append(positive_error_mean)
+            negative_errors.append(negative_error_mean)
+
+        lowers = np.array(positive_errors)
+        uppers = np.array(negative_errors)
+        estimates = np.array(estimated_values)
+        return estimates - lowers, estimates + uppers
 
     def __plotEstimates(self, times, estimated_values, network_type):
         self.__axes.plot(times, estimated_values,
@@ -754,102 +925,26 @@ class IntNWBehaviorPlot(QDialog):
                          markersize=3, color=self.__irob_colors[network_type])
 
 
-    def __plotMeasurementsAndEstimates(self, times, observations, estimated_values,
-                                       network_type):
-        # shift estimates one to the right, so we're plotting
-        #  each observation at the same time as the PREVIOUS estimate
-        #  (this visualizes the error samples that the decision algorithm uses)
-        estimated_values = [estimated_values[0]] + estimated_values[:-1]
 
-        self.__plotEstimates(times, estimated_values, network_type)
-        self.__plotObservations(times, observations, network_type)
-
-    def __running_average_error(self, observations, estimated_values):
-        positive_errors = []
-        positive_error_mean = 0.0
-        negative_errors = []
-        negative_error_mean = 0.0
-        pos_n = 0
-        neg_n = 0
-
-        for error in error_values(observations, estimated_values):
-            if error >= 0.0:
-                pos_n += 1
-                positive_error_mean = \
-                    update_running_mean(positive_error_mean, error, pos_n)
-            else:
-                neg_n += 1
-                negative_error_mean = \
-                    update_running_mean(negative_error_mean, -error, neg_n)
-                
-            positive_errors.append(positive_error_mean)
-            negative_errors.append(negative_error_mean)
-
-        return positive_errors, negative_errors
-
-    def __plotMeasurementErrorBars(self, times, observations, estimated_values,
-                                   network_type):
-        # take running average of recorded error, plot as error bar
-        # (asymmetric positive/negative errors)
-        positive_errors, negative_errors = \
-            self.__running_average_error(observations, estimated_values)
-
-        self.__plotEstimates(times, estimated_values, network_type)
-
+    def __plotMeasurementErrorBars(self, times, estimated_values,
+                                   error_means, error_bounds, network_type):
         # A positive error is an overestimate.
         #    e.g. the latency was 30ms but I thought it was 100ms.
         #    This should be plotted as an error bar *below* the estimate line.
         # And vice versa.
-        yerr = [positive_errors, negative_errors]
+        estimates = np.array(estimated_values)
+        yerr = [estimates - error_bounds[0],  error_bounds[1] - estimates]
         
         self.__axes.errorbar(times, estimated_values, yerr=yerr,
                              color=self.__irob_colors[network_type])
-        self.__plotObservations(times, observations, network_type)
-
-    def __plotColoredErrorRegions(self, times, observations, estimated_values, network_type):
-        error_means = []
-        error_mean = 0.0
-        error_n = 0
-        error_bound_upper = []
-        error_bound_lower = []
-        error_values = list(error_values(observations, estimated_values))
-        for error in error_values:
-            error_n += 1
-            error_mean = update_running_mean(error_mean, error, error_n)
-            error_means.append(error_mean)
 
 
-        error_variances = stepwise_variance(error_values)
-        error_stddevs = [v ** 0.5 for v in error_variances]
-        def ci(stddev, n):
-            t = stats.t.ppf(1 - self.__alpha/2.0, n-1)
-            return t * stddev / (n ** 0.5)
-
-        error_confidence_intervals = [0.0]
-        error_confidence_intervals += \
-            [ci(stddev, max(n+1, 2)) for n, stddev in enumerate(error_stddevs)][1:]
-
+    def __plotColoredErrorRegions(self, times, estimated_values, 
+                                  error_means, error_bounds, network_type):
         estimates_array = np.array(estimated_values)
         error_adjusted_estimates = estimates_array - np.array(error_means)
 
-        if self.__error_error_ci.isChecked():
-            bound_widths = np.array(error_confidence_intervals)
-            upper = error_adjusted_estimates + bound_widths
-            lower = error_adjusted_estimates - bound_widths
-        elif self.__error_error_stddev.isChecked():
-            bound_widths = np.array(error_stddevs)
-            upper = error_adjusted_estimates + bound_widths
-            lower = error_adjusted_estimates - bound_widths
-        elif self.__error_error_mean.isChecked():
-            error_bound_lower, error_bound_upper = \
-                self.__running_average_error(observations, estimated_values)
-
-            upper = estimates_array + error_bound_upper
-            lower = estimates_array - error_bound_lower
-        else:
-            assert False
-        
-        self.__axes.fill_between(times, upper, lower,
+        self.__axes.fill_between(times, error_bounds[1], error_bounds[0],
                                  facecolor=self.__irob_colors[network_type],
                                  alpha=0.5)
 
@@ -857,10 +952,6 @@ class IntNWBehaviorPlot(QDialog):
                          color=self.__irob_colors[network_type],
                          linestyle='--', linewidth=0.5)
                                  
-        self.__plotEstimates(times, estimated_values, network_type)
-        self.__plotObservations(times, observations, network_type)
-        
-
     def __setupAxes(self):
         yticks = {}
         for network, pos in self.__network_pos_offsets.items():
