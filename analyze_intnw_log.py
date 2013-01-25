@@ -117,6 +117,25 @@ def alpha_to_percent(alpha):
 
 def percent_to_alpha(percent):
     return 1.0 - (percent / 100.0)
+    
+# http://code.activestate.com/recipes/577219-minimalistic-memoization/
+def memoize(f):
+    cache = {}
+    def memf(*args):
+        if args not in cache:
+            cache[args] = f(*args)
+        return cache[args]
+    return memf
+
+@memoize
+def get_t_value(alpha, df):
+    'for two-sided confidence interval.'
+    return stats.t.ppf(1 - alpha/2.0, df)
+
+def confidence_interval(alpha, stddev, n):
+    t = get_t_value(alpha, n-1)
+    return t * stddev / (n ** 0.5)
+
 
 def get_error_values(observations, estimated_values):
     shifted_estimates = [estimated_values[0]] + estimated_values[:-1]
@@ -249,7 +268,7 @@ class IntNWBehaviorPlot(QDialog):
     #CONFIDENCE_ALPHA = 0.01
     
     def __init__(self, run, start, measurements_only, network_trace_file,
-                 cross_country_latency, parent=None):
+                 cross_country_latency, is_server, parent=None):
         QDialog.__init__(self, parent)
 
         self.__initRegexps()
@@ -259,6 +278,7 @@ class IntNWBehaviorPlot(QDialog):
         self.__network_type_by_ip = {}
         self.__network_type_by_sock = {}
         self.__placeholder_sockets = {} # for when connection begins before scout msg
+        self.__is_server = is_server
 
         self.__measurements_only = measurements_only
         self.__network_trace_file = network_trace_file
@@ -294,7 +314,8 @@ class IntNWBehaviorPlot(QDialog):
         self.__start = start
 
         # TODO: infer plot title from file path
-        self.__title = "IntNW - Run %d" % self.__run
+        self.__title = "IntNW %s - Run %d" % ("server-side" if self.__is_server else "client-side",
+                                              self.__run)
 
         self.create_main_frame()
 
@@ -407,7 +428,7 @@ class IntNWBehaviorPlot(QDialog):
         self.__error_error_stddev = QRadioButton("std-dev")
         self.__error_error_mean = QRadioButton("mean (+/-)")
 
-        self.__plot_error_bars.setChecked(True)
+        self.__plot_colored_error_regions.setChecked(True)
         self.__error_error_ci.setChecked(True)
         
         self.connect(self.__plot_error_bars, SIGNAL("toggled(bool)"), self.on_draw)
@@ -473,9 +494,6 @@ class IntNWBehaviorPlot(QDialog):
         self.__session_axes = None
         
         if self.__measurements_only:
-            self.__error_interval_box.setEnabled(
-                self.__plot_colored_error_regions.isChecked())
-            
             self.__plotTrace()
             self.__plotMeasurements()
             self.__drawRedundancyDecisions()
@@ -775,8 +793,11 @@ class IntNWBehaviorPlot(QDialog):
         
             plotter = self.__getPlotter()
             times = [tx_start for tx_start, tx_size in transfers]
+            estimates_array = np.array(predicted_transfer_durations[network_type])
+            error_adjusted_estimates = \
+                estimates_array - np.array(transfer_error_means[network_type])
             plotter(times, predicted_transfer_durations[network_type], 
-                    transfer_error_means[network_type],
+                    error_adjusted_estimates,
                     transfer_error_bounds[network_type], network_type)
             
             self.__plotEstimates(times, predicted_transfer_durations[network_type], network_type)
@@ -839,7 +860,11 @@ class IntNWBehaviorPlot(QDialog):
                 plotter = self.__getPlotter()
 
                 error_bounds = error_calculator(estimated_values, error_values, error_means)
-                plotter(times, estimated_values, error_means, error_bounds, network_type)
+                estimates_array = np.array(estimated_values)
+                error_adjusted_estimates = estimates_array - np.array(error_means)
+
+                plotter(times, estimated_values, error_adjusted_estimates, 
+                        error_bounds, network_type)
                 
                 self.__plotEstimates(times, estimated_values, network_type)
                 self.__plotObservations(times, observations, network_type)
@@ -865,13 +890,11 @@ class IntNWBehaviorPlot(QDialog):
     def __getConfidenceInterval(self, estimated_values, error_values, error_means):
         error_variances = stepwise_variance(error_values)
         error_stddevs = [v ** 0.5 for v in error_variances]
-        def ci(stddev, n):
-            t = stats.t.ppf(1 - self.__alpha/2.0, n-1)
-            return t * stddev / (n ** 0.5)
 
         error_confidence_intervals = [0.0]
         error_confidence_intervals += \
-            [ci(stddev, max(n+1, 2)) for n, stddev in enumerate(error_stddevs)][1:]
+            [confidence_interval(self.__alpha, stddev, max(n+1, 2)) 
+             for n, stddev in enumerate(error_stddevs)][1:]
 
         estimates = np.array(estimated_values)
         means = np.array(error_means)
@@ -927,7 +950,7 @@ class IntNWBehaviorPlot(QDialog):
 
 
     def __plotMeasurementErrorBars(self, times, estimated_values,
-                                   error_means, error_bounds, network_type):
+                                   error_adjusted_estimates, error_bounds, network_type):
         # A positive error is an overestimate.
         #    e.g. the latency was 30ms but I thought it was 100ms.
         #    This should be plotted as an error bar *below* the estimate line.
@@ -940,10 +963,7 @@ class IntNWBehaviorPlot(QDialog):
 
 
     def __plotColoredErrorRegions(self, times, estimated_values, 
-                                  error_means, error_bounds, network_type):
-        estimates_array = np.array(estimated_values)
-        error_adjusted_estimates = estimates_array - np.array(error_means)
-
+                                  error_adjusted_estimates, error_bounds, network_type):
         self.__axes.fill_between(times, error_bounds[1], error_bounds[0],
                                  facecolor=self.__irob_colors[network_type],
                                  alpha=0.5)
@@ -1263,7 +1283,8 @@ class IntNWBehaviorPlot(QDialog):
             #                                   redundancy_strategy_type: intnw_redundant
             redundancy_strategy = \
                 re.search(self.__redundancy_strategy_regex, line).group(1)
-            self.__title = "IntNW - " + redundancy_strategy + (" - Run %d" % self.__run)
+            if redundancy_strategy not in self.__title:
+                self.__title += " - " + redundancy_strategy
         else:
             pass # ignore it
             
@@ -1545,6 +1566,7 @@ class IntNWPlotter(object):
         intnw_log = "intnw.log"
         trace_replayer_log = "trace_replayer.log"
         instruments_log = "instruments.log"
+        self.__server = args.server
         if args.server:
             intnw_log = trace_replayer_log = instruments_log = "replayer_server.log"
 
@@ -1627,6 +1649,9 @@ class IntNWPlotter(object):
         if not os.path.exists(filename):
             return
         
+        benefit_regex = re.compile("Redundant strategy benefit: ([0-9.-]+)")
+        cost_regex = re.compile("Redundant strategy cost: ([0-9.-]+)")
+        
         runs = []
         last_pid = 0
         for linenum, line in enumerate(open(filename).readlines()):
@@ -1637,17 +1662,19 @@ class IntNWPlotter(object):
 
             current_run = runs[-1]
             
-            timestamp = getTimestamp(line)
-            fields = line.strip().split()
-            if "Redundant strategy benefit" in line:
+            benefit_match = re.search(benefit_regex, line)
+            cost_match = re.search(cost_regex, line)
+
+            if benefit_match:
+                timestamp = getTimestamp(line)
                 decision = RedundancyDecision(timestamp)
-                decision.benefit = float(fields[4])
+                decision.benefit = float(benefit_match.group(1))
                 dprint("Redundancy benefit: %f" % decision.benefit)
                 
                 current_run.append(decision)
-            elif "Redundant strategy cost" in line:
+            elif cost_match:
                 decision = current_run[-1]
-                decision.cost = float(fields[4])
+                decision.cost = float(cost_match.group(1))
                 dprint("Redundancy cost: %f" % decision.cost)
         return runs
 
@@ -1672,7 +1699,8 @@ class IntNWPlotter(object):
                     window = IntNWBehaviorPlot(len(self.__windows) + 1, start, 
                                                self.__measurements_only,
                                                self.__network_trace_file,
-                                               self.__cross_country_latency)
+                                               self.__cross_country_latency,
+                                               self.__server)
                     self.__windows.append(window)
                     self.__currentPid = pid
                     window_num = len(self.__windows) - 1
