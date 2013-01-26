@@ -41,6 +41,7 @@ import scipy.stats as stats
 
 from itertools import product
 from bisect import bisect_right
+from copy import copy
 
 from progressbar import ProgressBar
 
@@ -494,6 +495,7 @@ class IntNWBehaviorPlot(QDialog):
         self.__session_axes = None
         
         if self.__measurements_only:
+            self.__drawWifi()
             self.__plotTrace()
             self.__plotMeasurements()
             self.__drawRedundancyDecisions()
@@ -964,9 +966,76 @@ class IntNWBehaviorPlot(QDialog):
 
     def __plotColoredErrorRegions(self, times, estimated_values, 
                                   error_adjusted_estimates, error_bounds, network_type):
-        self.__axes.fill_between(times, error_bounds[1], error_bounds[0],
-                                 facecolor=self.__irob_colors[network_type],
-                                 alpha=0.5)
+        where = [True] * len(times)
+
+        #if network_type == "wifi":
+        if False: # this doesn't work too well yet, so I'm leaving it out until I fix it.
+            wifi_periods = self.__getWifiPeriods()
+
+            def get_mid(mid, left, right, left_val, right_val):
+                slope = (right_val - left_val) / (right - left)
+                delta = slope * (mid - left)
+                return left_val + delta
+
+            def split_region(times, values, split_time, new_value=None):
+                pos = bisect_right(times, split_time)
+                if new_value is not None:
+                    mid = new_value
+                elif pos == 0:
+                    mid = values[0]
+                elif pos == len(times):
+                    mid = values[pos - 1]
+                else:
+                    mid = get_mid(split_time, times[pos - 1], times[pos],
+                                  values[pos - 1], values[pos])
+                    
+                times.insert(pos, split_time)
+                values.insert(pos, mid)
+                return pos
+
+            def insert_inflection_points_for_wifi(values):
+                my_times = copy(times)
+                my_where_times = copy(times)
+                where = [True] * len(values)
+
+                end_pos = None
+                for start, length in wifi_periods:
+                    split_region(my_times, values, start)
+                    split_region(my_times, values, start + length)
+                    start_pos = split_region(my_where_times, where, start, True)
+                    if end_pos is not None:
+                        for i in xrange(end_pos, start_pos):
+                            # mark slices between last wifi end and current wifi start
+                            #  as no-wifi
+                            where[i] = False
+
+                    end_pos = split_region(my_where_times, where, start + length, False)
+                    for i in xrange(start_pos, end_pos+1):
+                        # mark slices during this wifi period to be plotted
+                        where[i] = True
+
+                return my_times, where
+
+            new_values = []
+            value_lists = [list(v) for v in [estimated_values,
+                                             error_adjusted_estimates, 
+                                             error_bounds[0],
+                                             error_bounds[1]]]
+            for value_list in value_lists:
+                new_times, new_where = insert_inflection_points_for_wifi(value_list)
+                new_values.append(value_list)
+
+            estimated_values, error_adjusted_estimates = new_values[:2]
+            error_bounds = new_values[2:]
+            times = new_times
+            where = new_where
+
+        where = np.array(where)
+
+        for the_where, alpha in [(where, 0.5), (~where, 0.1)]:
+            self.__axes.fill_between(times, error_bounds[1], error_bounds[0], where=the_where,
+                                     facecolor=self.__irob_colors[network_type],
+                                     alpha=alpha)
 
         self.__axes.plot(times, error_adjusted_estimates,
                          color=self.__irob_colors[network_type],
