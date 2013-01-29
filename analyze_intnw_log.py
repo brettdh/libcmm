@@ -514,6 +514,24 @@ class IntNWBehaviorPlot(QDialog):
         
         self.__canvas.draw()
 
+    def saveErrorTable(self):
+        for network_type, metric in network_metric_pairs():
+            filename = "/tmp/%s_%s_error_table_%d.txt" % (network_type, metric, self.__run)
+            f = open(filename, "w")
+            f.write("Time,Observation,Prev estimate,New estimate,Error\n")
+            
+            cur_times, observations, estimated_values = \
+                self.__getAllEstimates(network_type, metric)
+            shifted_estimates = [estimated_values[0]] + estimated_values[:-1]
+            error_values = list(get_error_values(observations, estimated_values))
+
+            for values in zip(cur_times, observations, 
+                              shifted_estimates, estimated_values, error_values):
+                f.write(",".join(str(v) for v in values) + "\n")
+                
+            f.close()
+            
+
     def __whatToPlot(self):
         if self.__bandwidth_up_toggle.isChecked():
             return 'bandwidth_up'
@@ -1658,6 +1676,7 @@ class IntNWPlotter(object):
     def draw(self):
         for window in self.__windows:
             window.on_draw()
+            window.saveErrorTable()
 
     def printStats(self):
         for window in self.__windows:
