@@ -530,7 +530,7 @@ class IntNWBehaviorPlot(QDialog):
         return labels[self.__whatToPlot()]
 
     class NetworkTrace(object):
-        def __init__(self, trace_file, window, estimates):
+        def __init__(self, trace_file, window, estimates, is_server):
             self.__window = window
             self.__priv_trace = mobility_trace.NetworkTrace(trace_file)
             
@@ -553,6 +553,10 @@ class IntNWBehaviorPlot(QDialog):
             def getTraceKey(net_type, value_type):
                 net_type = net_type.replace("3G", "cellular")
                 value_type = value_type.replace("bandwidth_", "").replace("latency", "RTT")
+                if is_server:
+                    # "upstream" bandwidth is server->client, so it's the 'downstream'
+                    #  bandwidth as recorded in the trace
+                    value_type = value_type.replace("up", "down")
                 return ("%s_%s" % (net_type, value_type))
 
             last_estimates = {}
@@ -692,7 +696,8 @@ class IntNWBehaviorPlot(QDialog):
     def __plotTrace(self):
         if self.__network_trace_file and not self.__trace:
             self.__trace = IntNWBehaviorPlot.NetworkTrace(self.__network_trace_file,
-                                                          self, self.__estimates)
+                                                          self, self.__estimates, 
+                                                          self.__is_server)
             transfers = self.__getAllUploads()
             self.__trace.addTransfers(transfers)
             
@@ -793,7 +798,7 @@ class IntNWBehaviorPlot(QDialog):
                 transfer_error_bounds[network_type][1].append(upper_errors[-1])
                 transfer_error_means[network_type].append(transfer_time_error_means[-1])
         
-            plotter = self.__getPlotter()
+            plotter = self.__getErrorPlotter()
             times = [tx_start for tx_start, tx_size in transfers]
             estimates_array = np.array(predicted_transfer_durations[network_type])
             error_adjusted_estimates = \
@@ -859,7 +864,7 @@ class IntNWBehaviorPlot(QDialog):
                 error_means = stepwise_mean(error_values)
 
                 error_calculator = self.__getErrorCalculator()
-                plotter = self.__getPlotter()
+                plotter = self.__getErrorPlotter()
 
                 error_bounds = error_calculator(estimated_values, error_values, error_means)
                 estimates_array = np.array(estimated_values)
@@ -881,7 +886,7 @@ class IntNWBehaviorPlot(QDialog):
         else:
             assert False
 
-    def __getPlotter(self):
+    def __getErrorPlotter(self):
         if self.__plot_error_bars.isChecked():
             return self.__plotMeasurementErrorBars
         elif self.__plot_colored_error_regions.isChecked():
