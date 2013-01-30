@@ -426,6 +426,7 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
             // that work for negative values.
 
             u_long bw_est = 0, latency_est = 0;
+            u_long bw_obs = 0, latency_obs = 0;
             bool valid_result = false;
             bool bw_valid = false, lat_valid = false;
 
@@ -442,8 +443,8 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
                     calculate_bw_latency(RTT, last_RTT, srv_time, last_srv_time,
                                          last_req_size, bw, latency);
                     
-                    bw_est = round_nearest(bw);
-                    latency_est = round_nearest(latency);
+                    bw_obs = round_nearest(bw);
+                    latency_obs = round_nearest(latency);
                     bw_valid = (bw > 0.0);
                     lat_valid = (latency > 0.0);
                     valid_result = (bw_valid || lat_valid);
@@ -453,8 +454,8 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
                     calculate_bw_latency(last_RTT, RTT, last_srv_time, srv_time,
                                          req_size, bw, latency);
                     
-                    bw_est = round_nearest(bw);
-                    latency_est = round_nearest(latency);
+                    bw_obs = round_nearest(bw);
+                    latency_obs = round_nearest(latency);
                     bw_valid = (bw > 0.0);
                     lat_valid = (latency > 0.0);
                     valid_result = (bw_valid || lat_valid);
@@ -503,8 +504,8 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
                     double latency = (convert_to_useconds(diff)/1000.0 - 
                                       (req_size / bw * 1000.0)) / 2.0;
                     
-                    bw_est = round_nearest(bw);
-                    latency_est = round_nearest(latency);
+                    bw_obs = round_nearest(bw);
+                    latency_obs = round_nearest(latency);
 
                     bw_valid = (bw > 0);
                     lat_valid = (latency > 0);
@@ -525,11 +526,15 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
                 }
                 double latency = (convert_to_useconds(diff)/1000.0 - 
                                   (req_size / bw * 1000.0)) / 2.0;
-                latency_est = round_nearest(latency);
+                latency_obs = round_nearest(latency);
 
-                bw_valid = (bw > 0);
+                // TODO: prevent this from being a NEW bandwidth estimate (because it isn't)
+                // TODO: also rethink the merit of the size check.  perhaps compare the size
+                // TODO:  to the bandwidth measurement and see whether it's sane?
+
+                bw_valid = false; // because it's not a new observation
                 lat_valid = (latency > 0);
-                valid_result = (bw_valid && lat_valid);
+                valid_result = lat_valid;
                 if (!valid_result) {
                     dbgprintf("Spot values indicate invalid observation; ignoring\n");
                 }
@@ -541,18 +546,18 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
             if (valid_result) {
                 dbgprintf("New spot values: ");
                 if (bw_valid) {
-                    net_estimates.estimates[NET_STATS_BW_UP].add_observation(bw_est);
-                    dbgprintf_plain("bw %lu", bw_est);
+                    net_estimates.estimates[NET_STATS_BW_UP].add_observation(bw_obs);
+                    dbgprintf_plain("bw %lu", bw_obs);
                 }
                 if (lat_valid) {
-                    net_estimates.estimates[NET_STATS_LATENCY].add_observation(latency_est);
-                    dbgprintf_plain(" latency %lu", latency_est);
+                    net_estimates.estimates[NET_STATS_LATENCY].add_observation(latency_obs);
+                    dbgprintf_plain(" latency %lu", latency_obs);
                 }
                 dbgprintf_plain("\n");
             
-                if (bw_out) *bw_out = bw_est;
-                if (latency_seconds_out) *latency_seconds_out = (latency_est / 1000.0);
-                
+                if (bw_out) *bw_out = bw_obs;
+                if (latency_seconds_out) *latency_seconds_out = (latency_obs / 1000.0);
+
                 dbgprintf("New estimates: bw_up ");
                 if (net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est)) {
                     dbgprintf_plain("%lu bytes/sec, ", bw_est);
