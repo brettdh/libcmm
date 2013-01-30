@@ -6,7 +6,8 @@
 #include "libpowertutor.h"
 
 #include <functional>
-using std::max;
+#include <sstream>
+using std::max; using std::ostringstream;
 
 #include <instruments_private.h>
 #include <resource_weights.h>
@@ -320,10 +321,19 @@ IntNWInstrumentsNetworkChooser::reportNetStats(int network_type,
         break;
     }
 
-    dbgprintf("Adding new stats to %s network estimator:"
-              "   bandwidth: obs %f est %f  latency: obs %f est %f\n",
-              net_type_name(network_type),
-              new_bw, new_bw_estimate, new_latency_seconds, new_latency_estimate);
+    ostringstream oss;
+    oss << "Adding new stats to " << net_type_name(network_type) 
+        << " network estimator:   ";
+    if (new_bw > 0.0) {
+        oss << "bandwidth: obs " << new_bw << " est " << new_bw_estimate;
+    }
+    if (new_latency_seconds > 0.0) {
+        oss << "  latency: obs " << new_latency_seconds << " est " << new_latency_estimate;
+    }
+    oss << "\n";
+    dbgprintf(oss.str().c_str());
+    
+    // XXX: hackish.  Should separate bw and RTT updates.
     stats->update(new_bw, new_bw_estimate, 
                   new_latency_seconds, new_latency_estimate);
     needs_reevaluation = true;
