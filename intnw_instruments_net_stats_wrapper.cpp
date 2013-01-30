@@ -32,14 +32,19 @@ double InstrumentsWrappedNetStats::get_rtt(instruments_context_t ctx)
 void InstrumentsWrappedNetStats::update(double bw_up, double bw_estimate,
                                         double RTT_seconds, double RTT_estimate)
 {
-    if (bw_up == 0) {
+    if (bw_up == 0 && RTT_seconds == 0) {
         // ignore; not a real measurement
         return;
     }
 
+    // XXX: hackish.  Should separate bw and RTT updates.
     do {
-        add_observation(bw_up_estimator, bw_up, bw_estimate);
-        add_observation(rtt_estimator, RTT_seconds, RTT_estimate);
+        if (bw_up > 0.0) {
+            add_observation(bw_up_estimator, bw_up, bw_estimate);
+        }
+        if (RTT_seconds > 0.0) {
+            add_observation(rtt_estimator, RTT_seconds, RTT_estimate);
+        }
     } while (was_first_update());
 }
 

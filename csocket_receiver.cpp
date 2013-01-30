@@ -493,6 +493,7 @@ CSocketReceiver::report_ack(irob_id_t id, struct timeval srv_time,
     if (new_measurement && estimates_valid) {
         PthreadScopedLock lock(&sk->scheduling_state_lock);
         
+        // XXX: hackish.  Should separate bw and latency updates.
         NetworkChooser *chooser = sk->csock_map->get_network_chooser();
         chooser->reportNetStats(csock->network_type(),
                                 bw_out, bw_est,
