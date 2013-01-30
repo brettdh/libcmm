@@ -138,8 +138,14 @@ def confidence_interval(alpha, stddev, n):
     return t * stddev / (n ** 0.5)
 
 
+def shift_right_by_one(l):
+    if len(l) > 0:
+        l = [l[0]] + l[:-1]
+    return l
+
+
 def get_error_values(observations, estimated_values):
-    shifted_estimates = [estimated_values[0]] + estimated_values[:-1]
+    shifted_estimates = shift_right_by_one(estimated_values)
     for error in [est - obs for obs, est in zip(observations, shifted_estimates)]:
         yield error
 
@@ -522,7 +528,7 @@ class IntNWBehaviorPlot(QDialog):
             
             cur_times, observations, estimated_values = \
                 self.__getAllEstimates(network_type, metric)
-            shifted_estimates = [estimated_values[0]] + estimated_values[:-1]
+            shifted_estimates = shift_right_by_one(estimated_values)
             error_values = list(get_error_values(observations, estimated_values))
 
             for values in zip(cur_times, observations, 
@@ -760,9 +766,8 @@ class IntNWBehaviorPlot(QDialog):
                 cur_errors = network_errors[network_type][metric]
                 
                 pos = bisect_right(cur_times, tx_start)
-                assert pos > 0
                 errors[metric] = cur_errors[:pos]
-                
+
             return errors
 
         def get_estimates(network_type, tx_start):
@@ -1351,10 +1356,11 @@ class IntNWBehaviorPlot(QDialog):
             dprint("got observation: %s" % line)
             bw_match = re.search(self.__network_bandwidth_regex, line)
             lat_match = re.search(self.__network_latency_regex, line)
-            bw = bw_match.groups() if bw_match else None
-            bw = bw if float(bw[0]) > 0.0 else None
-            latency = lat_match.groups() if lat_match else None
-            latency = latency if float(latency[0]) > 0.0 else None
+            bw, latency = None, None
+            if bw_match and float(bw_match.groups()[0]) > 0.0:
+                bw = bw_match.groups()
+            if lat_match and float(lat_match.groups()[0]) > 0.0:
+                latency = lat_match.groups()
             
             self.__addEstimates(network_type, timestamp, bw=bw, latency=latency)
         elif "New spot values" in line:
@@ -1398,7 +1404,7 @@ class IntNWBehaviorPlot(QDialog):
         self.__network_estimator_regex = \
             re.compile("Adding new stats to (.+) network estimator")
 
-        float_regex = "([0-9]+\.[0-9]+)"
+        float_regex = "([0-9]+" + "(?:\.[0-9]+)?)"
         stats_regex = "obs %s est %s" % (float_regex, float_regex)
         self.__network_bandwidth_regex = re.compile("bandwidth: " + stats_regex)
         self.__network_latency_regex = re.compile("latency: " + stats_regex)
