@@ -331,7 +331,7 @@ IntNWInstrumentsNetworkChooser::reportNetStats(int network_type,
         oss << "  latency: obs " << new_latency_seconds << " est " << new_latency_estimate;
     }
     oss << "\n";
-    dbgprintf(oss.str().c_str());
+    dbgprintf("%s", oss.str().c_str());
     
     // XXX: hackish.  Should separate bw and RTT updates.
     stats->update(new_bw, new_bw_estimate, 
