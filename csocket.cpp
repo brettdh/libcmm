@@ -267,6 +267,7 @@ CSocket::phys_connect()
         return rc;
     }
 
+    stats.getStats(sk->csock_map->get_network_chooser(), network_type());
 
     {
         PthreadScopedLock lock(&csock_lock);

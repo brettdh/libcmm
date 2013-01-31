@@ -588,7 +588,23 @@ CSockMapping::make_new_csocket(struct net_interface local_iface,
         
         available_csocks.insert(csock);
         
-        csock->stats.getStats(network_chooser, csock->network_type());
+        // XXX: this results in the same estimates being inserted twice 
+        // XXX: right around the time that wifi fails.
+        // XXX: why?  the socket fails first, and we try to create
+        // XXX:  a new socket, not realizing that the network is gone
+        // XXX:  (because we haven't received the scout update yet).
+        // XXX: possible workaround: don't call this until the connection
+        // XXX:  is established (hello received). Only one connection
+        // XXX:  should succeed per wifi period.
+        // XXX: On the other hand, what if we walk away from and then 
+        // XXX:  back towards the same AP?  That would look the same
+        // XXX:  (duplicated scout update), and it probably shouldn't
+        // XXX:  trigger a zero-error insertion either.
+        // XXX: Maybe I need to only insert new stats if the AP has changed.
+        // XXX:  the scout doesn't currently send that info to the app,
+        // XXX:  but it could.
+        // Moved it to csocket.cpp, phys_connect.
+        //csock->stats.getStats(network_chooser, csock->network_type());
     }
 
     csock->startup_workers(); // sender thread calls phys_connect()
