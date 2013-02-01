@@ -426,3 +426,15 @@ PendingSenderIROB::increment_seqno(CSocket *csock)
     }
     next_seqnos_to_send[csock]++;
 }
+
+size_t
+PendingSenderIROB::get_total_network_bytes()
+{
+    size_t bytes = sizeof(CMMSocketControlHdr) * 2; // begin, end headers
+    bytes += deps.size() * sizeof(irob_id_t); // deps array
+    for (size_t i = 0; i < sent_chunks.size(); ++i) {
+        // each chunk and chunk header
+        bytes += (sent_chunks[i].datalen + sizeof(CMMSocketControlHdr));
+    }
+    return bytes;
+}

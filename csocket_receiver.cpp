@@ -234,10 +234,7 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     sk->incoming_irobs.release_if_ready(pirob, ReadyIROB());
     
     if (pirob->is_complete() && !pirob->is_placeholder()) {
-        struct timeval completion_time;
-        TIME(completion_time);
-        IROBSchedulingData data(id, completion_time);
-        csock->irob_indexes.waiting_acks.insert(data);
+        schedule_ack(id);
         pthread_cond_broadcast(&sk->scheduling_state_cv);
     }
     
@@ -245,6 +242,22 @@ void CSocketReceiver::do_begin_irob(struct CMMSocketControlHdr hdr)
     TIMEDIFF(begin, end, diff);
     dbgprintf("Receiver began IROB %ld, took %lu.%06lu seconds\n",
               id, diff.tv_sec, diff.tv_usec);
+}
+
+void
+CSocketReceiver::schedule_ack(irob_id_t id, bool valid_for_measurement)
+{
+    // no stored completion time; this must be a duplicate ACK
+    // so, let's just say that service time is zero 
+    //  (it's pretty close to that anyway; < 1ms, usually)
+    struct timeval completion_time = {0, 0};
+
+    if (valid_for_measurement) {
+        // now valid; will be used for measurement
+        TIME(completion_time);
+    }
+    IROBSchedulingData data(id, completion_time);
+    csock->irob_indexes.waiting_acks.insert(data);
 }
 
 void
@@ -272,9 +285,11 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
                 //  probably large if the original ACK was dropped, so
                 //  just tell the other end to ignore this IROB for
                 //  measurement purposes
-                struct timeval inval = {0, -1};
-                IROBSchedulingData data(id, inval);
-                csock->irob_indexes.waiting_acks.insert(data);
+                
+                // TODO-MEASUREMENT: don't do this for the case when 
+                // TODO-MEASUREMENT: I haven't sent the ACK on the network
+                // TODO-MEASUREMENT: which delivered the already-finished IROB.
+                schedule_ack(id, false);
                 pthread_cond_broadcast(&sk->scheduling_state_cv);
                 return;
             } else {
@@ -330,10 +345,7 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
         sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
 
         if (prirob->is_complete() && !prirob->is_placeholder()) {
-            struct timeval completion_time;
-            TIME(completion_time);
-            IROBSchedulingData data(id, completion_time);
-            csock->irob_indexes.waiting_acks.insert(data);
+            schedule_ack(id);
         }
 
         if (prirob->is_complete() || resend_request) {
@@ -381,13 +393,11 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         PendingIROBPtr pirob = sk->incoming_irobs.find(id);
         if (!pirob) {
             if (sk->incoming_irobs.past_irob_exists(id)) {
-                //throw CMMFatalError("Tried to add to committed IROB", hdr);
                 dbgprintf("do_irob_chunk: duplicate chunk %d for IROB %ld, ignoring\n", 
                           ntohl(hdr.op.irob_chunk.seqno), id);
                 delete [] buf;
                 return;
             } else {
-                //throw CMMFatalError("Tried to add to nonexistent IROB", hdr);
                 dbgprintf("Receiver got IROB_chunk for IROB %ld; "
                           "creating placeholder\n", id);
                 PendingIROB *placeholder = sk->incoming_irobs.make_placeholder(id);
@@ -396,11 +406,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
                 pirob = sk->incoming_irobs.find(id);
 
                 /* Sender sends Data_Check when a network goes down;
-                 * so this is redundant
-                IROBSchedulingData data(id, CMM_RESEND_REQUEST_DEPS);
-                csock->irob_indexes.resend_requests.insert(data);
-                pthread_cond_broadcast(&sk->scheduling_state_cv);
-                */
+                 * no recovery needed here, though data may have been dropped */
             }
         }
         struct irob_chunk_data chunk;
@@ -415,21 +421,9 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         ASSERT(prirob);
         if (!prirob->add_chunk(chunk)) {
             if (prirob->is_complete()) {
-                //throw CMMFatalError("Tried to add to completed IROB", hdr);
                 dbgprintf("do_irob_chunk: duplicate chunk %lu for IROB %ld, ignoring\n", 
                           chunk.seqno, id);
             }
-            /*
-            else {
-                dbgprintf("do_irob_chunk: hole detected in IROB %ld, "
-                          "requesting resend from offset %d\n",
-                          id, prirob->recvdbytes());
-
-                IROBSchedulingData data(id, CMM_RESEND_REQUEST_DATA);
-                csock->irob_indexes.resend_requests.insert(data);
-                pthread_cond_broadcast(&sk->scheduling_state_cv);
-            }
-            */
             delete [] buf;
         } else {
             dbgprintf("Successfully added chunk %lu to IROB %ld\n",
@@ -439,10 +433,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         sk->incoming_irobs.release_if_ready(prirob, ReadyIROB());
 
         if (prirob->is_complete() && !prirob->is_placeholder()) {
-            struct timeval completion_time;
-            TIME(completion_time);
-            IROBSchedulingData data(id, completion_time);
-            csock->irob_indexes.waiting_acks.insert(data);
+            schedule_ack(id);
             pthread_cond_broadcast(&sk->scheduling_state_cv);
         }
     }

@@ -160,6 +160,11 @@ class NetStats {
                     struct timeval *real_time = NULL,
                     double *bw_out = NULL, double *latency_seconds_out = NULL);
 
+    // report the total number of bytes to be sent on the network 
+    //  in delivering this IROB.
+    // used for determining whether an IROB was striped.
+    void report_total_bytes(irob_id_t irob_id, size_t total_bytes);
+
     // remove this IROB without adding a new measurement.
     void remove(irob_id_t irob_id);
 
@@ -223,11 +228,10 @@ class NetStats {
     void cache_save();
     void cache_restore();
 
-    typedef std::map<irob_id_t, 
-                     std::pair<struct in_addr, struct in_addr> > IROBIfaceMap;
-    static IROBIfaceMap *irob_iface_map;
+    class IROBTransfers;
+    static IROBTransfers *irob_transfers;
     static IntSet *striped_irobs;
-    static pthread_mutex_t irob_iface_map_lock;
+    static pthread_mutex_t irob_transfers_lock; // protects irob_transfers, striped_irobs
 
     struct static_initializer {
         static_initializer();

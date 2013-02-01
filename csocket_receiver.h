@@ -38,6 +38,8 @@ class CSocketReceiver : public CMMThread {
     void do_request_resend(struct CMMSocketControlHdr hdr);
     void do_data_check(struct CMMSocketControlHdr hdr);
 
+    void schedule_ack(irob_id_t id, bool valid_for_measurement=true);
+
     typedef void (CSocketReceiver::*handler_fn_t)(struct CMMSocketControlHdr);
 
     static handler_fn_t handlers[];

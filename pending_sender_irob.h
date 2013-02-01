@@ -64,6 +64,10 @@ class PendingSenderIROB : public PendingIROB {
     //  sent on csock.
     size_t num_ready_bytes(CSocket *csock);
 
+    // returns the total number of bytes that will be sent
+    // on the network for this IROB, including all metadata.
+    size_t get_total_network_bytes();
+
     std::vector<struct iovec> 
         get_last_sent_chunk_htonl(CSocket * csock,
                                   struct irob_chunk_data *chunk);

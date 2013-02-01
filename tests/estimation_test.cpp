@@ -288,8 +288,7 @@ void
 EstimationTest::testDisregardStripedIROBs()
 {
     // true bw: 5000 Bps  true latency: 20ms
-    // simulate queuing delay of 3sec
-
+    
     // make sure we have a bandwidth estimate ready
     testNetStatsSimple();
 

@@ -21,9 +21,45 @@ NetStats::StatsCache *NetStats::stats_cache;
 RWLOCK_T *NetStats::stats_cache_lock;
 NetStats::static_initializer NetStats::init;
 
-NetStats::IROBIfaceMap *NetStats::irob_iface_map;
+NetStats::IROBTransfers *NetStats::irob_transfers;
 IntSet *NetStats::striped_irobs;
-pthread_mutex_t NetStats::irob_iface_map_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t NetStats::irob_transfers_lock = PTHREAD_MUTEX_INITIALIZER;
+
+
+class IROBTransfersPerNetwork {
+public:
+    IROBTransfersPerNetwork();
+    void addTransfer(struct in_addr local_addr_, 
+                     struct in_addr remote_addr_,
+                     size_t bytes);
+    bool hasAllBytes(struct in_addr local_addr_, 
+                     struct in_addr remote_addr_);
+    void reportTotalBytes(size_t total_bytes);
+private:
+    irob_id_t id;
+    size_t total_bytes;
+
+    typedef std::map<std::pair<in_addr_t, in_addr_t>, size_t> map_type_t;
+    map_type_t transfers_by_network;
+
+    size_t& getValueRef(struct in_addr local_addr,
+                        struct in_addr remote_addr);
+};
+
+class NetStats::IROBTransfers {
+public:
+    void addTransfer(irob_id_t id, 
+                     struct in_addr local_addr,
+                     struct in_addr remote_addr,
+                     size_t bytes);
+    bool hasAllBytes(irob_id_t id,
+                     struct in_addr local_addr,
+                     struct in_addr remote_addr);
+    void reportTotalBytes(irob_id_t id, size_t total_bytes);
+private:
+    typedef std::map<irob_id_t, IROBTransfersPerNetwork> IROBIfaceMap;
+    IROBIfaceMap irob_iface_transfers;
+};
 
 
 NetStats::static_initializer::static_initializer()
@@ -32,7 +68,7 @@ NetStats::static_initializer::static_initializer()
     stats_cache_lock = new RWLOCK_T;
     RWLOCK_INIT(NetStats::stats_cache_lock, NULL);
 
-    irob_iface_map = new IROBIfaceMap;
+    irob_transfers = new IROBTransfers;
     striped_irobs = new IntSet;
 }
 
@@ -202,6 +238,13 @@ NetStats::get_estimate(unsigned short type, u_long& value)
     return net_estimates.estimates[type].get_estimate(value);
 }
 
+void
+NetStats::report_total_bytes(irob_id_t irob_id, size_t total_bytes_sent)
+{
+    PthreadScopedLock lock(&irob_transfers_lock);
+    irob_transfers->reportTotalBytes(irob_id, total_bytes_sent);
+}
+
 void 
 NetStats::report_send_event(irob_id_t irob_id, size_t bytes)
 {
@@ -210,29 +253,15 @@ NetStats::report_send_event(irob_id_t irob_id, size_t bytes)
     //   probably disregard estimates based on it
     bool irob_was_striped = false;
     {
-        PthreadScopedLock lock(&irob_iface_map_lock);
+        PthreadScopedLock lock(&irob_transfers_lock);
         
         if (striped_irobs->contains(irob_id)) {
             irob_was_striped = true;
         } else {
-            // TODO-MEASUREMENT: differentiate between striped IROBs
-            // TODO-MEASUREMENT:  and redundantly-sent IROBs.
-            // TODO-MEASUREMENT: redundantly-sent IROBs should still measure the networks.
-            if (irob_iface_map->count(irob_id) == 0) {
-                (*irob_iface_map)[irob_id] = make_pair(local_addr, remote_addr);
-            }
-
-            pair<struct in_addr, struct in_addr> iface_pair;
-            iface_pair = (*irob_iface_map)[irob_id];
-            
-            if (iface_pair.first.s_addr != local_addr.s_addr ||
-                iface_pair.second.s_addr != remote_addr.s_addr) {
-                irob_was_striped = true;
-                striped_irobs->insert(irob_id);
-
-                // no longer needed; save some space
-                irob_iface_map->erase(irob_id);
-            }
+            irob_transfers->addTransfer(irob_id, 
+                                        local_addr, 
+                                        remote_addr,
+                                        bytes);
         }
     }
     
@@ -373,8 +402,17 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
     }
 
     {
-        PthreadScopedLock lock(&irob_iface_map_lock);
+        bool striped = false;
+        PthreadScopedLock lock(&irob_transfers_lock);
         if (striped_irobs->contains(irob_id)) {
+            striped = true;
+        } else if (!irob_transfers->hasAllBytes(irob_id, 
+                                                local_addr,
+                                                remote_addr)) {
+            striped = true;
+            striped_irobs->insert(irob_id);
+        }
+        if (striped) {
             dbgprintf("Got ACK for IROB %ld, but it was striped.  Ignoring.\n",
                       irob_id);
             return false;
@@ -890,4 +928,75 @@ void
 NetStats::get_time(struct timeval& tv)
 {
     time_getter(&tv, NULL);
+}
+
+
+IROBTransfersPerNetwork::IROBTransfersPerNetwork()
+    : total_bytes(0)
+{
+}
+
+size_t&
+IROBTransfersPerNetwork::getValueRef(struct in_addr local_addr,
+                                     struct in_addr remote_addr)
+{
+    pair<in_addr_t, in_addr_t> key = make_pair(local_addr.s_addr, remote_addr.s_addr);
+    if (transfers_by_network.count(key) == 0) {
+        transfers_by_network[key] = 0;
+    }
+    return transfers_by_network[key];
+}
+
+void 
+IROBTransfersPerNetwork::addTransfer(struct in_addr local_addr,
+                                     struct in_addr remote_addr, 
+                                     size_t bytes)
+{
+    getValueRef(local_addr, remote_addr) += bytes;
+}
+
+bool 
+IROBTransfersPerNetwork::hasAllBytes(struct in_addr local_addr,
+                                     struct in_addr remote_addr)
+{
+    // because this doesn't get checked until post-ACK,
+    // and ACK doesn't happen before I've sent any bytes
+    assert(total_bytes > 0);
+    return (getValueRef(local_addr, remote_addr) >= total_bytes);
+}
+
+void 
+IROBTransfersPerNetwork::reportTotalBytes(size_t total_bytes_)
+{
+    if (total_bytes == 0) {
+        total_bytes = total_bytes_;
+    }
+
+    // it should never change after the first assignment, though
+    //  it may be assigned again
+    assert(total_bytes == total_bytes_);
+}
+
+
+void 
+NetStats::IROBTransfers::addTransfer(irob_id_t id, 
+                                     struct in_addr local_addr,
+                                     struct in_addr remote_addr,
+                                     size_t bytes)
+{
+    irob_iface_transfers[id].addTransfer(local_addr, remote_addr, bytes);
+}
+
+bool 
+NetStats::IROBTransfers::hasAllBytes(irob_id_t id,
+                                     struct in_addr local_addr,
+                                     struct in_addr remote_addr)
+{
+    return irob_iface_transfers[id].hasAllBytes(local_addr, remote_addr);
+}
+
+void 
+NetStats::IROBTransfers::reportTotalBytes(irob_id_t id, size_t total_bytes)
+{
+    irob_iface_transfers[id].reportTotalBytes(total_bytes);
 }

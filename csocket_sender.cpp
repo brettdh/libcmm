@@ -906,6 +906,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
             
             sending_all_irob_info = true;
         }
+        csock->stats.report_total_bytes(data.id, psirob->get_total_network_bytes());
     }
 
     size_t bytes = 0;
@@ -995,6 +996,7 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
 
     csock->update_last_app_data_sent();
     psirob->markSentOn(csock);
+    csock->stats.report_total_bytes(data.id, psirob->get_total_network_bytes());
 
     dbgprintf("About to send message: %s\n", hdr.describe().c_str());
     pthread_mutex_unlock(&sk->scheduling_state_lock);
@@ -1152,6 +1154,10 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     }
     csock->update_last_app_data_sent();
     psirob->markSentOn(csock);
+
+    if (psirob->is_complete()) {
+        csock->stats.report_total_bytes(id, psirob->get_total_network_bytes());
+    }
 
     // wake up other sleeping threads to check whether I might be in trouble
     //  (just in case I block on the writev and don't wake up for a while)
@@ -1321,7 +1327,8 @@ CSocketSender::send_acks(const IROBSchedulingData& data,
 
     struct timeval now, srv_time;
     TIME(now);
-    if (data.completion_time.tv_usec == -1) {
+    if (data.completion_time.tv_sec == 0 || /* no completion time; let srv_time be zero */
+        data.completion_time.tv_usec == -1 /* mark invalid for measurement */) {
         srv_time = data.completion_time;
     } else {
         TIMEDIFF(data.completion_time, now, srv_time);
