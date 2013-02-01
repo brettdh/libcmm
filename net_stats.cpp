@@ -35,8 +35,9 @@ public:
     bool hasAllBytes(struct in_addr local_addr_, 
                      struct in_addr remote_addr_);
     void reportTotalBytes(size_t total_bytes);
+    bool remove(struct in_addr local_addr,
+                struct in_addr remote_addr);
 private:
-    irob_id_t id;
     size_t total_bytes;
 
     typedef std::map<std::pair<in_addr_t, in_addr_t>, size_t> map_type_t;
@@ -56,6 +57,8 @@ public:
                      struct in_addr local_addr,
                      struct in_addr remote_addr);
     void reportTotalBytes(irob_id_t id, size_t total_bytes);
+    void removeAll(struct in_addr local_addr,
+                   struct in_addr remote_addr);
 private:
     typedef std::map<irob_id_t, IROBTransfersPerNetwork> IROBIfaceMap;
     IROBIfaceMap irob_iface_transfers;
@@ -172,6 +175,7 @@ NetStats::update(struct net_interface local_iface,
 NetStats::~NetStats()
 {
     cache_save();
+    irob_transfers->removeAll(local_addr, remote_addr);
 }
 
 void
@@ -977,6 +981,16 @@ IROBTransfersPerNetwork::reportTotalBytes(size_t total_bytes_)
     assert(total_bytes == total_bytes_);
 }
 
+// return true iff there are no more transfers in this map.
+bool
+IROBTransfersPerNetwork::remove(struct in_addr local_addr,
+                                struct in_addr remote_addr)
+{
+    pair<in_addr_t, in_addr_t> key = make_pair(local_addr.s_addr, remote_addr.s_addr);
+    transfers_by_network.erase(key);
+    return transfers_by_network.empty();
+}
+
 
 void 
 NetStats::IROBTransfers::addTransfer(irob_id_t id, 
@@ -999,4 +1013,19 @@ void
 NetStats::IROBTransfers::reportTotalBytes(irob_id_t id, size_t total_bytes)
 {
     irob_iface_transfers[id].reportTotalBytes(total_bytes);
+}
+
+void
+NetStats::IROBTransfers::removeAll(struct in_addr local_addr,
+                                   struct in_addr remote_addr)
+{
+    for (IROBIfaceMap::iterator it = irob_iface_transfers.begin();
+         it != irob_iface_transfers.end(); ) {
+        if (it->second.remove(local_addr, remote_addr)) {
+            // erase it if it is empty.
+            irob_iface_transfers.erase(it++);
+        } else {
+            ++it;
+        }
+    }
 }

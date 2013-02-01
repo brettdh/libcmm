@@ -9,7 +9,7 @@
 #include <sys/types.h>
 #include "net_interface.h"
 
-//CPPUNIT_TEST_SUITE_REGISTRATION(EstimationTest);
+CPPUNIT_TEST_SUITE_REGISTRATION(EstimationTest);
 
 void
 EstimationTest::setUp()
@@ -127,11 +127,13 @@ EstimationTest::testNetStatsSimple()
     // bump up bandwidth estimate to avoid rounding error
     struct timespec sleeptime = {1, 40 * 1000 * 1000};
 
+    stats->report_total_bytes(1, 5000);
     stats->report_send_event(1, 5000);
     nowake_nanosleep(&sleeptime);
     stats->report_ack(1, zero, zero, NULL);
     
     sleeptime.tv_sec = 2;
+    stats->report_total_bytes(2, 10000);
     stats->report_send_event(2, 10000);
     nowake_nanosleep(&sleeptime);
     stats->report_ack(2, zero, zero, NULL);
@@ -154,10 +156,12 @@ EstimationTest::testNetStatsWithQueuingDelay()
     struct timespec sleeptime3 = {2, 0 * 1000 * 1000};
     nowake_nanosleep(&sleeptime1);
 
+    stats->report_total_bytes(3, 5000);
     stats->report_send_event(3, 5000);
 
     nowake_nanosleep(&sleeptime1);
 
+    stats->report_total_bytes(4, 10000);
     stats->report_send_event(4, 10000);
 
     nowake_nanosleep(&sleeptime2);
@@ -184,6 +188,7 @@ EstimationTest::testNetStatsWithSenderDelay()
     stats->report_send_event(5, 5000);
 
     nowake_nanosleep(&sleeptime1);
+    stats->report_total_bytes(5, 5000);
     stats->report_send_event(5, 5000);
 
     nowake_nanosleep(&sleeptime2);
@@ -210,9 +215,11 @@ EstimationTest::testNetStatsSingleIROBQueuingDelay()
     stats->report_send_event(5, 5000);
 
     nowake_nanosleep(&sleeptime1);
+    stats->report_total_bytes(5, 10000);
     stats->report_send_event(5, 5000);
 
     nowake_nanosleep(&sleeptime2);
+    stats->report_total_bytes(6, 5000);
     stats->report_send_event(6, 5000);
     nowake_nanosleep(&sleeptime3);
 
@@ -245,12 +252,14 @@ EstimationTest::testQueuingDelayInterleaved()
 
     // 0:01.00
     stats->report_send_event(6, 5000);
+    stats->report_total_bytes(5, 15000);
     stats->report_send_event(5, 5000);
     nowake_nanosleep(&sleeptime4);
     // 0:02.00
     nowake_nanosleep(&sleeptime4);
 
     // 0:03.00
+    stats->report_total_bytes(6, 10000);
     stats->report_send_event(6, 5000);
     nowake_nanosleep(&sleeptime3);
 
@@ -297,6 +306,7 @@ EstimationTest::testDisregardStripedIROBs()
     struct timespec sleeptime2 = {0, 40 * 1000 * 1000};
     nowake_nanosleep(&sleeptime1);
 
+    stats->report_total_bytes(3, 15000);
     stats->report_send_event(3, 5000);
 
     nowake_nanosleep(&sleeptime1);
