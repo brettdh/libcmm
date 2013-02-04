@@ -1155,7 +1155,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     csock->update_last_app_data_sent();
     psirob->markSentOn(csock);
 
-    if (psirob->is_complete()) {
+    if (psirob->all_bytes_chunked()) {
         csock->stats.report_total_bytes(id, psirob->get_total_network_bytes());
     }
 
