@@ -243,14 +243,14 @@ NetStats::get_estimate(unsigned short type, u_long& value)
 }
 
 void
-NetStats::report_total_bytes(irob_id_t irob_id, size_t total_bytes_sent)
+NetStats::report_total_irob_bytes(irob_id_t irob_id, size_t total_bytes_sent)
 {
     PthreadScopedLock lock(&irob_transfers_lock);
     irob_transfers->reportTotalBytes(irob_id, total_bytes_sent);
 }
 
 void 
-NetStats::report_send_event(irob_id_t irob_id, size_t bytes)
+NetStats::report_irob_send_event(irob_id_t irob_id, size_t bytes)
 {
     // check whether any other NetStats objects have seen this
     //   IROB; that would mean that it's been striped and we should
@@ -323,7 +323,7 @@ NetStats::report_send_event(irob_id_t irob_id, size_t bytes)
 }
 
 void 
-NetStats::report_send_event(size_t bytes, struct timeval *qdelay)
+NetStats::report_non_irob_send_event(size_t bytes, struct timeval *qdelay)
 {
     PthreadScopedRWLock lock(&my_lock, true);
     u_long bw_est = 0;

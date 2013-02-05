@@ -130,7 +130,7 @@ class NetStats {
     // CSocketSender should call this immediately before it sends
     //  bytes related to an IROB.  The bytes argument should include
     //  the total number of bytes passed to the system call.
-    void report_send_event(irob_id_t irob_id, size_t bytes);
+    void report_irob_send_event(irob_id_t irob_id, size_t bytes);
     
     // CSocketSender should call this immediately before it sends
     //  bytes UNrelated to an IROB.  This is needed to compute queuing
@@ -139,7 +139,7 @@ class NetStats {
     // If qdelay is non-NULL, writes into qdelay the queuing delay of
     //  an ack to be sent now.  We calculate this at the sender rather
     //  than the receiver because we only estimate upstream bandwidth.
-    void report_send_event(size_t bytes, struct timeval *qdelay = NULL);
+    void report_non_irob_send_event(size_t bytes, struct timeval *qdelay = NULL);
 
     // CSocketReceiver should call this immediately before it receives bytes
     //  UNrelated to an IROB.  This is needed to compute queuing delays
@@ -163,7 +163,7 @@ class NetStats {
     // report the total number of bytes to be sent on the network 
     //  in delivering this IROB.
     // used for determining whether an IROB was striped.
-    void report_total_bytes(irob_id_t irob_id, size_t total_bytes);
+    void report_total_irob_bytes(irob_id_t irob_id, size_t total_bytes);
 
     // remove this IROB without adding a new measurement.
     void remove(irob_id_t irob_id);

@@ -49,10 +49,10 @@ shmem_test_helper: shmem_test_helper.o shmem_test_common.o libcmm_shmem.o common
 		   timeops.o debug.o test_common.o ../libancillary/libancillary.a csocket.o
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -pthread
 
-TESTOBJS := estimation_test.o #pending_irob_test.o lattice_test.o intset_test.o \
-#	    receiver_lattice_test.o pending_sender_irob_test.o \
-#	    pending_receiver_irob_test.o \
-#	    estimation_test.o pthread_util_test.o net_interface_test.o
+TESTOBJS := pending_irob_test.o lattice_test.o intset_test.o \
+	    receiver_lattice_test.o pending_sender_irob_test.o \
+	    pending_receiver_irob_test.o \
+	    estimation_test.o pthread_util_test.o net_interface_test.o
 SUPPORTOBJS := pending_irob.o intset.o debug.o pending_receiver_irob.o \
 	       pending_sender_irob.o timeops.o net_stats.o \
 	       test_common.o debug.o net_interface.o irob_scheduling.o common.o \
