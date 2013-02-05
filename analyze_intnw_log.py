@@ -501,28 +501,33 @@ class IntNWBehaviorPlot(QDialog):
         self.__session_axes = None
         
         if self.__measurements_only:
-            self.__drawWifi()
             self.__plotTrace()
             self.__plotMeasurements()
             self.__drawRedundancyDecisions()
 
             self.__axes.set_ylim(0.0, self.__axes.get_ylim()[1])
+            self.__drawWifi()
         else:
             self.__setupAxes()
             self.__setTraceEnd()
-            self.__drawWifi()
             self.__drawIROBs()
             self.__drawSessions()
             self.__drawRedundancyDecisions()
 
             if self.__show_debugging.isChecked():
                 self.__drawDebugging()
+
+            self.__drawWifi()
         
+        self.__axes.set_xlim(-100, 1300) # hack, but I'm tired of it bouncing around.
+
         self.__canvas.draw()
 
     def saveErrorTable(self):
         for network_type, metric in network_metric_pairs():
-            filename = "/tmp/%s_%s_error_table_%d.txt" % (network_type, metric, self.__run)
+            filename = ("/tmp/%s_%s_%s_error_table_%d.txt"
+                        % ("server" if self.__is_server else "client",
+                           network_type, metric, self.__run))
             f = open(filename, "w")
             f.write("Time,Observation,Prev estimate,New estimate,Error\n")
             
@@ -1151,7 +1156,7 @@ class IntNWBehaviorPlot(QDialog):
         vertical_bounds = self.__axes.get_ylim()
         height = [vertical_bounds[0] - self.__irob_height / 2.0,
                   vertical_bounds[1] - vertical_bounds[0] + self.__irob_height]
-        self.__axes.broken_barh(bars, height, color="green", alpha=0.3)
+        self.__axes.broken_barh(bars, height, color="green", alpha=0.2)
 
     def printStats(self):
         if self.__choose_network_calls:
