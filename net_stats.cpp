@@ -25,6 +25,7 @@ NetStats::IROBTransfers *NetStats::irob_transfers;
 IntSet *NetStats::striped_irobs;
 pthread_mutex_t NetStats::irob_transfers_lock = PTHREAD_MUTEX_INITIALIZER;
 
+bool NetStats::use_breadcrumbs_estimates = false;
 
 class IROBTransfersPerNetwork {
 public:
@@ -101,17 +102,41 @@ NetStats::NetStats(struct net_interface local_iface,
     //  which should be the entire trace.
     //cache_restore();
 
-    u_long init_bandwidth = iface_bandwidth(local_iface, remote_iface);
-    u_long init_latency = iface_RTT(local_iface, remote_iface) / 2;
-    if (init_bandwidth > 0) {
-        dbgprintf("Adding initial bandwidth observation: %lu bytes/sec\n",
-                  init_bandwidth);
-        net_estimates.estimates[NET_STATS_BW_UP].add_observation(init_bandwidth);
+    // make this stats initialization only happen
+    // when the multisocket is initially created.
+    // it should not happen every time a network comes up,
+    // unless I have actually made a new active measurement.
+    // XXX: *** Actually, this should probably be decided
+    // XXX: *** in the scout, though it needs some protocol to 
+    // XXX: *** tell the application that there's a new network
+    // XXX: *** but no new measurements.
+
+    bool init_stats = false;
+    if (use_breadcrumbs_estimates) {
+        init_stats = true;
+    } else {
+        // only initialize the first time
+        init_stats = !stats_are_cached();
+        if (!init_stats) {
+            // after the first observation per network,
+            // restore the saved observations
+            cache_restore();
+        }
     }
-    if (init_latency > 0) {
-        dbgprintf("Adding initial latency observation: %lu ms\n",
-                  init_latency);
-        net_estimates.estimates[NET_STATS_LATENCY].add_observation(init_latency);
+    
+    if (init_stats) {
+        u_long init_bandwidth = iface_bandwidth(local_iface, remote_iface);
+        u_long init_latency = iface_RTT(local_iface, remote_iface) / 2;
+        if (init_bandwidth > 0) {
+            dbgprintf("Adding initial bandwidth observation: %lu bytes/sec\n",
+                      init_bandwidth);
+            net_estimates.estimates[NET_STATS_BW_UP].add_observation(init_bandwidth);
+        }
+        if (init_latency > 0) {
+            dbgprintf("Adding initial latency observation: %lu ms\n",
+                      init_latency);
+            net_estimates.estimates[NET_STATS_LATENCY].add_observation(init_latency);
+        }
     }
     cache_save();
 }
@@ -120,13 +145,18 @@ void
 NetStats::getStats(NetworkChooser *network_chooser, int network_type)
 {
 #ifndef CMM_UNIT_TESTING
-    u_long bw_est, latency_est;
-    if (net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est) &&
-        net_estimates.estimates[NET_STATS_LATENCY].get_estimate(latency_est)) {
-        double latency_seconds = latency_est / 1000.0;
-        network_chooser->reportNetStats(network_type, 
-                                        bw_est, bw_est,
-                                        latency_seconds, latency_seconds);
+    if (use_breadcrumbs_estimates) {
+        // only update the error if we're using breadcrumbs network estimates.
+        // otherwise the estimate isn't new since the last passive measurement.
+        
+        u_long bw_est, latency_est;
+        if (net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est) &&
+            net_estimates.estimates[NET_STATS_LATENCY].get_estimate(latency_est)) {
+            double latency_seconds = latency_est / 1000.0;
+            network_chooser->reportNetStats(network_type, 
+                                            bw_est, bw_est,
+                                            latency_seconds, latency_seconds);
+        }
     }
 #endif
 }
@@ -193,7 +223,21 @@ NetStats::cache_save()
     }
 }
 
-void
+
+bool
+NetStats::stats_are_cached()
+{
+    PthreadScopedRWLock rdlock(stats_cache_lock, false);
+    PthreadScopedRWLock wr_self_lock(&my_lock, false);
+
+    struct net_interface local_iface, remote_iface;
+    local_iface.ip_addr = local_addr;
+    remote_iface.ip_addr = remote_addr;
+    StatsCache::key_type key = make_pair(local_iface, remote_iface);
+    return (stats_cache->count(key) > 0);
+}
+
+bool
 NetStats::cache_restore()
 {
     PthreadScopedRWLock rdlock(stats_cache_lock, false);
@@ -203,12 +247,18 @@ NetStats::cache_restore()
     local_iface.ip_addr = local_addr;
     remote_iface.ip_addr = remote_addr;
     StatsCache::key_type key = make_pair(local_iface, remote_iface);
+    if (stats_cache->count(key) == 0) {
+        // no stats for this pair
+        return false;
+    }
+    
     for (size_t i = 0; i < NUM_ESTIMATES; ++i) {
         u_long value;
         if ((*stats_cache)[key].estimates[i].get_estimate(value)) {
             net_estimates.estimates[i] = (*stats_cache)[key].estimates[i];
         }
     }
+    return true;
 }
 
 bool 

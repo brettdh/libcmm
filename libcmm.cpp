@@ -50,12 +50,18 @@ static void libcmm_init(void)
     if (config_input) {
         string line;
         while (getline(config_input, line)) {
+            size_t pos;
 #ifdef CMM_DEBUG
-            size_t pos = line.find("debug");
+            pos = line.find("debug");
             if (pos != string::npos) {
                 set_debugging(true);
             }
 #endif
+            pos = line.find("use_breadcrumbs_estimates");
+            if (pos != string::npos) {
+                // TODO: set a flag that lets wifi stats be used.
+                
+            }
         }
         config_input.close();
     } else {

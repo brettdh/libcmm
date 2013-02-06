@@ -181,11 +181,15 @@ class NetStats {
                 NetworkChooser *network_chooser,
                 int network_type);
 
-    void getStats(NetworkChooser *network_chooser, int network_type);
+    // if on==true, the NetStats for each TCP connection
+    //   will store the updates
+    static void set_use_breadcrumbs_estimates(bool on);
 
     NetStats(struct net_interface local_iface, 
              struct net_interface remote_iface);
     ~NetStats();
+
+    void getStats(NetworkChooser *network_chooser, int network_type);
 
     static void get_time(struct timeval &tv);
 
@@ -226,12 +230,18 @@ class NetStats {
     static StatsCache *stats_cache;
     static RWLOCK_T *stats_cache_lock;
     void cache_save();
-    void cache_restore();
+    bool cache_restore();
+
+    // return true iff the stats for this (local,remote) interface pair
+    //  are already in the cache.
+    bool stats_are_cached();
 
     class IROBTransfers;
     static IROBTransfers *irob_transfers;
     static IntSet *striped_irobs;
     static pthread_mutex_t irob_transfers_lock; // protects irob_transfers, striped_irobs
+
+    static bool use_breadcrumbs_estimates;
 
     struct static_initializer {
         static_initializer();
