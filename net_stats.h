@@ -111,6 +111,7 @@ class IROBMeasurement {
 
 struct estimate_set {
     Estimate estimates[NUM_ESTIMATES];
+    bool error_estimators_initialized;
 };
 
 // each CSocket will include an object of this type, since the stats

@@ -229,6 +229,7 @@ NetStats::cache_save()
     for (size_t i = 0; i < NUM_ESTIMATES; ++i) {
         (*stats_cache)[key].estimates[i] = net_estimates.estimates[i];
     }
+    (*stats_cache)[key].error_estimators_initialized = error_estimators_initialized;
 }
 
 
@@ -266,6 +267,7 @@ NetStats::cache_restore()
             net_estimates.estimates[i] = (*stats_cache)[key].estimates[i];
         }
     }
+    error_estimators_initialized = (*stats_cache)[key].error_estimators_initialized;
     return true;
 }
 
