@@ -205,6 +205,8 @@ NetStats::update(struct net_interface local_iface,
 NetStats::~NetStats()
 {
     cache_save();
+
+    PthreadScopedLock lock(&irob_transfers_lock);
     irob_transfers->removeAll(local_addr, remote_addr);
 }
 
