@@ -109,9 +109,17 @@ class IROBMeasurement {
 
 #define NUM_ESTIMATES 3
 
+// data needed to re-start passive measurement calculation
+//  from previous measurements.
 struct estimate_set {
     Estimate estimates[NUM_ESTIMATES];
     bool error_estimators_initialized;
+    
+    struct timeval last_RTT;
+    struct timeval last_srv_time;
+    size_t last_req_size;
+
+    irob_id_t last_irob;
 };
 
 // each CSocket will include an object of this type, since the stats

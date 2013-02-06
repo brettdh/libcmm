@@ -226,10 +226,16 @@ NetStats::cache_save()
     local_iface.ip_addr = local_addr;
     remote_iface.ip_addr = remote_addr;
     StatsCache::key_type key = make_pair(local_iface, remote_iface);
+    struct estimate_set& cached_estimates = (*stats_cache)[key];
     for (size_t i = 0; i < NUM_ESTIMATES; ++i) {
-        (*stats_cache)[key].estimates[i] = net_estimates.estimates[i];
+        cached_estimates.estimates[i] = net_estimates.estimates[i];
     }
-    (*stats_cache)[key].error_estimators_initialized = error_estimators_initialized;
+    cached_estimates.error_estimators_initialized = error_estimators_initialized;
+
+    cached_estimates.last_RTT = last_RTT;
+    cached_estimates.last_srv_time = last_srv_time;
+    cached_estimates.last_req_size = last_req_size;
+    cached_estimates.last_irob = last_irob;
 }
 
 
@@ -260,14 +266,21 @@ NetStats::cache_restore()
         // no stats for this pair
         return false;
     }
-    
+
+    struct estimate_set& cached_estimates = (*stats_cache)[key];
     for (size_t i = 0; i < NUM_ESTIMATES; ++i) {
         u_long value;
-        if ((*stats_cache)[key].estimates[i].get_estimate(value)) {
-            net_estimates.estimates[i] = (*stats_cache)[key].estimates[i];
+        if (cached_estimates.estimates[i].get_estimate(value)) {
+            net_estimates.estimates[i] = cached_estimates.estimates[i];
         }
     }
-    error_estimators_initialized = (*stats_cache)[key].error_estimators_initialized;
+    error_estimators_initialized = cached_estimates.error_estimators_initialized;
+
+    last_RTT = cached_estimates.last_RTT;
+    last_srv_time = cached_estimates.last_srv_time;
+    last_req_size = cached_estimates.last_req_size;
+    last_irob = cached_estimates.last_irob;
+    
     return true;
 }
 
