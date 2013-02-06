@@ -236,6 +236,8 @@ class NetStats {
     //  are already in the cache.
     bool stats_are_cached();
 
+    bool error_estimators_initialized;
+
     class IROBTransfers;
     static IROBTransfers *irob_transfers;
     static IntSet *striped_irobs;

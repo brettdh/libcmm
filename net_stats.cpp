@@ -88,7 +88,8 @@ static struct timeval time_to_send(size_t msg_size, u_long bw_estimate)
 
 NetStats::NetStats(struct net_interface local_iface, 
                    struct net_interface remote_iface)
-    : local_addr(local_iface.ip_addr), remote_addr(remote_iface.ip_addr)
+    : local_addr(local_iface.ip_addr), remote_addr(remote_iface.ip_addr),
+      error_estimators_initialized(false)
 {
     RWLOCK_INIT(&my_lock, NULL);
     last_RTT.tv_sec = last_srv_time.tv_sec = -1;
@@ -145,7 +146,7 @@ void
 NetStats::getStats(NetworkChooser *network_chooser, int network_type)
 {
 #ifndef CMM_UNIT_TESTING
-    if (use_breadcrumbs_estimates) {
+    if (use_breadcrumbs_estimates || !error_estimators_initialized) {
         // only update the error if we're using breadcrumbs network estimates.
         // otherwise the estimate isn't new since the last passive measurement.
         
@@ -156,6 +157,7 @@ NetStats::getStats(NetworkChooser *network_chooser, int network_type)
             network_chooser->reportNetStats(network_type, 
                                             bw_est, bw_est,
                                             latency_seconds, latency_seconds);
+            error_estimators_initialized = true;
         }
     }
 #endif
