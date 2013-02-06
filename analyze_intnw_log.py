@@ -498,6 +498,7 @@ class IntNWBehaviorPlot(QDialog):
 
         self.__figure.clear()
         self.__axes = self.__figure.add_subplot(111)
+        self.__axes.set_title(self.__title)
         self.__session_axes = None
         
         if self.__measurements_only:
@@ -1317,7 +1318,8 @@ class IntNWBehaviorPlot(QDialog):
             #[time][pid][tid] Got update from scout: 192.168.1.2 is up,
             #                 bandwidth_down 43226 bandwidth_up 12739 bytes/sec RTT 97 ms
             #                 type wifi
-            self.__modifyNetwork(line)
+            ip, status, network_type = re.search(self.__network_regex, line).groups()
+            self.__modifyNetwork(timestamp, ip, status, network_type)
         elif "Successfully bound" in line:
             # [time][pid][CSockSender 57] Successfully bound osfd 57 to 192.168.1.2:0
             self.__addConnection(line)
@@ -1438,9 +1440,7 @@ class IntNWBehaviorPlot(QDialog):
                 }
             self.__network_periods[network_type] = []
 
-    def __modifyNetwork(self, line):
-        timestamp = getTimestamp(line)
-        ip, status, network_type = re.search(self.__network_regex, line).groups()
+    def __modifyNetwork(self, timestamp, ip, status, network_type):
         self.__addNetworkType(network_type)
         
         if status == 'down':
@@ -1549,6 +1549,10 @@ class IntNWBehaviorPlot(QDialog):
             del self.__network_type_by_sock[sock]
 
             self.__markDroppedIROBs(timestamp, network_type)
+
+            if self.__is_server:
+                # client will get update from scout; server won't
+                self.__modifyNetwork(timestamp, network_period['ip'], 'down', network_type)
 
     def __getNetworkType(self, line):
         sock = self.__getSocket(line)
@@ -1710,6 +1714,7 @@ class IntNWPlotter(object):
     def __readSessions(self):
         filename = self.__trace_replayer_log
         runs = []
+        new_run = True
         for linenum, line in enumerate(open(filename).readlines()):
             fields = line.strip().split()
             if "Session times:" in line:
@@ -1735,14 +1740,15 @@ class IntNWPlotter(object):
                 runs[-1].append(transfer)
             elif (("Waiting to execute" in line and fields[4] == "at") or
                   "Waiting until trace end" in line):
-                if len(runs) == 0:
+                if new_run:
                     # new run
                     runs.append([])
+                    new_run = False
                 elif len(runs[-1]) > 0:
                     # end of a session
                     runs[-1][-1]['end'] = timestamp
             elif "Done with trace replay" in line:
-                runs.append([])
+                new_run = True
 
         if len(runs[-1]) == 0:
             runs = runs[:-1]
