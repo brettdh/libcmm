@@ -157,7 +157,11 @@ NetStats::getStats(NetworkChooser *network_chooser, int network_type)
             network_chooser->reportNetStats(network_type, 
                                             bw_est, bw_est,
                                             latency_seconds, latency_seconds);
-            error_estimators_initialized = true;
+
+            if (!error_estimators_initialized) {
+                cache_save(); // just to save the fact that I already initialized it
+                error_estimators_initialized = true;
+            }
         }
     }
 #endif
