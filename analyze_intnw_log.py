@@ -143,10 +143,32 @@ def shift_right_by_one(l):
         l = [l[0]] + l[:-1]
     return l
 
+RELATIVE_ERROR = True
+
+def absolute_error(prev_estimate, cur_observation):
+    return prev_estimate - cur_observation
+
+def absolute_error_adjusted_estimate(estimate, error):
+    return estimate - error
+
+def relative_error(prev_estimate, cur_observation):
+    return cur_observation / prev_estimate
+
+def relative_error_adjusted_estimate(estimate, error):
+    return estimate * error
+
+def error_value(prev_estimate, cur_observation):
+    err = relative_error if RELATIVE_ERROR else absolute_error
+    return err(prev_estimate, cur_observation)
+
+def error_adjusted_estimate(estimate, error):
+    adjuster = (relative_error_adjusted_estimate if RELATIVE_ERROR
+                else absolute_error_adjusted_estimate)
+    return adjuster(estimate, error)
 
 def get_error_values(observations, estimated_values):
     shifted_estimates = shift_right_by_one(estimated_values)
-    for error in [est - obs for obs, est in zip(observations, shifted_estimates)]:
+    for error in [error_value(est, obs) for obs, est in zip(observations, shifted_estimates)]:
         yield error
 
 def get_value_at(timestamps, values, time):
@@ -433,7 +455,6 @@ class IntNWBehaviorPlot(QDialog):
         self.__error_error_ci = \
             QRadioButton("%d%% CI" % alpha_to_percent(IntNWBehaviorPlot.CONFIDENCE_ALPHA))
         self.__error_error_stddev = QRadioButton("std-dev")
-        self.__error_error_mean = QRadioButton("mean (+/-)")
 
         self.__plot_colored_error_regions.setChecked(True)
         self.__error_error_ci.setChecked(True)
@@ -442,7 +463,6 @@ class IntNWBehaviorPlot(QDialog):
         self.connect(self.__plot_colored_error_regions, SIGNAL("toggled(bool)"), self.on_draw)
         self.connect(self.__error_error_ci, SIGNAL("toggled(bool)"), self.on_draw)
         self.connect(self.__error_error_stddev, SIGNAL("toggled(bool)"), self.on_draw)
-        self.connect(self.__error_error_mean, SIGNAL("toggled(bool)"), self.on_draw)
 
         percent = alpha_to_percent(IntNWBehaviorPlot.CONFIDENCE_ALPHA)
         self.__ci_percent = QLineEdit("%d" % percent)
@@ -464,7 +484,6 @@ class IntNWBehaviorPlot(QDialog):
         ci_toggle.addWidget(QLabel("%"))
         error_interval_toggles.addLayout(ci_toggle)
         error_interval_toggles.addWidget(self.__error_error_stddev)
-        error_interval_toggles.addWidget(self.__error_error_mean)
 
         self.__error_interval_box = QGroupBox()
         self.__error_interval_box.setLayout(error_interval_toggles)
@@ -810,11 +829,20 @@ class IntNWBehaviorPlot(QDialog):
                 transfer_times_with_error = []
                 for bandwidth_err, latency_err in product(cur_errors['bandwidth_up'], 
                                                           cur_errors['latency']):
-                    bandwidth = cur_estimates['bandwidth_up'] - bandwidth_err
-                    latency = cur_estimates['latency'] - latency_err
-                    transfer_times_with_error.append(transfer_time(bandwidth, latency, tx_size))
+                    bandwidth = error_adjusted_estimate(cur_estimates['bandwidth_up'],
+                                                        bandwidth_err)
+                    latency = error_adjusted_estimate(cur_estimates['latency'], 
+                                                      latency_err)
+                                  
+                    #bandwidth = max(1.0, bandwidth)
+                    #latency = max(0.0, latency)
+                    
+                    tx_time = transfer_time(bandwidth, latency, tx_size)
+                    if tx_time < 0.0 or tx_time > 500:
+                        pass #debug_trace()
+                    transfer_times_with_error.append(tx_time)
 
-                transfer_time_errors = [est_tx_time - tx_time for tx_time in 
+                transfer_time_errors = [error_value(est_tx_time, tx_time) for tx_time in 
                                         transfer_times_with_error]
                 transfer_time_error_means = stepwise_mean(transfer_time_errors)
                 error_calculator = self.__getErrorCalculator()
@@ -830,8 +858,8 @@ class IntNWBehaviorPlot(QDialog):
             plotter = self.__getErrorPlotter()
             times = [tx_start for tx_start, tx_size in transfers]
             estimates_array = np.array(predicted_transfer_durations[network_type])
-            error_adjusted_estimates = \
-                estimates_array - np.array(transfer_error_means[network_type])
+            error_adjusted_estimates = error_adjusted_estimate(
+                estimates_array, np.array(transfer_error_means[network_type]))
             plotter(times, predicted_transfer_durations[network_type], 
                     error_adjusted_estimates,
                     transfer_error_bounds[network_type], network_type)
@@ -897,7 +925,8 @@ class IntNWBehaviorPlot(QDialog):
 
                 error_bounds = error_calculator(estimated_values, error_values, error_means)
                 estimates_array = np.array(estimated_values)
-                error_adjusted_estimates = estimates_array - np.array(error_means)
+                error_adjusted_estimates = error_adjusted_estimate(
+                    estimates_array, np.array(error_means))
 
                 plotter(times, estimated_values, error_adjusted_estimates, 
                         error_bounds, network_type)
@@ -910,8 +939,6 @@ class IntNWBehaviorPlot(QDialog):
             return self.__getConfidenceInterval
         elif self.__error_error_stddev.isChecked():
             return self.__getErrorStddev
-        elif self.__error_error_mean.isChecked():
-            return self.__getErrorMean
         else:
             assert False
 
@@ -935,7 +962,19 @@ class IntNWBehaviorPlot(QDialog):
         estimates = np.array(estimated_values)
         means = np.array(error_means)
         intervals = np.array(error_confidence_intervals)
-        return estimates - means - intervals, estimates - means + intervals
+
+        #return estimates - means - intervals, estimates - means + intervals
+        return self.__error_range(estimates, means, intervals, intervals)
+
+    def __error_range(self, estimates, error_means, 
+                      lower_error_intervals, upper_error_intervals):
+        lower_errors = error_means - lower_error_intervals
+        upper_errors = error_means + upper_error_intervals
+
+        adjusted_estimates = error_adjusted_estimate(estimates, error_means)
+        lowers = error_adjusted_estimate(estimates, lower_errors)
+        uppers = error_adjusted_estimate(estimates, upper_errors)
+        return lowers, uppers
 
     def __getErrorStddev(self, estimated_values, error_values, error_means):
         error_variances = stepwise_variance(error_values)
@@ -944,33 +983,9 @@ class IntNWBehaviorPlot(QDialog):
         estimates = np.array(estimated_values)
         means = np.array(error_means)
         stddevs = np.array(error_stddevs)
-        return estimates - means - stddevs, estimates - means + stddevs
+        #return estimates - means - stddevs, estimates - means + stddevs
 
-    def __getErrorMean(self, estimated_values, error_values, error_means):
-        positive_errors = []
-        positive_error_mean = 0.0
-        negative_errors = []
-        negative_error_mean = 0.0
-        pos_n = 0
-        neg_n = 0
-
-        for error in error_values:
-            if error >= 0.0:
-                pos_n += 1
-                positive_error_mean = \
-                    update_running_mean(positive_error_mean, error, pos_n)
-            else:
-                neg_n += 1
-                negative_error_mean = \
-                    update_running_mean(negative_error_mean, -error, neg_n)
-                
-            positive_errors.append(positive_error_mean)
-            negative_errors.append(negative_error_mean)
-
-        lowers = np.array(positive_errors)
-        uppers = np.array(negative_errors)
-        estimates = np.array(estimated_values)
-        return estimates - lowers, estimates + uppers
+        return self.__error_range(estimates, means, stddevs, stddevs)
 
     def __plotEstimates(self, times, estimated_values, network_type):
         self.__axes.plot(times, estimated_values,
@@ -1864,9 +1879,15 @@ def main():
                         help="Add 100ms latency when plotting the trace.")
     parser.add_argument("--server", action="store_true", default=False,
                         help="Look in replayer_server.log for all logging.")
+    parser.add_argument("--absolute-error", action="store_true", default=False,
+                        help="Use absolute error rather than relative error in calculations")
     args = parser.parse_args()
 
     app = QApplication(sys.argv)
+
+    if args.absolute_error:
+        global RELATIVE_ERROR
+        RELATIVE_ERROR = False
     
     plotter = IntNWPlotter(args)
     if not args.noplot:
