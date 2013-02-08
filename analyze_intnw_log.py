@@ -1586,7 +1586,8 @@ class IntNWBehaviorPlot(QDialog):
         if (intnw_message_type == "Begin_IROB" or
             intnw_message_type == "Data_Check"):
             irob_id = self.__getIROBId(line)
-            self.__currentSendingIROB = None
+            if direction == "up":
+                self.__currentSendingIROB = None
             self.__addIROB(timestamp, network_type, irob_id, direction)
         elif intnw_message_type == "IROB_chunk":
             irob_id = self.__getIROBId(line)
