@@ -549,6 +549,15 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
             size_t size_diff = ((req_size > last_req_size)
                                 ? (req_size - last_req_size)
                                 : (last_req_size - req_size));
+
+            // override; testing whether this limit is necessary.
+            // result: decided that the resulting measurements
+            //         are wildly wrong.  I'd need to think more carefully
+            //         about how to measure bandwidth with small transfers
+            //         if I were to try this.  For now, I'll leave these
+            //         limits in place.
+            /* size_diff = MIN_SIZE_FOR_BW_ESTIMATE; */
+            
             if (size_diff >= MIN_SIZE_FOR_BW_ESTIMATE && 
                 (req_size >= MIN_SIZE_FOR_BW_ESTIMATE ||
                  last_req_size >= MIN_SIZE_FOR_BW_ESTIMATE)) {
