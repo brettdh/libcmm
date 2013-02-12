@@ -1334,7 +1334,8 @@ class IntNWBehaviorPlot(QDialog):
             #                 bandwidth_down 43226 bandwidth_up 12739 bytes/sec RTT 97 ms
             #                 type wifi
             ip, status, network_type = re.search(self.__network_regex, line).groups()
-            self.__modifyNetwork(timestamp, ip, status, network_type)
+            if not self.__is_server:
+                self.__modifyNetwork(timestamp, ip, status, network_type)
         elif "Successfully bound" in line:
             # [time][pid][CSockSender 57] Successfully bound osfd 57 to 192.168.1.2:0
             self.__addConnection(line)
@@ -1343,11 +1344,6 @@ class IntNWBehaviorPlot(QDialog):
             #                          bw_down 43226 bw_up 12739 RTT 97
             #                          type wifi(peername 141.212.110.115)
             self.__addIncomingConnection(line, timestamp)
-        elif "Adding connection" in line:
-            # [time][pid][Listener 13] Adding connection 14 from 192.168.1.2
-            #                          bw_down 244696 bw_up 107664 RTT 391
-            #                          type wifi(peername 141.212.110.115)
-            pass # No accepting-side log analysis yet.
         elif re.search(self.__csocket_destroyed_regex, line) != None:
             # [time][pid][CSockSender 57] CSocket 57 is being destroyed
             self.__removeConnection(line)
@@ -1689,7 +1685,7 @@ class IntNWPlotter(object):
         intnw_log = "intnw.log"
         trace_replayer_log = "trace_replayer.log"
         instruments_log = "instruments.log"
-        self.__server = args.server
+        self.__is_server = args.server
         if args.server:
             intnw_log = trace_replayer_log = instruments_log = "replayer_server.log"
 
@@ -1770,6 +1766,13 @@ class IntNWPlotter(object):
             runs = runs[:-1]
         return runs
 
+    def __lineStartsNewRun(self, line, current_pid):
+        if self.__is_server:
+            return ("Accepting connection from" in line)
+        else:
+            pid = self.__getPid(line)
+            return pid != current_pid
+
     def __readRedundancyDecisions(self):
         filename = self.__redundancy_eval_log
         if not os.path.exists(filename):
@@ -1782,14 +1785,15 @@ class IntNWPlotter(object):
         last_pid = 0
         for linenum, line in enumerate(open(filename).readlines()):
             pid = self.__getPid(line)
-            if pid != last_pid:
+            if self.__lineStartsNewRun(line, last_pid):
                 runs.append([])
+                
             last_pid = pid
 
-            current_run = runs[-1]
-            
             benefit_match = re.search(benefit_regex, line)
             cost_match = re.search(cost_regex, line)
+            if benefit_match or cost_match:
+                current_run = runs[-1]
 
             if benefit_match:
                 timestamp = getTimestamp(line)
@@ -1819,16 +1823,15 @@ class IntNWPlotter(object):
                 pid = self.__getPid(line)
                 if pid == None:
                     continue
-                    
-                if pid != self.__currentPid:
+
+                if self.__lineStartsNewRun(line, self.__currentPid):
                     start = session_runs[len(self.__windows)][0]['start']
                     window = IntNWBehaviorPlot(len(self.__windows) + 1, start, 
                                                self.__measurements_only,
                                                self.__network_trace_file,
                                                self.__cross_country_latency,
-                                               self.__server)
+                                               self.__is_server)
                     self.__windows.append(window)
-                    self.__currentPid = pid
                     window_num = len(self.__windows) - 1
                     if session_runs:
                         sessions = session_runs[window_num]
@@ -1836,8 +1839,11 @@ class IntNWPlotter(object):
                     if redundancy_decisions_runs:
                         redundancy_decisions = redundancy_decisions_runs[window_num]
                         self.__windows[-1].setRedundancyDecisions(redundancy_decisions)
-                    
-                self.__windows[-1].parseLine(line)
+
+                self.__currentPid = pid
+                
+                if len(self.__windows) > 0:
+                    self.__windows[-1].parseLine(line)
             except LogParsingError as e:
                 trace = sys.exc_info()[2]
                 e.setLine(linenum + 1, line)
