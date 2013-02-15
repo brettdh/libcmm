@@ -293,8 +293,6 @@ def getTimestamp(line):
 
 class IntNWBehaviorPlot(QDialog):
     CONFIDENCE_ALPHA = 0.10
-    #CONFIDENCE_ALPHA = 0.05
-    #CONFIDENCE_ALPHA = 0.01
     
     def __init__(self, run, start, measurements_only, network_trace_file,
                  cross_country_latency, is_server, parent=None):
@@ -466,7 +464,6 @@ class IntNWBehaviorPlot(QDialog):
 
         percent = alpha_to_percent(IntNWBehaviorPlot.CONFIDENCE_ALPHA)
         self.__ci_percent = QLineEdit("%d" % percent)
-        self.__ci_percent.setMaxLength(3)
         self.__ci_percent.setFixedWidth(80)
         self.connect(self.__ci_percent, SIGNAL("returnPressed()"), self.updateAlpha)
 
@@ -833,13 +830,14 @@ class IntNWBehaviorPlot(QDialog):
                                                         bandwidth_err)
                     latency = error_adjusted_estimate(cur_estimates['latency'], 
                                                       latency_err)
-                                  
-                    #bandwidth = max(1.0, bandwidth)
-                    #latency = max(0.0, latency)
+
+                    if not RELATIVE_ERROR:
+                        bandwidth = max(1.0, bandwidth)
+                        latency = max(0.0, latency)
                     
                     tx_time = transfer_time(bandwidth, latency, tx_size)
                     if tx_time < 0.0 or tx_time > 500:
-                        pass #debug_trace()
+                        debug_trace()
                     transfer_times_with_error.append(tx_time)
 
                 transfer_time_errors = [error_value(est_tx_time, tx_time) for tx_time in 
@@ -963,7 +961,6 @@ class IntNWBehaviorPlot(QDialog):
         means = np.array(error_means)
         intervals = np.array(error_confidence_intervals)
 
-        #return estimates - means - intervals, estimates - means + intervals
         return self.__error_range(estimates, means, intervals, intervals)
 
     def __error_range(self, estimates, error_means, 
@@ -983,7 +980,6 @@ class IntNWBehaviorPlot(QDialog):
         estimates = np.array(estimated_values)
         means = np.array(error_means)
         stddevs = np.array(error_stddevs)
-        #return estimates - means - stddevs, estimates - means + stddevs
 
         return self.__error_range(estimates, means, stddevs, stddevs)
 
