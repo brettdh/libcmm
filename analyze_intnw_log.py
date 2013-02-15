@@ -1775,7 +1775,7 @@ class IntNWPlotter(object):
             return
         
         benefit_regex = re.compile("Redundant strategy benefit: ([0-9.-]+)")
-        cost_regex = re.compile("Redundant strategy cost: ([0-9.-]+)")
+        cost_regex = re.compile("Redundant strategy additional cost: ([0-9.-]+)")
         
         runs = []
         last_pid = 0
