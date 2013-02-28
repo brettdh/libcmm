@@ -2572,9 +2572,6 @@ CMMSocketImpl::goodbye(bool remote_initiated)
         // no socket to send the goodbye; connection must be gone
         remote_shutdown = true;
         goodbye_sent = true;
-
-        //csock_map->join_to_all_workers();
-        //return;
     }
 
     pthread_cond_broadcast(&scheduling_state_cv);

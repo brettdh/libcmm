@@ -70,6 +70,7 @@ class IROBMeasurement {
                    u_long bw_est);
     void add_delay(struct timeval delay);
     void ack(struct timeval *real_time = NULL);
+    void mark_failed();
 
     // don't call until after calling ack()
     struct timeval RTT();
@@ -89,6 +90,7 @@ class IROBMeasurement {
     struct timeval arrival_time;
     struct timeval last_activity;
     struct timeval ack_time;
+    struct timeval failure_time;
 
     /* includes both queuing delay due to self-interference time
      * and time between send calls for this IROB */
@@ -168,6 +170,11 @@ class NetStats {
                     struct timeval ack_qdelay, 
                     struct timeval *real_time = NULL,
                     double *bw_out = NULL, double *latency_seconds_out = NULL);
+
+    //  if there are any unACKed IROBs, 
+    //  add a latency measurement equal to the time since
+    //  the first of them was sent.  This captures failover delay.
+    void mark_irob_failures(NetworkChooser *chooser, int network_type);
 
     // report the total number of bytes to be sent on the network 
     //  in delivering this IROB.

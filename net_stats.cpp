@@ -13,7 +13,9 @@
 #include "timeops.h"
 #include <cmath>
 #include <map>
+#include <sstream>
 using std::pair; using std::make_pair;
+using std::ostringstream;
 
 class InvalidEstimateException {};
 
@@ -711,6 +713,49 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
 }
 
 void
+NetStats::mark_irob_failures(NetworkChooser *chooser, int network_type)
+{
+    // add latency estimate for failover delay if any IROB wasn't ACKed
+    // 1) Figure out the earliest unACKed IROB
+    // 2) Calculate the difference between now and the time it was sent
+    // 3) That's the failover latency.  Add it to the estimates.
+
+    PthreadScopedRWLock lock(&my_lock, true);
+
+    struct timeval max_delay = {0, 0};
+    bool failure = !irob_measurements.empty();
+    
+    ostringstream s;
+    for (irob_measurements_t::iterator it = irob_measurements.begin();
+         it != irob_measurements.end(); ++it) {
+        irob_id_t id = it->first;
+        IROBMeasurement& measurement = it->second;
+        measurement.mark_failed();
+        s << id << " ";
+        struct timeval delay = measurement.RTT();
+        if (timercmp(&max_delay, &delay, <)) {
+            max_delay = delay;
+        }
+    }
+    irob_measurements.clear();
+    
+    if (failure) {
+        dbgprintf("Marking IROBs failed: [ %s]\n", s.str().c_str());
+        dbgprintf("Adding max failover delay as latency: %lu.%06lu seconds\n",
+                  max_delay.tv_sec, max_delay.tv_usec);
+        double latency_ms = convert_to_useconds(max_delay) / 1000.0;
+        Estimate& latency_estimate = net_estimates.estimates[NET_STATS_LATENCY];
+        latency_estimate.add_observation(round_nearest(latency_ms));
+        u_long new_latency_est;
+        if (latency_estimate.get_estimate(new_latency_est)) {
+#ifndef CMM_UNIT_TESTING
+            chooser->reportNetStats(network_type, 0.0, 0.0, latency_ms/1000.0, new_latency_est);
+#endif
+        }
+    }
+}
+
+void
 NetStats::remove(irob_id_t irob_id)
 {
     irob_measurements.erase(irob_id);
@@ -725,6 +770,7 @@ IROBMeasurement::IROBMeasurement()
     last_activity = arrival_time;
     ack_time.tv_sec = -1;
     ack_time.tv_usec = 0;
+    failure_time = ack_time;
     total_delay.tv_sec = 0;
     total_delay.tv_usec = 0;
 }
@@ -793,13 +839,16 @@ IROBMeasurement::add_delay(struct timeval delay)
 struct timeval
 IROBMeasurement::RTT()
 {
-    ASSERT(ack_time.tv_sec != -1);
-    ASSERT(timercmp(&arrival_time, &ack_time, <));
+    ASSERT(ack_time.tv_sec != -1 || failure_time.tv_sec != -1);
+    ASSERT(ack_time.tv_sec == -1 || failure_time.tv_sec == -1);
+
+    struct timeval finish_time = (ack_time.tv_sec != -1 ? ack_time : failure_time);
+    ASSERT(timercmp(&arrival_time, &finish_time, <));
 
     struct timeval rtt;
-    TIMEDIFF(arrival_time, ack_time, rtt);
+    TIMEDIFF(arrival_time, finish_time, rtt);
 
-    if (!timercmp(&rtt, &total_delay, >)) {
+    if (timercmp(&rtt, &total_delay, <=)) {
         throw InvalidEstimateException();
     }
 
@@ -815,6 +864,12 @@ IROBMeasurement::ack(struct timeval *real_time)
     } else {
         NetStats::get_time(ack_time);
     }
+}
+
+void
+IROBMeasurement::mark_failed()
+{
+    NetStats::get_time(failure_time);
 }
 
 

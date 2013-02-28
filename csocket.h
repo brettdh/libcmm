@@ -104,7 +104,7 @@ class CSocket {
     //  because we think it might be disconnected, but
     //  we haven't been notified as such by the scout yet.
     bool is_in_trouble();
-    
+
   private:
     // only allow shared_ptr creation
     CSocket(boost::weak_ptr<CMMSocketImpl> sk_, 
