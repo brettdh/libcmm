@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 
 '''
 # Things I want this tool to show:
@@ -675,8 +675,8 @@ class IntNWBehaviorPlot(QDialog):
                 def chooseNetwork(self, duration, bytelen):
                     return self.network_type
 
-            network_choosers = {type_name: SingleNetwork(type_name) 
-                                for type_name in self.__values.keys()}
+            network_choosers = dict([(type_name, SingleNetwork(type_name)) 
+                                     for type_name in self.__values.keys()])
 
             for network_type in self.__values:
                 network_chooser = network_choosers[network_type]
@@ -702,9 +702,7 @@ class IntNWBehaviorPlot(QDialog):
         plot_colors = {'wifi': (.7, .7, 1.0), '3G': (1.0, .7, .7)}
 
         # whiten up the colors for the variance plotting
-        #variance_colors = {name: map(lambda v: v + ((1.0 - v) * 0.75), color)
-        #                   for name, color in plot_colors.items()}
-        variance_colors = {name: color + (0.25,) for name, color in plot_colors.items()}
+        variance_colors = dict([(name, color + (0.25,)) for name, color in plot_colors.items()])
 
         def __ploteach(self, plotter, checks):
             for network_type in self.__timestamps:
