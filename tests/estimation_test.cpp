@@ -20,6 +20,8 @@ EstimationTest::setUp()
     struct net_interface dummy;
     memset(&dummy, 0, sizeof(dummy));
     stats = new NetStats(dummy, dummy);
+    
+    NetStats::resetAll();
 
     struct net_interface other;
     memset(&other, 0, sizeof(other));
@@ -319,4 +321,59 @@ EstimationTest::testDisregardStripedIROBs()
 
     // this IROB should be ignored, so the stats should be the same as before.
     assertStatsCorrect(5000, 20);
+}
+
+void
+EstimationTest::testFailoverDelay()
+{
+    // true bw: 5000 Bps  true latency: 20ms
+    
+    // make sure we have some initial stats
+    testNetStatsSimple();
+
+    bool failover = stats->mark_irob_failures(NULL, 0);
+    CPPUNIT_ASSERT(!failover);
+
+    stats->report_total_irob_bytes(3, 1500);
+    stats->report_irob_send_event(3, 1500);
+    
+    double expected_failover_delay = 5.0; // seconds
+    struct timespec sleeptime = {expected_failover_delay, 0};
+    nowake_nanosleep(&sleeptime);
+
+    double failover_delay = 0.0;
+    failover = stats->mark_irob_failures(NULL, 0, &failover_delay);
+    CPPUNIT_ASSERT(failover);
+    
+    MY_CPPUNIT_ASSERT_EQWITHIN_MESSAGE(expected_failover_delay, failover_delay, 0.1,
+                                       "Failover delay matches expected");
+
+    
+    // test that max of all failover delays is reported
+    sleeptime.tv_sec = 1;
+
+    stats->report_total_irob_bytes(4, 2000);
+    stats->report_irob_send_event(4, 2000);
+
+    nowake_nanosleep(&sleeptime);
+
+    stats->report_total_irob_bytes(5, 1500);
+    stats->report_irob_send_event(5, 1500);
+
+    nowake_nanosleep(&sleeptime);
+
+    stats->report_total_irob_bytes(6, 1750);
+    stats->report_irob_send_event(6, 1750);
+    
+    nowake_nanosleep(&sleeptime);
+
+    // should be 3 seconds of failover
+    
+    expected_failover_delay = 3.0;
+    failover_delay = 0.0;
+    failover = stats->mark_irob_failures(NULL, 0, &failover_delay);
+    CPPUNIT_ASSERT(failover);
+    
+    MY_CPPUNIT_ASSERT_EQWITHIN_MESSAGE(expected_failover_delay, failover_delay, 0.1,
+                                       "Failover delay matches expected");
 }

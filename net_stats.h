@@ -174,7 +174,8 @@ class NetStats {
     //  if there are any unACKed IROBs, 
     //  add a latency measurement equal to the time since
     //  the first of them was sent.  This captures failover delay.
-    void mark_irob_failures(NetworkChooser *chooser, int network_type);
+    bool mark_irob_failures(NetworkChooser *chooser, int network_type,
+                            double *latency_seconds_out=NULL);
 
     // report the total number of bytes to be sent on the network 
     //  in delivering this IROB.
@@ -204,6 +205,9 @@ class NetStats {
     NetStats(struct net_interface local_iface, 
              struct net_interface remote_iface);
     ~NetStats();
+
+    // for testing.  reset all the stats to as when the program started.
+    static void resetAll();
 
     void getStats(NetworkChooser *network_chooser, int network_type);
 

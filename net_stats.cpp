@@ -19,12 +19,12 @@ using std::ostringstream;
 
 class InvalidEstimateException {};
 
-NetStats::StatsCache *NetStats::stats_cache;
-RWLOCK_T *NetStats::stats_cache_lock;
+NetStats::StatsCache *NetStats::stats_cache = NULL;
+RWLOCK_T *NetStats::stats_cache_lock = NULL;
 NetStats::static_initializer NetStats::init;
 
-NetStats::IROBTransfers *NetStats::irob_transfers;
-IntSet *NetStats::striped_irobs;
+NetStats::IROBTransfers *NetStats::irob_transfers = NULL;
+IntSet *NetStats::striped_irobs = NULL;
 pthread_mutex_t NetStats::irob_transfers_lock = PTHREAD_MUTEX_INITIALIZER;
 
 bool NetStats::use_breadcrumbs_estimates = false;
@@ -70,6 +70,17 @@ private:
 
 NetStats::static_initializer::static_initializer()
 {
+    resetAll();
+}
+
+void
+NetStats::resetAll()
+{
+    delete stats_cache;
+    delete stats_cache_lock;
+    delete irob_transfers;
+    delete striped_irobs;
+
     stats_cache = new StatsCache;
     stats_cache_lock = new RWLOCK_T;
     RWLOCK_INIT(NetStats::stats_cache_lock, NULL);
@@ -712,8 +723,9 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
     return new_measurement;
 }
 
-void
-NetStats::mark_irob_failures(NetworkChooser *chooser, int network_type)
+bool
+NetStats::mark_irob_failures(NetworkChooser *chooser, int network_type,
+                             double *latency_seconds_out)
 {
     // add latency estimate for failover delay if any IROB wasn't ACKed
     // 1) Figure out the earliest unACKed IROB
@@ -744,15 +756,22 @@ NetStats::mark_irob_failures(NetworkChooser *chooser, int network_type)
         dbgprintf("Adding max failover delay as latency: %lu.%06lu seconds\n",
                   max_delay.tv_sec, max_delay.tv_usec);
         double latency_ms = convert_to_useconds(max_delay) / 1000.0;
+        double latency_seconds = latency_ms / 1000.0;
         Estimate& latency_estimate = net_estimates.estimates[NET_STATS_LATENCY];
         latency_estimate.add_observation(round_nearest(latency_ms));
         u_long new_latency_est;
         if (latency_estimate.get_estimate(new_latency_est)) {
 #ifndef CMM_UNIT_TESTING
-            chooser->reportNetStats(network_type, 0.0, 0.0, latency_ms/1000.0, new_latency_est);
+            chooser->reportNetStats(network_type, 0.0, 0.0, 
+                                    latency_seconds, new_latency_est / 1000.0);
 #endif
         }
+        if (latency_seconds_out) {
+            *latency_seconds_out = latency_seconds;
+        }
+        return true;
     }
+    return false;
 }
 
 void
