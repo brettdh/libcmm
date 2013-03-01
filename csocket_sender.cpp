@@ -337,6 +337,8 @@ CSocketSender::Run()
             //  the connecting side will do it
             PthreadScopedLock lock(&sk->scheduling_state_lock);
             sk->irob_indexes.add(csock->irob_indexes);
+            csock->stats.mark_irob_failures(sk->csock_map->get_network_chooser(), 
+                                            csock->network_type());
             sk->data_check_all_irobs(csock->local_iface.ip_addr.s_addr);
             if (sk->csock_map->empty()) {
                 // no more connections; kill the multisocket
@@ -362,6 +364,8 @@ CSocketSender::Run()
             } else {
                 sk->irob_indexes.add(csock->irob_indexes);
             }
+            csock->stats.mark_irob_failures(sk->csock_map->get_network_chooser(), 
+                                            csock->network_type());
             sk->data_check_all_irobs(csock->local_iface.ip_addr.s_addr);
         } else {
             // this connection is hosed, so make sure everything
