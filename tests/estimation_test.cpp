@@ -345,7 +345,8 @@ EstimationTest::testFailoverDelay()
     failover = stats->mark_irob_failures(NULL, 0, &failover_delay);
     CPPUNIT_ASSERT(failover);
     
-    MY_CPPUNIT_ASSERT_EQWITHIN_MESSAGE(expected_failover_delay, failover_delay, 0.1,
+    // returned value is latency (half-RTT)
+    MY_CPPUNIT_ASSERT_EQWITHIN_MESSAGE(expected_failover_delay, failover_delay * 2.0, 0.1,
                                        "Failover delay matches expected");
 
     
@@ -374,6 +375,7 @@ EstimationTest::testFailoverDelay()
     failover = stats->mark_irob_failures(NULL, 0, &failover_delay);
     CPPUNIT_ASSERT(failover);
     
-    MY_CPPUNIT_ASSERT_EQWITHIN_MESSAGE(expected_failover_delay, failover_delay, 0.1,
+    // returned value is latency (half-RTT)
+    MY_CPPUNIT_ASSERT_EQWITHIN_MESSAGE(expected_failover_delay, failover_delay * 2.0, 0.1,
                                        "Failover delay matches expected");
 }

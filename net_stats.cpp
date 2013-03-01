@@ -753,10 +753,11 @@ NetStats::mark_irob_failures(NetworkChooser *chooser, int network_type,
     
     if (failure) {
         dbgprintf("Marking IROBs failed: [ %s]\n", s.str().c_str());
-        dbgprintf("Adding max failover delay as latency: %lu.%06lu seconds\n",
-                  max_delay.tv_sec, max_delay.tv_usec);
-        double latency_ms = convert_to_useconds(max_delay) / 1000.0;
+        double latency_ms = convert_to_useconds(max_delay) / 1000.0 / 2.0;
         double latency_seconds = latency_ms / 1000.0;
+        dbgprintf("Adding max failover delay as latency: %.6f seconds\n",
+                  latency_seconds);
+        
         Estimate& latency_estimate = net_estimates.estimates[NET_STATS_LATENCY];
         latency_estimate.add_observation(round_nearest(latency_ms));
         u_long new_latency_est;
