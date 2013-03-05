@@ -2,13 +2,13 @@
 #include "intnw_instruments_net_stats_wrapper.h"
 #include "debug.h"
 
-InstrumentsWrappedNetStats::InstrumentsWrappedNetStats()
+InstrumentsWrappedNetStats::InstrumentsWrappedNetStats(const std::string& network)
     : first_update(true) 
 {
     dbgprintf("creating InstrumentsWrappedNetStats %p\n", this);
     
-    bw_up_estimator = create_external_estimator();
-    rtt_estimator = create_external_estimator();
+    bw_up_estimator = create_external_estimator((network + "-bandwidth").c_str());
+    rtt_estimator = create_external_estimator((network + "-RTT").c_str());
 }
 
 InstrumentsWrappedNetStats::~InstrumentsWrappedNetStats()

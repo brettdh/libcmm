@@ -1092,6 +1092,13 @@ NetStats::get_time(struct timeval& tv)
 }
 
 
+void
+NetStats::set_use_breadcrumbs_estimates(bool on)
+{
+    use_breadcrumbs_estimates = on;
+}
+
+
 IROBTransfersPerNetwork::IROBTransfersPerNetwork()
     : total_bytes(0)
 {

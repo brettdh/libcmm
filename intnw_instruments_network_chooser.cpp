@@ -117,8 +117,8 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
 {
     dbgprintf("creating InstrumentsNetworkChooser %p\n", this);
 
-    wifi_stats = new InstrumentsWrappedNetStats;
-    cellular_stats = new InstrumentsWrappedNetStats;
+    wifi_stats = new InstrumentsWrappedNetStats("wifi");
+    cellular_stats = new InstrumentsWrappedNetStats("cellular");
 
     for (int i = 0; i < NUM_STRATEGIES - 1; ++i) {
         strategy_args[i] = new struct strategy_args;
@@ -142,11 +142,19 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
     //EvalMethod method = EMPIRICAL_ERROR_BINNED;
 
     evaluator = register_strategy_set_with_method(strategies, NUM_STRATEGIES, method);
+
+    if (shouldLoadErrors()) {
+        restore_evaluator(evaluator, getLoadErrorsFilename().c_str());
+    }
 }
 
 IntNWInstrumentsNetworkChooser::~IntNWInstrumentsNetworkChooser()
 {
     dbgprintf("destroying InstrumentsNetworkChooser %p\n", this);
+
+    if (shouldSaveErrors()) {
+        save_evaluator(evaluator, getSaveErrorsFilename().c_str());
+    }
     
     delete wifi_stats;
     delete cellular_stats;
@@ -363,4 +371,43 @@ shouldTransmitRedundantly(PendingSenderIROB *psirob)
     dbgprintf("shouldTransmitRedundantly: Chosen network strategy: %s\n",
               strategy_names[chooser->chosen_strategy_type]);
     return (chooser->chosen_strategy_type == NETWORK_CHOICE_BOTH);
+}
+
+
+std::string IntNWInstrumentsNetworkChooser::load_errors_filename;
+std::string IntNWInstrumentsNetworkChooser::save_errors_filename;
+
+bool
+IntNWInstrumentsNetworkChooser::shouldLoadErrors()
+{
+    return !load_errors_filename.empty();
+}
+bool
+IntNWInstrumentsNetworkChooser::shouldSaveErrors()
+{
+    return !save_errors_filename.empty();
+}
+
+std::string
+IntNWInstrumentsNetworkChooser::getLoadErrorsFilename()
+{
+    return load_errors_filename;
+}
+
+std::string
+IntNWInstrumentsNetworkChooser::getSaveErrorsFilename()
+{
+    return save_errors_filename;
+}
+
+void
+IntNWInstrumentsNetworkChooser::setLoadErrorsFilename(const std::string& filename)
+{
+    load_errors_filename = filename;
+}
+
+void
+IntNWInstrumentsNetworkChooser::setSaveErrorsFilename(const std::string& filename)
+{
+    save_errors_filename = filename;
 }

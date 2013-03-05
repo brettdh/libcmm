@@ -6,11 +6,13 @@
 
 #include <instruments.h>
 
+#include <string>
+
 class WrappedNetStats;
 
 class InstrumentsWrappedNetStats {
   public:
-    InstrumentsWrappedNetStats();
+    InstrumentsWrappedNetStats(const std::string& network);
     ~InstrumentsWrappedNetStats();
 
     // add active measurement result to stats.

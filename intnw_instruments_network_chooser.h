@@ -51,6 +51,13 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
         IntNWInstrumentsNetworkChooser *chooser;
     };
 
+    static std::string getLoadErrorsFilename();
+    static std::string getSaveErrorsFilename();
+    static void setLoadErrorsFilename(const std::string& filename);
+    static void setSaveErrorsFilename(const std::string& filename);
+    static bool shouldLoadErrors();
+    static bool shouldSaveErrors();
+
   protected:
     virtual void setRedundancyStrategy();
     
@@ -104,6 +111,9 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
     friend double network_transfer_data_cost(instruments_context_t ctx,
                                              void *strategy_arg, 
                                              void *chooser_arg);
+
+    static std::string load_errors_filename;
+    static std::string save_errors_filename;
 };
 
 #endif /* _INTNW_INSTRUMENTS_NET_STATS_WRAPPER_H_ */

@@ -35,9 +35,23 @@ using std::auto_ptr;
 #include "thunks.h"
 #include "cmm_thread.h"
 
+#include "net_stats.h"
+
 #include "redundancy_strategy.h"
+#include "intnw_instruments_network_chooser.h"
 
 #define CONFIG_FILE "/etc/cmm_config"
+
+static bool has_param(const string& line, const string& name)
+{
+    return line.find(name) != string::npos;
+}
+
+static string get_param(const string& line, const string& name)
+{
+    assert(has_param(line, name));
+    return line.substr(name.length() + 1);
+}
 
 static void libcmm_init(void) __attribute__((constructor));
 static void libcmm_init(void)
@@ -50,17 +64,26 @@ static void libcmm_init(void)
     if (config_input) {
         string line;
         while (getline(config_input, line)) {
-            size_t pos;
 #ifdef CMM_DEBUG
-            pos = line.find("debug");
-            if (pos != string::npos) {
+            if (has_param(line, "debug")) {
                 set_debugging(true);
             }
 #endif
-            pos = line.find("use_breadcrumbs_estimates");
-            if (pos != string::npos) {
-                // TODO: set a flag that lets wifi stats be used.
-                
+            if (line.empty() || line[0] == '#') {
+                continue;
+            }
+            
+            if (has_param(line, "use_breadcrumbs_estimates")) {
+                NetStats::set_use_breadcrumbs_estimates(true);
+            }
+            
+            if (has_param(line, "save_estimator_errors")) {
+                string filename = get_param(line, "save_estimator_errors");
+                IntNWInstrumentsNetworkChooser::setSaveErrorsFilename(filename);
+            }
+            if (has_param(line, "load_estimator_errors")) {
+                string filename = get_param(line, "load_estimator_errors");
+                IntNWInstrumentsNetworkChooser::setLoadErrorsFilename(filename);
             }
         }
         config_input.close();
