@@ -67,6 +67,7 @@ static void libcmm_init(void)
 #ifdef CMM_DEBUG
             if (has_param(line, "debug")) {
                 set_debugging(true);
+                dbgprintf("Debugging output on\n");
             }
 #endif
             if (line.empty() || line[0] == '#') {
@@ -74,15 +75,20 @@ static void libcmm_init(void)
             }
             
             if (has_param(line, "use_breadcrumbs_estimates")) {
+                dbgprintf("Using breadcrumbs estimates\n");
                 NetStats::set_use_breadcrumbs_estimates(true);
             }
             
             if (has_param(line, "save_estimator_errors")) {
                 string filename = get_param(line, "save_estimator_errors");
+
+                dbgprintf("Will save error distribution to %s\n", filename.c_str());
                 IntNWInstrumentsNetworkChooser::setSaveErrorsFilename(filename);
             }
             if (has_param(line, "load_estimator_errors")) {
                 string filename = get_param(line, "load_estimator_errors");
+
+                dbgprintf("Will load error distribution from %s\n", filename.c_str());
                 IntNWInstrumentsNetworkChooser::setLoadErrorsFilename(filename);
             }
         }
