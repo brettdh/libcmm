@@ -38,6 +38,8 @@ class NetworkChooserImpl {
     bool shouldTransmitRedundantly(PendingSenderIROB *psirob);
     virtual void setRedundancyStrategy();
 
+    virtual void saveToFile() {}
+
     virtual ~NetworkChooserImpl() {}
   protected:
     NetworkChooserImpl();

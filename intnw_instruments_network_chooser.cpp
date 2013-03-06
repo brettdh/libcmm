@@ -7,7 +7,9 @@
 
 #include <functional>
 #include <sstream>
+#include <string>
 using std::max; using std::ostringstream;
+using std::string;
 
 #include <instruments_private.h>
 #include <resource_weights.h>
@@ -151,10 +153,6 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
 IntNWInstrumentsNetworkChooser::~IntNWInstrumentsNetworkChooser()
 {
     dbgprintf("destroying InstrumentsNetworkChooser %p\n", this);
-
-    if (shouldSaveErrors()) {
-        save_evaluator(evaluator, getSaveErrorsFilename().c_str());
-    }
     
     delete wifi_stats;
     delete cellular_stats;
@@ -410,4 +408,15 @@ void
 IntNWInstrumentsNetworkChooser::setSaveErrorsFilename(const std::string& filename)
 {
     save_errors_filename = filename;
+}
+
+void
+IntNWInstrumentsNetworkChooser::saveToFile()
+{
+    if (shouldSaveErrors()) {
+        string filename = getSaveErrorsFilename();
+        dbgprintf("Saving IntNWInstrumentsNetworkChooser %p to %s\n",
+                  this, filename.c_str());
+        save_evaluator(evaluator, filename.c_str());
+    }
 }

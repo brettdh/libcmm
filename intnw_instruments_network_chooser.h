@@ -51,6 +51,10 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
         IntNWInstrumentsNetworkChooser *chooser;
     };
 
+    // saves this chooser's distributions to the file
+    //  specified by /etc/cmm_config (if specified)
+    void saveToFile();
+
     static std::string getLoadErrorsFilename();
     static std::string getSaveErrorsFilename();
     static void setLoadErrorsFilename(const std::string& filename);

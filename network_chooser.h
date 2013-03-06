@@ -62,6 +62,8 @@ class NetworkChooser {
 
     bool shouldTransmitRedundantly(PendingSenderIROB *psirob);
 
+    void saveToFile();
+
     ~NetworkChooser();
   private:
     friend class NetworkChooserGuard;

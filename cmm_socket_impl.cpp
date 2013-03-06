@@ -9,6 +9,7 @@
 #include "libcmm.h"
 #include "libcmm_ipc.h"
 #include "libcmm_net_restriction.h"
+#include "network_chooser.h"
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -456,6 +457,9 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
             sk->goodbye(false);
             shutdown(sk->select_pipe[0], SHUT_RDWR);
             shutdown(sk->select_pipe[1], SHUT_RDWR);
+
+            NetworkChooser *chooser = sk->csock_map->get_network_chooser();
+            chooser->saveToFile();
         }
 
         pthread_mutex_lock(&hashmaps_mutex);

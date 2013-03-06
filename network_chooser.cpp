@@ -131,3 +131,11 @@ NetworkChooser::shouldTransmitRedundantly(PendingSenderIROB *psirob)
     bool redundant = impl->shouldTransmitRedundantly(psirob);
     return redundant;
 }
+
+
+void
+NetworkChooser::saveToFile()
+{
+    PthreadScopedLock guard(&lock);
+    impl->saveToFile();
+}
