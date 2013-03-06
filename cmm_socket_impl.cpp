@@ -457,9 +457,6 @@ CMMSocketImpl::mc_close(mc_socket_t sock)
             sk->goodbye(false);
             shutdown(sk->select_pipe[0], SHUT_RDWR);
             shutdown(sk->select_pipe[1], SHUT_RDWR);
-
-            NetworkChooser *chooser = sk->csock_map->get_network_chooser();
-            chooser->saveToFile();
         }
 
         pthread_mutex_lock(&hashmaps_mutex);
@@ -2282,6 +2279,7 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
     }
 
     rc = send_default_irob(pirob, csock);
+    assert((size_t) rc == len);
     
     TIME(end);
     TIMEDIFF(begin, end, diff);
@@ -2324,6 +2322,7 @@ CMMSocketImpl::default_irob_writev(irob_id_t next_irob,
 
     dbgprintf("Calling send_default_irob with %d bytes\n", (int)total_bytes);
     rc = send_default_irob(pirob, csock);
+    assert(rc == total_bytes);
 
     TIME(end);
     TIMEDIFF(begin, end, diff);
@@ -2358,23 +2357,21 @@ CMMSocketImpl::validate_default_irob(PendingSenderIROB *psirob,
 int
 CMMSocketImpl::send_default_irob(PendingSenderIROB *psirob, CSocket *csock)
 {
-    {
-        PthreadScopedLock lock(&scheduling_state_lock);
-        bool success = outgoing_irobs.insert(psirob);
-        ASSERT(success);
+    PthreadScopedLock lock(&scheduling_state_lock);
+    bool success = outgoing_irobs.insert(psirob);
+    ASSERT(success);
 
-        irob_id_t id = psirob->get_id();
-        u_long send_labels = psirob->get_send_labels();
+    irob_id_t id = psirob->get_id();
+    u_long send_labels = psirob->get_send_labels();
 
-        if (csock->is_connected()) {
-            csock->irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
-        } else {
-            irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
-        }
-        // the CSocketSender will insert the chunk and end_irob
-
-        pthread_cond_broadcast(&scheduling_state_cv);
+    if (csock->is_connected()) {
+        csock->irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
+    } else {
+        irob_indexes.new_irobs.insert(IROBSchedulingData(id, false, send_labels));
     }
+    // the CSocketSender will insert the chunk and end_irob
+
+    pthread_cond_broadcast(&scheduling_state_cv);
     
     return psirob->expected_bytes();
 }
@@ -2557,6 +2554,10 @@ CMMSocketImpl::goodbye(bool remote_initiated)
         pthread_cond_broadcast(&scheduling_state_cv);
         return;
     }
+
+
+    NetworkChooser *chooser = csock_map->get_network_chooser();
+    chooser->saveToFile();
 
     shutting_down = true; // picked up by sender-scheduler
     if (remote_initiated) {
