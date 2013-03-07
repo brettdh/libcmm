@@ -212,7 +212,7 @@ ConnBootstrapper::restart(struct net_interface down_iface,
                          (struct sockaddr*)&addr, &addrlen);
     if (rc == 0 && addr.sin_addr.s_addr == down_iface.ip_addr.s_addr) {
         dbgprintf("Restarting bootstrapper (previously on %s)\n",
-                  inet_ntoa(addr.sin_addr));
+                  StringifyIP(&addr.sin_addr).c_str());
         retry = true;
         shutdown(bootstrap_sock, SHUT_RDWR);
     }

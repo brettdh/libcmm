@@ -44,8 +44,18 @@ int get_unsent_bytes(int sock)
 #endif
 }
 
-void get_ip_string(struct in_addr ip_addr, char *ip_string)
+void get_ip_string(const struct in_addr *ip_addr, char *ip_string)
 {
-    char *tmpstr = inet_ntoa(ip_addr);
-    strcpy(ip_string, tmpstr);
+    inet_ntop(AF_INET, ip_addr, ip_string, INET_ADDRSTRLEN);
+}
+
+StringifyIP::StringifyIP(const struct in_addr *addr)
+{
+    get_ip_string(addr, buffer);
+}
+
+const char *
+StringifyIP::c_str() const
+{
+    return buffer;
 }

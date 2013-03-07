@@ -261,7 +261,7 @@ CSockMapping::teardown(struct net_interface iface, bool local)
         victim->stats.mark_irob_failures(network_chooser, victim->network_type());
 
         dbgprintf("Tearing down CSocket %d (%s interface %s is gone\n",
-                  victim->osfd, local ? "local" : "remote", inet_ntoa(iface.ip_addr));
+                  victim->osfd, local ? "local" : "remote", StringifyIP(&iface.ip_addr).c_str());
         shutdown(victim->osfd, SHUT_RDWR); /* tells the sender/receiver threads to exit */
     }
 }
@@ -538,11 +538,10 @@ CSockMapping::get_iface_pair_locked_internal(u_long send_label,
             if (!existing_csock || count() == 1) {
                 guarded_chooser->consider(*i, *j);
             } else {
-                char local_ip[16], remote_ip[16];
-                get_ip_string(i->ip_addr, local_ip);
-                get_ip_string(j->ip_addr, remote_ip);
+                StringifyIP local_ip(&i->ip_addr);
+                StringifyIP remote_ip(&j->ip_addr);
                 dbgprintf("Not considering (%s -> %s) for labels %d; csock is troubled\n",
-                          local_ip, remote_ip, (int) send_label);
+                          local_ip.c_str(), remote_ip.c_str(), (int) send_label);
             }
         }
     }
@@ -791,8 +790,8 @@ CSockMapping::add_connection(int sock,
                              struct net_interface remote_iface)
 {
     dbgprintf("Adding new connection on %s ",
-              inet_ntoa(local_addr));
-    dbgprintf_plain("from %s\n", inet_ntoa(remote_iface.ip_addr));
+              StringifyIP(&local_addr).c_str());
+    dbgprintf_plain("from %s\n", StringifyIP(&remote_iface.ip_addr).c_str());
     struct net_interface local_iface;
     if (!get_local_iface_by_addr(local_addr, local_iface)) {
         /* XXX: not true! Our fake scout doesn't really simulate

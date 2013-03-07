@@ -19,6 +19,7 @@ typedef int gint;
 #endif
 
 #include "debug.h"
+#include "common.h"
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -65,8 +66,8 @@ struct iface_pair {
     }
 
     void print() {
-        dbgprintf_plain("(%s", inet_ntoa(local_iface));
-        dbgprintf_plain(", %s)", inet_ntoa(remote_iface));
+        dbgprintf_plain("(%s", StringifyIP(&local_iface).c_str());
+        dbgprintf_plain(", %s)", StringifyIP(&remote_iface).c_str());
     }
 };
 

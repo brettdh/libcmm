@@ -117,14 +117,14 @@ bool CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
             }
         } else {
             dbgprintf("I'm the connecting side, so I'm ignoring remote listener %s\n",
-                      inet_ntoa(new_listener.ip_addr));
+                      StringifyIP(&new_listener.ip_addr).c_str());
             
             struct sockaddr_in addr;
             memset(&addr, 0, sizeof(addr));
             socklen_t addrlen = sizeof(addr);
             if (getpeername(bootstrap_sock, (struct sockaddr *)&addr, &addrlen) == 0) {
                 dbgprintf("(Sticking with %s, from cmm_connect()\n",
-                          inet_ntoa(addr.sin_addr));
+                          StringifyIP(&addr.sin_addr).c_str());
             }
 
             // TODO: fill in the iface type from the remote listener if it matches
@@ -134,7 +134,7 @@ bool CMMSocketImpl::recv_remote_listener(int bootstrap_sock)
     }
     dbgprintf("Got new remote interface %s, "
               "bandwidth_down %lu bytes/sec bandwidth_up %lu bytes/sec RTT %lu ms\n",
-              inet_ntoa(new_listener.ip_addr),
+              StringifyIP(&new_listener.ip_addr).c_str(),
               new_listener.bandwidth_down, new_listener.bandwidth_up, new_listener.RTT);
     return false;
 }
@@ -207,7 +207,7 @@ void CMMSocketImpl::send_local_listener(int bootstrap_sock,
     hdr.op.new_interface.RTT = htonl(iface.RTT);
     hdr.op.new_interface.type = htonl(iface.type);
     dbgprintf("Sending local interface info: %s\n",
-              inet_ntoa(iface.ip_addr));
+              StringifyIP(&iface.ip_addr).c_str());
     int rc = send(bootstrap_sock, &hdr, sizeof(hdr), 0);
     if (rc != sizeof(hdr)) {
         perror("send");
@@ -1323,7 +1323,7 @@ CMMSocketImpl::interface_up(struct net_interface up_iface)
             struct timeval now;
             TIME(now);
             fprintf(timing_file, "%lu.%06lu  Bringing up %s, bw_down %lu bw_up %lu rtt %lu\n",
-                    now.tv_sec, now.tv_usec, inet_ntoa(up_iface.ip_addr),
+                    now.tv_sec, now.tv_usec, StringifyIP(&up_iface.ip_addr).c_str(),
                     up_iface.bandwidth_down, up_iface.bandwidth_up, up_iface.RTT);
         }
     }
@@ -1331,7 +1331,7 @@ CMMSocketImpl::interface_up(struct net_interface up_iface)
 
     pthread_mutex_lock(&hashmaps_mutex);
 
-    dbgprintf("Bringing up %s\n", inet_ntoa(up_iface.ip_addr));
+    dbgprintf("Bringing up %s\n", StringifyIP(&up_iface.ip_addr).c_str());
     
     ifaces.insert(up_iface);
 
@@ -1355,14 +1355,14 @@ CMMSocketImpl::interface_down(struct net_interface down_iface)
             struct timeval now;
             TIME(now);
             fprintf(timing_file, "%lu.%06lu  Bringing down %s\n",
-                    now.tv_sec, now.tv_usec, inet_ntoa(down_iface.ip_addr));
+                    now.tv_sec, now.tv_usec, StringifyIP(&down_iface.ip_addr).c_str());
         }
     }
 #endif
 
     pthread_mutex_lock(&hashmaps_mutex);
 
-    dbgprintf("Bringing down %s\n", inet_ntoa(down_iface.ip_addr));
+    dbgprintf("Bringing down %s\n", StringifyIP(&down_iface.ip_addr).c_str());
     ifaces.erase(down_iface);
 
     /* put down the sockets connected on now-unavailable networks. */
@@ -1435,7 +1435,7 @@ CMMSocketImpl::mc_accept(int listener_sock,
     ac.release();
 
     dbgprintf("mc_accept: Accepting connection from %s\n",
-              inet_ntoa(ip_sockaddr.sin_addr));
+              StringifyIP(&ip_sockaddr.sin_addr).c_str());
     if (addr) {
         memcpy(addr, &ip_sockaddr, len);
     }
@@ -1804,7 +1804,7 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
     }
 
     dbgprintf("Tearing down all connections on %s interface %s\n",
-              local ? "local" : "remote", inet_ntoa(iface.ip_addr));
+              local ? "local" : "remote", StringifyIP(&iface.ip_addr).c_str());
 
     // Restart bootstrapper if it's using this interface
     //  (and if it's still running)

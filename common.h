@@ -12,6 +12,8 @@
 #include <fcntl.h>
 #include <string.h>
 
+#include <arpa/inet.h>
+
 #ifdef ANDROID
 typedef uint16_t in_port_t;
 #endif
@@ -85,6 +87,14 @@ int get_unsent_bytes(int sock);
 
 // ip_string must point to a buffer of at least 16 chars
 //   (enough to hold an IPv4 a.b.c.d addr, plus NUL)
-void get_ip_string(struct in_addr ip_addr, char *ip_string);
+void get_ip_string(const struct in_addr *ip_addr, char *ip_string);
+
+class StringifyIP {
+  public:
+    StringifyIP(const struct in_addr *addr);
+    const char *c_str() const;
+  private:
+    char buffer[INET_ADDRSTRLEN + 1];
+};
 
 #endif

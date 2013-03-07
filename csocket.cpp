@@ -194,13 +194,13 @@ CSocket::phys_connect()
         if (rc < 0) {
             oserr = errno;
             dbgprintf("Failed to bind osfd %d to %s:%d (%s)\n",
-                      osfd, inet_ntoa(local_addr.sin_addr), 
+                      osfd, StringifyIP(&local_addr.sin_addr).c_str(), 
                       ntohs(local_addr.sin_port), strerror(oserr));
             close(osfd);
             throw -1;
         }
         dbgprintf("Successfully bound osfd %d to %s:%d\n",
-                  osfd, inet_ntoa(local_addr.sin_addr), 
+                  osfd, StringifyIP(&local_addr.sin_addr).c_str(), 
                   ntohs(local_addr.sin_port));
     
         rc = connect(osfd, (struct sockaddr *)&remote_addr, 
@@ -208,14 +208,14 @@ CSocket::phys_connect()
         if (rc < 0) {
             oserr = errno;
             dbgprintf("Failed to connect osfd %d to %s:%d (%s)\n",
-                      osfd, inet_ntoa(remote_addr.sin_addr), 
+                      osfd, StringifyIP(&remote_addr.sin_addr).c_str(), 
                       ntohs(remote_addr.sin_port), strerror(oserr));
             close(osfd);
             throw -1;
         }
 
         dbgprintf("Successfully connected osfd %d to %s:%d\n",
-                  osfd, inet_ntoa(remote_addr.sin_addr), 
+                  osfd, StringifyIP(&remote_addr.sin_addr).c_str(), 
                   ntohs(remote_addr.sin_port));
 
         update_last_app_data_sent();
@@ -400,11 +400,10 @@ bool CSocket::data_inflight()
                   strerror(errno));
         return false;
     }
-    char local_ip[16], remote_ip[16];
-    get_ip_string(local_iface.ip_addr, local_ip);
-    get_ip_string(remote_iface.ip_addr, remote_ip);
+    StringifyIP local_ip(&local_iface.ip_addr);
+    StringifyIP remote_ip(&remote_iface.ip_addr);
     dbgprintf("data_inflight: csock %d (%s -> %s): unacked: %d pkts\n", 
-              osfd, local_ip, remote_ip, info.tcpi_unacked);
+              osfd, local_ip.c_str(), remote_ip.c_str(), info.tcpi_unacked);
     return (info.tcpi_unacked > 0);
 }
 
@@ -488,13 +487,12 @@ bool CSocket::is_in_trouble()
          ((int)info.tcpi_last_ack_recv) > 0 && /* workaround for possible kernel bug */
          info.tcpi_last_ack_recv > trouble_timeout_ms);
 
-    char local_ip[16], remote_ip[16];
-    get_ip_string(local_iface.ip_addr, local_ip);
-    get_ip_string(remote_iface.ip_addr, remote_ip);
+    StringifyIP local_ip(&local_iface.ip_addr);
+    StringifyIP remote_ip(&remote_iface.ip_addr);
     dbgprintf("is_in_trouble: csock %d  (%s -> %s)"
               "unacked: %d pkts  last_data_sent: %d ms ago  "
               "last_ack: %d ms ago  trouble_timeout: %d ms  trouble: %s\n",
-              osfd, local_ip, remote_ip, info.tcpi_unacked, last_data_sent_ms, 
+              osfd, local_ip.c_str(), remote_ip.c_str(), info.tcpi_unacked, last_data_sent_ms, 
               info.tcpi_last_ack_recv, trouble_timeout_ms, trouble ? "yes" : "no");
     return trouble;
 }

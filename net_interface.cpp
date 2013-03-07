@@ -38,11 +38,10 @@ bool network_fits_restriction(u_long labels,
         return true;
     }
 
-    char local_ip[16], remote_ip[16];
-    get_ip_string(local_iface.ip_addr, local_ip);
-    get_ip_string(remote_iface.ip_addr, remote_ip);
+    StringifyIP local_ip(&local_iface.ip_addr);
+    StringifyIP remote_ip(&remote_iface.ip_addr);
     dbgprintf("Checking whether iface pair (%s -> %s) (%s (%d) -> %s (%d)) fits restrictions: %s\n",
-              local_ip, remote_ip, 
+              local_ip.c_str(), remote_ip.c_str(), 
               net_type_name(local_iface.type), local_iface.type,
               net_type_name(remote_iface.type), remote_iface.type,
               describe_network_restrictions(labels).c_str());
@@ -59,7 +58,7 @@ bool network_fits_restriction(u_long labels,
         }
         if (!matches_type(type, local_iface, remote_iface)) {
             dbgprintf("iface pair (%s -> %s) (%s (%d) -> %s (%d)) doesn't fit type %s\n",
-                      local_ip, remote_ip, 
+                      local_ip.c_str(), remote_ip.c_str(), 
                       net_type_name(local_iface.type), local_iface.type,
                       net_type_name(remote_iface.type), remote_iface.type,
                       net_type_name(type));

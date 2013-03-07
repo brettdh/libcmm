@@ -163,7 +163,7 @@ void process_interface_update(struct net_interface iface, bool down)
 {
     dbgprintf("Got update from scout: %s is %s, bandwidth_down %lu bandwidth_up %lu bytes/sec "
               "RTT %lu ms type %s\n",
-              inet_ntoa(iface.ip_addr), down?"down":"up",
+              StringifyIP(&iface.ip_addr).c_str(), down?"down":"up",
               iface.bandwidth_down, iface.bandwidth_up, iface.RTT,
               net_type_name(iface.type));
 

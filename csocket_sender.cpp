@@ -80,10 +80,9 @@ int CSocketSender::TroubleChecker::operator()(CSocketPtr csock)
                 csock->last_trouble_check = now;
                 troubled_ifaces.push_back(csock->local_iface);
 
-                char local_ip[16], remote_ip[16];
-                get_ip_string(csock->local_iface.ip_addr, local_ip);
-                get_ip_string(csock->remote_iface.ip_addr, remote_ip);
-                dbgprintf("Network (%s -> %s) is in trouble\n", local_ip, remote_ip);
+                StringifyIP local_ip(&csock->local_iface.ip_addr);
+                StringifyIP remote_ip(&csock->remote_iface.ip_addr);
+                dbgprintf("Network (%s -> %s) is in trouble\n", local_ip.c_str(), remote_ip.c_str());
             }
         }
     }
@@ -198,11 +197,10 @@ CSocketSender::Run()
                 // TODO-REDUNDANCY: replace with generic "should_be_redundant()"
                 csock->is_in_trouble()) {
 
-                char local_ip[16], remote_ip[16];
-                get_ip_string(csock->local_iface.ip_addr, local_ip);
-                get_ip_string(csock->remote_iface.ip_addr, remote_ip);
+                StringifyIP local_ip(&csock->local_iface.ip_addr);
+                StringifyIP remote_ip(&csock->remote_iface.ip_addr);
                 dbgprintf("Network (%s -> %s) is in trouble; asking other senders to help\n",
-                          local_ip, remote_ip);
+                          local_ip.c_str(), remote_ip.c_str());
 
                 // pass off my scheduling data while I'm troubled.
                 if (csock->irob_indexes.size() > 0) {
@@ -665,12 +663,11 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
         }
         return true;
     } else {
-        char local_ip[16], remote_ip[16];
-        get_ip_string(csock->local_iface.ip_addr, local_ip);
-        get_ip_string(csock->remote_iface.ip_addr, remote_ip);
+        StringifyIP local_ip(&csock->local_iface.ip_addr);
+        StringifyIP remote_ip(&csock->remote_iface.ip_addr);
         dbgprintf("Deciding to send %s for IROB %d on socket %d (%s -> %s)\n",
                   data.chunks_ready ? "data" : "metadata", (int) id,
-                  csock->osfd, local_ip, remote_ip);
+                  csock->osfd, local_ip.c_str(), remote_ip.c_str());
         if (match != csock && match->is_connected()) {
             bool ret = true;
             // pass this task to the right thread
@@ -1137,9 +1134,9 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
             fprintf(timing_file, "%lu.%06lu CSocketSender: IROB %ld about to send %d bytes with label %lu %s ",
                     now.tv_sec, now.tv_usec, id,
                     (int)(sizeof(hdr) + chunksize), data.send_labels,
-                    inet_ntoa(csock->local_iface.ip_addr));
+                    StringifyIP(&csock->local_iface.ip_addr).c_str());
             fprintf(timing_file, "=> %s est bw %lu rtt %lu tcpi_rtt %f\n",
-                    inet_ntoa(csock->remote_iface.ip_addr),
+                    StringifyIP(&csock->remote_iface.ip_addr).c_str(),
                     csock->bandwidth(), (u_long)csock->RTT(),
                     info.tcpi_rtt / 1000000.0);
         }

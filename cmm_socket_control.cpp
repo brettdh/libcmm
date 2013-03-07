@@ -141,14 +141,14 @@ CMMSocketControlHdr::describe() const
         stream << "datalen: " << ntohl(op.irob_chunk.datalen);
         break;
     case CMM_CONTROL_MSG_NEW_INTERFACE:
-        stream << "IP: " << inet_ntoa(op.new_interface.ip_addr) << " ";
+        stream << "IP: " << StringifyIP(&op.new_interface.ip_addr).c_str() << " ";
         stream << "bandwidth_down: " << ntohl(op.new_interface.bandwidth_down) << " bytes/sec, ";
         stream << "bandwidth_up: " << ntohl(op.new_interface.bandwidth_up) << " bytes/sec, ";
         stream << "RTT: " << ntohl(op.new_interface.RTT) << " ms, ";
         stream << "type: " << ntohl(op.new_interface.type);
         break;
     case CMM_CONTROL_MSG_DOWN_INTERFACE:
-        stream << "IP: " << inet_ntoa(op.down_interface.ip_addr);        
+        stream << "IP: " << StringifyIP(&op.down_interface.ip_addr).c_str();        
         break;
     case CMM_CONTROL_MSG_ACK:
         stream << "num_acks: " << ntohl(op.ack.num_acks) << " ";

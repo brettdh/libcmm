@@ -103,12 +103,11 @@ NetworkChooserGuard::choose_networks(u_long send_label, size_t num_bytes,
     bool result = chooser->impl->choose_networks(send_label, num_bytes,
                                                  local_iface, remote_iface);
 
-    char local_ip[16], remote_ip[16];
-    get_ip_string(local_iface.ip_addr, local_ip);
-    get_ip_string(remote_iface.ip_addr, remote_ip);
+    StringifyIP local_ip(&local_iface.ip_addr);
+    StringifyIP remote_ip(&remote_iface.ip_addr);
 
     dbgprintf("Decided to send %d bytes over connection %s -> %s\n",
-              num_bytes, local_ip, remote_ip);
+              num_bytes, local_ip.c_str(), remote_ip.c_str());
     return result;
 }
     
