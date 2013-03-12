@@ -620,7 +620,7 @@ class IntNWBehaviorPlot(QDialog):
 
             for network_type, what_to_plot in network_metric_pairs():
                 key = getTraceKey(network_type, what_to_plot)
-                if network_type in last_estimates:
+                if False: #network_type in last_estimates:
                     last_estimate_time = \
                         window.getAdjustedTime(last_estimates[network_type])
                 else:
