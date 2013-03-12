@@ -143,6 +143,11 @@ def shift_right_by_one(l):
         l = [l[0]] + l[:-1]
     return l
 
+def init_dict(my_dict, key, init_value):
+    if key not in my_dict:
+        my_dict[key] = init_value
+
+
 RELATIVE_ERROR = True
 
 def absolute_error(prev_estimate, cur_observation):
@@ -168,8 +173,7 @@ def error_adjusted_estimate(estimate, error):
 
 def get_error_values(observations, estimated_values):
     shifted_estimates = shift_right_by_one(estimated_values)
-    for error in [error_value(est, obs) for obs, est in zip(observations, shifted_estimates)]:
-        yield error
+    return [error_value(est, obs) for obs, est in zip(observations, shifted_estimates)]
 
 def get_value_at(timestamps, values, time):
     '''Assuming zip(timestamps, values) is a list of periods
@@ -295,7 +299,8 @@ class IntNWBehaviorPlot(QDialog):
     CONFIDENCE_ALPHA = 0.10
     
     def __init__(self, run, start, measurements_only, network_trace_file,
-                 cross_country_latency, is_server, parent=None):
+                 cross_country_latency, error_history, 
+                 is_server, parent=None):
         QDialog.__init__(self, parent)
 
         self.__initRegexps()
@@ -305,6 +310,7 @@ class IntNWBehaviorPlot(QDialog):
         self.__network_type_by_ip = {}
         self.__network_type_by_sock = {}
         self.__placeholder_sockets = {} # for when connection begins before scout msg
+        self.__error_history = error_history
         self.__is_server = is_server
 
         self.__measurements_only = measurements_only
@@ -341,8 +347,9 @@ class IntNWBehaviorPlot(QDialog):
         self.__start = start
 
         # TODO: infer plot title from file path
-        self.__title = "IntNW %s - Run %d" % ("server-side" if self.__is_server else "client-side",
-                                              self.__run)
+        client_or_server = "server-side" if self.__is_server else "client-side"
+        self.__title = ("IntNW %s - Run %d" % 
+                        (client_or_server, self.__run))
 
         self.create_main_frame()
 
@@ -551,7 +558,7 @@ class IntNWBehaviorPlot(QDialog):
             cur_times, observations, estimated_values = \
                 self.__getAllEstimates(network_type, metric)
             shifted_estimates = shift_right_by_one(estimated_values)
-            error_values = list(get_error_values(observations, estimated_values))
+            error_values = get_error_values(observations, estimated_values)
 
             for values in zip(cur_times, observations, 
                               shifted_estimates, estimated_values, error_values):
@@ -767,17 +774,18 @@ class IntNWBehaviorPlot(QDialog):
         checks = {'wifi': self.__show_wifi, '3G': self.__show_threeg}
 
         rel_times = {}
-        network_errors = {}
+        network_errors = self.__error_history.getAllErrors()
+
         for network_type, metric in network_metric_pairs():
-            if network_type not in network_errors:
-                rel_times[network_type] = {}
-                network_errors[network_type] = {}
+            init_dict(rel_times, network_type, {})
+            init_dict(network_errors, network_type, {})
+            init_dict(network_errors[network_type], metric, [])
 
             cur_times, observations, estimated_values = \
                 self.__getAllEstimates(network_type, metric)
             rel_times[network_type][metric] = cur_times
-            network_errors[network_type][metric] = \
-                list(get_error_values(observations, estimated_values))
+            network_errors[network_type][metric].extend(
+                get_error_values(observations, estimated_values))
 
         def get_errors(network_type, tx_start):
             errors = {}
@@ -786,7 +794,9 @@ class IntNWBehaviorPlot(QDialog):
                 cur_errors = network_errors[network_type][metric]
                 
                 pos = bisect_right(cur_times, tx_start)
-                errors[metric] = cur_errors[:pos]
+                offset = len(cur_errors) - len(cur_times)
+                assert offset >= 0
+                errors[metric] = cur_errors[:offset+pos]
 
             return errors
 
@@ -837,7 +847,7 @@ class IntNWBehaviorPlot(QDialog):
                     if tx_time < 0.0 or tx_time > 500:
                         debug_trace()
                     transfer_times_with_error.append(tx_time)
-
+                
                 transfer_time_errors = [error_value(est_tx_time, tx_time) for tx_time in 
                                         transfer_times_with_error]
                 transfer_time_error_means = stepwise_mean(transfer_time_errors)
@@ -913,7 +923,10 @@ class IntNWBehaviorPlot(QDialog):
                 self.__getAllEstimates(network_type, what_to_plot)
 
             if self.__show_measurements.isChecked() and len(observations) > 0:
-                error_values = list(get_error_values(observations, estimated_values))
+                error_history = \
+                    self.__error_history.getErrors(network_type, what_to_plot)
+                error_values = error_history + get_error_values(observations, estimated_values)
+                
                 error_means = stepwise_mean(error_values)
 
                 error_calculator = self.__getErrorCalculator()
@@ -921,8 +934,9 @@ class IntNWBehaviorPlot(QDialog):
 
                 error_bounds = error_calculator(estimated_values, error_values, error_means)
                 estimates_array = np.array(estimated_values)
+                error_means_array = np.array(error_means[-len(estimated_values):]) # tail of array
                 error_adjusted_estimates = error_adjusted_estimate(
-                    estimates_array, np.array(error_means))
+                    estimates_array, error_means_array)
 
                 plotter(times, estimated_values, error_adjusted_estimates, 
                         error_bounds, network_type)
@@ -931,6 +945,19 @@ class IntNWBehaviorPlot(QDialog):
                 self.__plotObservations(times, observations, network_type)
 
     def __getErrorCalculator(self):
+        '''Return a function that calculates upper and lower error bounds
+        based on three arrays: estimates, error_values, and error_means.
+        
+        estimates: value of estimator at different points in time
+        error_values: samples of the estimator error, as measured by comparing
+                      a new measured value to the previous estimate
+                      (treating it as a prediction)
+        error_means: the stepwise mean of the error values
+
+        error_values and error_means must have the same length.
+        if (M = len(estimates)) < (N = len(error_values)), the first (N-M) elements 
+        of estimates are treated as *history* - not plotted, but used in the
+        error interval calculations.'''
         if self.__error_error_ci.isChecked():
             return self.__getConfidenceInterval
         elif self.__error_error_stddev.isChecked():
@@ -955,14 +982,24 @@ class IntNWBehaviorPlot(QDialog):
             [confidence_interval(self.__alpha, stddev, max(n+1, 2)) 
              for n, stddev in enumerate(error_stddevs)][1:]
 
-        estimates = np.array(estimated_values)
-        means = np.array(error_means)
-        intervals = np.array(error_confidence_intervals)
-
-        return self.__error_range(estimates, means, intervals, intervals)
+        return self.__error_range(estimated_values, error_means, 
+                                  error_confidence_intervals, 
+                                  error_confidence_intervals)
 
     def __error_range(self, estimates, error_means, 
                       lower_error_intervals, upper_error_intervals):
+        num_estimates = len(estimates)
+        estimates = np.array(estimates)
+
+        # use the last num_estimates items in each of these arrays.
+        # if they have the same size, we'll use all of them.
+        # if len(error_means) > len(estimated_values), 
+        #   we'll use the later error values, treating the rest as history.
+        assert len(estimates) <= len(error_means)
+        error_means = np.array(error_means[-num_estimates:])
+        lower_error_intervals = np.array(lower_error_intervals[-num_estimates:])
+        upper_error_intervals = np.array(upper_error_intervals[-num_estimates:])
+
         lower_errors = error_means - lower_error_intervals
         upper_errors = error_means + upper_error_intervals
 
@@ -975,11 +1012,8 @@ class IntNWBehaviorPlot(QDialog):
         error_variances = stepwise_variance(error_values)
         error_stddevs = [v ** 0.5 for v in error_variances]
 
-        estimates = np.array(estimated_values)
-        means = np.array(error_means)
-        stddevs = np.array(error_stddevs)
-
-        return self.__error_range(estimates, means, stddevs, stddevs)
+        return self.__error_range(estimated_values, error_means, 
+                                  error_stddevs, error_stddevs)
 
     def __plotEstimates(self, times, estimated_values, network_type):
         self.__axes.plot(times, estimated_values,
@@ -996,10 +1030,6 @@ class IntNWBehaviorPlot(QDialog):
 
     def __plotMeasurementErrorBars(self, times, estimated_values,
                                    error_adjusted_estimates, error_bounds, network_type):
-        # A positive error is an overestimate.
-        #    e.g. the latency was 30ms but I thought it was 100ms.
-        #    This should be plotted as an error bar *below* the estimate line.
-        # And vice versa.
         estimates = np.array(estimated_values)
         yerr = [estimates - error_bounds[0],  error_bounds[1] - estimates]
         
@@ -1667,7 +1697,43 @@ class RedundancyDecision(object):
         self.timestamp = timestamp;
         self.benefit = None
         self.cost = None
-    
+
+class ErrorHistory(object):
+    def __init__(self):
+        self.__history = {}
+
+    def read(self, filename):
+        with open(filename) as f:
+            num_estimators = int(f.readline().split()[0])
+            for i in xrange(num_estimators):
+                fields = f.readline().split()
+                network_type, what_to_plot = fields[0].split("-")
+                error_distribution_type = fields[1] #TODO: use this?
+                num_samples = int(fields[2])
+
+                network_type = network_type.replace("cellular", "3G")
+                what_to_plot = what_to_plot.replace("bandwidth", "bandwidth_up")
+                what_to_plot = what_to_plot.replace("RTT", "latency")
+                if network_type not in self.__history:
+                    self.__history[network_type] = {}
+                if what_to_plot not in self.__history[network_type]:
+                    self.__history[network_type][what_to_plot] = []
+                    
+                errors = self.__history[network_type][what_to_plot]
+                while len(errors) < num_samples:
+                    line = f.readline().strip()
+                    new_errors = [float(x) for x in line.split()]
+                    errors.extend(new_errors)
+        
+    def getErrors(self, network_type, what_to_plot):
+        if network_type in self.__history and what_to_plot in self.__history[network_type]:
+            return self.__history[network_type][what_to_plot]
+        
+        return []
+
+    def getAllErrors(self):
+        return dict(self.__history)
+
 class IntNWPlotter(object):
     def __init__(self, args):
         self.__windows = []
@@ -1689,6 +1755,7 @@ class IntNWPlotter(object):
         self.__trace_replayer_log = args.basedir + "/" + trace_replayer_log
         self.__redundancy_eval_log = args.basedir + "/" + instruments_log
         self.__cross_country_latency = args.cross_country_latency
+        self.__history_dir = args.history
         
         self.__readFile(self.__intnw_log)
         self.draw()
@@ -1810,6 +1877,13 @@ class IntNWPlotter(object):
         if self.__redundancy_eval_log:
             redundancy_decisions_runs = self.__readRedundancyDecisions()
         
+        error_history = ErrorHistory()
+        if self.__history_dir:
+            side = "server" if self.__is_server else "client"
+            history_filename = "%s/%s_error_distributions.txt" % (self.__history_dir, side)
+            
+            error_history.read(history_filename)
+        
         print "Parsing log file..."
         progress = ProgressBar()
         for linenum, line in enumerate(progress(open(filename).readlines())):
@@ -1824,7 +1898,7 @@ class IntNWPlotter(object):
                                                self.__measurements_only,
                                                self.__network_trace_file,
                                                self.__cross_country_latency,
-                                               self.__is_server)
+                                               error_history, self.__is_server)
                     self.__windows.append(window)
                     window_num = len(self.__windows) - 1
                     if session_runs:
@@ -1881,6 +1955,9 @@ def main():
                         help="Look in replayer_server.log for all logging.")
     parser.add_argument("--absolute-error", action="store_true", default=False,
                         help="Use absolute error rather than relative error in calculations")
+    parser.add_argument("--history", default=None,
+                        help=("Start the plotting with error history from files in this directory:"
+                              +" {client,server}_error_distributions.txt"))
     args = parser.parse_args()
 
     app = QApplication(sys.argv)

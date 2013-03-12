@@ -10,6 +10,7 @@ if [ $# != 2 ]; then
 fi
 
 FILES=" intnw.log trace_replayer.log timing.log instruments.log replayer_server.log"
+FILES="$FILES client_error_distributions.txt server_error_distributions.txt"
 
 REMOTE_DIR=$1
 LOCAL_DIR=$2
