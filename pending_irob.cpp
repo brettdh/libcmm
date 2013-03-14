@@ -6,11 +6,13 @@
 #include <vector>
 #include <deque>
 #include <iterator>
+#include <sstream>
 using std::deque;
 using std::vector; using std::max;
 using std::mem_fun_ref;
 using std::bind1st; using std::copy;
 using std::insert_iterator;
+using std::ostringstream;
 
 #include "pthread_util.h"
 
@@ -239,27 +241,29 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
 
     correct_deps(pirob_ptr, infer_deps);
 
-    dbgprintf("Adding IROB %ld as dependent of: [ ", pirob_ptr->id);
+    ostringstream s;
+    s << "Adding IROB " << pirob_ptr->id << " as dependent of: [ ";
     for (irob_id_set::iterator it = pirob_ptr->deps.begin();
          it != pirob_ptr->deps.end(); it++) {
         if (past_irobs.contains(*it)) {
-            dbgprintf_plain("(%ld) ", *it);
+            s << "(" << *it << ") ";
             continue;
         }
 
         PendingIROBPtr dep = find_locked(*it);
         if (dep) {
-            dbgprintf_plain("%ld ", dep->id);
+            s << dep->id << " ";
             dep->add_dependent(pirob_ptr->id);
         } else {
-            dbgprintf_plain("P%ld ", *it);
+            s << "P" << *it << " ";
             PendingIROB *placeholder = make_placeholder(*it);
             bool ret = insert_locked(placeholder);
             ASSERT(ret);
             placeholder->add_dependent(pirob_ptr->id);
         }
     }
-    dbgprintf_plain("]\n");
+    s << "]\n";
+    dbgprintf("%s", s.str().c_str());
 
     ++count;
     return true;
@@ -411,19 +415,21 @@ PendingIROBLattice::erase_locked(irob_id_t id, bool at_receiver)
     // don't want to do this at the sender; want to preserve
     // dep information until it arrives at the receiver
     if (at_receiver) {
-        dbgprintf("Notifying dependents of IROB %ld's release: [ ", id);
+        ostringstream s;
+        s << "Notifying dependents of IROB " << id << "'s release: [ ";
         for (irob_id_set::iterator it = victim->dependents.begin();
              it != victim->dependents.end(); it++) {
             
             PendingIROBPtr dependent = this->find_locked(*it);
             if (!dependent) {
-                dbgprintf_plain("(%ld) ", *it);
+                s << "(" << *it << ") ";
                 continue;
             }
-            dbgprintf_plain("%ld ", dependent->id);
+            s << dependent->id << " ";
             dependent->dep_satisfied(id);
         }
-        dbgprintf_plain("]\n");
+        s << "]\n";
+        dbgprintf("%s", s.str().c_str());
     }
     
     --count;
