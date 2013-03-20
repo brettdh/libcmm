@@ -12,6 +12,9 @@
 #include "libcmm_shmem.h"
 #include "network_chooser.h"
 
+#include <sstream>
+using std::ostringstream;
+
 CSocketReceiver::handler_fn_t CSocketReceiver::handlers[] = {
     &CSocketReceiver::unrecognized_control_msg, /* HELLO not expected */
     &CSocketReceiver::do_begin_irob,
@@ -313,12 +316,13 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
         ASSERT(pirob);
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(pirob));
         if (!prirob->finish(expected_bytes, expected_chunks)) {
-            //throw CMMFatalError("Tried to end already-done IROB", hdr);
-            dbgprintf("do_end_irob: already-finished IROB %ld, ", id);
+            ostringstream s;
+            s << "do_end_irob: already-finished IROB " << id;
             if (prirob->is_complete()) {
-                dbgprintf_plain("resending ACK\n");
+                dbgprintf("%s, resending ACK\n", s.str().c_str());
             } else {
-                dbgprintf_plain("still waiting for deps and/or data\n");
+                dbgprintf("%s, still waiting for deps and/or data\n",
+                          s.str().c_str());
                 if (!resend_request) {
                     resend_request = true;
                     if (prirob->is_placeholder()) {

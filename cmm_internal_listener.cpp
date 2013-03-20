@@ -162,9 +162,8 @@ ListenerThread::Run()
             continue;
         }
         
-        dbgprintf("Remote host %s is connecting ",
-                  StringifyIP(&remote_addr.sin_addr).c_str());
-        dbgprintf_plain("to local address %s\n",
+        dbgprintf("Remote host %s is connecting to local address %s\n",
+                  StringifyIP(&remote_addr.sin_addr).c_str(),
                   StringifyIP(&local_addr.sin_addr).c_str());
         struct net_interface dummy;
         struct net_interface remote_iface;
@@ -176,10 +175,9 @@ ListenerThread::Run()
 //         } else {
         if (!sk->csock_map->get_local_iface_by_addr(local_addr.sin_addr, 
                                                     dummy)) {
-            dbgprintf("%s: network should be down.  ",
-                      StringifyIP(&local_addr.sin_addr).c_str());
-            dbgprintf_plain("%s, go away.\n",
-                            StringifyIP(&remote_addr.sin_addr).c_str());
+            dbgprintf("%s: network should be down.  %s, go away.\n",
+                      StringifyIP(&local_addr.sin_addr).c_str(),
+                      StringifyIP(&remote_addr.sin_addr).c_str());
             close(sock);
             continue;
         }
@@ -212,12 +210,11 @@ ListenerThread::Run()
         struct sockaddr_in internal_remote_addr;
         memcpy(&internal_remote_addr.sin_addr, &hdr.op.new_interface.ip_addr, 
                sizeof(struct in_addr));
-        dbgprintf("Adding connection %d from %s bw_down %lu bw_up %lu RTT %lu type %s",
+        dbgprintf("Adding connection %d from %s bw_down %lu bw_up %lu RTT %lu type %s(peername %s)\n",
                   sock, StringifyIP(&internal_remote_addr.sin_addr).c_str(),
                   remote_iface.bandwidth_down, remote_iface.bandwidth_up, remote_iface.RTT,
-                  net_type_name(remote_iface.type));
-        dbgprintf_plain("(peername %s)\n",
-                        StringifyIP(&remote_addr.sin_addr).c_str());
+                  net_type_name(remote_iface.type),
+                  StringifyIP(&remote_addr.sin_addr).c_str());
 //        }
         try {
             sk->add_connection(sock, 

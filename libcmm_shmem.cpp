@@ -28,7 +28,9 @@ using boost::interprocess::anonymous_instance;
 #include <vector>
 #include <map>
 #include <set>
+#include <sstream>
 using std::make_pair;
+using std::ostringstream;
 
 #include <sys/socket.h>
 #include <linux/un.h>
@@ -87,22 +89,17 @@ void add_or_remove_csocket(struct iface_pair ifaces, //struct in_addr ip_addr,
     bool dropped_lock = false;
     boost::upgrade_lock<boost::shared_mutex> lock(*proc_local_lock);
     if (all_intnw_csockets->count(ifaces) == 0) {
-        dbgprintf("add_or_remove_csocket: adding missing iface pair ");
-        ifaces.print();
-        dbgprintf_plain("\n");
+        ostringstream s;
+        s << "add_or_remove_csocket: adding missing iface pair ";
+        ifaces.print(s);
+        s << "\n";
+        dbgprintf("%s", s.str().c_str());
 
         lock.unlock();
         dropped_lock = true;
         ipc_add_iface_pair(ifaces);
-        /*
+
         // must have been removed by scout; ignore
-        dbgprintf("Cannot %s socket %d %s sockset; iface pair ",
-                  remove_fd ? "remove" : "add", local_fd, 
-                  remove_fd ? "from"   : "to");
-        ifaces.print();
-        dbgprintf_plain(" unknown (perhaps a scout update removed it)\n");
-        return;
-        */
     }
     
     boost::unique_lock<boost::shared_mutex> writelock;
@@ -115,10 +112,12 @@ void add_or_remove_csocket(struct iface_pair ifaces, //struct in_addr ip_addr,
     }
     proc_sock_info info(pid, remote_fd, local_fd);
     if (remove_fd) {
-        dbgprintf("removing (PID: %d remote_fd: %d)"
-                  " info from iface pair", pid, remote_fd);
-        ifaces.print();
-        dbgprintf_plain("\n");
+        ostringstream s;
+        s << "removing (PID: " << pid << " remote_fd: " << remote_fd
+          << ") info from iface pair";
+        ifaces.print(s);
+        dbgprintf("%s\n", s.str().c_str());
+        
         if (pid != getpid() &&
             (*all_intnw_csockets)[ifaces].count(info) > 0) {
             local_fd = (*all_intnw_csockets)[ifaces].find(info)->local_fd;
@@ -127,11 +126,12 @@ void add_or_remove_csocket(struct iface_pair ifaces, //struct in_addr ip_addr,
         }
         (*all_intnw_csockets)[ifaces].erase(info);
     } else {
-        dbgprintf("adding (PID: %d remote_fd: %d local_fd: %d) "
-                  "info to iface pair ", 
-                  pid, remote_fd, local_fd);
-        ifaces.print();
-        dbgprintf_plain("\n");
+        ostringstream s;
+        s << "adding (PID: " << pid 
+          << " remote_fd: " << remote_fd << " local_fd: " << local_fd 
+          << ") info to iface pair ";
+        ifaces.print(s);
+        dbgprintf("%s\n", s.str().c_str());
         (*all_intnw_csockets)[ifaces].insert(info);
     }
 }
@@ -270,13 +270,14 @@ public:
                 }
             }
 
-            dbgprintf("Received shared socket from PID %d: "
-                      "iface pair ",
-                      packet.pid);
-            packet.ifaces.print();
-            dbgprintf_plain(" remote_fd %d local_fd %d remove? %s\n",
-                      packet.remote_fd, recvd_fd, 
-                      packet.remove_fd ? "yes" : "no");
+            ostringstream s;
+            s << "Received shared socket from PID " << packet.pid 
+              << ": iface pair ";
+            packet.ifaces.print(s);
+            s << " remote_fd "<< packet.remote_fd
+              << " local_fd " << recvd_fd
+              << " remove? " << (packet.remove_fd ? "yes" : "no");
+            dbgprintf("%s\n", s.str().c_str());
 
             add_or_remove_csocket(packet.ifaces, 
                                   packet.pid, packet.remote_fd, recvd_fd,
@@ -640,14 +641,16 @@ bool ipc_add_iface_pair(struct iface_pair ifaces)
             proc_local_sending_fg_map[ifaces] = false;
         }
         */
-        dbgprintf("Added iface pair ");
-        ifaces.print();
-        dbgprintf_plain(" for tracking socket buffers\n");
+        ostringstream s;
+        s << "Added iface pair ";
+        ifaces.print(s);
+        dbgprintf("%s for tracking socket buffers\n", s.str().c_str());
         return true;
     } else {
-        dbgprintf("iface ");
-        ifaces.print();
-        dbgprintf_plain(" already added for tracking socket buffers\n");
+        ostringstream s;
+        ifaces.print(s);
+        dbgprintf("iface %s already added for tracking socket buffers\n",
+                  s.str().c_str());
         return false;
     }
 #endif
@@ -690,14 +693,16 @@ bool ipc_remove_iface_pair(struct iface_pair ifaces)
         }
         */
 
-        dbgprintf("Removed iface pair ");
-        ifaces.print();
-        dbgprintf_plain("from tracking socket buffers\n");
+        ostringstream s;
+        ifaces.print(s);
+        dbgprintf("Removed iface pair %s from tracking socket buffers\n",
+                  s.str().c_str());
         return true;
     } else {
-        dbgprintf("iface pair");
-        ifaces.print();
-        dbgprintf_plain(" already removed from tracking socket buffers\n");
+        ostringstream s;
+        ifaces.print(s);
+        dbgprintf("iface pair %s already removed from tracking socket buffers\n",
+                  s.str().c_str());
         return false;
     }
 #endif
@@ -820,16 +825,6 @@ size_t ipc_total_bytes_inflight(CSocketPtr csock)//struct in_addr ip_addr)
                 bytes += unsent_bytes;
             }
         }
-
-        if (sockinfo.empty()) {
-            //dbgprintf("iface pair ");
-            //ifaces.print();
-            //dbgprintf_plain(" has no connected sockets\n");
-        }
-    } else {
-        //dbgprintf("total_bytes_inflight: unknown iface pair ");
-        //ifaces.print();
-        //dbgprintf_plain("; returning 0\n");
     }
 
     /*dbgprintf("total_bytes_inflight: counted %zu bytes in %zu sockets\n", 

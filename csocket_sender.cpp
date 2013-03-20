@@ -24,6 +24,8 @@
 #include <arpa/inet.h>
 #include <vector>
 #include <algorithm>
+#include <sstream>
+using std::ostringstream;
 using std::vector; using std::max; using std::min;
 
 #include <signal.h>
@@ -918,15 +920,16 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         bytes += vecs_to_send[i].iov_len;
     }
 
-    dbgprintf("About to send message: %s", hdr.describe().c_str());
+    ostringstream s;
+    s << "About to send message: " << hdr.describe();
     if (deps) {
-        dbgprintf_plain(" deps [ ");
+        s << " deps [ ";
         for (int i = 0; i < numdeps; ++i) {
-            dbgprintf_plain("%d ", ntohl(deps[i]));
+            s << ntohl(deps[i]) << " ";
         }
-        dbgprintf_plain("]");
+        s << "]";
     }
-    dbgprintf_plain("\n");
+    dbgprintf("%s\n", s.str().c_str());
 
     if (data.send_labels & CMM_LABEL_ONDEMAND) {
         sk->update_last_fg();

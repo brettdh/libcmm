@@ -36,7 +36,10 @@ using std::auto_ptr;
 #include <set>
 #include <utility>
 #include <string>
-using std::string;
+#include <iostream>
+#include <sstream>
+using std::ostream;
+using std::string; using std::ostringstream;
 using std::multimap; using std::make_pair;
 using std::map; using std::vector;
 using std::set; using std::pair;
@@ -918,6 +921,19 @@ CMMSocketImpl::clear_select_pipe(int fd, bool already_locked)
               bytes_cleared, sock);
 }
 
+static void
+print_pollfds(struct pollfd *fds, nfds_t nfds, ostream& out)
+{
+    out << nfds << "fds [ ";
+    for (nfds_t i = 0; i < nfds; ++i) {
+        out << fds[i].fd 
+            << ((fds[i].events & POLLIN)?"i":"")
+            << ((fds[i].events & POLLOUT)?"o":"")
+            << " ";
+    }
+    out << "]";
+}
+
 int 
 CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 {
@@ -925,14 +941,14 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
     map<int, struct pollfd*> osfds_to_pollfds;
     vector<struct pollfd> real_fds_list;
 
-    dbgprintf("mc_poll with %d fds [ ", (int)nfds);
+    ostringstream s;
+    s << "mc_poll with ";
+    print_pollfds(fds, nfds, s);
+    dbgprintf("%s\n", s.str().c_str());
+    
     for(nfds_t i=0; i<nfds; i++) {
-        dbgprintf_plain("%d%s%s ", fds[i].fd,
-                        (fds[i].events & POLLIN)?"i":"",
-                        (fds[i].events & POLLOUT)?"o":"");
         fds[i].revents = 0;
     }
-    dbgprintf_plain("]\n");
 
     // contains the write_ready_pipe fds that are to be
     //   POLLIN'd (in order to POLLOUT on a multisocket)
@@ -1000,25 +1016,21 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
 
     nfds_t real_nfds = real_fds_list.size();
     struct pollfd *realfds = new struct pollfd[real_nfds];
-    dbgprintf("About to call poll(): %d fds [ ",
-              (int)real_nfds);
+
     for (nfds_t i = 0; i < real_nfds; i++) {
         realfds[i] = real_fds_list[i];
-        dbgprintf_plain("%d%s%s ", realfds[i].fd,
-                        (realfds[i].events & POLLIN)?"i":"",
-                        (realfds[i].events & POLLOUT)?"o":"");
     }
-    dbgprintf_plain("]\n");
 
+    s.str();
+    s << "About to call poll(): ";
+    print_pollfds(realfds, real_nfds, s);
+    dbgprintf("%s\n", s.str().c_str());
+    
     int rc = poll(realfds, real_nfds, timeout);
-    dbgprintf("poll() returns %d: %d fds [ ",
-              rc, (int)real_nfds);
-    for(nfds_t i=0; i < real_nfds; i++) {
-        dbgprintf_plain("%d%s%s ", realfds[i].fd,
-                        (realfds[i].revents & POLLIN)?"i":"",
-                        (realfds[i].revents & POLLOUT)?"o":"");
-    }
-    dbgprintf_plain("]\n");
+    s.str();
+    s << "poll() returns " << rc << ": ";
+    print_pollfds(realfds, real_nfds, s);
+    dbgprintf("%s\n", s.str().c_str());
     if (rc <= 0) {
         delete [] realfds;
         return rc;
@@ -1070,14 +1082,10 @@ CMMSocketImpl::mc_poll(struct pollfd fds[], nfds_t nfds, int timeout)
     }
     delete [] realfds;
 
-    dbgprintf("Returning %d from mc_poll(): %d fds [ ",
-              rc, (int)nfds);
-    for(nfds_t i=0; i<nfds; i++) {
-        dbgprintf_plain("%d%s%s ", fds[i].fd,
-                        (fds[i].revents & POLLIN)?"i":"",
-                        (fds[i].revents & POLLOUT)?"o":"");
-    }
-    dbgprintf_plain("]\n");
+    s.str();
+    s << "Returning " << rc << " from mc_poll(): ";
+    print_pollfds(fds, nfds, s);
+    dbgprintf("%s\n", s.str().c_str());
     return rc;
 }
 

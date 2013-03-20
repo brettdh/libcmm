@@ -24,6 +24,8 @@ typedef int gint;
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
+#include <iostream>
+
 #ifdef ANDROID
 /* TODO: use Android's /dev/ashmem and IBinder interfaces
  *       to do the shared memory stuff. 
@@ -65,9 +67,9 @@ struct iface_pair {
                 remote_iface.s_addr == other.remote_iface.s_addr);
     }
 
-    void print() {
-        dbgprintf_plain("(%s", StringifyIP(&local_iface).c_str());
-        dbgprintf_plain(", %s)", StringifyIP(&remote_iface).c_str());
+    void print(std::ostream& out) {
+        out << "(" << StringifyIP(&local_iface).c_str()
+            << ", " << StringifyIP(&remote_iface).c_str() << ")";
     }
 };
 

@@ -681,32 +681,36 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
             }
 
             if (valid_result) {
-                dbgprintf("New spot values: ");
+                ostringstream s;
+                s << "New spot values: ";
                 if (bw_valid) {
                     net_estimates.estimates[NET_STATS_BW_UP].add_observation(bw_obs);
-                    dbgprintf_plain("bw %lu", bw_obs);
+                    s << "bw " << bw_obs;
                 }
                 if (lat_valid) {
                     net_estimates.estimates[NET_STATS_LATENCY].add_observation(latency_obs);
-                    dbgprintf_plain(" latency %lu", latency_obs);
+                    s << " latency " << latency_obs;
                 }
-                dbgprintf_plain("\n");
+                s << "\n";
+                dbgprintf("%s", s.str().c_str());
             
                 if (bw_out) *bw_out = bw_obs;
                 if (latency_seconds_out) *latency_seconds_out = (latency_obs / 1000.0);
 
-                dbgprintf("New estimates: bw_up ");
+                s.str();
+                s << "New estimates: bw_up ";
                 if (net_estimates.estimates[NET_STATS_BW_UP].get_estimate(bw_est)) {
-                    dbgprintf_plain("%lu bytes/sec, ", bw_est);
+                    s << bw_est << " bytes/sec, ";
                 } else {
-                    dbgprintf_plain("(invalid), ");
+                    s << "(invalid), ";
                 }
                 if (net_estimates.estimates[NET_STATS_LATENCY].get_estimate(latency_est)) {
-                    dbgprintf_plain("latency %lu ms", latency_est);
+                    s << "latency " << latency_est << " ms";
                 } else {
-                    dbgprintf_plain("latency (invalid)");
+                    s << "latency (invalid)";
                 }
-                dbgprintf_plain("\n");
+                s << "\n";
+                dbgprintf("%s", s.str().c_str());
 
                 // TODO: send bw_up estimate to remote peer as its bw_down.  Or maybe do that
                 //       in CSocketReceiver, after calling this.
