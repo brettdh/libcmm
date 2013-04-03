@@ -50,7 +50,6 @@ import mobility_trace
 from mobility_trace import NetworkChooser
 
 debug = False
-#debug = True
 def dprint(msg):
     if debug:
         print msg
@@ -256,7 +255,7 @@ class IROB(object):
     def getStart(self):
         return self.__start
 
-    def getDuration(self):
+    def getTimeInterval(self):
         if self.complete():
             return (self.__start, self.__completion_time)
         else:
@@ -271,6 +270,10 @@ class IROB(object):
                     
             return (self.__start, end)
 
+    def getDuration(self):
+        interval = self.getTimeInterval()
+        return interval[1] - interval[0]
+
     def __str__(self):
         return ("{IROB: id %d  direction: %s  network: %s}"
                 % (self.irob_id, self.direction, self.network_type))
@@ -278,7 +281,7 @@ class IROB(object):
     def draw(self, axes):
         ypos = self.__plot.getIROBPosition(self)
         yheight = self.__plot.getIROBHeight(self)
-        start, finish = [self.__plot.getAdjustedTime(ts) for ts in self.getDuration()]
+        start, finish = [self.__plot.getAdjustedTime(ts) for ts in self.getTimeInterval()]
         dprint("%s %f--%f" % (self, start, finish))
         axes.broken_barh([[start, finish-start]],
                          [ypos - yheight / 2.0, yheight],
@@ -1204,6 +1207,7 @@ class IntNWBehaviorPlot(QDialog):
                    (sum(self.__choose_network_calls), len(self.__choose_network_calls)))
 
         self.__printRedundancyBenefitAnalysis()
+        self.__printIROBTimesByNetwork()
 
     def __printRedundancyBenefitAnalysis(self):
         if "wifi" not in self.__network_periods:
@@ -1253,11 +1257,13 @@ class IntNWBehaviorPlot(QDialog):
             irobs = sum(irobs, [])
             # list of IROBs
 
-            dprint("Session: %s" % session)
-            dprint("  IROBs: " % irobs)
 
             dropped_irobs = filter(lambda x: x.wasDropped(), irobs)
-            return len(dropped_irobs) > 0
+            fail = (len(dropped_irobs) > 0)
+            if fail:
+                dprint("Session: %s" % session)
+                dprint("  IROBs: " % irobs)
+            return fail
 
         failover_sessions = filter(failed_over, self.__sessions)
         print ("Failover sessions: %d/%d (%.2f%%), total %f seconds" %
@@ -1265,8 +1271,6 @@ class IntNWBehaviorPlot(QDialog):
                 len(failover_sessions)/float(num_sessions) * 100,
                 sum([duration(s) for s in failover_sessions])))
         
-        self.__debug_sessions = failover_sessions
-
         # check the sessions that started in a single-network period
         # but finished after wifi arrived.
         def needed_reevaluation(session):
@@ -1287,7 +1291,21 @@ class IntNWBehaviorPlot(QDialog):
                (len(reevaluation_sessions), num_sessions,
                 len(reevaluation_sessions)/float(num_sessions) * 100))
 
-        self.__debug_sessions = reevaluation_sessions
+        # TODO: print average wifi, 3G session times
+
+        self.__debug_sessions = failover_sessions
+        #self.__debug_sessions = reevaluation_sessions
+
+    def __printIROBTimesByNetwork(self):
+        irobs = self.__getIROBs()
+        print "Average IROB durations:"
+        for network_type, direction in product(['wifi', '3G'], ['down', 'up']):
+            dprint("%s sessions:" % network_type)
+            times = [irob.getDuration() for irob in irobs[network_type][direction]]
+                
+            avg = sum(times) / len(times)
+            print "  %5s, %4s: %f" % (network_type, direction, avg)
+
 
     def __getIROBs(self, start=-1.0, end=None):
         """Get all IROBs that start in the specified time range.
@@ -1301,14 +1319,13 @@ class IntNWBehaviorPlot(QDialog):
         if end is None:
             end = self.__end + 1.0
 
-        matching_irobs = {}
+        matching_irobs = {'wifi': {}, '3G': {}}
         def time_matches(irob):
-            irob_start, irob_end = [self.getAdjustedTime(t) for t in irob.getDuration()]
+            irob_start, irob_end = [self.getAdjustedTime(t) for t in irob.getTimeInterval()]
             return (irob_start >= start and irob_end <= end)
             
         for network_type, direction in product(['wifi', '3G'], ['down', 'up']):
             irobs = self.__networks[network_type][direction].values()
-            matching_irobs[network_type] = {}
             matching_irobs[network_type][direction] = filter(time_matches, irobs)
         return matching_irobs
 
@@ -1958,7 +1975,11 @@ def main():
     parser.add_argument("--history", default=None,
                         help=("Start the plotting with error history from files in this directory:"
                               +" {client,server}_error_distributions.txt"))
+    parser.add_argument("-d", "--debug", action="store_true", default=False)
     args = parser.parse_args()
+
+    global debug
+    debug = args.debug
 
     app = QApplication(sys.argv)
 
