@@ -1302,9 +1302,12 @@ class IntNWBehaviorPlot(QDialog):
         for network_type, direction in product(['wifi', '3G'], ['down', 'up']):
             dprint("%s sessions:" % network_type)
             times = [irob.getDuration() for irob in irobs[network_type][direction]]
-                
-            avg = sum(times) / len(times)
-            print "  %5s, %4s: %f" % (network_type, direction, avg)
+
+            if len(times) > 0:
+                avg = sum(times) / len(times)
+                print "  %5s, %4s: %f" % (network_type, direction, avg)
+            else:
+                print "  %5s, %4s: (no IROBs)" % (network_type, direction)
 
 
     def __getIROBs(self, start=-1.0, end=None):
