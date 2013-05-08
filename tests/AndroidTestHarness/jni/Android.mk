@@ -65,7 +65,7 @@ LOCAL_SRC_FILES := \
 			end_to_end_tests_remote.cpp \
 			remote_tests.cpp \
 			test_common.cpp) \
-	$(addprefix ../../../, net_interface.cpp cmm_socket_control.cpp debug.cpp)
+	$(addprefix ../../../, net_interface.cpp cmm_socket_control.cpp debug.cpp config.cpp)
 #	$(addprefix ../../, spotty_network_failure_test.cpp)
 
 
@@ -85,7 +85,7 @@ LOCAL_C_INCLUDES := $(common_C_INCLUDES)
 LOCAL_CFLAGS := $(common_CFLAGS)
 LOCAL_SRC_FILES := \
 	$(addprefix ../../, proxy_socket_test.cpp proxy_socket.cpp test_common.cpp) \
-	$(addprefix ../../../, debug.cpp timeops.cpp)
+	$(addprefix ../../../, debug.cpp config.cpp timeops.cpp)
 include $(BUILD_EXECUTABLE)
 
 # spotty network failure test

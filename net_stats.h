@@ -198,10 +198,6 @@ class NetStats {
                 NetworkChooser *network_chooser,
                 int network_type);
 
-    // if on==true, the NetStats for each TCP connection
-    //   will store the updates
-    static void set_use_breadcrumbs_estimates(bool on);
-
     NetStats(struct net_interface local_iface, 
              struct net_interface remote_iface);
     ~NetStats();
@@ -262,8 +258,6 @@ class NetStats {
     static IROBTransfers *irob_transfers;
     static IntSet *striped_irobs;
     static pthread_mutex_t irob_transfers_lock; // protects irob_transfers, striped_irobs
-
-    static bool use_breadcrumbs_estimates;
 
     struct static_initializer {
         static_initializer();

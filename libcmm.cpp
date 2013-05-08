@@ -27,6 +27,7 @@ using std::auto_ptr;
 #include "libcmm_net_restriction.h"
 #include "pending_irob.h"
 #include "debug.h"
+#include "config.h"
 
 #include "cmm_timing.h"
 #include "pthread_util.h"
@@ -40,63 +41,10 @@ using std::auto_ptr;
 #include "redundancy_strategy.h"
 #include "intnw_instruments_network_chooser.h"
 
-#define CONFIG_FILE "/etc/cmm_config"
-
-static bool has_param(const string& line, const string& name)
-{
-    return line.find(name) != string::npos;
-}
-
-static string get_param(const string& line, const string& name)
-{
-    assert(has_param(line, name));
-    return line.substr(name.length() + 1);
-}
-
 static void libcmm_init(void) __attribute__((constructor));
 static void libcmm_init(void)
 {
-#ifdef CMM_DEBUG
-    set_debugging(false); // default: no dbgprintfs
-#endif
-
-    ifstream config_input(CONFIG_FILE);
-    if (config_input) {
-        string line;
-        while (getline(config_input, line)) {
-#ifdef CMM_DEBUG
-            if (has_param(line, "debug")) {
-                set_debugging(true);
-                dbgprintf("Debugging output on\n");
-            }
-#endif
-            if (line.empty() || line[0] == '#') {
-                continue;
-            }
-            
-            if (has_param(line, "use_breadcrumbs_estimates")) {
-                dbgprintf("Using breadcrumbs estimates\n");
-                NetStats::set_use_breadcrumbs_estimates(true);
-            }
-            
-            if (has_param(line, "save_estimator_errors")) {
-                string filename = get_param(line, "save_estimator_errors");
-
-                dbgprintf("Will save error distribution to %s\n", filename.c_str());
-                IntNWInstrumentsNetworkChooser::setSaveErrorsFilename(filename);
-            }
-            if (has_param(line, "load_estimator_errors")) {
-                string filename = get_param(line, "load_estimator_errors");
-
-                dbgprintf("Will load error distribution from %s\n", filename.c_str());
-                IntNWInstrumentsNetworkChooser::setLoadErrorsFilename(filename);
-            }
-        }
-        config_input.close();
-    } else {
-        dbgprintf_always("Warning: config file not read; couldn't open %s\n",
-                CONFIG_FILE);
-    }
+    //Config::getInstance(); // load config lazily, later
     
     // try doing this lazily so as to allow applications to fork() before 
     //  calling into IntNW.

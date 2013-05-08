@@ -1,4 +1,5 @@
 #include "debug.h"
+#include "config.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <errno.h>
@@ -116,21 +117,15 @@ void dbgprintf_always(const char *fmt, ...)
 }
 
 #ifdef CMM_DEBUG
-static bool debugging = true;
 
 bool is_debugging_on()
 {
-    return debugging;
-}
-
-void set_debugging(bool value)
-{
-    debugging = value;
+    return Config::getInstance()->getDebugOn();
 }
 
 void dbgprintf(const char *fmt, ...)
 {
-    if (debugging) {
+    if (is_debugging_on()) {
         va_list ap;
         va_start(ap, fmt);
         vdbgprintf(false, fmt, ap);
@@ -140,7 +135,7 @@ void dbgprintf(const char *fmt, ...)
 
 void dbgprintf_plain(const char *fmt, ...)
 {
-    if (debugging) {
+    if (is_debugging_on()) {
         va_list ap;
         va_start(ap, fmt);
         vdbgprintf(true, fmt, ap);

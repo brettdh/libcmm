@@ -4,6 +4,7 @@
 #include <netinet/in.h>
 
 #include "network_chooser.h"
+#include "config.h"
 
 // tcp.h is temperamental.
 #include <netinet/tcp.h>
@@ -26,8 +27,6 @@ NetStats::static_initializer NetStats::init;
 NetStats::IROBTransfers *NetStats::irob_transfers = NULL;
 IntSet *NetStats::striped_irobs = NULL;
 pthread_mutex_t NetStats::irob_transfers_lock = PTHREAD_MUTEX_INITIALIZER;
-
-bool NetStats::use_breadcrumbs_estimates = false;
 
 class IROBTransfersPerNetwork {
 public:
@@ -126,7 +125,7 @@ NetStats::NetStats(struct net_interface local_iface,
     // XXX: *** but no new measurements.
 
     bool init_stats = false;
-    if (use_breadcrumbs_estimates) {
+    if (Config::getInstance()->getUseBreadcrumbsEstimates()) {
         init_stats = true;
     } else {
         // only initialize the first time
@@ -159,7 +158,7 @@ void
 NetStats::getStats(NetworkChooser *network_chooser, int network_type)
 {
 #ifndef CMM_UNIT_TESTING
-    if (use_breadcrumbs_estimates || !error_estimators_initialized) {
+    if (Config::getInstance()->getUseBreadcrumbsEstimates() || !error_estimators_initialized) {
         // only update the error if we're using breadcrumbs network estimates.
         // otherwise the estimate isn't new since the last passive measurement.
         
@@ -1093,13 +1092,6 @@ void
 NetStats::get_time(struct timeval& tv)
 {
     time_getter(&tv, NULL);
-}
-
-
-void
-NetStats::set_use_breadcrumbs_estimates(bool on)
-{
-    use_breadcrumbs_estimates = on;
 }
 
 

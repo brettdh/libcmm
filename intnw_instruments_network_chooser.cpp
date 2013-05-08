@@ -2,6 +2,7 @@
 #include "intnw_instruments_net_stats_wrapper.h"
 #include "libcmm_net_restriction.h"
 #include "debug.h"
+#include "config.h"
 #include <assert.h>
 #include "libpowertutor.h"
 
@@ -373,42 +374,27 @@ shouldTransmitRedundantly(PendingSenderIROB *psirob)
 }
 
 
-std::string IntNWInstrumentsNetworkChooser::load_errors_filename;
-std::string IntNWInstrumentsNetworkChooser::save_errors_filename;
-
 bool
 IntNWInstrumentsNetworkChooser::shouldLoadErrors()
 {
-    return !load_errors_filename.empty();
+    return !getLoadErrorsFilename().empty();
 }
 bool
 IntNWInstrumentsNetworkChooser::shouldSaveErrors()
 {
-    return !save_errors_filename.empty();
+    return !getSaveErrorsFilename().empty();
 }
 
 std::string
 IntNWInstrumentsNetworkChooser::getLoadErrorsFilename()
 {
-    return load_errors_filename;
+    return Config::getInstance()->getEstimatorErrorLoadFilename();
 }
 
 std::string
 IntNWInstrumentsNetworkChooser::getSaveErrorsFilename()
 {
-    return save_errors_filename;
-}
-
-void
-IntNWInstrumentsNetworkChooser::setLoadErrorsFilename(const std::string& filename)
-{
-    load_errors_filename = filename;
-}
-
-void
-IntNWInstrumentsNetworkChooser::setSaveErrorsFilename(const std::string& filename)
-{
-    save_errors_filename = filename;
+    return Config::getInstance()->getEstimatorErrorSaveFilename();
 }
 
 void

@@ -20,7 +20,6 @@ CDECL void dbgprintf_always(const char *fmt, ...)
 
 #ifdef CMM_DEBUG
 CDECL bool is_debugging_on();
-CDECL void set_debugging(bool value);
 CDECL void dbgprintf(const char *format, ...)
   __attribute__((format(printf, 1, 2)));
 CDECL void dbgprintf_plain(const char *format, ...)

@@ -13,7 +13,7 @@ all: conn_scout virgil_server
 libcmm_shmem_scout.o: ../libcmm_shmem.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $^
 
-conn_scout: libcmm_scout.o ../cdf_sampler.o ../debug.o ../common.o \
+conn_scout: libcmm_scout.o ../cdf_sampler.o ../debug.o ../config.o ../common.o \
 	    ../cmm_thread.o ../timeops.o libcmm_shmem_scout.o ../libcmm_net_restriction.o \
 	    ../libancillary/libancillary.a
 	$(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS)

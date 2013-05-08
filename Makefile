@@ -28,25 +28,25 @@ subdirs: $(SUBDIRS)
 $(SUBDIRS)::
 	make -C $@
 
-cdf_test: cdf_test.o cdf_sampler.o debug.o timeops.o
+cdf_test: cdf_test.o cdf_sampler.o debug.o config.o timeops.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
-cmm_test_sender: libcmm_test_sender.o libcmm.so debug.o
+cmm_test_sender: libcmm_test_sender.o libcmm.so debug.o config.o
 	$(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 
-cmm_test_receiver: libcmm_test_receiver.o libcmm.so debug.o
+cmm_test_receiver: libcmm_test_receiver.o libcmm.so debug.o config.o
 	$(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS) $(LIBS) 
 
-vanilla_test_sender: vanilla_test_sender.o timeops.o debug.o
+vanilla_test_sender: vanilla_test_sender.o timeops.o debug.o config.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
-vanilla_test_receiver: vanilla_test_receiver.o timeops.o debug.o
+vanilla_test_receiver: vanilla_test_receiver.o timeops.o debug.o config.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
-cmm_throughput_test: libcmm_throughput_test.o libcmm.so debug.o
+cmm_throughput_test: libcmm_throughput_test.o libcmm.so debug.o config.o
 	$(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS) $(LIBS) 
 
-vanilla_throughput_test: vanilla_throughput_test.o timeops.o debug.o
+vanilla_throughput_test: vanilla_throughput_test.o timeops.o debug.o config.o
 	$(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
 
 vanilla_%.o: libcmm_%.cpp
@@ -57,7 +57,7 @@ libcmm.so: libcmm.o libcmm_ipc.o libcmm_external_ipc.o libcmm_net_restriction.o 
 	       cmm_socket_passthrough.o thunks.o cmm_timing.o csocket.o \
            csocket_mapping.o csocket_sender.o csocket_receiver.o \
            pending_irob.o pending_sender_irob.o pending_receiver_irob.o \
-           cmm_thread.o cmm_internal_listener.o libcmm_irob.o debug.o \
+           cmm_thread.o cmm_internal_listener.o libcmm_irob.o debug.o config.o \
            intset.o cmm_socket_control.o irob_scheduling.o timeops.o \
            net_interface.o net_stats.o cmm_conn_bootstrapper.o \
            redundancy_strategy.o \
