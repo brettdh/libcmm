@@ -40,9 +40,7 @@ static vector<string> string_option_keys = {
     ESTIMATOR_ERROR_EVAL_METHOD
 };
 
-static map<string, set<string> > string_option_constraints = {
-    { ESTIMATOR_ERROR_EVAL_METHOD, { "empirical_error", "probabalistic", "bayesian" } }
-};
+static map<string, set<string> > string_option_constraints;
 
 // keys for numerical values
 static const string WIFI_BANDWIDTH_RANGE_HINTS     = "wifi_bandwidth_range_hints";
@@ -56,7 +54,6 @@ static vector<string> numerical_option_keys = {
     CELLULAR_BANDWIDTH_RANGE_HINTS,
     CELLULAR_RTT_RANGE_HINTS
 };
-
 
 static bool has_param(const string& line, const string& name)
 {
@@ -88,6 +85,9 @@ Config::Config()
 void
 Config::load()
 {
+    string_option_constraints[ESTIMATOR_ERROR_EVAL_METHOD] = get_all_method_names();
+    string_options[ESTIMATOR_ERROR_EVAL_METHOD] = get_method_name(TRUSTED_ORACLE);
+
     vector<decltype(&Config::readBooleanOption)> readers = {
         &Config::readBooleanOption, 
         &Config::readStringOption, 
@@ -127,8 +127,9 @@ Config::load()
         }
         config_input.close();
     } else {
-        dbgprintf_always("Warning: config file not read; couldn't open \"%s\"\n",
+        dbgprintf_always("[config] Error: config file not read; couldn't open \"%s\"\n",
                          CONFIG_FILE);
+        exit(EXIT_FAILURE);
     }
 }
 
