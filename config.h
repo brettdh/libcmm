@@ -20,9 +20,11 @@ class Config {
     
     void readBooleanOption(const std::string& line, const std::string& key);
     void readStringOption(const std::string& line, const std::string& key);
+    void readNumericalOption(const std::string& line, const std::string& key);
     
     std::map<std::string, bool> boolean_options;
     std::map<std::string, std::string> string_options;
+    std::map<std::string, double> numerical_options;
 
     Config();
     void load();

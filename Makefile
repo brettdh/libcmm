@@ -9,7 +9,7 @@ INSTRUMENTS_DIR := $(HOME)/src/instruments
 CXXFLAGS+=-Wall -Werror -I. -I/usr/local/include \
 	   -I./libancillary \
 	   $(shell pkg-config --cflags --libs glib-2.0) \
-	   -pthread -fPIC -m32 $(DEBUG_FLAGS) $(OPT_FLAGS) \
+	   -pthread -fPIC -m32 -std=gnu++0x $(DEBUG_FLAGS) $(OPT_FLAGS) \
 	   -I$(INSTRUMENTS_DIR)/include -I$(INSTRUMENTS_DIR)/src
 #LIBTBB:=-ltbb_debug
 LDFLAGS:=-L.  -L/usr/local/lib -L$(INSTRUMENTS_DIR)/src -m32

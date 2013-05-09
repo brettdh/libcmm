@@ -1,6 +1,6 @@
 INSTRUMENTS_DIR := $(HOME)/src/instruments
 
-CXXFLAGS:=-Wall -Werror -I. -I.. -I../libancillary -m32 -g -DCMM_DEBUG -pthread \
+CXXFLAGS:=-Wall -Werror -I. -I.. -I../libancillary -m32 -g -DCMM_DEBUG -pthread -std=gnu++0x \
 	   $(shell pkg-config --cflags --libs glib-2.0) \
 	   -I$(INSTRUMENTS_DIR)/src -I$(INSTRUMENTS_DIR)/include
 LDFLAGS:=-L. -L..  -lcppunit -ldl -pthread -lrt -lglib-2.0 -lboost_thread
