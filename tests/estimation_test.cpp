@@ -338,7 +338,7 @@ EstimationTest::testFailoverDelay()
     stats->report_irob_send_event(3, 1500);
     
     double expected_failover_delay = 5.0; // seconds
-    struct timespec sleeptime = {expected_failover_delay, 0};
+    struct timespec sleeptime = {(time_t) expected_failover_delay, 0};
     nowake_nanosleep(&sleeptime);
 
     double failover_delay = 0.0;

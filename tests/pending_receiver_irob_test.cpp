@@ -59,7 +59,7 @@ PendingReceiverIROBTest::testOverwrite()
     }
 
     // add overlapping chunk near the end; only the new part should be inserted
-    struct irob_chunk_data chunk = {0, -1, BUFSIZE-10, 20, new char[20]};
+    struct irob_chunk_data chunk = {0, (u_long) -1, BUFSIZE-10, 20, new char[20]};
     memcpy(chunk.data, buffer + BUFSIZE - 10, 10);
     memcpy(chunk.data + 10, buffer + BUFSIZE - 10, 10);
 

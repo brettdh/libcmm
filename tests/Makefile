@@ -47,7 +47,7 @@ run_all_tests.o: run_all_tests.cpp
 
 shmem_test_helper: shmem_test_helper.o shmem_test_common.o libcmm_shmem.o common.o \
 		   timeops.o debug.o config.o test_common.o ../libancillary/libancillary.a csocket.o
-	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -pthread
+	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -pthread -lboost_system
 
 TESTOBJS := pending_irob_test.o lattice_test.o intset_test.o \
 	    receiver_lattice_test.o pending_sender_irob_test.o \
@@ -107,10 +107,10 @@ multi_app_test_helper_main.o: multi_app_test_helper.cpp
 	g++ -c -o $@ $^ $(CXXFLAGS) -DMULTI_APP_TEST_EXECUTABLE
 
 multi_app_test_helper: multi_app_test_helper_main.o test_common.o
-	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -pthread
+	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -pthread -lboost_system
 
 multi_app_test: multi_app_test.o multi_app_test_helper.o test_common.o
-	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -pthread
+	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -lcmm -pthread -lboost_system
 
 
 fake_intnw_test: run_all_tests.o spotty_network_failure_test.o proxy_socket.o \

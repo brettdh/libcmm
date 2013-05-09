@@ -22,7 +22,7 @@ using boost::interprocess::named_upgradable_mutex;
 using boost::interprocess::sharable_lock;
 using boost::interprocess::upgradable_lock;
 using boost::interprocess::scoped_lock;
-using boost::interprocess::move;
+using boost::move;
 using boost::interprocess::anonymous_instance;
 
 #include <vector>

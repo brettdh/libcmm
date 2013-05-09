@@ -849,8 +849,8 @@ int main(int argc, char *argv[])
     
     /* Add the interfaces, wizard-of-oz-style */
     struct net_interface ifs[2] = {
-        {{0}, fg_bandwidth, fg_bandwidth,  (int) fg_RTT, 0},
-        {{0}, bg_bandwidth, bg_bandwidth, (int) bg_RTT, 0}
+        {{0}, fg_bandwidth, fg_bandwidth,  fg_RTT, 0},
+        {{0}, bg_bandwidth, bg_bandwidth, bg_RTT, 0}
     };
     const char *ifnames[2] = {fg_iface_name, bg_iface_name};
 

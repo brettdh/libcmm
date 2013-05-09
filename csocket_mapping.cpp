@@ -332,7 +332,7 @@ struct SatisfiesNetworkRestrictions {
 bool
 CSockMapping::can_satisfy_network_restrictions(u_long send_labels)
 {
-    return find_csock(SatisfiesNetworkRestrictions(send_labels));
+    return bool(find_csock(SatisfiesNetworkRestrictions(send_labels)));
 }
 
 struct IfaceMatcher {

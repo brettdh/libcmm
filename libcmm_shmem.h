@@ -42,7 +42,7 @@ typedef ManagedShmem::segment_manager MemMgr;
 typedef boost::interprocess::managed_shared_ptr<struct fg_iface_data,
                                                 ManagedShmem>::type FGDataPtr;
 
-typedef boost::interprocess::allocator<std::pair<struct iface_pair, FGDataPtr>, 
+typedef boost::interprocess::allocator<std::pair<const struct iface_pair, FGDataPtr>, 
                                        MemMgr> FGDataAllocator;
 #endif /* !ANDROID */
 

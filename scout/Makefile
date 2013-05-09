@@ -6,7 +6,7 @@ endif
 CXXFLAGS+=-Wall -Werror -I.. -I../libancillary -I/usr/local/include -pthread -fPIC -m32 \
 	  $(shell pkg-config --cflags --libs glib-2.0) \
 	  $(DEBUG_FLAGS) -DBUILDING_SCOUT
-LDFLAGS+=-lrt -lglib-2.0 -lboost_thread
+LDFLAGS+=-lrt -lglib-2.0 -lboost_thread -lboost_system
 
 all: conn_scout virgil_server
 
