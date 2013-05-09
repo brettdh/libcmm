@@ -17,17 +17,24 @@ class Config {
     std::string getEstimatorErrorLoadFilename();
     std::string getEstimatorErrorSaveFilename();
     EvalMethod getEstimatorErrorEvalMethod();
+    
+    EstimatorRangeHints getWifiBandwidthRangeHints();
+    EstimatorRangeHints getWifiRttRangeHints();
+    EstimatorRangeHints getCellularBandwidthRangeHints();
+    EstimatorRangeHints getCellularRttRangeHints();
   private:
     bool getBoolean(const std::string& key);
     std::string getString(const std::string& key);
     
     void readBooleanOption(const std::string& line, const std::string& key);
     void readStringOption(const std::string& line, const std::string& key);
-    void readNumericalOption(const std::string& line, const std::string& key);
+    void readRangeHintsOption(const std::string& line, const std::string& key);
+
+    void checkBayesianParamsValid();
     
     std::map<std::string, bool> boolean_options;
     std::map<std::string, std::string> string_options;
-    std::map<std::string, double> numerical_options;
+    std::map<std::string, EstimatorRangeHints> range_hints_options;
 
     Config();
     void load();

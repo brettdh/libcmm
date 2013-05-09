@@ -42,13 +42,13 @@ static vector<string> string_option_keys = {
 
 static map<string, set<string> > string_option_constraints;
 
-// keys for numerical values
+// keys for range_hints values
 static const string WIFI_BANDWIDTH_RANGE_HINTS     = "wifi_bandwidth_range_hints";
 static const string WIFI_RTT_RANGE_HINTS           = "wifi_rtt_range_hints";
 static const string CELLULAR_BANDWIDTH_RANGE_HINTS = "cellular_bandwidth_range_hints";
 static const string CELLULAR_RTT_RANGE_HINTS       = "cellular_rtt_range_hints";
 
-static vector<string> numerical_option_keys = {
+static vector<string> range_hints_option_keys = {
     WIFI_BANDWIDTH_RANGE_HINTS,
     WIFI_RTT_RANGE_HINTS,
     CELLULAR_BANDWIDTH_RANGE_HINTS,
@@ -91,12 +91,12 @@ Config::load()
     vector<decltype(&Config::readBooleanOption)> readers = {
         &Config::readBooleanOption, 
         &Config::readStringOption, 
-        &Config::readNumericalOption 
+        &Config::readRangeHintsOption 
     };
     vector<decltype(boolean_option_keys)> keys = { 
         boolean_option_keys, 
         string_option_keys, 
-        numerical_option_keys
+        range_hints_option_keys
     };
 
     ifstream config_input(CONFIG_FILE);
@@ -126,9 +126,28 @@ Config::load()
             }
         }
         config_input.close();
+
+        checkBayesianParamsValid();
     } else {
         dbgprintf_always("[config] Error: config file not read; couldn't open \"%s\"\n",
                          CONFIG_FILE);
+        exit(EXIT_FAILURE);
+    }
+}
+
+void
+Config::checkBayesianParamsValid()
+{
+    bool fail = false;
+    if (getEstimatorErrorEvalMethod() == BAYESIAN) {
+        for (const string& key : range_hints_option_keys) {
+            if (range_hints_options.count(key) == 0) {
+                dbgprintf_always("[config] Error: bayesian method requires %s option\n", key.c_str());
+                fail = true;
+            }
+        }
+    }
+    if (fail) {
         exit(EXIT_FAILURE);
     }
 }
@@ -163,19 +182,32 @@ Config::readStringOption(const string& line, const string& key)
 }
 
 void
-Config::readNumericalOption(const string& line, const string& key)
+Config::readRangeHintsOption(const string& line, const string& key)
 {
     string dummy;
-    double value;
     istringstream iss(line);
-    if (!(iss >> dummy >> value)) {
+    EstimatorRangeHints hints;
+    if (!(iss >> dummy >> hints.min >> hints.max >> hints.num_bins)) {
         dbgprintf_always("[config] failed to parse number from line: \"%s\"\n", line.c_str());
         exit(EXIT_FAILURE);
     }
-        
-    size_t precision = line.length() - dummy.length();
-    dbgprintf_always("[config] %s=%.*f\n", key.c_str(), precision, value);
-    numerical_options[key] = value;
+
+    vector<size_t> precision;
+    istringstream precision_iss(line);
+    precision_iss >> dummy;
+    for (size_t i = 0; i < 2; ++i) {
+        string value;
+        precision_iss >> value;
+        assert(precision_iss);
+        precision.push_back(value.length());
+    }
+
+    dbgprintf_always("[config] %s=[min=%.*f, max=%.*f, num_bins=%zu]\n", 
+                     key.c_str(), 
+                     precision[0], hints.min,
+                     precision[1], hints.max,
+                     hints.num_bins);
+    range_hints_options[key] = hints;
 }
 
 
@@ -222,4 +254,28 @@ Config::getEstimatorErrorEvalMethod()
 {
     string name = getString(ESTIMATOR_ERROR_EVAL_METHOD);
     return get_method(name.c_str());
+}
+
+EstimatorRangeHints
+Config:: getWifiBandwidthRangeHints()
+{
+    return range_hints_options[WIFI_BANDWIDTH_RANGE_HINTS];
+}
+
+EstimatorRangeHints
+Config:: getWifiRttRangeHints()
+{
+    return range_hints_options[WIFI_RTT_RANGE_HINTS];
+}
+
+EstimatorRangeHints
+Config:: getCellularBandwidthRangeHints()
+{
+    return range_hints_options[CELLULAR_BANDWIDTH_RANGE_HINTS];
+}
+
+EstimatorRangeHints
+Config:: getCellularRttRangeHints()
+{
+    return range_hints_options[CELLULAR_RTT_RANGE_HINTS];
 }
