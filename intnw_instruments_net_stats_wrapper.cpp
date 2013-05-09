@@ -1,6 +1,38 @@
 #include "intnw_net_stats_wrapper.h"
 #include "intnw_instruments_net_stats_wrapper.h"
 #include "debug.h"
+#include "config.h"
+
+#include <instruments_private.h>
+
+#include <assert.h>
+
+#include <string>
+#include <map>
+using std::string; using std::map;
+
+static EstimatorRangeHints 
+get_range_hints(const string& network, const string& type)
+{
+    map<string, map<string, decltype(&Config::getCellularRttRangeHints)> > getters = {
+        { "wifi", {
+                { "bandwidth", &Config::getWifiBandwidthRangeHints },
+                { "RTT", &Config::getWifiRttRangeHints }
+            },
+        },
+        { "cellular", {
+                { "bandwidth", &Config::getCellularBandwidthRangeHints },
+                { "RTT", &Config::getCellularRttRangeHints }
+            }
+          
+        }
+    };
+    assert(getters.count(network) > 0 &&
+           getters[network].count(type) > 0);
+    auto getter = getters[network][type];
+    Config *config = Config::getInstance();
+    return (config->*getter)();
+}
 
 InstrumentsWrappedNetStats::InstrumentsWrappedNetStats(const std::string& network)
     : first_update(true) 
@@ -9,6 +41,11 @@ InstrumentsWrappedNetStats::InstrumentsWrappedNetStats(const std::string& networ
     
     bw_up_estimator = create_external_estimator((network + "-bandwidth").c_str());
     rtt_estimator = create_external_estimator((network + "-RTT").c_str());
+    
+    EstimatorRangeHints bw_hints = get_range_hints(network, "bandwidth");
+    EstimatorRangeHints rtt_hints = get_range_hints(network, "RTT");
+    set_estimator_range_hints(bw_up_estimator, bw_hints.min, bw_hints.max, bw_hints.num_bins);
+    set_estimator_range_hints(rtt_estimator, rtt_hints.min, rtt_hints.max, rtt_hints.num_bins);
 }
 
 InstrumentsWrappedNetStats::~InstrumentsWrappedNetStats()
