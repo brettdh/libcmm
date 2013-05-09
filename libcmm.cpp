@@ -19,7 +19,7 @@
 using std::map;
 using std::ifstream; using std::string;
 using std::vector; using std::pair;
-using std::auto_ptr;
+using std::unique_ptr;
 
 #include "libcmm.h"
 #include "libcmm_private.h"

@@ -198,7 +198,7 @@ ConnBootstrapper::restart(struct net_interface down_iface,
     /* if I'm trying to bootstrap on this interface and
      * it just went away, try another interface. */
 
-    auto_ptr<PthreadScopedRWLock> lock;
+    unique_ptr<PthreadScopedRWLock> lock;
     if (!already_locked) {
         lock.reset(new PthreadScopedRWLock(&sk->my_lock, true));
     }

@@ -23,7 +23,7 @@ using std::make_pair;
 #include "network_chooser.h"
 #include "irob_scheduling.h"
 
-using std::auto_ptr;
+using std::unique_ptr;
 using std::pair;
 using std::vector;
 using std::map;

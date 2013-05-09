@@ -13,7 +13,7 @@
 #include "csocket.h"
 
 #include <memory>
-using std::auto_ptr;
+using std::unique_ptr;
 
 typedef std::set<CSocketPtr> CSockSet;
 
@@ -191,7 +191,7 @@ template <typename Predicate>
 CSocketPtr 
 CSockMapping::find_csock(Predicate pred, bool grab_lock)
 {
-    auto_ptr<PthreadScopedRWLock> lock_ptr;
+    unique_ptr<PthreadScopedRWLock> lock_ptr;
     if (grab_lock) {
         lock_ptr.reset(new PthreadScopedRWLock(&sockset_mutex, false));
     }

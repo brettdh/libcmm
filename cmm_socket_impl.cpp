@@ -20,7 +20,7 @@
 #include <errno.h>
 
 #include <memory>
-using std::auto_ptr;
+using std::unique_ptr;
 
 #include <signal.h>
 #include "thunks.h"
@@ -902,7 +902,7 @@ void CMMSocketImpl::mc_interrupt_waiters()
 void
 CMMSocketImpl::clear_select_pipe(int fd, bool already_locked)
 {
-    auto_ptr<PthreadScopedRWLock> lock_ptr;
+    unique_ptr<PthreadScopedRWLock> lock_ptr;
     if (!already_locked) {
         lock_ptr.reset(new PthreadScopedRWLock(&my_lock, true));
     }
@@ -1719,7 +1719,7 @@ CMMSocketImpl::mc_getsockname(struct sockaddr *address,
 bool
 CMMSocketImpl::isLoopbackOnly(bool locked)
 {
-    auto_ptr<PthreadScopedRWLock> lock_ptr;
+    unique_ptr<PthreadScopedRWLock> lock_ptr;
     if (locked) {
         lock_ptr.reset(new PthreadScopedRWLock(&my_lock, false));
     }
