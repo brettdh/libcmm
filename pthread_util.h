@@ -10,14 +10,13 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
-#include "debug.h"
 
 #define PTHREAD_ASSERT_SUCCESS(rc)                      \
     do {                                                \
         if (rc != 0) {                                  \
             fprintf(stderr, "PTHREAD ERROR: %s\n",      \
                     strerror(rc));                      \
-            ASSERT(0);                                  \
+            assert(0);                                  \
         }                                               \
     } while (0)
 
@@ -48,8 +47,8 @@ class PthreadScopedLock {
     }
 
     void acquire(pthread_mutex_t *mutex_) {
-        ASSERT(!mutex);
-        ASSERT(mutex_);
+        assert(!mutex);
+        assert(mutex_);
         mutex = mutex_;
         int rc = pthread_mutex_lock(mutex);
         PTHREAD_ASSERT_SUCCESS(rc);
@@ -80,8 +79,8 @@ class PthreadScopedRWLock {
     }
 
     void acquire(RWLOCK_T *mutex_, bool writer_) {
-        ASSERT(!mutex);
-        ASSERT(mutex_);
+        assert(!mutex);
+        assert(mutex_);
         mutex = mutex_;
         int rc = 0;
         writer = writer_;
@@ -272,7 +271,7 @@ class LockingMap {
               writer = false;
           }
         pair_type* operator->() {
-            ASSERT(my_node);
+            assert(my_node);
             return &my_node->val;
         }
         pair_type& operator*() {
@@ -337,7 +336,7 @@ class LockingMap {
 
       public:
         pair_type* operator->() {
-            ASSERT(valid);
+            assert(valid);
             return &item->val;
         }
         pair_type& operator*() {
@@ -423,7 +422,7 @@ void LockingMap<KeyType,ValueType,ordering>::iterator::update()
 {
     if (my_iter != my_map->the_map.end()) {
         item = my_iter->second;
-        ASSERT(my_iter->second);
+        assert(my_iter->second);
         valid = true;
     }
 }

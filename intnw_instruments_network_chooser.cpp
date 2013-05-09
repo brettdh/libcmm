@@ -140,11 +140,7 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
 
     strategies[NETWORK_CHOICE_BOTH] = make_redundant_strategy(strategies, 2);
 
-    EvalMethod method = CONFIDENCE_BOUNDS;
-    //EvalMethod method = EMPIRICAL_ERROR_ALL_SAMPLES_INTNW;
-    //EvalMethod method = EMPIRICAL_ERROR_BINNED_INTNW;
-    //EvalMethod method = EMPIRICAL_ERROR_BINNED;
-
+    EvalMethod method = Config::getInstance()->getEstimatorErrorEvalMethod();
     evaluator = register_strategy_set_with_method(strategies, NUM_STRATEGIES, method);
 
     if (shouldLoadErrors()) {

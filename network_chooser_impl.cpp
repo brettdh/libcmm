@@ -1,6 +1,7 @@
 #include "network_chooser_impl.h"
 #include "intnw_instruments_network_chooser.h"
 #include "libcmm_net_restriction.h"
+#include "debug.h"
 
 #include "redundancy_strategy.h"
 

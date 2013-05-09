@@ -1,10 +1,13 @@
 #include "net_stats.h"
+#include "debug.h"
 #include <pthread.h>
 #include "pthread_util.h"
 #include <netinet/in.h>
 
 #include "network_chooser.h"
+#ifndef CMM_UNIT_TESTING
 #include "config.h"
+#endif
 
 // tcp.h is temperamental.
 #include <netinet/tcp.h>
@@ -125,9 +128,10 @@ NetStats::NetStats(struct net_interface local_iface,
     // XXX: *** but no new measurements.
 
     bool init_stats = false;
-    if (Config::getInstance()->getUseBreadcrumbsEstimates()) {
-        init_stats = true;
-    } else {
+#ifndef CMM_UNIT_TESTING
+    init_stats = Config::getInstance()->getUseBreadcrumbsEstimates();
+#endif
+    if (!init_stats) {
         // only initialize the first time
         init_stats = !stats_are_cached();
         if (!init_stats) {

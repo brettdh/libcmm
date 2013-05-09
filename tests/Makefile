@@ -35,6 +35,9 @@ pending_irob.o: ../pending_irob.cpp ../pending_irob.h
 pending_receiver_irob.o: ../pending_receiver_irob.cpp ../pending_receiver_irob.h
 	g++ $(CXXFLAGS) -DCMM_UNIT_TESTING -c -o $@ $<
 
+testing_debug.o: ../debug_ext.cpp
+	g++ $(CXXFLAGS) -DCMM_UNIT_TESTING -c -o $@ $<
+
 timeops.o: ../timeops.cpp ../timeops.h
 	g++ $(CXXFLAGS) -DCMM_UNIT_TESTING -c -o $@ $<
 
@@ -46,7 +49,7 @@ run_all_tests.o: run_all_tests.cpp
 
 
 shmem_test_helper: shmem_test_helper.o shmem_test_common.o libcmm_shmem.o common.o \
-		   timeops.o debug.o config.o test_common.o ../libancillary/libancillary.a csocket.o
+		   timeops.o testing_debug.o  test_common.o ../libancillary/libancillary.a csocket.o
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -pthread -lboost_system
 
 TESTOBJS := pending_irob_test.o lattice_test.o intset_test.o \
@@ -54,9 +57,9 @@ TESTOBJS := pending_irob_test.o lattice_test.o intset_test.o \
 	    pending_receiver_irob_test.o \
 	    pthread_util_test.o net_interface_test.o util_test.o \
 	    estimation_test.o 
-SUPPORTOBJS := pending_irob.o intset.o debug.o config.o pending_receiver_irob.o \
+SUPPORTOBJS := pending_irob.o intset.o testing_debug.o  pending_receiver_irob.o \
 	       pending_sender_irob.o timeops.o net_stats.o \
-	       test_common.o debug.o config.o net_interface.o irob_scheduling.o common.o \
+	       test_common.o testing_debug.o  net_interface.o irob_scheduling.o common.o \
 	       csocket.o redundancy_strategy.o  \
 		   cmm_socket_control.o libcmm_net_restriction.o
 # not running shmem_test for now; it's broken somehow
@@ -121,7 +124,7 @@ fake_intnw_test: run_all_tests.o spotty_network_failure_test.o proxy_socket.o \
 run_spotty_network_failure_test:: run_spotty_network_failure_test.o
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
 
-proxy_socket_test: proxy_socket_test.o proxy_socket.o test_common.o debug.o config.o timeops.o
+proxy_socket_test: proxy_socket_test.o proxy_socket.o test_common.o testing_debug.o  timeops.o
 	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
 
 include ../deps.mk

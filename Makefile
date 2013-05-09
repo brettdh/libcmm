@@ -28,25 +28,25 @@ subdirs: $(SUBDIRS)
 $(SUBDIRS)::
 	make -C $@
 
-cdf_test: cdf_test.o cdf_sampler.o debug.o config.o timeops.o
+cdf_test: cdf_test.o cdf_sampler.o timeops.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
-cmm_test_sender: libcmm_test_sender.o libcmm.so debug.o config.o
+cmm_test_sender: libcmm_test_sender.o libcmm.so 
 	$(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 
-cmm_test_receiver: libcmm_test_receiver.o libcmm.so debug.o config.o
+cmm_test_receiver: libcmm_test_receiver.o libcmm.so 
 	$(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS) $(LIBS) 
 
-vanilla_test_sender: vanilla_test_sender.o timeops.o debug.o config.o
+vanilla_test_sender: vanilla_test_sender.o timeops.o 
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
-vanilla_test_receiver: vanilla_test_receiver.o timeops.o debug.o config.o
+vanilla_test_receiver: vanilla_test_receiver.o timeops.o 
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
-cmm_throughput_test: libcmm_throughput_test.o libcmm.so debug.o config.o
+cmm_throughput_test: libcmm_throughput_test.o libcmm.so 
 	$(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS) $(LIBS) 
 
-vanilla_throughput_test: vanilla_throughput_test.o timeops.o debug.o config.o
+vanilla_throughput_test: vanilla_throughput_test.o timeops.o
 	$(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
 
 vanilla_%.o: libcmm_%.cpp

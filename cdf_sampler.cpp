@@ -55,7 +55,7 @@ CDFSampler::read_distribution(const char *cdf_filename)
         
         if (cdf_map.find(percent) != cdf_map.end()) {
             fclose(input);
-            dbgprintf_always("Duplicate value %f found in file\n", percent);
+            printf("Duplicate value %f found in file\n", percent);
             throw CDFErr("CDF function is not invertible");
         }
         cdf_map[percent] = val;

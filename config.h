@@ -4,6 +4,9 @@
 #include <string>
 #include <map>
 
+#include <instruments.h>
+#include <instruments_private.h>
+
 class Config {
   public:
     static Config *getInstance();
@@ -13,7 +16,7 @@ class Config {
 
     std::string getEstimatorErrorLoadFilename();
     std::string getEstimatorErrorSaveFilename();
-
+    EvalMethod getEstimatorErrorEvalMethod();
   private:
     bool getBoolean(const std::string& key);
     std::string getString(const std::string& key);

@@ -56,7 +56,7 @@ static void DEBUG_LOG(const char *fmt, ...)
     va_end(ap);
 }
 #else
-#define DEBUG_LOG dbgprintf_always
+#define DEBUG_LOG printf
 #endif
 
 #include "debug.h"
@@ -466,7 +466,7 @@ void notify_all_subscribers(const IfaceList& changed_ifaces,
 static
 void handle_term(int)
 {
-    dbgprintf_always("Scout attempting to quit gracefully...\n");
+    printf("Scout attempting to quit gracefully...\n");
     running = false;
     shutdown(emu_sock, SHUT_RDWR);
 }
@@ -475,23 +475,23 @@ void handle_term(int)
 static
 void usage(char *argv[])
 {
-    dbgprintf_always(
+    printf(
             "Usage: conn_scout <FG iface> <bandwidth> <RTT>\n"
             "                  [<BG iface> <bandwidth> <RTT>\n"
             "                   [uptime downtime]]\n");
-    dbgprintf_always(
+    printf(
             "Usage:    uptime, downtime are in seconds;\n"
             "          bandwidth=bytes/sec, RTT=ms.\n");
-    dbgprintf_always(
+    printf(
             "Usage 2: conn_scout <FG iface> <bandwidth> <RTT>\n"
             "                    <BG iface> <bandwidth> <RTT>\n"
             "                    cdf <encounter duration cdf file>\n"
             "                        <disconnect duration cdf file>\n");
-    dbgprintf_always(
+    printf(
             "Usage 3: conn_scout replay <FG iface> <BG iface>\n"
             "   -Connects to the emulation box, which will transmit\n"
             "     the trace of network measurements.\n");
-    dbgprintf_always("Usage 4: conn_scout socket_control \n"
+    printf("Usage 4: conn_scout socket_control \n"
                      "                    <FG iface> <bandwidth> <RTT>\n"
                      "                    <BG iface> <bandwidth> <RTT>\n"
                      "  -Acts upon up/down commands from a socket.\n");
@@ -510,7 +510,7 @@ void thread_sleep(double fseconds)
     timeout.tv_usec = (long)(fnseconds*1000000);
 
     if (fseconds <= 0.0) {
-        dbgprintf_always("Error: fseconds <= 0.0 (or just too big!)\n");
+        printf("Error: fseconds <= 0.0 (or just too big!)\n");
         raise(SIGINT);
     }
 
@@ -544,7 +544,7 @@ static
 int get_ip_address(const char *ifname, struct in_addr *ip_addr)
 {
     if (strlen(ifname) > IF_NAMESIZE) {
-        dbgprintf_always("Error: ifname too long (longer than %d)\n", IF_NAMESIZE);
+        printf("Error: ifname too long (longer than %d)\n", IF_NAMESIZE);
         return -1;
     }
 
@@ -615,7 +615,7 @@ int get_trace(deque<struct trace_slice>& trace)
 
     trace_size = ntohl(trace_size);
     if (trace_size <= 0) {
-        dbgprintf_always("Received invalid trace size %d\n", trace_size);
+        printf("Received invalid trace size %d\n", trace_size);
         exit(EXIT_FAILURE);
     }
     
@@ -628,7 +628,7 @@ int get_trace(deque<struct trace_slice>& trace)
 
         slice.ntohl_all();
         if (slice.start.tv_sec < 0) {
-            dbgprintf_always("Error: invalid timestamp received with slice\n");
+            printf("Error: invalid timestamp received with slice\n");
             exit(EXIT_FAILURE);
         }
         if (trace_start.tv_sec == -1) {
@@ -638,7 +638,7 @@ int get_trace(deque<struct trace_slice>& trace)
             timersub(&slice.start, &trace_start, &slice.start);
             
             if (!timercmp(&slice.start, &last_slice_start, >)) {
-                dbgprintf_always("Error: out-of-order timestamps in trace\n");
+                printf("Error: out-of-order timestamps in trace\n");
                 exit(EXIT_FAILURE);
             }
             last_slice_start = slice.start;
@@ -823,7 +823,7 @@ int main(int argc, char *argv[])
                 up_time_samples = up_ptr.release();
                 down_time_samples = down_ptr.release();
             } catch (CDFErr &e) {
-                dbgprintf_always("CDF Error: %s\n", e.str.c_str());
+                printf("CDF Error: %s\n", e.str.c_str());
                 exit(1);
             }
         } else if (read_socket) {
@@ -835,7 +835,7 @@ int main(int argc, char *argv[])
             up_time = atof(argv[argi++]);
             down_time = atof(argv[argi++]);
             if (up_time < MIN_TIME || down_time < MIN_TIME) {
-                dbgprintf_always(
+                printf(
                         "Error: uptime and downtime must be greater than "
                         "%f seconds.\n", MIN_TIME);
                 exit(-1);
@@ -862,7 +862,7 @@ int main(int argc, char *argv[])
     for (size_t i = 0; i < num_ifs; i++) {
         int rc = get_ip_address(ifnames[i], &ifs[i].ip_addr);
         if (rc < 0) {
-            dbgprintf_always("blah, couldn't get IP address for %s\n", ifnames[i]);
+            printf("blah, couldn't get IP address for %s\n", ifnames[i]);
             exit(-1);
         }
         net_interfaces[ifs[i].ip_addr.s_addr] = ifs[i];
@@ -897,18 +897,18 @@ int main(int argc, char *argv[])
     int rc = pthread_create(&tid, NULL, IPC_Listener, NULL);
     if (rc < 0) {
         perror("pthread_create");
-        dbgprintf_always("Couldn't create IPCListener thread, exiting\n");
+        printf("Couldn't create IPCListener thread, exiting\n");
         exit(-1);
     }
 
     if (trace_replay) {
-        dbgprintf_always("Starting trace replay\n");
+        printf("Starting trace replay\n");
         /*
         for (int i = 3; i > 0; --i) {
-            dbgprintf_always("%d..", i);
+            printf("%d..", i);
             sleep(1);
         }
-        dbgprintf_always("\n");
+        printf("\n");
         */
 
         char ch = 0;
@@ -956,7 +956,7 @@ int main(int argc, char *argv[])
     while (running) {
         if (trace_replay) {
             if (cur_trace_slice + 1 == trace.size()) {
-                dbgprintf_always("Looping the trace\n");
+                printf("Looping the trace\n");
                 cur_trace_slice = 0;
                 continue;
             }
@@ -982,7 +982,7 @@ int main(int argc, char *argv[])
                 control_socket_file = fdopen(control_sock, "r");
                 handle_error(control_socket_file == NULL, "fdopen");
 
-                dbgprintf_always("connection on control socket\n");
+                printf("connection on control socket\n");
             }
 
             const size_t TOKEN_LEN = 80;
@@ -990,31 +990,31 @@ int main(int argc, char *argv[])
             int rc = fscanf(control_socket_file, "%80s", cmd);
             if (rc != 1) {
                 if (feof(control_socket_file) || ferror(control_socket_file)) {
-                    dbgprintf_always("No more commands on socket\n");
+                    printf("No more commands on socket\n");
                     fclose(control_socket_file);
                     close(control_sock);
                     control_socket_file = NULL;
                     control_sock = -1;
                 } else {
-                    dbgprintf_always("Error: malformed input on socket\n");
+                    printf("Error: malformed input on socket\n");
                 }
             } else {
                 if (!strcmp(cmd, "bg_down")) {
-                  dbgprintf_always("Got bg_down command; bringing down %s\n",
+                  printf("Got bg_down command; bringing down %s\n",
                                    inet_ntoa(bg_iface.ip_addr));
                     pthread_mutex_lock(&ifaces_lock);
                     net_interfaces.erase(bg_iface.ip_addr.s_addr);
                     pthread_mutex_unlock(&ifaces_lock);
                     notify_all_subscribers(empty_list, bg_iface_list);
                 } else if (!strcmp(cmd, "bg_up")) {
-                  dbgprintf_always("Got bg_up command; bringing up %s\n",
+                  printf("Got bg_up command; bringing up %s\n",
                                    inet_ntoa(bg_iface.ip_addr));
                     pthread_mutex_lock(&ifaces_lock);
                     net_interfaces[bg_iface.ip_addr.s_addr] = bg_iface;
                     pthread_mutex_unlock(&ifaces_lock);
                     notify_all_subscribers(bg_iface_list, empty_list);
                 } else { 
-                    dbgprintf_always("Error: unrecognized command '%s' on socket\n", cmd);
+                    printf("Error: unrecognized command '%s' on socket\n", cmd);
                 }
             }
 
@@ -1026,7 +1026,7 @@ int main(int argc, char *argv[])
         }
         //labels_available = UP_LABELS;
         
-        dbgprintf_always("%s is up for %lf seconds\n", bg_iface_name, up_time);
+        printf("%s is up for %lf seconds\n", bg_iface_name, up_time);
         pthread_mutex_lock(&ifaces_lock);
         net_interfaces[bg_iface.ip_addr.s_addr] = bg_iface;
         pthread_mutex_unlock(&ifaces_lock);
@@ -1039,7 +1039,7 @@ int main(int argc, char *argv[])
             down_time = down_time_samples->sample();
         }
         //labels_available = DOWN_LABELS;
-        dbgprintf_always("%s is down for %lf seconds\n", bg_iface_name, down_time);
+        printf("%s is down for %lf seconds\n", bg_iface_name, down_time);
 
         pthread_mutex_lock(&ifaces_lock);
         net_interfaces.erase(bg_iface.ip_addr.s_addr);
@@ -1055,7 +1055,7 @@ int main(int argc, char *argv[])
     shutdown(scout_control_ipc_sock, SHUT_RDWR);
     pthread_join(tid, NULL);
     close(emu_sock);
-    dbgprintf_always("Scout gracefully quit.\n");
+    printf("Scout gracefully quit.\n");
     return 0;
 }
 #endif /* ifdef BUILDING_SCOUT_SHLIB */
@@ -1112,7 +1112,7 @@ static void emulate_slice(struct trace_slice slice, struct timeval end,
     emu_slice_start.tv_sec = ntohl(emu_slice_start.tv_sec);
     emu_slice_start.tv_usec = ntohl(emu_slice_start.tv_usec);
     if (!timercmp(&emu_slice_start, &slice.start, ==)) {
-        dbgprintf_always("slice.start=%lu.%06lu, but "
+        printf("slice.start=%lu.%06lu, but "
                 "emubox says it's %lu.%06lu; exiting\n",
                 slice.start.tv_sec, slice.start.tv_usec, 
                 emu_slice_start.tv_sec, emu_slice_start.tv_usec);

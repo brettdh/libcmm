@@ -69,36 +69,36 @@ void * Worker(void * arg)
         if (sender_labels & CMM_LABEL_ONDEMAND) {
             sender_labels &= (~CMM_LABEL_WIFI_ONLY);
             sender_labels |= CMM_LABEL_THREEG_ONLY;
-            dbgprintf_always("Got FG request: sending 3G-only response (for testing)\n");
+            printf("Got FG request: sending 3G-only response (for testing)\n");
         } else if (sender_labels & CMM_LABEL_BACKGROUND) {
             sender_labels &= (~CMM_LABEL_THREEG_ONLY);
             sender_labels |= CMM_LABEL_WIFI_ONLY;
-            dbgprintf_always("Got BG request: sending wifi-only response (for testing)\n");
+            printf("Got BG request: sending wifi-only response (for testing)\n");
         }
         */
 #endif
         TIME(end);
         if (rc != sizeof(ch)) {
             if (rc == 0) {
-                dbgprintf_always("Connection %d closed remotely\n", sock);
+                printf("Connection %d closed remotely\n", sock);
             } else {
-                dbgprintf_always("Connection %d had error %d\n", sock, errno);
+                printf("Connection %d had error %d\n", sock, errno);
                 perror("cmm_read");
             }
             break;
         }
         TIMEDIFF(begin, end, diff);
-        dbgprintf_always("[%lu.%06lu][testapp] Received msg; took %lu.%06lu seconds\n",
+        printf("[%lu.%06lu][testapp] Received msg; took %lu.%06lu seconds\n",
                 end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec);
 
         ch.data[sizeof(ch)-1] = '\0';
-        dbgprintf_always("[%lu.%06lu][testapp] Msg: %*s\n", 
+        printf("[%lu.%06lu][testapp] Msg: %*s\n", 
                          end.tv_sec, end.tv_usec, (int)(sizeof(ch) - 1), ch.data);
         //str_reverse(ch.data);
         errno = 0;
         //struct timeval begin, end, diff;
         TIME(begin);
-        dbgprintf_always("[%lu.%06lu][testapp] About to send response\n",
+        printf("[%lu.%06lu][testapp] About to send response\n",
                 begin.tv_sec, begin.tv_usec);
 #ifdef NOMULTISOCK
         rc = send(sock, &ch, sizeof(ch), 0);
@@ -108,13 +108,13 @@ void * Worker(void * arg)
 #endif
         TIME(end);
         if (rc != sizeof(ch)) {
-            dbgprintf_always("cmm_send returned %d (expected %u), errno=%d\n",
+            printf("cmm_send returned %d (expected %u), errno=%d\n",
                     rc, sizeof(ch), errno);
             perror("cmm_send");
             break;
         }
         TIMEDIFF(begin, end, diff);
-        dbgprintf_always("Sent message; took %lu.%06lu seconds\n", 
+        printf("Sent message; took %lu.%06lu seconds\n", 
                 diff.tv_sec, diff.tv_usec);
     }
     
@@ -136,7 +136,7 @@ int main()
     int rc = setsockopt (listen_sock, SOL_SOCKET, SO_REUSEADDR,
                          (char *) &on, sizeof(on));
     if (rc < 0) {
-        dbgprintf_always("Cannot reuse socket address");
+        printf("Cannot reuse socket address");
     }
 
     struct sockaddr_in addr;

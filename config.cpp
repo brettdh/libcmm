@@ -1,6 +1,9 @@
 #include "config.h"
 #include "debug.h"
 
+#include <instruments.h>    
+#include <instruments_private.h>
+
 #include <assert.h>
 
 #include <map>
@@ -211,4 +214,11 @@ string
 Config::getEstimatorErrorLoadFilename()
 {
     return getString(ESTIMATOR_ERROR_LOAD_FILE_KEY);
+}
+
+EvalMethod
+Config::getEstimatorErrorEvalMethod()
+{
+    string name = getString(ESTIMATOR_ERROR_EVAL_METHOD);
+    return get_method(name.c_str());
 }

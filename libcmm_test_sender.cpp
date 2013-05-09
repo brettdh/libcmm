@@ -53,7 +53,7 @@ static struct sockaddr_in srv_addr;
 
 void resume_bg_sends(struct th_arg* arg)
 {
-    dbgprintf_always("Thunk invoked; resuming bg sends\n");
+    printf("Thunk invoked; resuming bg sends\n");
     bg_send = true;
 }
 
@@ -80,7 +80,7 @@ int get_reply(mc_socket_t sock)
     struct chunk ch = {""};
     struct timeval begin, end, diff;
     TIME(begin);
-    dbgprintf_always("[%lu.%06lu][testapp] Receiving reply\n",
+    printf("[%lu.%06lu][testapp] Receiving reply\n",
             begin.tv_sec, begin.tv_usec);
 
 #ifdef NOMULTISOCK
@@ -94,11 +94,11 @@ int get_reply(mc_socket_t sock)
         return rc;
     }
     TIMEDIFF(begin, end, diff);
-    dbgprintf_always("[%lu.%06lu][testapp] Received msg in %lu.%06lu seconds\n",
+    printf("[%lu.%06lu][testapp] Received msg in %lu.%06lu seconds\n",
             end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec);
 
     ch.data[sizeof(ch)-1] = '\0';
-    dbgprintf_always("Echo: %*s\n", (int)(sizeof(ch) - 1), ch.data);
+    printf("Echo: %*s\n", (int)(sizeof(ch) - 1), ch.data);
     return rc;
 }
 
@@ -122,7 +122,7 @@ void *BackgroundPing(struct th_arg * arg)
                               //(resume_handler_t)resume_bg_sends, arg);
             if (rc == CMM_DEFERRED) {
                 bg_send = false;
-                dbgprintf_always(
+                printf(
                         "Background send %d deferred; thunk registered\n", 
                         count - 1);
             } else 
@@ -131,7 +131,7 @@ void *BackgroundPing(struct th_arg * arg)
                 perror("send");
                 return NULL;
             } else {
-                dbgprintf_always("sent bg message %d\n", count - 1);
+                printf("sent bg message %d\n", count - 1);
                 rc = get_reply(shared_sock);
                 if (rc < 0) {
                     return NULL;
@@ -148,21 +148,21 @@ void *BackgroundPing(struct th_arg * arg)
 void resume_ondemand(struct th_arg *arg)
 {
     if (strlen(arg->ch.data) > 0) {
-        dbgprintf_always("Resumed; sending thunked ondemand message\n");
+        printf("Resumed; sending thunked ondemand message\n");
         PthreadScopedLock lock(&socket_lock);
         int rc = cmm_send(shared_sock, arg->ch.data, sizeof(arg->ch), 0,
                           CMM_LABEL_ONDEMAND, 
                           (resume_handler_t)resume_ondemand, arg);
         if (rc < 0) {
             if (rc == CMM_DEFERRED) {
-                dbgprintf_always("Deferred ondemand send re-deferred\n");
+                printf("Deferred ondemand send re-deferred\n");
             } else {
                 perror("send");
-                dbgprintf_always("Deferred ondemand send failed!\n");
+                printf("Deferred ondemand send failed!\n");
                 exit(-1);
             }
         } else {
-            dbgprintf_always("Deferred ondemand send succeeded\n");
+            printf("Deferred ondemand send succeeded\n");
             delete arg;
             rc = get_reply(shared_sock);
             if (rc < 0) {
@@ -183,7 +183,7 @@ int srv_connect(const char *host, u_long label)
     int rc;
     
   conn_retry:
-    dbgprintf_always("Attempting to connect to %s:%d, label %lu\n", 
+    printf("Attempting to connect to %s:%d, label %lu\n", 
             host, LISTEN_PORT, label);
 #ifdef NOMULTISOCK
     rc = connect(shared_sock, (struct sockaddr*)&srv_addr,
@@ -197,11 +197,11 @@ int srv_connect(const char *host, u_long label)
             goto conn_retry;
         } else {
             perror("connect");
-            dbgprintf_always("Connection failed\n");
+            printf("Connection failed\n");
             exit(-1);
         }
     } else {
-        dbgprintf_always("Connected\n");
+        printf("Connected\n");
     }
     return rc;
 }
@@ -215,7 +215,7 @@ int main(int argc, char *argv[])
     const char *hostname = (argc > 1) ? argv[1] : HOST;
     struct hostent *hp = gethostbyname(hostname);
     if (hp == NULL) {
-        dbgprintf_always("Failed to lookup hostname %s\n", HOST);
+        printf("Failed to lookup hostname %s\n", HOST);
         exit(-1);
     }
     memcpy(&srv_addr.sin_addr, hp->h_addr, hp->h_length);
@@ -235,11 +235,11 @@ int main(int argc, char *argv[])
     if (rc < 0) {
 #ifndef NOMULTISOCK
         if (rc == CMM_DEFERRED) {
-            dbgprintf_always("Initial connection deferred\n");
+            printf("Initial connection deferred\n");
         } else 
 #endif
           {
-            dbgprintf_always("Initial connection failed!\n");
+            printf("Initial connection failed!\n");
 #ifdef NOMULTISOCK
             close(shared_sock);
 #else
@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
     pthread_t tid;
     rc = pthread_create(&tid, NULL, (void *(*)(void*)) BackgroundPing, &args);
     if (rc < 0) {
-        dbgprintf_always("Failed to start background thread\n");
+        printf("Failed to start background thread\n");
     }
 
     while (running) {
@@ -264,17 +264,17 @@ int main(int argc, char *argv[])
 
         if (!fgets(new_args->ch.data, sizeof(new_args->ch) - 1, stdin)) {
             if (errno == EINTR) {
-                //dbgprintf_always("interrupted; trying again\n");
+                //printf("interrupted; trying again\n");
                 continue;
             } else {
-                dbgprintf_always("fgets failed!\n");
+                printf("fgets failed!\n");
                 running = false;
                 break;
             }
         }
 
         PthreadScopedLock lock(&socket_lock);
-        dbgprintf_always("Attempting to send message\n");
+        printf("Attempting to send message\n");
         struct timeval begin, end, diff;
         TIME(begin);
 #ifdef NOMULTISOCK
@@ -284,7 +284,7 @@ int main(int argc, char *argv[])
                       CMM_LABEL_ONDEMAND, 
                       (resume_handler_t)resume_ondemand, new_args);
         if (rc == CMM_DEFERRED) {
-            dbgprintf_always("Deferred\n");
+            printf("Deferred\n");
         } else 
 #endif
         if (rc < 0) {
@@ -294,7 +294,7 @@ int main(int argc, char *argv[])
             delete new_args;
             TIME(end);
             TIMEDIFF(begin, end, diff);
-            dbgprintf_always("[%lu.%06lu][testapp] ...message sent, took %lu.%06lu seconds\n",
+            printf("[%lu.%06lu][testapp] ...message sent, took %lu.%06lu seconds\n",
                     end.tv_sec, end.tv_usec, diff.tv_sec, diff.tv_usec);
             rc = get_reply(shared_sock);
             if (rc < 0) {
@@ -303,7 +303,7 @@ int main(int argc, char *argv[])
             struct timeval reply_end;
             TIME(reply_end);
             TIMEDIFF(begin, reply_end, diff);
-            dbgprintf_always("Send-and-receive time: %lu.%06lu seconds\n", 
+            printf("Send-and-receive time: %lu.%06lu seconds\n", 
                     diff.tv_sec, diff.tv_usec);
         }
     }

@@ -1,5 +1,6 @@
 #include <sys/types.h>
 #include <map>
+#include "debug.h"
 #include "pthread_util.h"
 #include "net_interface.h"
 #include "libcmm.h"
