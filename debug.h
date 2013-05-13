@@ -1,12 +1,6 @@
 #ifndef debug_h_incl
 #define debug_h_incl
 
-#ifdef __cplusplus
-#define CDECL extern "C"
-#else
-#define CDECL 
-#endif
-
 #include <unistd.h>
 
 #include <pthread.h>
@@ -15,14 +9,14 @@ extern pthread_key_t thread_name_key;
 char * get_thread_name();
 void set_thread_name(const char *name);
 
-CDECL void dbgprintf_always(const char *fmt, ...)
+void dbgprintf_always(const char *fmt, ...)
     __attribute__((format(printf, 1, 2)));
 
 #ifdef CMM_DEBUG
-CDECL bool is_debugging_on();
-CDECL void dbgprintf(const char *format, ...)
+bool is_debugging_on();
+void dbgprintf(const char *format, ...)
   __attribute__((format(printf, 1, 2)));
-CDECL void dbgprintf_plain(const char *format, ...)
+void dbgprintf_plain(const char *format, ...)
   __attribute__((format(printf, 1, 2)));
 #else
 #define is_debugging_on() (0)
