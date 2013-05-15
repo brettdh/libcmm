@@ -31,6 +31,7 @@ class Config {
     void readRangeHintsOption(const std::string& line, const std::string& key);
 
     void checkBayesianParamsValid();
+    void setInstrumentsDebugLevel();
     
     std::map<std::string, bool> boolean_options;
     std::map<std::string, std::string> string_options;

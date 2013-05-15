@@ -33,14 +33,23 @@ static vector<string> boolean_option_keys = {
 static const string ESTIMATOR_ERROR_SAVE_FILE_KEY = "save_estimator_errors";
 static const string ESTIMATOR_ERROR_LOAD_FILE_KEY = "load_estimator_errors";
 static const string ESTIMATOR_ERROR_EVAL_METHOD   = "estimator_error_eval_method";
+static const string INSTRUMENTS_DEBUG_LEVEL   = "instruments_debug_level";
 
 static vector<string> string_option_keys = {
     ESTIMATOR_ERROR_SAVE_FILE_KEY,
     ESTIMATOR_ERROR_LOAD_FILE_KEY,
-    ESTIMATOR_ERROR_EVAL_METHOD
+    ESTIMATOR_ERROR_EVAL_METHOD,
+    INSTRUMENTS_DEBUG_LEVEL
 };
 
 static map<string, set<string> > string_option_constraints;
+
+static map<string, instruments_debug_level_t> instruments_debug_levels = {
+    {"none", INSTRUMENTS_DEBUG_LEVEL_NONE},
+    {"error", INSTRUMENTS_DEBUG_LEVEL_ERROR},
+    {"info", INSTRUMENTS_DEBUG_LEVEL_INFO},
+    {"debug", INSTRUMENTS_DEBUG_LEVEL_DEBUG},
+};
 
 // keys for range_hints values
 static const string WIFI_BANDWIDTH_RANGE_HINTS     = "wifi_bandwidth_range_hints";
@@ -57,7 +66,7 @@ static vector<string> range_hints_option_keys = {
 
 static bool has_param(const string& line, const string& name)
 {
-    return line.find(name) != string::npos;
+    return line.compare(0, name.length(), name) == 0;
 }
 
 static string get_param(const string& line, const string& name)
@@ -86,6 +95,10 @@ void
 Config::load()
 {
     string_option_constraints[ESTIMATOR_ERROR_EVAL_METHOD] = get_all_method_names();
+    string_option_constraints[INSTRUMENTS_DEBUG_LEVEL] = {
+        "none", "error", "info", "debug"
+    };
+
     string_options[ESTIMATOR_ERROR_EVAL_METHOD] = get_method_name(TRUSTED_ORACLE);
 
     vector<decltype(&Config::readBooleanOption)> readers = {
@@ -93,7 +106,7 @@ Config::load()
         &Config::readStringOption, 
         &Config::readRangeHintsOption 
     };
-    vector<decltype(boolean_option_keys)> keys = { 
+    vector<decltype(boolean_option_keys)> keys = {
         boolean_option_keys, 
         string_option_keys, 
         range_hints_option_keys
@@ -128,6 +141,7 @@ Config::load()
         config_input.close();
 
         checkBayesianParamsValid();
+        setInstrumentsDebugLevel();
     } else {
         dbgprintf_always("[config] Error: config file not read; couldn't open \"%s\"\n",
                          CONFIG_FILE);
@@ -153,6 +167,15 @@ Config::checkBayesianParamsValid()
 }
 
 void
+Config::setInstrumentsDebugLevel()
+{
+    if (string_options.count(INSTRUMENTS_DEBUG_LEVEL) > 0) {
+        instruments_debug_level_t level = instruments_debug_levels[getString(INSTRUMENTS_DEBUG_LEVEL)];
+        instruments_set_debug_level(level);
+    }
+}
+
+void
 Config::readBooleanOption(const string& line, const string& key)
 {
     dbgprintf_always("[config] %s=true\n", key.c_str());
@@ -166,7 +189,7 @@ Config::readStringOption(const string& line, const string& key)
         
     if (string_option_constraints.count(key) > 0) {
         auto& constraints = string_option_constraints[key];
-        if (constraints.count(value) == 0) {
+        if (find(constraints.begin(), constraints.end(), value) == constraints.end()) {
             dbgprintf_always("[config] invalid value \"%s\" for option \"%s\"\n", value.c_str(), key.c_str());
             ostringstream oss;
             for_each(constraints.begin(), constraints.end(),
