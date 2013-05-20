@@ -120,6 +120,7 @@ class CSockMapping {
     bool csock_matches_internal(CSocket *csock, 
                                 u_long send_label,
                                 size_t num_bytes,
+                                bool multisocket_already_locked,
                                 bool sockset_already_locked);
 
     int redundancy_strategy_type;
@@ -183,7 +184,6 @@ CSockMapping::find_csock(Predicate pred, bool grab_lock)
         lock_ptr.reset(new PthreadScopedRWLock(&sockset_mutex, false));
     }
 
-    //PthreadScopedRWLock lock(&sockset_mutex, false);
     CSockSet::const_iterator it = find_if(available_csocks.begin(), 
                                           available_csocks.end(), 
                                           pred);

@@ -279,9 +279,11 @@ struct GlobalLabelMatch {
 
     bool operator()(CSocketPtr csock) {
         // already locked the sockset_mutex here, since I'm inside find_csock
+        // also, since this is only called from csock_with_labels,
+        // I know that the multisocket is already locked.
         return cskmap->csock_matches_internal(get_pointer(csock), 
                                               send_label, num_bytes,
-                                              true);
+                                              true, true);
     }
 };
 
@@ -317,14 +319,8 @@ struct SatisfiesNetworkRestrictions {
     bool operator()(CSocketPtr csock) {
         // add the trouble-check to match the behavior of
         //  {new|connected}_csock_with_labels.
-        return (csock->fits_net_restriction(send_labels)
-                /*
-                && (send_labels & CMM_LABEL_BACKGROUND || 
-                !csock->is_in_trouble())
-                */
-                );
-        /* TODO-REDUNDANCY: the trouble-check will go away,
-         * TODO-REDUNDANCY:   but I should be sure to use redundancy for
+        return csock->fits_net_restriction(send_labels);
+        /* TODO-REDUNDANCY:   I should be sure to use redundancy for
          * TODO-REDUNDANCY:   FG IntNW control messages as well as FG data. */
     }
 };
@@ -420,17 +416,18 @@ CSockMapping::connected_csock_with_labels(u_long send_label,
 /* must not be holding sk->scheduling_state_lock. */
 bool CSockMapping::csock_matches(CSocket *csock, u_long send_label)
 {
-    return csock_matches_internal(csock, send_label, 0, false);
+    return csock_matches_internal(csock, send_label, 0, false, false);
 }
 
 /* must not be holding sk->scheduling_state_lock. */
 bool CSockMapping::csock_matches(CSocket *csock, u_long send_label, size_t num_bytes)
 {
-    return csock_matches_internal(csock, send_label, num_bytes, false);
+    return csock_matches_internal(csock, send_label, num_bytes, false, false);
 }
 
 bool CSockMapping::csock_matches_internal(CSocket *csock, u_long send_label, 
                                           size_t num_bytes,
+                                          bool multisocket_already_locked, 
                                           bool sockset_already_locked)
 {
     if (send_label == 0) {
@@ -438,9 +435,17 @@ bool CSockMapping::csock_matches_internal(CSocket *csock, u_long send_label,
     }
     
     struct net_interface local_iface, remote_iface;
-    if (!get_iface_pair_internal(send_label, num_bytes, 
-                                 local_iface, remote_iface,
-                                 sockset_already_locked)) {
+    bool got_ifaces = false;
+    if (multisocket_already_locked) {
+        got_ifaces = get_iface_pair_locked_internal(send_label, num_bytes, 
+                                                    local_iface, remote_iface,
+                                                    sockset_already_locked);
+    } else {
+        got_ifaces = get_iface_pair_internal(send_label, num_bytes, 
+                                             local_iface, remote_iface,
+                                             sockset_already_locked);
+    }
+    if (!got_ifaces) {
         // there is no interface pair that suits these labels;
         // therefore, csock must not be suitable!
         return false;
@@ -467,7 +472,15 @@ CSockMapping::get_iface_pair_internal(u_long send_label, size_t num_bytes,
                                       bool sockset_already_locked)
 {
     CMMSocketImplPtr skp(sk);
-    PthreadScopedRWLock lock(&skp->my_lock, false);
+    PthreadScopedRWLock lock(&skp->my_lock, false); 
+
+    // XXX: DEADLOCK between this and sockset_mutex.
+    // bad ordering: usually, I hold skp->my_lock before sockset_mutex,
+    // but when this comes from csock_with_labels
+    //  by way of find_csock, I'm holding the sockset_mutex first.
+    // HACKY-FIX: make sure that this is never called while holding sockset_mutex.
+    // TODO: refactor.  classes should reach into each other less.
+    
     return get_iface_pair_locked_internal(send_label, num_bytes,
                                           local_iface, remote_iface,
                                           sockset_already_locked);
