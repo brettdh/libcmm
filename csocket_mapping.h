@@ -19,8 +19,6 @@ typedef std::set<CSocketPtr> CSockSet;
 
 class LabelMatch;
 
-typedef std::map<u_long, std::map<u_long, CSocketPtr> > CSockLabelMap;
-
 class CMMSocketImpl;
 
 class PendingSenderIROB;
@@ -31,14 +29,8 @@ class CSockMapping {
   public:
     // return true iff csock is suitable for these labels.
     /* must not be holding sk->scheduling_state_lock. */
-    bool csock_matches(CSocket *csock, 
-                       u_long send_label,
-                       bool ignore_trouble=false);
-    bool csock_matches(CSocket *csock, 
-                       u_long send_label, size_t num_bytes,
-                       bool ignore_trouble=false);
-    bool csock_matches_ignore_trouble(CSocket *csock, 
-                                      u_long send_label);
+    bool csock_matches(CSocket *csock, u_long send_label);
+    bool csock_matches(CSocket *csock, u_long send_label, size_t num_bytes);
 
     CSocketPtr csock_with_labels(u_long send_label);
     CSocketPtr csock_with_labels(u_long send_label, size_t num_bytes);
@@ -64,12 +56,10 @@ class CSockMapping {
                                  struct net_interface& iface);
     bool get_iface_pair(u_long send_label, size_t num_bytes,
                         struct net_interface& local_iface,
-                        struct net_interface& remote_iface,
-                        bool ignore_trouble=false);
+                        struct net_interface& remote_iface);
     bool get_iface_pair_locked(u_long send_label, size_t num_bytes,
                                struct net_interface& local_iface,
-                               struct net_interface& remote_iface,
-                               bool ignore_trouble=false);
+                               struct net_interface& remote_iface);
 
     size_t count();
     size_t count_locked();
@@ -121,18 +111,15 @@ class CSockMapping {
     bool get_iface_pair_internal(u_long send_label, size_t num_bytes,
                                  struct net_interface& local_iface,
                                  struct net_interface& remote_iface,
-                                 bool ignore_trouble,
                                  bool sockset_already_locked);
     bool get_iface_pair_locked_internal(u_long send_label, size_t num_bytes,
                                         struct net_interface& local_iface,
                                         struct net_interface& remote_iface,
-                                        bool ignore_trouble,
                                         bool sockset_already_locked);
 
     bool csock_matches_internal(CSocket *csock, 
                                 u_long send_label,
                                 size_t num_bytes,
-                                bool ignore_trouble,
                                 bool sockset_already_locked);
 
     int redundancy_strategy_type;
