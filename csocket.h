@@ -6,14 +6,11 @@
 #include <map>
 #include <set>
 
-//#include "cmm_socket.private.h"
 #include "pending_irob.h"
 #include "irob_scheduling.h"
 
 #include "net_stats.h"
 
-//class CMMSocketSender;
-//class CMMSocketReceiver;
 class CMMSocketImpl;
 
 class CSocketSender;
@@ -35,8 +32,6 @@ class CSocket {
     int osfd;
     int oserr; // if non-zero, there was an error.
     boost::shared_ptr<CMMSocketImpl> sk;
-    //CMMSocketSender *sendr;
-    //CMMSocketReceiver *recvr;
     struct net_interface local_iface;
     struct net_interface remote_iface;
 #ifndef CMM_UNIT_TESTING
@@ -52,8 +47,6 @@ class CSocket {
             struct net_interface remote_iface_);
 #else
     ~CSocket();
-    //void send(CMMSocketRequest req);
-    //void remove(void);
 
     /* must not be holding sk->scheduling_state_lock. */
     bool matches(u_long send_labels, size_t num_bytes=0);
@@ -66,7 +59,6 @@ class CSocket {
      *               matches(CMM_LABEL_ONDEMAND|CMM_LABEL_LARGE))
      * must not be holding sk->scheduling_state_lock. */
     bool is_fg();
-    //bool is_fg_ignore_trouble();
 
     // return true iff the csocket is busy sending app data
     bool is_busy();

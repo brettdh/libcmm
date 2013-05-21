@@ -331,6 +331,7 @@ CSocketSender::Run()
         pthread_cond_broadcast(&sk->scheduling_state_cv);
         throw;
     } catch (CMMControlException& e) {
+        PthreadScopedRWLock sock_lock(&sk->my_lock, true);
         sk->csock_map->remove_csock(csock);
         if (sk->accepting_side) {
             // don't try to make a new connection; 
@@ -1663,6 +1664,7 @@ void
 CSocketSender::Finish(void)
 {
     {
+        PthreadScopedRWLock sock_lock(&sk->my_lock, true);
         PthreadScopedLock lock(&sk->scheduling_state_lock);
         shutdown(csock->osfd, SHUT_WR);
         sk->csock_map->remove_csock(csock);

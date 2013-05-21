@@ -46,7 +46,7 @@ class CSockMapping {
     // returns 0 on success.  On failure,
     //  returns CMM_UNDELIVERABLE if the labels contain an unsatisfiable 
     //  network restriction, or CMM_FAILED otherwise.
-    int get_csock(PendingSenderIROB *psirob, CSocket*& csock);
+    int get_csock(PendingSenderIROB *psirob, CSocketPtr& csock);
 
     void remove_csock(CSocketPtr csock); // only removes, doesn't delete
 

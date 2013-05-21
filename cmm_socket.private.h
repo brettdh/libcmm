@@ -2,7 +2,7 @@
 #define cmm_socket_private_h
 
 #include "cmm_socket.h"
-//#include "csocket.h"
+#include "csocket.h"
 #include "common.h"
 #include "net_interface.h"
 
@@ -246,8 +246,8 @@ class CMMSocketImpl : public CMMSocket {
                             ssize_t total_bytes,
                             u_long send_labels,
                             resume_handler_t resume_handler, void *rh_arg);
-    int validate_default_irob(PendingSenderIROB *psirob, CSocket *& csock);
-    int send_default_irob(PendingSenderIROB *psirob, CSocket *csock);
+    int validate_default_irob(PendingSenderIROB *psirob, CSocketPtr& csock);
+    int send_default_irob(PendingSenderIROB *psirob, CSocketPtr csock);
 
     void new_interface(struct in_addr ip_addr, u_long labels);
     void down_interface(struct in_addr ip_addr);
@@ -308,7 +308,7 @@ class CMMSocketImpl : public CMMSocket {
     int wait_for_labels(u_long send_labels);
 
     int get_csock(PendingSenderIROB *psirob,
-                  CSocket *& csock, bool blocking);
+                  CSocketPtr& csock, bool blocking);
 
     void remove_if_unneeded(PendingIROBPtr pirob);
 

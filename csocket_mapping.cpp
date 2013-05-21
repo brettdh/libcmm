@@ -644,7 +644,7 @@ CSockMapping::new_csock_with_labels(u_long send_label, size_t num_bytes,
 }
 
 int
-CSockMapping::get_csock(PendingSenderIROB *psirob, CSocket*& csock)
+CSockMapping::get_csock(PendingSenderIROB *psirob, CSocketPtr& csock) 
 {
     u_long send_labels = 0;
     size_t num_bytes = 0;
@@ -659,14 +659,12 @@ CSockMapping::get_csock(PendingSenderIROB *psirob, CSocket*& csock)
     if (get_iface_pair_locked(send_labels, num_bytes, local, remote)) {
         // avoid using sockets that aren't yet connected; if connect() times out,
         //   it might take a long time to send anything
-        csock = get_pointer(connected_csock_with_labels(send_labels, num_bytes,
-                                                        false));
+        csock = connected_csock_with_labels(send_labels, num_bytes, false);
         if (!csock) {
-            csock = get_pointer(new_csock_with_labels(send_labels, num_bytes,
-                                                      false));
+            csock = new_csock_with_labels(send_labels, num_bytes, false);
         }
         if (!csock) {
-            csock = get_pointer(csock_by_ifaces(local, remote));
+            csock = csock_by_ifaces(local, remote);
         }
     } else {
         csock = NULL;

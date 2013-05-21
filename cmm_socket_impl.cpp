@@ -1939,7 +1939,7 @@ CMMSocketImpl::wait_for_labels(u_long send_labels)
 /* must call with readlock and scheduling_state_lock held */
 int
 CMMSocketImpl::get_csock(PendingSenderIROB *psirob,
-                         CSocket *& csock, bool blocking)
+                         CSocketPtr& csock, bool blocking)
 {
     u_long send_labels = 0;
     resume_handler_t resume_handler = NULL;
@@ -1950,7 +1950,7 @@ CMMSocketImpl::get_csock(PendingSenderIROB *psirob,
     }
 
     try {
-        csock = NULL;
+        csock.reset();
         int rc = csock_map->get_csock(psirob, csock);
         if (!csock) {
             if (rc == CMM_UNDELIVERABLE) {
@@ -1969,7 +1969,7 @@ CMMSocketImpl::get_csock(PendingSenderIROB *psirob,
                             /* timed out */
                             return CMM_FAILED;
                         }
-                        csock = get_pointer(csock_map->new_csock_with_labels(send_labels, false));
+                        csock = csock_map->new_csock_with_labels(send_labels, false);
                     }
                     return 0;
                 } else {
@@ -1984,7 +1984,7 @@ CMMSocketImpl::get_csock(PendingSenderIROB *psirob,
             if (send_labels & CMM_LABEL_BACKGROUND &&
                 resume_handler) {
                 if (csock->is_busy()) {
-                    csock = get_pointer(csock_map->get_idle_csock(false));
+                    csock = csock_map->get_idle_csock(false);
                     if (!csock) {
                         enqueue_handler(sock, send_labels, 
                                         resume_handler, rh_arg);
@@ -2027,7 +2027,7 @@ CMMSocketImpl::begin_irob(irob_id_t next_irob,
                                                      send_labels, 
                                                      resume_handler, rh_arg);
 
-    CSocket *csock;
+    CSocketPtr csock;
     int ret = get_csock(pirob, csock, true);
     if (ret < 0) {
         delete pirob;
@@ -2073,7 +2073,7 @@ CMMSocketImpl::end_irob(irob_id_t id)
     struct timeval begin, end, diff;
     TIME(begin);
 
-    CSocket *csock;
+    CSocketPtr csock;
     PendingIROBPtr pirob;
     PendingSenderIROB *psirob = NULL;
     u_long send_labels = 0;
@@ -2136,7 +2136,7 @@ CMMSocketImpl::end_irob(irob_id_t id)
 
         PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
         ASSERT(psirob);
-        if (psirob->was_announced(csock) && !psirob->end_was_announced(csock) &&
+        if (psirob->was_announced(get_pointer(csock)) && !psirob->end_was_announced(get_pointer(csock)) &&
             psirob->is_complete() && psirob->all_bytes_chunked()) {
             if (csock->is_connected()) {
                 csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
@@ -2173,7 +2173,7 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
     TIME(begin);
 
     u_long send_labels;
-    CSocket *csock;
+    CSocketPtr csock;
 
     struct irob_chunk_data chunk;
     PendingIROBPtr pirob;
@@ -2229,7 +2229,7 @@ CMMSocketImpl::irob_chunk(irob_id_t id, const void *buf, size_t len,
 
         // XXX: begin and chunk can be out of order now; is this check still needed?
         // XXX: then again, it probably never fails.
-        if (psirob->was_announced(csock)) {
+        if (psirob->was_announced(get_pointer(csock))) {
             if (csock->is_connected()) {
                 csock->irob_indexes.new_chunks.insert(IROBSchedulingData(id, true, send_labels));//chunk.seqno));
             } else {
@@ -2279,7 +2279,7 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
                                                      send_labels, 
                                                      resume_handler, rh_arg);
 
-    CSocket *csock = NULL;
+    CSocketPtr csock;
     int rc = validate_default_irob(pirob, csock);
     if (rc < 0) {
         delete pirob;
@@ -2321,7 +2321,7 @@ CMMSocketImpl::default_irob_writev(irob_id_t next_irob,
                                                      send_labels, 
                                                      resume_handler, rh_arg);
 
-    CSocket *csock = NULL;
+    CSocketPtr csock;
     int rc = validate_default_irob(pirob, csock);
     if (rc < 0) {
         delete pirob;
@@ -2342,7 +2342,7 @@ CMMSocketImpl::default_irob_writev(irob_id_t next_irob,
 
 int
 CMMSocketImpl::validate_default_irob(PendingSenderIROB *psirob,
-                                     CSocket *& csock)
+                                     CSocketPtr& csock)
 {
     if (is_shutting_down()) {
         dbgprintf("Tried to send default IROB, but mc_socket %d is shutting down\n", 
@@ -2363,7 +2363,7 @@ CMMSocketImpl::validate_default_irob(PendingSenderIROB *psirob,
 }
 
 int
-CMMSocketImpl::send_default_irob(PendingSenderIROB *psirob, CSocket *csock)
+CMMSocketImpl::send_default_irob(PendingSenderIROB *psirob, CSocketPtr csock)
 {
     PthreadScopedLock lock(&scheduling_state_lock);
     bool success = outgoing_irobs.insert(psirob);
@@ -2575,7 +2575,7 @@ CMMSocketImpl::goodbye(bool remote_initiated)
         remote_shutdown = true;
     }
 
-    CSocket *csock = NULL;
+    CSocketPtr csock;
     int ret = -1;
     if (remote_listener_port > 0) {
         /* that is, if this multisocket was bootstrapped */
