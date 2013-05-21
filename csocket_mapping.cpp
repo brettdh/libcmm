@@ -667,7 +667,7 @@ CSockMapping::get_csock(PendingSenderIROB *psirob, CSocketPtr& csock)
             csock = csock_by_ifaces(local, remote);
         }
     } else {
-        csock = NULL;
+        csock.reset();
     }
 
     if (psirob) {
