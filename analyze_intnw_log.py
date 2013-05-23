@@ -1464,7 +1464,7 @@ class IntNWBehaviorPlot(QDialog):
         self.__socket_regex = re.compile("\[CSock(?:Sender|Receiver) ([0-9]+)\]")
         self.__intnw_message_type_regex = \
             re.compile("(?:About to send|Received) message:  Type: ([A-Za-z_]+)")
-        self.__csocket_destroyed_regex = re.compile("CSocket (.+) is being destroyed")
+        self.__csocket_destroyed_regex = re.compile("CSocket ([0-9]+) is being destroyed")
         self.__network_estimator_regex = \
             re.compile("Adding new stats to (.+) network estimator")
 
@@ -1502,11 +1502,12 @@ class IntNWBehaviorPlot(QDialog):
         
         if status == 'down':
             period = self.__network_periods[network_type][-1]
-            assert period['end'] == None
+            if period['end'] is not None:
+                print "Warning: double-ending %s period at %f" % (network_type, timestamp)
             period['end'] = timestamp
             
-            assert ip in self.__network_type_by_ip
-            del self.__network_type_by_ip[ip]
+            if ip in self.__network_type_by_ip:
+                del self.__network_type_by_ip[ip]
         elif status == 'up':
             self.__startNetworkPeriod(network_type, ip,
                                       start=timestamp, end=None, sock=None)
