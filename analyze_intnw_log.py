@@ -212,6 +212,8 @@ class IROB(object):
         # if true, mark as strange on plot
         self.__abnormal_end = False
 
+        self.__checkIfComplete(start)
+
     def addBytes(self, timestamp, bytes):
         if self.__datalen == None:
             self.__datalen = 0
