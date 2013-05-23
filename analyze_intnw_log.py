@@ -45,7 +45,7 @@ from copy import copy
 
 from progressbar import ProgressBar
 
-sys.path.append("../../scripts/nistnet_scripts/traces")
+sys.path.append(os.getenv("HOME") + "/scripts/nistnet_scripts/traces")
 import mobility_trace
 from mobility_trace import NetworkChooser
 
