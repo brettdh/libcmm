@@ -304,7 +304,7 @@ class IntNWBehaviorPlot(QDialog):
     CONFIDENCE_ALPHA = 0.10
     
     def __init__(self, run, start, measurements_only, network_trace_file,
-                 cross_country_latency, error_history, 
+                 bandwidth_measurements_file, cross_country_latency, error_history, 
                  is_server, parent=None):
         QDialog.__init__(self, parent)
 
@@ -320,6 +320,7 @@ class IntNWBehaviorPlot(QDialog):
 
         self.__measurements_only = measurements_only
         self.__network_trace_file = network_trace_file
+        self.__bandwidth_measurements_file = bandwidth_measurements_file
         self.__cross_country_latency = cross_country_latency
         self.__trace = None
 
@@ -531,7 +532,16 @@ class IntNWBehaviorPlot(QDialog):
         
         if self.__measurements_only:
             self.__plotTrace()
-            self.__plotMeasurements()
+            if self.__bandwidth_measurements_file:
+                self.__plotActiveMeasurements()
+            else:
+                self.__plotMeasurements()
+
+            self.__axes.set_xlabel("Time (seconds)")
+            self.__axes.set_ylabel(self.__getYAxisLabel())
+            if self.__show_legend.isChecked():
+                self.__axes.legend()
+
             self.__drawRedundancyDecisions()
 
             self.__axes.set_ylim(0.0, self.__axes.get_ylim()[1])
@@ -770,10 +780,30 @@ class IntNWBehaviorPlot(QDialog):
         else:
             self.__plotMeasurementsSimple()
             
-        self.__axes.set_xlabel("Time (seconds)")
-        self.__axes.set_ylabel(self.__getYAxisLabel())
-        if self.__show_legend.isChecked():
-            self.__axes.legend()
+
+    class ActiveMeasurements(object):
+        def __init__(self, infile):
+            rx = re.compile("^\[([0-9]+\.[0-9]+)\] total .+ new .+ bandwidth ([0-9.]+) bytes/sec")
+            self.__start = None
+            self.__times = []
+            self.__values = []
+            for line in open(infile).readlines():
+                m = rx.search(line)
+                if m:
+                    ts, bandwidth = [float(v) for v in m.groups()]
+                    if self.__start is None:
+                        self.__start = ts
+                    self.__times.append(ts - self.__start)
+                    self.__values.append(bandwidth)
+
+        def plot(self, axes):
+            axes.plot(self.__times, self.__values, label="active bandwidth measurements",
+                      linestyle="-", linewidth=0.5)
+        
+    def __plotActiveMeasurements(self):
+        measurements = \
+            IntNWBehaviorPlot.ActiveMeasurements(self.__bandwidth_measurements_file)
+        measurements.plot(self.__axes)
 
     def __plotEstimatedTransferTimes(self):
         checks = {'wifi': self.__show_wifi, '3G': self.__show_threeg}
@@ -1774,6 +1804,7 @@ class IntNWPlotter(object):
 
         self.__measurements_only = args.measurements
         self.__network_trace_file = args.network_trace_file
+        self.__bandwidth_measurements_file = args.bandwidth_measurements_file
         self.__intnw_log = args.basedir + "/" + intnw_log
         self.__trace_replayer_log = args.basedir + "/" + trace_replayer_log
         self.__redundancy_eval_log = args.basedir + "/" + instruments_log
@@ -1920,6 +1951,7 @@ class IntNWPlotter(object):
                     window = IntNWBehaviorPlot(len(self.__windows) + 1, start, 
                                                self.__measurements_only,
                                                self.__network_trace_file,
+                                               self.__bandwidth_measurements_file,
                                                self.__cross_country_latency,
                                                error_history, self.__is_server)
                     self.__windows.append(window)
@@ -1971,6 +2003,7 @@ def main():
     parser.add_argument("basedir")
     parser.add_argument("--measurements", action="store_true", default=False)
     parser.add_argument("--network-trace-file", default=None)
+    parser.add_argument("--bandwidth-measurements-file", default=None)
     parser.add_argument("--noplot", action="store_true", default=False)
     parser.add_argument("--cross-country-latency", action="store_true", default=False,
                         help="Add 100ms latency when plotting the trace.")
