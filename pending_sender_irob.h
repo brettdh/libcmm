@@ -168,7 +168,8 @@ class PendingSenderIROB : public PendingIROB {
     CSocket *null_index_if_single_sending(CSocket *csock);
 
     std::vector<struct iovec> get_bytes_internal(size_t offset, ssize_t& len);
-    std::deque<struct irob_chunk_data>::iterator find_app_chunk(size_t offset);
+    std::deque<struct irob_chunk_data>::iterator 
+        find_app_chunk(std::deque<struct irob_chunk_data>& chunk_list, size_t offset);
     
     typedef std::set<std::pair<in_addr_t, in_addr_t> > IfacePairSet;
     IfacePairSet sending_ifaces;

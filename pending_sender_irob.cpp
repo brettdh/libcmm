@@ -84,17 +84,17 @@ struct LessByOffset {
 };
 
 deque<struct irob_chunk_data>::iterator
-PendingSenderIROB::find_app_chunk(size_t offset)
+PendingSenderIROB::find_app_chunk(deque<struct irob_chunk_data>& chunk_list, size_t offset)
 {
     struct irob_chunk_data dummy;
     dummy.offset = offset;
     // find the one with the greatest offset where the offset is not greater
     //  than this one
-    deque<struct irob_chunk_data>::iterator it = upper_bound(chunks.begin(), 
-                                                             chunks.end(), 
+    deque<struct irob_chunk_data>::iterator it = upper_bound(chunk_list.begin(), 
+                                                             chunk_list.end(), 
                                                              dummy, 
                                                              LessByOffset());
-    if (!chunks.empty()) {
+    if (!chunk_list.empty()) {
         const struct irob_chunk_data& target = *(it - 1);
         if (target.offset <= offset &&
             offset < (target.offset + target.datalen)) {
@@ -111,10 +111,19 @@ vector<struct iovec>
 PendingSenderIROB::get_bytes_internal(size_t offset, ssize_t& len)
 {
     vector<struct iovec> data;
-    deque<struct irob_chunk_data>::iterator it = find_app_chunk(offset);
+    deque<struct irob_chunk_data>::iterator it = find_app_chunk(chunks, offset);
     if (it == chunks.end()) {
         len = 0;
         return data;
+    }
+
+    deque<struct irob_chunk_data>::iterator sent_it = find_app_chunk(sent_chunks, offset);
+    if (sent_it != sent_chunks.end()) {
+        // asking for data that's already been chunked and sent;
+        // make sure we return the exact same chunk
+        // (presumably to be sent redundantly)
+        ASSERT(offset == sent_it->offset);
+        len = sent_it->datalen;
     }
 
     ssize_t bytes_gathered = 0;
@@ -196,19 +205,19 @@ PendingSenderIROB::get_ready_bytes(CSocket *csock,
         return data;
     }
 
-    data = get_bytes_internal(get_irob_offset(csock), bytes_requested);
+    seqno = get_next_seqno_to_send(csock);
+    offset = get_irob_offset(csock);
+
+    data = get_bytes_internal(offset, bytes_requested);
     if (bytes_requested == 0) {
         dbgprintf("...no bytes ready\n");
         return data;
     }
 
-    seqno = get_next_seqno_to_send(csock);
-    offset = get_irob_offset(csock);
     dbgprintf("...returning %d bytes, seqno %lu\n",
               (int)bytes_requested, seqno);
 
     add_sent_chunk(csock, bytes_requested);
-    // TODO: this is almost done.  double-check it.
     
     return data;
 }
@@ -241,6 +250,11 @@ PendingSenderIROB::add_sent_chunk(CSocket *csock, ssize_t len)
         sent_chunk.datalen = len;
 
         sent_chunks.push_back(sent_chunk);
+    } else {
+        // check for incorrect re-chunking bug
+        struct irob_chunk_data& already_sent_chunk = sent_chunks[seqno];
+        ASSERT(already_sent_chunk.offset == offset);
+        ASSERT(already_sent_chunk.datalen == len);
     }
 }
 

@@ -424,11 +424,13 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(pirob));
         ASSERT(prirob);
         if (!prirob->add_chunk(chunk)) {
+            delete [] buf;
             if (prirob->is_complete()) {
                 dbgprintf("do_irob_chunk: duplicate chunk %lu for IROB %ld, ignoring\n", 
                           chunk.seqno, id);
+            } else {
+                throw CMMFatalError("Failed to add chunk for IROB; invalid data detected\n", hdr);
             }
-            delete [] buf;
         } else {
             dbgprintf("Successfully added chunk %lu to IROB %ld\n",
                       chunk.seqno, id);

@@ -116,6 +116,16 @@ PendingReceiverIROB::add_chunk(struct irob_chunk_data& chunk)
         }
 
         if (chunks[seqno].data != NULL) {
+            struct irob_chunk_data& existing_chunk = chunks[seqno];
+            if (chunk.offset != existing_chunk.offset ||
+                chunk.datalen != existing_chunk.datalen) {
+                dbgprintf("mismatch on IROB %ld, chunk %lu -- "
+                          "received: [datalen: %zu  offset: %zu] "
+                          "existing: [datalen: %zu  offset: %zu] \n",
+                          id, chunk.seqno, chunk.datalen, chunk.offset,
+                          existing_chunk.datalen, existing_chunk.offset);
+                return false;
+            }
             dbgprintf("Ignoring already-seen chunk %lu "
                       "(%zu bytes at offset %zu);\n",
                       chunk.seqno, chunk.datalen, chunk.offset);
