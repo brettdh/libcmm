@@ -76,7 +76,7 @@ PendingSenderIROBTest::testFindChunkByOffset()
     deque<struct irob_chunk_data>::iterator it;
     for (size_t i = 0; i < BUFSIZE; ++i) {
         u_long expected_seqno = i / 10;
-        it = psirob->find_app_chunk(i);
+        it = psirob->find_app_chunk(psirob->chunks, i);
         ostringstream oss;
         oss << "Got correct chunk for offset " << i;
         CPPUNIT_ASSERT_EQUAL_MESSAGE(oss.str(),

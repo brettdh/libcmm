@@ -254,7 +254,7 @@ PendingSenderIROB::add_sent_chunk(CSocket *csock, ssize_t len)
         // check for incorrect re-chunking bug
         struct irob_chunk_data& already_sent_chunk = sent_chunks[seqno];
         ASSERT(already_sent_chunk.offset == offset);
-        ASSERT(already_sent_chunk.datalen == len);
+        ASSERT((ssize_t) already_sent_chunk.datalen == len);
     }
 }
 
