@@ -553,6 +553,11 @@ class IntNWBehaviorPlot(QDialog):
             self.__drawSessions()
             self.__drawRedundancyDecisions()
 
+            max_time = self.__session_axes.get_ylim()[1]
+            if self.__user_set_max_time:
+                max_time = self.__user_set_max_time
+            self.__session_axes.set_ylim(0.0, max_time)
+
             if self.__show_debugging.isChecked():
                 self.__drawDebugging()
 
@@ -1181,8 +1186,6 @@ class IntNWBehaviorPlot(QDialog):
     def __getSessionAxes(self, reset=False):
         if self.__session_axes == None or reset:
             self.__session_axes = self.__axes.twinx()
-        if self.__user_set_max_time:
-            self.__session_axes.set_ylim(0.0, self.__user_set_max_time)
         return self.__session_axes
 
     def __drawSessions(self, **kwargs):
