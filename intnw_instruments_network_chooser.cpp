@@ -191,11 +191,17 @@ choose_networks(u_long send_label, size_t num_bytes,
     }
 
     if (needs_reevaluation) {
+        struct timeval begin, end, duration;
+        gettimeofday(&begin, NULL);
         chosen_strategy_type = chooseNetwork(num_bytes);
+        gettimeofday(&end, NULL);
+        timersub(&end, &begin, &duration);
+        dbgprintf("chooseNetwork: %s   took %lu.%06lu seconds\n", 
+                  strategy_names[chosen_strategy_type],
+                  duration.tv_sec, duration.tv_usec);
+
         needs_reevaluation = false;
     }
-
-    dbgprintf("chooseNetwork: %s\n", strategy_names[chosen_strategy_type]);
 
     if (chosen_strategy_type == NETWORK_CHOICE_WIFI ||
         chosen_strategy_type == NETWORK_CHOICE_BOTH) {
