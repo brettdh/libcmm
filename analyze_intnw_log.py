@@ -295,6 +295,7 @@ class IROB(object):
             axes.plot([finish], [ypos], marker='*', color='black')
 
 timestamp_regex = re.compile("^\[([0-9]+\.[0-9]+)\]")
+choose_network_time_regex = re.compile("  took ([0-9.]+) seconds")
 
 def getTimestamp(line):
     return float(re.search(timestamp_regex, line).group(1))
@@ -1192,6 +1193,11 @@ class IntNWBehaviorPlot(QDialog):
         if self.__sessions and self.__show_sessions.isChecked():
             self.__drawSomeSessions(self.__sessions, **kwargs)
 
+        if self.__choose_network_calls:
+            timestamps, calls = zip(*self.__choose_network_calls)
+            timestamps = [self.getAdjustedTime(t) for t in timestamps]
+            self.__getSessionAxes().plot(timestamps, calls, label="choose_network")
+
     def __drawSomeSessions(self, sessions, **kwargs):
         timestamps = [self.getAdjustedTime(s['start']) for s in sessions]
         session_times = [s['end'] - s['start'] for s in sessions]
@@ -1238,8 +1244,9 @@ class IntNWBehaviorPlot(QDialog):
 
     def printStats(self):
         if self.__choose_network_calls:
+            choose_network_times = [c[1] for c in self.__choose_network_calls]
             print ("%f seconds in chooseNetwork (%d calls)" %
-                   (sum(self.__choose_network_calls), len(self.__choose_network_calls)))
+                   (sum(choose_network_times), len(choose_network_times)))
 
         self.__printRedundancyBenefitAnalysis()
         self.__printIROBTimesByNetwork()
@@ -1470,7 +1477,10 @@ class IntNWBehaviorPlot(QDialog):
             pass
         elif "chooseNetwork" in line:
             duration = timestamp - getTimestamp(self.__last_line)
-            self.__choose_network_calls.append(duration)
+            time_match = re.search(choose_network_time_regex, line)
+            if time_match:
+                duration = float(time_match.group(1))
+            self.__choose_network_calls.append((timestamp, duration))
         elif "redundancy_strategy_type" in line:
             # [timestamp][pid][Bootstrapper 49] Sending hello:  Type: Hello(0)
             #                                   Send labels:  listen port: 42424
