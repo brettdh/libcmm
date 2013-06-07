@@ -274,7 +274,7 @@ IntNWInstrumentsNetworkChooser::checkRedundancyAsync(CSockMapping *mapping,
     auto callback = [&](instruments_strategy_t strategy) {
         int type = getStrategyIndex(strategy);
         if (type == NETWORK_CHOICE_BOTH) {
-            mapping->pass_request_to_all_senders(psirob, data);
+            mapping->broadcastRedundancy(psirob, data);
         }
     };
     auto *pcallback = new CallbackWrapper(callback);

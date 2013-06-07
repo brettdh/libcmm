@@ -872,6 +872,16 @@ CSockMapping::pass_request_to_all_senders(PendingSenderIROB *psirob,
 }
 
 void
+CSockMapping::broadcastRedundancy(PendingSenderIROB *psirob,
+                                  const IROBSchedulingData& data)
+{
+    CMMSocketImplPtr skp(sk.lock());
+    PthreadScopedLock lock(&skp->scheduling_state_lock);
+    pass_request_to_all_senders(psirob, data);
+    pthread_cond_broadcast(&skp->scheduling_state_cv);
+}
+
+void
 CSockMapping::check_redundancy_async(PendingSenderIROB *psirob, 
                                      const IROBSchedulingData& data)
 {
