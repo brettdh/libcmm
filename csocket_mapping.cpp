@@ -875,7 +875,7 @@ void
 CSockMapping::broadcastRedundancy(PendingSenderIROB *psirob,
                                   const IROBSchedulingData& data)
 {
-    CMMSocketImplPtr skp(sk.lock());
+    CMMSocketImplPtr skp(sk);
     PthreadScopedLock lock(&skp->scheduling_state_lock);
     check_redundancy(psirob);
     if (psirob->should_send_on_all_networks()) {
