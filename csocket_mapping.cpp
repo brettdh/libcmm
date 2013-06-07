@@ -877,8 +877,14 @@ CSockMapping::broadcastRedundancy(PendingSenderIROB *psirob,
 {
     CMMSocketImplPtr skp(sk.lock());
     PthreadScopedLock lock(&skp->scheduling_state_lock);
-    pass_request_to_all_senders(psirob, data);
-    pthread_cond_broadcast(&skp->scheduling_state_cv);
+    check_redundancy(psirob);
+    if (psirob->should_send_on_all_networks()) {
+        pass_request_to_all_senders(psirob, data);
+        // TODO: figure out why there's a segfault around the time of a data-check.
+        // TODO:  probably more cases to handle.
+        
+        pthread_cond_broadcast(&skp->scheduling_state_cv);
+    }
 }
 
 void

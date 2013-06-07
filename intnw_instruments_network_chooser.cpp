@@ -138,9 +138,11 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
                           network_transfer_energy_cost,
                           network_transfer_data_cost, 
                           (void *)strategy_args[i], (void *) 0);
+        set_strategy_name(strategies[i], strategy_names[i]);
     }
 
     strategies[NETWORK_CHOICE_BOTH] = make_redundant_strategy(strategies, 2);
+    set_strategy_name(strategies[NETWORK_CHOICE_BOTH], strategy_names[NETWORK_CHOICE_BOTH]);
 
     EvalMethod method = Config::getInstance()->getEstimatorErrorEvalMethod();
     evaluator = register_strategy_set_with_method(strategies, NUM_STRATEGIES, method);
