@@ -191,28 +191,6 @@ CSocketSender::Run()
                 }
             }
 
-            // moving this to delegate_if_necessary so I can
-            //  check only on IROB operations.
-            /*
-            if (sk->csock_map->count() > 1 &&
-
-                // TODO-REDUNDANCY: replace with generic "should_be_redundant()"
-                csock->is_in_trouble()) {
-
-                StringifyIP local_ip(&csock->local_iface.ip_addr);
-                StringifyIP remote_ip(&csock->remote_iface.ip_addr);
-                dbgprintf("Network (%s -> %s) is in trouble; asking other senders to help\n",
-                          local_ip.c_str(), remote_ip.c_str());
-
-                // pass off my scheduling data while I'm troubled.
-                if (csock->irob_indexes.size() > 0) {
-                    sk->irob_indexes.add(csock->irob_indexes);
-                    csock->irob_indexes.clear();
-
-                    pthread_cond_broadcast(&sk->scheduling_state_cv);
-                }
-            }
-            */
             // Sending FG data will get redirected to a non-troubled sender
             //  in delegate_if_necessary.
             // I might still send some other things, such as BG data.

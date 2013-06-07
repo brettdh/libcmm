@@ -111,7 +111,7 @@ NetworkChooserGuard::choose_networks(u_long send_label, size_t num_bytes,
               num_bytes, local_ip.c_str(), remote_ip.c_str());
     return result;
 }
-    
+
 void 
 NetworkChooser::reportNetStats(int network_type,
                                double new_bw,
@@ -132,6 +132,15 @@ NetworkChooser::shouldTransmitRedundantly(PendingSenderIROB *psirob)
     return redundant;
 }
 
+
+void 
+NetworkChooser::checkRedundancyAsync(CSockMapping *mapping,
+                                     PendingSenderIROB *psirob, 
+                                     const IROBSchedulingData& data)
+{
+    PthreadScopedLock guard(&lock);
+    impl->checkRedundancyAsync(mapping, psirob, data);
+}
 
 void
 NetworkChooser::saveToFile()

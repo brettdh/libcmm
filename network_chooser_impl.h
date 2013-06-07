@@ -8,6 +8,7 @@
 #include "csocket.h"
 
 class RedundancyStrategy;
+class CSockMapping;
 
 class NetworkChooserImpl {
   public:
@@ -37,6 +38,14 @@ class NetworkChooserImpl {
 
     bool shouldTransmitRedundantly(PendingSenderIROB *psirob);
     virtual void setRedundancyStrategy();
+
+    // override in subclass to do slow redundancy evaluation off the critical path
+    // (that is, after doing a cheap single-network calculation
+    //  and sending on at least one network)
+    virtual void checkRedundancyAsync(CSockMapping *mapping,
+                                      PendingSenderIROB *psirob, 
+                                      const IROBSchedulingData& data) {}
+
 
     virtual void saveToFile() {}
 

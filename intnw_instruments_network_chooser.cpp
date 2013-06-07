@@ -3,6 +3,8 @@
 #include "libcmm_net_restriction.h"
 #include "debug.h"
 #include "config.h"
+#include "csocket_mapping.h"
+#include "pending_sender_irob.h"
 #include <assert.h>
 #include "libpowertutor.h"
 
@@ -10,7 +12,7 @@
 #include <sstream>
 #include <string>
 using std::max; using std::ostringstream;
-using std::string;
+using std::string; using std::function;
 
 #include <instruments_private.h>
 #include <resource_weights.h>
@@ -250,9 +252,36 @@ IntNWInstrumentsNetworkChooser::reset()
 int 
 IntNWInstrumentsNetworkChooser::chooseNetwork(int bytelen)
 {
-    instruments_strategy_t chosen = choose_strategy(evaluator, (void *)bytelen);
+    instruments_strategy_t chosen = choose_nonredundant_strategy(evaluator, (void *)bytelen);
     return getStrategyIndex(chosen);
 }
+
+typedef function<void(instruments_strategy_t)> CallbackWrapper;
+
+static void 
+callback_wrapper(instruments_strategy_t strategy, void *arg)
+{
+    CallbackWrapper *fn = (CallbackWrapper *) arg;
+    (*fn)(strategy);
+    delete fn;
+}
+
+void 
+IntNWInstrumentsNetworkChooser::checkRedundancyAsync(CSockMapping *mapping, 
+                                                     PendingSenderIROB *psirob, 
+                                                     const IROBSchedulingData& data)
+{
+    auto callback = [&](instruments_strategy_t strategy) {
+        int type = getStrategyIndex(strategy);
+        if (type == NETWORK_CHOICE_BOTH) {
+            mapping->pass_request_to_all_senders(psirob, data);
+        }
+    };
+    auto *pcallback = new CallbackWrapper(callback);
+    *pcallback = callback;
+    choose_strategy_async(evaluator, (void *) psirob->expected_bytes(), callback_wrapper, pcallback);
+}
+
 
 int IntNWInstrumentsNetworkChooser::getStrategyIndex(instruments_strategy_t strategy)
 {

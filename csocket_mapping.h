@@ -95,6 +95,9 @@ class CSockMapping {
     void pass_request_to_all_senders(PendingSenderIROB *psirob,
                                      const IROBSchedulingData& data);
 
+    void check_redundancy_async(PendingSenderIROB *psirob, 
+                                const IROBSchedulingData& data);
+
     CSockMapping(CMMSocketImplPtr sk);
     ~CSockMapping();
 

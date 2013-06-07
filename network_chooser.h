@@ -11,6 +11,7 @@
 class PendingSenderIROB;
 class RedundancyStrategy;
 class NetworkChooserImpl;
+class CSockMapping;
 
 // reset + consider + choose_networks must be atomic,
 //  so they are only available through this interface.
@@ -61,6 +62,9 @@ class NetworkChooser {
                         double new_latency_estimate);
 
     bool shouldTransmitRedundantly(PendingSenderIROB *psirob);
+    void checkRedundancyAsync(CSockMapping *mapping,
+                              PendingSenderIROB *psirob, 
+                              const IROBSchedulingData& data);
 
     void saveToFile();
 

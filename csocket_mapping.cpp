@@ -870,3 +870,15 @@ CSockMapping::pass_request_to_all_senders(PendingSenderIROB *psirob,
     AddRequestIfNotSent functor(psirob, data);
     for_each(functor);
 }
+
+void
+CSockMapping::check_redundancy_async(PendingSenderIROB *psirob, 
+                                     const IROBSchedulingData& data)
+{
+    if (!network_chooser->shouldTransmitRedundantly(psirob)) {
+        // if we haven't checked already (i.e. if we're not using
+        // an INTNW_REDUNDANT NetworkChooser), check for it asynchronously.
+
+        network_chooser->checkRedundancyAsync(this, psirob, data);
+    }
+}

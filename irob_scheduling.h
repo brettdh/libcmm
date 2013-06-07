@@ -76,6 +76,17 @@ class IROBPrioritySet {
 };
 
 struct IROBSchedulingIndexes {
+    enum type {
+        NEW_IROBS = 0,
+        NEW_CHUNKS,
+        FINISHED_IROBS,
+        WAITING_ACKS,
+        RESEND_REQUESTS,
+        WAITING_DATA_CHECKS,
+        
+        NUM_SETS
+    };
+    
     explicit IROBSchedulingIndexes(const std::string& level);
 
     // Copy all of other's data items to this.
@@ -93,10 +104,12 @@ struct IROBSchedulingIndexes {
     IROBPrioritySet resend_requests;
     IROBPrioritySet waiting_data_checks;
 
+    void insert(IROBSchedulingData data, type index_type);
   private:
     void transfer(irob_id_t id, u_long new_labels,
                   IROBSchedulingIndexes& other);
-
+    
+    IROBPrioritySet *sets[NUM_SETS];
 };
 
 #endif
