@@ -58,7 +58,7 @@ TESTOBJS := pending_irob_test.o lattice_test.o intset_test.o \
 	    pthread_util_test.o net_interface_test.o util_test.o \
 	    estimation_test.o 
 SUPPORTOBJS := pending_irob.o intset.o testing_debug.o  pending_receiver_irob.o \
-	       pending_sender_irob.o timeops.o net_stats.o \
+	       pending_sender_irob.o timeops.o net_stats.o estimate.o \
 	       test_common.o testing_debug.o  net_interface.o irob_scheduling.o common.o \
 	       csocket.o redundancy_strategy.o  \
 		   cmm_socket_control.o libcmm_net_restriction.o

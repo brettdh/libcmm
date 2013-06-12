@@ -41,11 +41,6 @@ EstimationTest::tearDown()
 #define STABLE_GAIN 0.9
 #define AGILE_GAIN 0.1
 
-static u_long round_nearest(double val)
-{
-    return static_cast<u_long>(val + 0.5);
-}
-
 void
 EstimationTest::testFlipFlop()
 {

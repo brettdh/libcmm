@@ -7,32 +7,10 @@
 #include "pthread_util.h"
 #include "libcmm_irob.h"
 #include "intset.h"
+#include "estimate.h"
 #include <map>
 
 class NetworkChooser;
-
-class Estimate {
-  public:
-    // pick estimate based on control limits
-    // returns true on success, false if there are no observations yet
-    bool get_estimate(u_long& est);
-    
-    void add_observation(u_long new_spot_value);
-
-    void reset(u_long new_spot_value);
-    
-    Estimate();
-  private:
-    // keep as double for precision; convert to u_long on request
-    double stable_estimate;
-    double agile_estimate;
-    double spot_value;
-    double moving_range;
-    double center_line;
-    bool valid;
-    
-    bool spot_value_within_limits();
-};
 
 class QueuingDelay {
   public:

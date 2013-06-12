@@ -56,6 +56,7 @@ libcmm.so: libcmm.o libcmm_ipc.o libcmm_external_ipc.o libcmm_net_restriction.o 
 	       cmm_socket.o cmm_socket_impl.o \
 	       cmm_socket_passthrough.o thunks.o cmm_timing.o csocket.o \
            csocket_mapping.o csocket_sender.o csocket_receiver.o \
+		   estimate.o \
            pending_irob.o pending_sender_irob.o pending_receiver_irob.o \
            cmm_thread.o cmm_internal_listener.o libcmm_irob.o debug.o config.o \
            intset.o cmm_socket_control.o irob_scheduling.o timeops.o \
