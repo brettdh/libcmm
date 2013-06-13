@@ -16,35 +16,42 @@ Estimate::Estimate()
 }
 
 void
-Estimate::reset(u_long new_spot_value_int)
+Estimate::reset(double new_spot_value)
 {
     stable_estimate = agile_estimate = spot_value = 0.0;
     moving_range = center_line = 0.0;
     valid = false;
-    add_observation(new_spot_value_int);
+    add_observation(new_spot_value);
 }
 
 bool
-Estimate::get_estimate(u_long& est)
+Estimate::get_estimate(double& est)
 {
     // Estimate can be:
     //  * nothing if there have been no spot values (returns false)
     //  * the first spot value if there's only been one (returns true)
     //  * A real estimate based on two or more spot values (returns true)
 
-    double ret;
-    
     if (!valid) {
         return false;
     }
 
     if (spot_value_within_limits()) {
-        ret = agile_estimate;
+        est = agile_estimate;
     } else {
-        ret = stable_estimate;
+        est = stable_estimate;
     }
-    est = round_nearest(ret);
     return true;
+}
+
+bool
+Estimate::get_estimate(u_long& est)
+{
+    double float_est;
+    bool ret = get_estimate(float_est);
+        
+    est = round_nearest(float_est);
+    return ret;
 }
 
 #define STABLE_GAIN 0.9
@@ -64,9 +71,8 @@ void update_EWMA(double& EWMA, double spot, double gain)
 }
 
 void
-Estimate::add_observation(u_long new_spot_value_int)
+Estimate::add_observation(double new_spot_value)
 {
-    double new_spot_value = static_cast<double>(new_spot_value_int);
     double new_MR_value = fabs(new_spot_value - spot_value);
     spot_value = new_spot_value;
 

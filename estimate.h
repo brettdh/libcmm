@@ -10,10 +10,11 @@ class Estimate {
     // pick estimate based on control limits
     // returns true on success, false if there are no observations yet
     bool get_estimate(u_long& est);
+    bool get_estimate(double& est);
     
-    void add_observation(u_long new_spot_value);
+    void add_observation(double new_spot_value);
 
-    void reset(u_long new_spot_value);
+    void reset(double new_spot_value);
     
     Estimate();
   private:
