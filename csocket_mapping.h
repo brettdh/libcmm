@@ -96,8 +96,7 @@ class CSockMapping {
                                      const IROBSchedulingData& data);
 
     // to be called from async callback.
-    void broadcastRedundancy(PendingSenderIROB *psirob,
-                             const IROBSchedulingData& data);
+    void broadcastRedundancy(const IROBSchedulingData& data);
 
     void check_redundancy_async(PendingSenderIROB *psirob, 
                                 const IROBSchedulingData& data);
