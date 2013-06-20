@@ -15,6 +15,7 @@
 
 struct strategy_args;
 class InstrumentsWrappedNetStats;
+class CSockMapping;
 
 class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
   public:
@@ -29,6 +30,11 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
                                  struct net_interface& remote_iface);
 
     virtual void reset();
+
+    virtual void checkRedundancyAsync(CSockMapping *mapping,
+                                      PendingSenderIROB *psirob, 
+                                      const IROBSchedulingData& data);
+
 
     // for communicating simulated energy/data budgets.
     void setFixedResourceWeights(double energyWeight, double dataWeight);

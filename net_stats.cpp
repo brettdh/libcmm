@@ -865,7 +865,7 @@ IROBMeasurement::RTT()
     ASSERT(ack_time.tv_sec == -1 || failure_time.tv_sec == -1);
 
     struct timeval finish_time = (ack_time.tv_sec != -1 ? ack_time : failure_time);
-    ASSERT(timercmp(&arrival_time, &finish_time, <));
+    ASSERT(timercmp(&arrival_time, &finish_time, <=));
 
     struct timeval rtt;
     TIMEDIFF(arrival_time, finish_time, rtt);

@@ -37,8 +37,8 @@ NetworkChooserImpl::reset()
 
 bool 
 NetworkChooserImpl::choose_networks(u_long send_label,
-                                struct net_interface& local_iface,
-                                struct net_interface& remote_iface)
+                                    struct net_interface& local_iface,
+                                    struct net_interface& remote_iface)
 {
     return choose_networks(send_label, 0, local_iface, remote_iface);
 }
