@@ -50,6 +50,7 @@ LOCAL_SRC_FILES := $(addprefix ../, \
 	csocket_receiver.cpp \
 	csocket_sender.cpp \
 	debug.cpp \
+	estimate.cpp \
 	intnw_instruments_network_chooser.cpp \
 	intnw_instruments_net_stats_wrapper.cpp \
 	intset.cpp \
