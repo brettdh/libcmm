@@ -758,7 +758,11 @@ NetStats::mark_irob_failures(NetworkChooser *chooser, int network_type,
         double latency_ms = convert_to_useconds(max_delay) / 1000.0 / 2.0;
         double latency_seconds = latency_ms / 1000.0;
 
-        if (Config::getInstance()->getRecordFailoverLatency()) {
+        bool record_failover_latency = true;
+#ifndef CMM_UNIT_TESTING
+        record_failover_latency = Config::getInstance()->getRecordFailoverLatency();
+#endif
+        if (record_failover_latency) {
             dbgprintf("Adding max failover delay as latency: %.6f seconds\n",
                       latency_seconds);
             
