@@ -3,6 +3,8 @@
 #include "libcmm_net_restriction.h"
 #include "debug.h"
 #include "config.h"
+#include "csocket_mapping.h"
+#include "pending_sender_irob.h"
 #include <assert.h>
 #include "libpowertutor.h"
 
@@ -10,7 +12,7 @@
 #include <sstream>
 #include <string>
 using std::max; using std::ostringstream;
-using std::string;
+using std::string; using std::function;
 
 #include <instruments_private.h>
 #include <resource_weights.h>
@@ -136,9 +138,11 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
                           network_transfer_energy_cost,
                           network_transfer_data_cost, 
                           (void *)strategy_args[i], (void *) 0);
+        set_strategy_name(strategies[i], strategy_names[i]);
     }
 
     strategies[NETWORK_CHOICE_BOTH] = make_redundant_strategy(strategies, 2);
+    set_strategy_name(strategies[NETWORK_CHOICE_BOTH], strategy_names[NETWORK_CHOICE_BOTH]);
 
     EvalMethod method = Config::getInstance()->getEstimatorErrorEvalMethod();
     evaluator = register_strategy_set_with_method(strategies, NUM_STRATEGIES, method);
@@ -250,9 +254,44 @@ IntNWInstrumentsNetworkChooser::reset()
 int 
 IntNWInstrumentsNetworkChooser::chooseNetwork(int bytelen)
 {
-    instruments_strategy_t chosen = choose_strategy(evaluator, (void *)bytelen);
+    instruments_strategy_t chosen = choose_nonredundant_strategy(evaluator, (void *)bytelen);
     return getStrategyIndex(chosen);
 }
+
+typedef function<void(instruments_strategy_t)> CallbackWrapper;
+
+static void 
+callback_wrapper(instruments_strategy_t strategy, void *arg)
+{
+    CallbackWrapper *fn = (CallbackWrapper *) arg;
+    (*fn)(strategy);
+    delete fn;
+}
+
+void 
+IntNWInstrumentsNetworkChooser::checkRedundancyAsync(CSockMapping *mapping, 
+                                                     PendingSenderIROB *psirob, 
+                                                     const IROBSchedulingData& data)
+{
+    auto callback = [=](instruments_strategy_t strategy) {
+        chosen_strategy_type = getStrategyIndex(strategy);
+        if (chosen_strategy_type == NETWORK_CHOICE_BOTH) {
+            mapping->broadcastRedundancy(data);
+        }
+    };
+    auto *pcallback = new CallbackWrapper(callback);
+    *pcallback = callback;
+
+    // TODO: tweak the locking involved here so that the
+    // TODO:  long asynchronous redundancy calculation doesn't block
+    // TODO:  the short synchronous singular calculation.
+    // TODO: but only address this after I've rethought and 
+    // TODO:  written down how I think my system SHOULD
+    // TODO:  be making decisions.  (the problem might go away
+    // TODO:  depending on what method I adopt.)
+    choose_strategy_async(evaluator, (void *) psirob->expected_bytes(), callback_wrapper, pcallback);
+}
+
 
 int IntNWInstrumentsNetworkChooser::getStrategyIndex(instruments_strategy_t strategy)
 {

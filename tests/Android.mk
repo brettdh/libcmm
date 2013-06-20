@@ -16,7 +16,7 @@ TEST_SRCS := pending_irob_test.cpp lattice_test.cpp intset_test.cpp \
 	    pending_receiver_irob_test.cpp \
 	    estimation_test.cpp pthread_util_test.cpp
 SUPPORT_SRCS := pending_irob.cpp intset.cpp debug_ext.cpp pending_receiver_irob.cpp \
-	       pending_sender_irob.cpp timeops.cpp net_stats.cpp \
+	       pending_sender_irob.cpp timeops.cpp net_stats.cpp estimate.cpp \
 	       net_interface.cpp irob_scheduling.cpp
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_tests

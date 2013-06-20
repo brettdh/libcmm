@@ -120,6 +120,12 @@ IROBSchedulingIndexes::IROBSchedulingIndexes(const string& level)
       resend_requests(level, "resend requests"),
       waiting_data_checks(level, "waiting data-checks")
 {
+    sets[NEW_IROBS] = &new_irobs;
+    sets[NEW_CHUNKS] = &new_chunks;
+    sets[FINISHED_IROBS] = &finished_irobs;
+    sets[WAITING_ACKS] = &waiting_acks;
+    sets[RESEND_REQUESTS] = &resend_requests;
+    sets[WAITING_DATA_CHECKS] = &waiting_data_checks;
 }
 
 void
@@ -166,4 +172,10 @@ IROBSchedulingIndexes::transfer(irob_id_t id, u_long new_labels,
 {
     new_irobs.transfer(id, new_labels, other.new_irobs);
     new_chunks.transfer(id, new_labels, other.new_chunks);
+}
+
+void
+IROBSchedulingIndexes::insert(IROBSchedulingData data, IROBSchedulingIndexes::type index_type)
+{
+    sets[index_type]->insert(data);
 }

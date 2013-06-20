@@ -13,6 +13,7 @@ class Config {
     
     bool getDebugOn();
     bool getUseBreadcrumbsEstimates();
+    bool getRecordFailoverLatency();
 
     std::string getEstimatorErrorLoadFilename();
     std::string getEstimatorErrorSaveFilename();

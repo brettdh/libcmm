@@ -870,3 +870,33 @@ CSockMapping::pass_request_to_all_senders(PendingSenderIROB *psirob,
     AddRequestIfNotSent functor(psirob, data);
     for_each(functor);
 }
+
+void
+CSockMapping::broadcastRedundancy(const IROBSchedulingData& data)
+{
+    CMMSocketImplPtr skp(sk);
+    PthreadScopedLock lock(&skp->scheduling_state_lock);
+    PendingIROBPtr pirob = skp->outgoing_irobs.find(data.id);
+    if (pirob == NULL) {
+        // must have been acknowledged
+        return;
+    }
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
+    ASSERT(psirob);
+    
+    check_redundancy(psirob);
+    if (psirob->should_send_on_all_networks()) {
+        pass_request_to_all_senders(psirob, data);
+        // TODO: figure out why there's a segfault around the time of a data-check.
+        // TODO:  probably more cases to handle.
+        
+        pthread_cond_broadcast(&skp->scheduling_state_cv);
+    }
+}
+
+void
+CSockMapping::check_redundancy_async(PendingSenderIROB *psirob, 
+                                     const IROBSchedulingData& data)
+{
+    network_chooser->checkRedundancyAsync(this, psirob, data);
+}

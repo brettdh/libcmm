@@ -336,6 +336,9 @@ class CMMSocketImpl : public CMMSocket {
     IROBSchedulingIndexes irob_indexes;
     bool sending_goodbye;
 
+    void addSchedulingData(CSocketPtr csock, IROBSchedulingIndexes::type type, 
+                           PendingSenderIROB *psirob, const IROBSchedulingData& data);
+
     bool non_blocking;
     bool is_non_blocking(); // considers calls to fcntl with O_NONBLOCK
 

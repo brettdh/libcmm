@@ -23,10 +23,12 @@ const char *CONFIG_FILE = "/etc/cmm_config";
 // keys for boolean options
 static const string DEBUG_OUTPUT_KEY = "debug";
 static const string USE_BREADCRUMBS_ESTIMATES_KEY = "use_breadcrumbs_estimates";
+static const string RECORD_FAILOVER_LATENCY_KEY = "record_failover_latency";
 
 static vector<string> boolean_option_keys = {
     DEBUG_OUTPUT_KEY,
-    USE_BREADCRUMBS_ESTIMATES_KEY
+    USE_BREADCRUMBS_ESTIMATES_KEY,
+    RECORD_FAILOVER_LATENCY_KEY,
 };
 
 // keys for string options
@@ -258,6 +260,12 @@ bool
 Config::getUseBreadcrumbsEstimates()
 {
     return getBoolean(USE_BREADCRUMBS_ESTIMATES_KEY);
+}
+
+bool
+Config::getRecordFailoverLatency()
+{
+    return getBoolean(RECORD_FAILOVER_LATENCY_KEY);
 }
 
 string

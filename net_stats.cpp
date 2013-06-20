@@ -757,17 +757,28 @@ NetStats::mark_irob_failures(NetworkChooser *chooser, int network_type,
         dbgprintf("Marking IROBs failed: [ %s]\n", s.str().c_str());
         double latency_ms = convert_to_useconds(max_delay) / 1000.0 / 2.0;
         double latency_seconds = latency_ms / 1000.0;
-        dbgprintf("Adding max failover delay as latency: %.6f seconds\n",
-                  latency_seconds);
-        
-        Estimate& latency_estimate = net_estimates.estimates[NET_STATS_LATENCY];
-        latency_estimate.add_observation(round_nearest(latency_ms));
-        u_long new_latency_est;
-        if (latency_estimate.get_estimate(new_latency_est)) {
+
+        bool record_failover_latency = true;
 #ifndef CMM_UNIT_TESTING
-            chooser->reportNetStats(network_type, 0.0, 0.0, 
-                                    latency_seconds, new_latency_est / 1000.0);
+        record_failover_latency = Config::getInstance()->getRecordFailoverLatency();
 #endif
+        if (record_failover_latency) {
+            dbgprintf("Adding max failover delay as latency: %.6f seconds\n",
+                      latency_seconds);
+            
+            Estimate& latency_estimate = net_estimates.estimates[NET_STATS_LATENCY];
+            latency_estimate.add_observation(round_nearest(latency_ms));
+            u_long new_latency_est;
+            if (latency_estimate.get_estimate(new_latency_est)) {
+#ifndef CMM_UNIT_TESTING
+                chooser->reportNetStats(network_type, 0.0, 0.0, 
+                                        latency_seconds, new_latency_est / 1000.0);
+#endif
+            }
+        } else {
+            dbgprintf("Observed max failover delay of %.6f seconds, "
+                      "but not recording it as latency\n",
+                      latency_seconds);
         }
         if (latency_seconds_out) {
             *latency_seconds_out = latency_seconds;
@@ -865,7 +876,7 @@ IROBMeasurement::RTT()
     ASSERT(ack_time.tv_sec == -1 || failure_time.tv_sec == -1);
 
     struct timeval finish_time = (ack_time.tv_sec != -1 ? ack_time : failure_time);
-    ASSERT(timercmp(&arrival_time, &finish_time, <));
+    ASSERT(timercmp(&arrival_time, &finish_time, <=));
 
     struct timeval rtt;
     TIMEDIFF(arrival_time, finish_time, rtt);
