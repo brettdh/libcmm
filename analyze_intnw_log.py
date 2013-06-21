@@ -331,6 +331,7 @@ class IntNWBehaviorPlot(QDialog):
 
         # second axes to plot times on
         self.__session_axes = None
+        self.__user_set_max_trace_duration = None
         self.__user_set_max_time = None
 
         self.__alpha = IntNWBehaviorPlot.CONFIDENCE_ALPHA
@@ -406,6 +407,15 @@ class IntNWBehaviorPlot(QDialog):
 
         hbox.addLayout(left_box, stretch=1)
 
+        self.__max_trace_duration = QLineEdit("")
+        self.connect(self.__max_trace_duration, SIGNAL("returnPressed()"), 
+                     self.updateMaxTraceDuration)
+
+        labeled_input = QVBoxLayout()
+        labeled_input.addWidget(QLabel("Max trace duration"))
+        labeled_input.addWidget(self.__max_trace_duration)
+        hbox.addLayout(labeled_input, stretch=1)
+
         self.__max_time = QLineEdit("")
         self.connect(self.__max_time, SIGNAL("returnPressed()"), self.updateMaxTime)
 
@@ -414,13 +424,22 @@ class IntNWBehaviorPlot(QDialog):
         labeled_input.addWidget(self.__max_time)
         hbox.addLayout(labeled_input, stretch=1)
 
-    def updateMaxTime(self):
+
+    def __updateUserSetField(self, field, attrname):
         try:
-            maxtime = float(self.__max_time.text())
-            self.__user_set_max_time = maxtime
+            value = float(field.text())
+            print "Setting %s to %f" % (attrname, value)
+            setattr(self, attrname, value)
             self.on_draw()
         except ValueError:
             pass
+
+    def updateMaxTraceDuration(self):
+        self.__updateUserSetField(self.__max_trace_duration,
+                                  "_IntNWBehaviorPlot__user_set_max_trace_duration")
+
+    def updateMaxTime(self):
+        self.__updateUserSetField(self.__max_time, "_IntNWBehaviorPlot__user_set_max_time")
 
     def updateAlpha(self):
         try:
@@ -554,9 +573,13 @@ class IntNWBehaviorPlot(QDialog):
             self.__drawSessions()
             self.__drawRedundancyDecisions()
 
+            max_trace_duration = self.__session_axes.get_xlim()[1]
             max_time = self.__session_axes.get_ylim()[1]
+            if self.__user_set_max_trace_duration:
+                max_trace_duration = self.__user_set_max_trace_duration
             if self.__user_set_max_time:
                 max_time = self.__user_set_max_time
+            self.__session_axes.set_xlim(0.0, max_trace_duration)
             self.__session_axes.set_ylim(0.0, max_time)
 
             if self.__show_debugging.isChecked():
@@ -564,7 +587,7 @@ class IntNWBehaviorPlot(QDialog):
 
             self.__drawWifi()
         
-        self.__axes.set_xlim(-100, 1300) # hack, but I'm tired of it bouncing around.
+        #self.__axes.set_xlim(-100, 1300) # hack, but I'm tired of it bouncing around.
 
         self.__canvas.draw()
 
