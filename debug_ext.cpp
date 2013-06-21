@@ -107,11 +107,6 @@ static void vdbgprintf(bool plain, const char *fmt, va_list ap)
 #endif
 }
 
-bool is_debugging_on()
-{
-    return true;
-}
-
 void dbgprintf_always(const char *fmt, ...)
 {
     va_list ap;
@@ -120,6 +115,12 @@ void dbgprintf_always(const char *fmt, ...)
     va_end(ap);
 }
 
+#ifdef CMM_DEBUG
+
+bool is_debugging_on()
+{
+    return true;
+}
 
 void dbgprintf(const char *fmt, ...)
 {
@@ -136,3 +137,4 @@ void dbgprintf_plain(const char *fmt, ...)
     vdbgprintf(true, fmt, ap);
     va_end(ap);
 }
+#endif
