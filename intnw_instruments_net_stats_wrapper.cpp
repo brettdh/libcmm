@@ -92,3 +92,14 @@ InstrumentsWrappedNetStats::was_first_update()
     first_update = false;
     return ret;
 }
+
+void 
+InstrumentsWrappedNetStats::addSessionDuration(struct timeval duration)
+{
+    double duration_secs = duration.tv_sec + (duration.tv_usec / 1000000.0);
+    double duration_est;
+    session_duration.add_observation(duration_secs);
+    if (session_duration.get_estimate(duration_est)) {
+        add_observation(session_duration_estimator, duration_secs, duration_est);
+    }
+}

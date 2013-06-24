@@ -86,8 +86,9 @@ class IROBMeasurement {
 #define NET_STATS_LATENCY 0
 #define NET_STATS_BW_UP   1
 #define NET_STATS_BW_DOWN 2
+#define NET_STATS_WIFI_DURATION 3
 
-#define NUM_ESTIMATES 3
+#define NUM_ESTIMATES 4
 
 // data needed to re-start passive measurement calculation
 //  from previous measurements.
@@ -148,6 +149,8 @@ class NetStats {
                     struct timeval ack_qdelay, 
                     struct timeval *real_time = NULL,
                     double *bw_out = NULL, double *latency_seconds_out = NULL);
+
+    void notify_of_teardown(NetworkChooser *chooser, int network_type);
 
     //  if there are any unACKed IROBs, 
     //  add a latency measurement equal to the time since

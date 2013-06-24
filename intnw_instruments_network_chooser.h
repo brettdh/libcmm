@@ -47,6 +47,8 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
                                 double new_bw_estimate,
                                 double new_latency,
                                 double new_latency_estimate);
+
+    virtual void addWifiDuration(struct timeval duration);
     
     class RedundancyStrategy : public ::RedundancyStrategy {
       public:

@@ -61,6 +61,8 @@ class NetworkChooser {
                         double new_latency_seconds,
                         double new_latency_estimate);
 
+    void addWifiDuration(struct timeval duration);
+
     bool shouldTransmitRedundantly(PendingSenderIROB *psirob);
     void checkRedundancyAsync(CSockMapping *mapping,
                               PendingSenderIROB *psirob, 

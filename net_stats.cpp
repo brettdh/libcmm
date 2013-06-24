@@ -725,6 +725,18 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
     return new_measurement;
 }
 
+void
+NetStats::notify_of_teardown(NetworkChooser *chooser, int network_type)
+{
+    mark_irob_failures(chooser, network_type);
+    if (network_type == NET_TYPE_WIFI) {
+        struct timeval now, diff;
+        TIME(now);
+        TIMEDIFF(wifi_connection_start, now, diff);
+        chooser->addWifiDuration(diff);
+    }
+}
+
 bool
 NetStats::mark_irob_failures(NetworkChooser *chooser, int network_type,
                              double *latency_seconds_out)

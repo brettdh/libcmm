@@ -81,8 +81,9 @@ IntNWInstrumentsNetworkChooser::calculateTransferTime(instruments_context_t ctx,
     assert(net_stats);
     double bw = getBandwidthUp(ctx, net_stats);
     double rtt_seconds = getRttSeconds(ctx, net_stats);
+    double wifi_failure_penalty = getWifiFailurePenalty(ctx, net_stats);
 
-    return (bytelen / bw) + rtt_seconds;
+    return (bytelen / bw) + rtt_seconds + wifi_failure_penalty;
 }
 
 double
@@ -102,6 +103,8 @@ IntNWInstrumentsNetworkChooser::calculateTransferEnergy(instruments_context_t ct
     double bw = getBandwidthUp(ctx, net_stats);
     double rtt_seconds = getRttSeconds(ctx, net_stats);
     
+    // TODO: incorporate wifi failure_penalty somehow?
+    // TODO: e.g. energy cost of sending on cellular anyway
     return estimate_energy_cost(type, bytelen, bw, rtt_seconds * 1000.0);
 }
 
@@ -110,6 +113,8 @@ IntNWInstrumentsNetworkChooser::calculateTransferMobileData(InstrumentsWrappedNe
                                                             int bytelen)
 {
     if (net_stats == wifi_stats) {
+        // TODO: incorporate wifi failure_penalty somehow?
+        // TODO: e.g. data cost of sending on cellular anyway
         return 0;
     } else if (net_stats == cellular_stats) {
         return bytelen;
@@ -386,6 +391,12 @@ IntNWInstrumentsNetworkChooser::reportNetStats(int network_type,
     stats->update(new_bw, new_bw_estimate, 
                   new_latency_seconds, new_latency_estimate);
     needs_reevaluation = true;
+}
+
+void 
+IntNWInstrumentsNetworkChooser::addWifiDuration(struct timeval duration)
+{
+    wifi_stats->addSessionDuration(duration);
 }
 
 void

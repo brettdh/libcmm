@@ -19,6 +19,9 @@ class InstrumentsWrappedNetStats {
     void update(double bw_up, double bw_estimate,
                 double RTT_seconds, double RTT_estimate);
 
+    // for keeping track of wifi session durations.
+    void addSessionDuration(struct timeval duration);
+
     double get_bandwidth_up(instruments_context_t ctx);
     double get_rtt(instruments_context_t ctx);
   private:
