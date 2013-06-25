@@ -150,8 +150,6 @@ class NetStats {
                     struct timeval *real_time = NULL,
                     double *bw_out = NULL, double *latency_seconds_out = NULL);
 
-    void notify_of_teardown(NetworkChooser *chooser, int network_type);
-
     //  if there are any unACKed IROBs, 
     //  add a latency measurement equal to the time since
     //  the first of them was sent.  This captures failover delay.

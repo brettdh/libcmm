@@ -36,7 +36,8 @@ class NetworkChooserImpl {
                                 double new_latency_seconds,
                                 double new_latency_estimate) {}
 
-    virtual void addWifiDuration(struct timeval duration) {}
+    virtual void reportNetworkSetup(int network_type) {}
+    virtual void reportNetworkTeardown(int network_type) {}
     
     bool shouldTransmitRedundantly(PendingSenderIROB *psirob);
     virtual void setRedundancyStrategy();

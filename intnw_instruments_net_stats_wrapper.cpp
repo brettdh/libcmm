@@ -66,6 +66,12 @@ double InstrumentsWrappedNetStats::get_rtt(instruments_context_t ctx)
     return get_estimator_value(ctx, rtt_estimator);
 }
 
+double 
+InstrumentsWrappedNetStats::get_session_duration(instruments_context_t ctx)
+{
+    return get_estimator_value(ctx, session_duration_estimator);
+}
+
 void InstrumentsWrappedNetStats::update(double bw_up, double bw_estimate,
                                         double RTT_seconds, double RTT_estimate)
 {
@@ -100,6 +106,8 @@ InstrumentsWrappedNetStats::addSessionDuration(struct timeval duration)
     double duration_est;
     session_duration.add_observation(duration_secs);
     if (session_duration.get_estimate(duration_est)) {
+        dbgprintf("Adding new session length %f  new estimate %f\n",
+                  duration_secs, duration_est);
         add_observation(session_duration_estimator, duration_secs, duration_est);
     }
 }

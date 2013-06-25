@@ -48,7 +48,8 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
                                 double new_latency,
                                 double new_latency_estimate);
 
-    virtual void addWifiDuration(struct timeval duration);
+    virtual void reportNetworkSetup(int network_type);
+    virtual void reportNetworkTeardown(int network_type);
     
     class RedundancyStrategy : public ::RedundancyStrategy {
       public:
@@ -73,6 +74,8 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
     
   private:
     bool wifi_present;
+    struct timeval wifi_begin;
+    
     bool needs_reevaluation;
     int chosen_strategy_type;
     struct net_interface wifi_local, wifi_remote;
@@ -101,7 +104,10 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
                           InstrumentsWrappedNetStats *net_stats);
     double getRttSeconds(instruments_context_t ctx,
                          InstrumentsWrappedNetStats *net_stats);
+    double getWifiFailurePenalty(instruments_context_t ctx,
+                                 InstrumentsWrappedNetStats *net_stats);
 
+    double getCurrentWifiDuration();
     
     double calculateTransferTime(instruments_context_t ctx,
                                  InstrumentsWrappedNetStats *net_stats,

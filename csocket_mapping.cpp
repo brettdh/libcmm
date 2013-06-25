@@ -208,7 +208,7 @@ CSockMapping::setup(struct net_interface iface, bool local,
             local_iface = iface;
             remote_iface = *it;
             if (need_data_check || !csock_by_ifaces(local_iface, remote_iface)) {
-                (void)make_new_csocket(local_iface, remote_iface);
+                (void) make_new_csocket(local_iface, remote_iface);
             }
         }
     }
@@ -258,7 +258,8 @@ CSockMapping::teardown(struct net_interface iface, bool local)
         victims.pop_back();
         available_csocks.erase(victim);
 
-        victim->stats.notify_of_teardown(network_chooser, victim->network_type());
+        victim->stats.mark_irob_failures(network_chooser, victim->network_type());
+        network_chooser->reportNetworkTeardown(victim->network_type());
 
         dbgprintf("Tearing down CSocket %d (%s interface %s is gone\n",
                   victim->osfd, local ? "local" : "remote", StringifyIP(&iface.ip_addr).c_str());

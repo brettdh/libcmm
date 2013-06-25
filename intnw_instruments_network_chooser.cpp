@@ -5,6 +5,7 @@
 #include "config.h"
 #include "csocket_mapping.h"
 #include "pending_sender_irob.h"
+#include "timeops.h"
 #include <assert.h>
 #include "libpowertutor.h"
 
@@ -73,6 +74,28 @@ IntNWInstrumentsNetworkChooser::getRttSeconds(instruments_context_t ctx,
     return max(0.0, rtt_seconds); // TODO: revisit.  This is a hack to avoid bogus calculations.
 }
 
+// I've seen variation from 7-14 seconds here, approximately, so I'll just
+//  pick something in the middle.
+// TODO: measure it, many times, and take an average.
+static double WIFI_FAILURE_PENALTY = 10.0;
+
+double
+IntNWInstrumentsNetworkChooser::getWifiFailurePenalty(instruments_context_t ctx,
+                                                      InstrumentsWrappedNetStats *net_stats)
+{
+    double penalty = 0.0;
+    if (net_stats == wifi_stats) {
+        double predicted_wifi_duration = wifi_stats->get_session_duration(ctx);
+        double current_wifi_duration = getCurrentWifiDuration();
+        if (current_wifi_duration >= (predicted_wifi_duration - WIFI_FAILURE_PENALTY)) {
+            // must offset by failover delay, since I don't know
+            // whether I'm currently in a failover period
+            penalty = WIFI_FAILURE_PENALTY;
+        }
+    }
+    return penalty;
+}
+
 double
 IntNWInstrumentsNetworkChooser::calculateTransferTime(instruments_context_t ctx,
                                                       InstrumentsWrappedNetStats *net_stats,
@@ -127,8 +150,11 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
 {
     dbgprintf("creating InstrumentsNetworkChooser %p\n", this);
 
-    wifi_stats = new InstrumentsWrappedNetStats("wifi");
     cellular_stats = new InstrumentsWrappedNetStats("cellular");
+    wifi_stats = new InstrumentsWrappedNetStats("wifi");
+    // TODO: sensible (or historical) initial value for wifi session length
+
+    wifi_begin.tv_sec = wifi_begin.tv_usec = 0;
 
     for (int i = 0; i < NUM_STRATEGIES - 1; ++i) {
         strategy_args[i] = new struct strategy_args;
@@ -393,10 +419,40 @@ IntNWInstrumentsNetworkChooser::reportNetStats(int network_type,
     needs_reevaluation = true;
 }
 
-void 
-IntNWInstrumentsNetworkChooser::addWifiDuration(struct timeval duration)
+void
+IntNWInstrumentsNetworkChooser::reportNetworkSetup(int network_type)
 {
-    wifi_stats->addSessionDuration(duration);
+    if (network_type == TYPE_WIFI && wifi_begin.tv_sec == 0) {
+        dbgprintf("Beginning new wifi session\n");
+        TIME(wifi_begin);
+    }
+}
+
+void 
+IntNWInstrumentsNetworkChooser::reportNetworkTeardown(int network_type)
+{
+    if (network_type == TYPE_WIFI && wifi_begin.tv_sec != 0) {
+        struct timeval end, diff;
+        TIME(end);
+        TIMEDIFF(wifi_begin, end, diff);
+        wifi_begin.tv_sec = wifi_begin.tv_usec = 0;
+        dbgprintf("Ending wifi session; was %lu.%06lu seconds\n",
+                  diff.tv_sec, diff.tv_usec);
+        
+        wifi_stats->addSessionDuration(diff);
+    }
+}
+
+double
+IntNWInstrumentsNetworkChooser::getCurrentWifiDuration()
+{
+    struct timeval now, duration;
+    if (wifi_begin.tv_sec == 0 && wifi_begin.tv_usec == 0) {
+        TIME(now);
+        TIMEDIFF(wifi_begin, now, duration);
+        return duration.tv_sec + (duration.tv_usec / 1000000.0);
+    }
+    return 0.0;
 }
 
 void

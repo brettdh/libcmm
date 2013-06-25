@@ -3,6 +3,7 @@
 
 #include <libcmm_irob.h>
 #include <net_interface.h>
+#include "estimate.h"
 
 #include <instruments.h>
 
@@ -24,9 +25,13 @@ class InstrumentsWrappedNetStats {
 
     double get_bandwidth_up(instruments_context_t ctx);
     double get_rtt(instruments_context_t ctx);
+    double get_session_duration(instruments_context_t ctx);
   private:
     instruments_external_estimator_t bw_up_estimator;
     instruments_external_estimator_t rtt_estimator;
+
+    Estimate session_duration;
+    instruments_external_estimator_t session_duration_estimator;
 
     // used to do a "double-update" on the first real update,
     //  so that I get an error value in the distribution.
