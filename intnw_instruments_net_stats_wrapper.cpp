@@ -17,12 +17,14 @@ get_range_hints(const string& network, const string& type)
     map<string, map<string, decltype(&Config::getCellularRttRangeHints)> > getters = {
         { "wifi", {
                 { "bandwidth", &Config::getWifiBandwidthRangeHints },
-                { "RTT", &Config::getWifiRttRangeHints }
+                { "RTT", &Config::getWifiRttRangeHints },
+                { "session-duration", &Config::getWifiSessionDurationRangeHints }
             },
         },
         { "cellular", {
                 { "bandwidth", &Config::getCellularBandwidthRangeHints },
-                { "RTT", &Config::getCellularRttRangeHints }
+                { "RTT", &Config::getCellularRttRangeHints },
+                { "session-duration", &Config::getCellularSessionDurationRangeHints }
             }
           
         }
@@ -41,11 +43,17 @@ InstrumentsWrappedNetStats::InstrumentsWrappedNetStats(const std::string& networ
     
     bw_up_estimator = create_external_estimator((network + "-bandwidth").c_str());
     rtt_estimator = create_external_estimator((network + "-RTT").c_str());
+    session_duration_estimator = create_external_estimator((network + "-session-duration").c_str());
     
     EstimatorRangeHints bw_hints = get_range_hints(network, "bandwidth");
     EstimatorRangeHints rtt_hints = get_range_hints(network, "RTT");
+    EstimatorRangeHints session_duration_hints = get_range_hints(network, "session-duration");
     set_estimator_range_hints(bw_up_estimator, bw_hints.min, bw_hints.max, bw_hints.num_bins);
     set_estimator_range_hints(rtt_estimator, rtt_hints.min, rtt_hints.max, rtt_hints.num_bins);
+    set_estimator_range_hints(session_duration_estimator, 
+                              session_duration_hints.min, 
+                              session_duration_hints.max, 
+                              session_duration_hints.num_bins);
 }
 
 InstrumentsWrappedNetStats::~InstrumentsWrappedNetStats()
@@ -54,6 +62,7 @@ InstrumentsWrappedNetStats::~InstrumentsWrappedNetStats()
 
     free_external_estimator(bw_up_estimator);
     free_external_estimator(rtt_estimator);
+    free_external_estimator(session_duration_estimator);
 }
 
 double InstrumentsWrappedNetStats::get_bandwidth_up(instruments_context_t ctx)

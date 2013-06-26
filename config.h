@@ -23,6 +23,8 @@ class Config {
     EstimatorRangeHints getWifiRttRangeHints();
     EstimatorRangeHints getCellularBandwidthRangeHints();
     EstimatorRangeHints getCellularRttRangeHints();
+    EstimatorRangeHints getWifiSessionDurationRangeHints();
+    EstimatorRangeHints getCellularSessionDurationRangeHints();
   private:
     bool getBoolean(const std::string& key);
     std::string getString(const std::string& key);

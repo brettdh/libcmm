@@ -54,16 +54,20 @@ static map<string, instruments_debug_level_t> instruments_debug_levels = {
 };
 
 // keys for range_hints values
-static const string WIFI_BANDWIDTH_RANGE_HINTS     = "wifi_bandwidth_range_hints";
-static const string WIFI_RTT_RANGE_HINTS           = "wifi_rtt_range_hints";
-static const string CELLULAR_BANDWIDTH_RANGE_HINTS = "cellular_bandwidth_range_hints";
-static const string CELLULAR_RTT_RANGE_HINTS       = "cellular_rtt_range_hints";
+static const string WIFI_BANDWIDTH_RANGE_HINTS            = "wifi_bandwidth_range_hints";
+static const string WIFI_RTT_RANGE_HINTS                  = "wifi_rtt_range_hints";
+static const string CELLULAR_BANDWIDTH_RANGE_HINTS        = "cellular_bandwidth_range_hints";
+static const string CELLULAR_RTT_RANGE_HINTS              = "cellular_rtt_range_hints";
+static const string WIFI_SESSION_DURATION_RANGE_HINTS     = "wifi_session_duration_range_hints";
+static const string CELLULAR_SESSION_DURATION_RANGE_HINTS = "cellular_session_duration_range_hints";
 
 static vector<string> range_hints_option_keys = {
     WIFI_BANDWIDTH_RANGE_HINTS,
     WIFI_RTT_RANGE_HINTS,
     CELLULAR_BANDWIDTH_RANGE_HINTS,
-    CELLULAR_RTT_RANGE_HINTS
+    CELLULAR_RTT_RANGE_HINTS,
+    WIFI_SESSION_DURATION_RANGE_HINTS,
+    CELLULAR_SESSION_DURATION_RANGE_HINTS,
 };
 
 static bool has_param(const string& line, const string& name)
@@ -309,4 +313,16 @@ EstimatorRangeHints
 Config:: getCellularRttRangeHints()
 {
     return range_hints_options[CELLULAR_RTT_RANGE_HINTS];
+}
+
+EstimatorRangeHints
+Config::getWifiSessionDurationRangeHints()
+{
+    return range_hints_options[WIFI_SESSION_DURATION_RANGE_HINTS];
+}
+
+EstimatorRangeHints
+Config::getCellularSessionDurationRangeHints()
+{
+    return range_hints_options[CELLULAR_SESSION_DURATION_RANGE_HINTS];
 }
