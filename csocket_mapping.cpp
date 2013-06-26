@@ -258,9 +258,6 @@ CSockMapping::teardown(struct net_interface iface, bool local)
         victims.pop_back();
         available_csocks.erase(victim);
 
-        victim->stats.mark_irob_failures(network_chooser, victim->network_type());
-        network_chooser->reportNetworkTeardown(victim->network_type());
-
         dbgprintf("Tearing down CSocket %d (%s interface %s is gone\n",
                   victim->osfd, local ? "local" : "remote", StringifyIP(&iface.ip_addr).c_str());
         shutdown(victim->osfd, SHUT_RDWR); /* tells the sender/receiver threads to exit */
@@ -721,6 +718,9 @@ CSockMapping::remove_csock(CSocketPtr victim)
     // CSockets are reference-counted by the 
     // CSocketSender and CSocketReceiver objects,
     // so we don't delete CSockets anywhere else
+
+    victim->stats.mark_irob_failures(network_chooser, victim->network_type());
+    network_chooser->reportNetworkTeardown(victim->network_type());
 }
 
 class AddrMatch {
