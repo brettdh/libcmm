@@ -353,6 +353,7 @@ class IntNWBehaviorPlot(QDialog):
         self.__choose_network_calls = []
 
         self.__start = start
+        self.__xlim_max = 1200.0
 
         # TODO: infer plot title from file path
         client_or_server = "server-side" if self.__is_server else "client-side"
@@ -360,6 +361,9 @@ class IntNWBehaviorPlot(QDialog):
                         (client_or_server, self.__run))
 
         self.create_main_frame()
+
+    def setXlimMax(self, xlim_max):
+        self.__xlim_max = xlim_max
 
     def setSessions(self, sessions):
         self.__sessions = sessions
@@ -586,8 +590,12 @@ class IntNWBehaviorPlot(QDialog):
                 self.__drawDebugging()
 
             self.__drawWifi()
-        
-        #self.__axes.set_xlim(-100, 1300) # hack, but I'm tired of it bouncing around.
+
+        if not self.__user_set_max_time:
+            # hack, but I'm tired of it bouncing around.
+            buffer_perc = 0.05
+            buffer = buffer_perc * self.__xlim_max
+            self.__axes.set_xlim(-buffer, self.__xlim_max + buffer)
 
         self.__canvas.draw()
 
@@ -1832,6 +1840,7 @@ class IntNWPlotter(object):
                                           ".+duration ([0-9]+\.[0-9]+)")
 
         intnw_log = "intnw.log"
+        timing_log = "timing.log"
         trace_replayer_log = "trace_replayer.log"
         instruments_log = "instruments.log"
         self.__is_server = args.server
@@ -1842,6 +1851,7 @@ class IntNWPlotter(object):
         self.__network_trace_file = args.network_trace_file
         self.__bandwidth_measurements_file = args.bandwidth_measurements_file
         self.__intnw_log = args.basedir + "/" + intnw_log
+        self.__timing_log = args.basedir + "/" + timing_log
         self.__trace_replayer_log = args.basedir + "/" + trace_replayer_log
         self.__redundancy_eval_log = args.basedir + "/" + instruments_log
         self.__cross_country_latency = args.cross_country_latency
@@ -1873,6 +1883,17 @@ class IntNWPlotter(object):
             raise LogParsingError("expected timestamp and duration")
 
         return [float(s) for s in match.groups()]
+
+    def __readDurations(self):
+        filename = self.__timing_log
+        duration_regex = re.compile("([0-9]+)-minute runs")
+        durations = []
+        for line in open(filename).readlines():
+            m = re.search(duration_regex, line)
+            if m:
+                minutes = int(m.group(1))
+                durations.append(minutes)
+        return durations
 
     def __readSessions(self):
         filename = self.__trace_replayer_log
@@ -1973,6 +1994,8 @@ class IntNWPlotter(object):
             history_filename = "%s/%s_error_distributions.txt" % (self.__history_dir, side)
             
             error_history.read(history_filename)
+
+        durations = self.__readDurations()
         
         print "Parsing log file..."
         progress = ProgressBar()
@@ -1994,10 +2017,12 @@ class IntNWPlotter(object):
                     window_num = len(self.__windows) - 1
                     if session_runs:
                         sessions = session_runs[window_num]
-                        self.__windows[-1].setSessions(sessions)
+                        window.setSessions(sessions)
                     if redundancy_decisions_runs:
                         redundancy_decisions = redundancy_decisions_runs[window_num]
-                        self.__windows[-1].setRedundancyDecisions(redundancy_decisions)
+                        window.setRedundancyDecisions(redundancy_decisions)
+
+                    window.setXlimMax(durations[window_num] * 60)
 
                 self.__currentPid = pid
                 
