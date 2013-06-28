@@ -226,6 +226,8 @@ choose_networks(u_long send_label, size_t num_bytes,
     }
 
     if (needs_reevaluation) {
+        dbgprintf("About to choose a network; current wifi session length: %f seconds\n",
+                  getCurrentWifiDuration());
         struct timeval begin, end, duration;
         gettimeofday(&begin, NULL);
         chosen_strategy_type = chooseNetwork(num_bytes);
@@ -447,7 +449,7 @@ double
 IntNWInstrumentsNetworkChooser::getCurrentWifiDuration()
 {
     struct timeval now, duration;
-    if (wifi_begin.tv_sec == 0 && wifi_begin.tv_usec == 0) {
+    if (wifi_begin.tv_sec != 0) {
         TIME(now);
         TIMEDIFF(wifi_begin, now, duration);
         return duration.tv_sec + (duration.tv_usec / 1000000.0);
