@@ -134,7 +134,7 @@ Estimate::add_observation(double new_spot_value)
     double flipflop_value = 0.0;
     bool success = get_estimate(flipflop_value);
     assert(success);
-    dbgprintf("%s estimate: new_obs %f stable %f agile %f center_line %f moving_range %f flipflop_value %f",
+    dbgprintf("%s estimate: new_obs %f stable %f agile %f center_line %f moving_range %f flipflop_value %f\n",
               name.c_str(), new_spot_value, stable_estimate, agile_estimate, center_line, moving_range,
               flipflop_value);
 }

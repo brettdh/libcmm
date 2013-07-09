@@ -252,9 +252,8 @@ NetStats::cache_save()
     remote_iface.ip_addr = remote_addr;
     StatsCache::key_type key = make_pair(local_iface, remote_iface);
     struct estimate_set& cached_estimates = (*stats_cache)[key];
-    for (size_t i = 0; i < NUM_ESTIMATES; ++i) {
-        cached_estimates.estimates[i] = net_estimates.estimates[i];
-    }
+    cached_estimates.estimates = net_estimates.estimates;
+    
     cached_estimates.error_estimators_initialized = error_estimators_initialized;
 
     cached_estimates.last_RTT = last_RTT;

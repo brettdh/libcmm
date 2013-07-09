@@ -10,8 +10,10 @@
 #include <sstream>
 #include <string>
 #include <iomanip>
+#include <stdexcept>
 using std::ostringstream; using std::string; 
 using std::setw; using std::setfill;
+using std::runtime_error;
 
 #ifdef ANDROID
 #define LIBCMM_LOGFILE "/sdcard/intnw/intnw.log"
@@ -136,5 +138,14 @@ void dbgprintf_plain(const char *fmt, ...)
     va_start(ap, fmt);
     vdbgprintf(true, fmt, ap);
     va_end(ap);
+}
+#endif
+
+#ifdef __cplusplus
+void intnw::check(bool success, const std::string& msg)
+{
+    if (!success) {
+        throw runtime_error(msg);
+    }
 }
 #endif
