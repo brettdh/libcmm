@@ -45,6 +45,8 @@ class Estimate {
     std::vector<field> fields;
     
     bool spot_value_within_limits();
+
+    void dbg_print(double new_spot_value);
 };
 
 #endif

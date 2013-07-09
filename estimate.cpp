@@ -130,7 +130,12 @@ Estimate::add_observation(double new_spot_value)
         }
         update_EWMA(center_line, new_spot_value, CENTER_LINE_GAIN);
     }
+    dbg_print(new_spot_value);
+}
 
+void
+Estimate::dbg_print(double new_spot_value)
+{
     double flipflop_value = 0.0;
     bool success = get_estimate(flipflop_value);
     assert(success);
@@ -169,4 +174,11 @@ Estimate::load(std::istream& in)
         check(field_name == f.name, "Got unexpected field in network stats file");
         check(in >> *f.dest, "Failed to read field value");
     }
+    valid = true;
+
+    double dummy_spot_value = 0.0;
+    bool success = get_estimate(dummy_spot_value);
+    assert(success);
+    
+    dbg_print(dummy_spot_value);
 }

@@ -125,6 +125,11 @@ void
 InstrumentsWrappedNetStats::loadSessionLength(std::istream& in)
 {
     session_duration.load(in);
+    double duration_est;
+    bool success = session_duration.get_estimate(duration_est);
+    assert(success); // if we are loading it, there must be a valid estimate.
+    // add initial value to instruments estimator
+    add_observation(session_duration_estimator, duration_est, duration_est);
 }
 
 void InstrumentsWrappedNetStats::saveSessionLength(std::ostream& out)
