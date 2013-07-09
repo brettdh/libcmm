@@ -86,14 +86,13 @@ class IROBMeasurement {
 #define NET_STATS_LATENCY 0
 #define NET_STATS_BW_UP   1
 #define NET_STATS_BW_DOWN 2
-#define NET_STATS_WIFI_DURATION 3
 
-#define NUM_ESTIMATES 4
+#define NUM_ESTIMATES 3
 
 // data needed to re-start passive measurement calculation
 //  from previous measurements.
 struct estimate_set {
-    Estimate estimates[NUM_ESTIMATES];
+    std::vector<Estimate> estimates;
     bool error_estimators_initialized;
     
     struct timeval last_RTT;
@@ -204,6 +203,8 @@ class NetStats {
 
     QueuingDelay outgoing_qdelay;
     //QueuingDelay incoming_qdelay;
+
+    std::string name;
 
     //Estimate net_estimates[NUM_ESTIMATES];
     struct estimate_set net_estimates;

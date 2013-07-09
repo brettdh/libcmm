@@ -30,6 +30,18 @@ bool matches_type(int type,
             (local_iface.type == 0 && remote_iface.type == 0));
 }
 
+int get_network_type(struct net_interface local_iface,
+                     struct net_interface remote_iface)
+{
+    int types[] = { NET_TYPE_WIFI, NET_TYPE_THREEG };
+    for (int type : types) {
+        if (matches_type(type, local_iface, remote_iface)) {
+            return type;
+        }
+    }
+    return 0;
+}
+
 bool network_fits_restriction(u_long labels, 
                              struct net_interface local_iface,
                              struct net_interface remote_iface)

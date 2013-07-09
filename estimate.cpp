@@ -15,7 +15,8 @@ u_long round_nearest(double val)
     return static_cast<u_long>(val + 0.5);
 }
 
-Estimate::Estimate()
+Estimate::Estimate(const string& name_)
+    : name(name_)
 {
     init();
 }
@@ -52,6 +53,7 @@ Estimate::operator=(const Estimate& other)
         *fields[i].dest = *other.fields[i].dest;
     }
     valid = other.valid;
+    name = other.name;
     return *this;
 }
 
@@ -119,16 +121,22 @@ Estimate::add_observation(double new_spot_value)
         // moving_range remains 0.0 until I have a second spot value
 
         valid = true;
-        return;
+    } else {
+        update_EWMA(agile_estimate, spot_value, AGILE_GAIN);
+        update_EWMA(stable_estimate, spot_value, STABLE_GAIN);
+        
+        if (moving_range == 0.0 || spot_value_within_limits()) {
+            update_EWMA(moving_range, new_MR_value, MOVING_RANGE_GAIN);
+        }
+        update_EWMA(center_line, new_spot_value, CENTER_LINE_GAIN);
     }
 
-    update_EWMA(agile_estimate, spot_value, AGILE_GAIN);
-    update_EWMA(stable_estimate, spot_value, STABLE_GAIN);
-    
-    if (spot_value_within_limits()) {
-        update_EWMA(moving_range, new_MR_value, MOVING_RANGE_GAIN);
-    }
-    update_EWMA(center_line, new_spot_value, CENTER_LINE_GAIN);
+    double flipflop_value = 0.0;
+    bool success = get_estimate(flipflop_value);
+    assert(success);
+    dbgprintf("%s estimate: new_obs %f stable %f agile %f center_line %f moving_range %f flipflop_value %f",
+              name.c_str(), new_spot_value, stable_estimate, agile_estimate, center_line, moving_range,
+              flipflop_value);
 }
 
 bool

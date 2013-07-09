@@ -37,7 +37,7 @@ get_range_hints(const string& network, const string& type)
 }
 
 InstrumentsWrappedNetStats::InstrumentsWrappedNetStats(const std::string& network)
-    : first_update(true) 
+    : first_update(true), session_duration(network + "_session_duration")
 {
     dbgprintf("creating InstrumentsWrappedNetStats %p\n", this);
     

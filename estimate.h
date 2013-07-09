@@ -22,10 +22,12 @@ class Estimate {
     void save(std::ostream& out);
     void load(std::istream& in);
     
-    Estimate();
+    Estimate(const std::string& name_);
     Estimate(const Estimate& other);
     Estimate& operator=(const Estimate& other);
   private:
+    std::string name;
+
     // keep as double for precision; convert to u_long on request
     double stable_estimate;
     double agile_estimate;
