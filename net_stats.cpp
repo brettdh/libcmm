@@ -105,8 +105,8 @@ static struct timeval time_to_send(size_t msg_size, u_long bw_estimate)
 NetStats::NetStats(struct net_interface local_iface, 
                    struct net_interface remote_iface)
     : local_addr(local_iface.ip_addr), remote_addr(remote_iface.ip_addr),
-      error_estimators_initialized(false),
-      name(net_type_name(get_network_type(local_iface, remote_iface)))
+      name(net_type_name(get_network_type(local_iface, remote_iface))),
+      error_estimators_initialized(false)
 {
     RWLOCK_INIT(&my_lock, NULL);
     last_RTT.tv_sec = last_srv_time.tv_sec = -1;
