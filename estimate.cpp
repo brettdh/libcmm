@@ -8,6 +8,7 @@ using intnw::check;
 #include <string>
 #include <iomanip>
 using std::string; using std::setprecision;
+using std::endl;
 
 u_long round_nearest(double val)
 {
@@ -15,17 +16,48 @@ u_long round_nearest(double val)
 }
 
 Estimate::Estimate()
-    : stable_estimate(0.0), agile_estimate(0.0), spot_value(0.0),
-      moving_range(0.0), center_line(0.0), valid(false)
 {
+    init();
+}
+
+void
+Estimate::init()
+{
+    fields.assign({
+        { "stable_estimate", &stable_estimate },
+        { "agile_estimate", &agile_estimate },
+        { "spot_value", &spot_value },
+        { "moving_range", &moving_range },
+        { "center_line", &center_line }
+    });
+    for (auto& f : fields) {
+        *f.dest = 0.0;
+    }
+    valid = false;
+}
+
+Estimate::Estimate(const Estimate& other)
+{
+    init();
+    *this = other;
+}
+
+Estimate& 
+Estimate::operator=(const Estimate& other)
+{
+    assert(fields.size() > 0);
+    assert(fields.size() == other.fields.size());
+    for (size_t i = 0; i < fields.size(); ++i) {
+        assert(fields[i].name == other.fields[i].name);
+        *fields[i].dest = *other.fields[i].dest;
+    }
+    valid = other.valid;
 }
 
 void
 Estimate::reset(double new_spot_value)
 {
-    stable_estimate = agile_estimate = spot_value = 0.0;
-    moving_range = center_line = 0.0;
-    valid = false;
+    init();
     add_observation(new_spot_value);
 }
 
@@ -109,35 +141,23 @@ Estimate::spot_value_within_limits()
 
 static const size_t PRECISION = 10;
 
+
 void 
 Estimate::save(std::ostream& out)
 {
-    out << setprecision(PRECISION)
-        << "stable_estimate " << stable_estimate
-        << "agile_estimate " << agile_estimate
-        << "spot_value " << spot_value
-        << "moving_range " << moving_range
-        << "center_line " << center_line;
+    out << setprecision(PRECISION);
+    for (auto& f : fields) {
+        out << f.name << " " << *f.dest << endl;
+    }
 }
 
 void 
 Estimate::load(std::istream& in)
 {
-    struct {
-        string name;
-        double& dest;
-    } fields[] = {
-        { "stable_estimate", stable_estimate },
-        { "agile_estimate", agile_estimate },
-        { "spot_value", spot_value },
-        { "moving_range", moving_range },
-        { "center_line", center_line },
-    };
-
     for (auto& f : fields) {
         string field_name;
         check(in >> field_name, "Failed to read a field in network stats file");
         check(field_name == f.name, "Got unexpected field in network stats file");
-        check(in >> f.dest, "Failed to read field value");
+        check(in >> *f.dest, "Failed to read field value");
     }
 }

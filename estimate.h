@@ -3,6 +3,8 @@
 
 #include <sys/types.h>
 #include <iostream>
+#include <string>
+#include <vector>
 
 u_long round_nearest(double val);
 
@@ -21,6 +23,8 @@ class Estimate {
     void load(std::istream& in);
     
     Estimate();
+    Estimate(const Estimate& other);
+    Estimate& operator=(const Estimate& other);
   private:
     // keep as double for precision; convert to u_long on request
     double stable_estimate;
@@ -29,6 +33,14 @@ class Estimate {
     double moving_range;
     double center_line;
     bool valid;
+
+    void init();
+
+    struct field {
+        std::string name;
+        double *dest;
+    };
+    std::vector<field> fields;
     
     bool spot_value_within_limits();
 };
