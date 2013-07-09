@@ -8,6 +8,7 @@
 #include <instruments.h>
 
 #include <string>
+#include <iostream>
 
 class WrappedNetStats;
 
@@ -22,6 +23,9 @@ class InstrumentsWrappedNetStats {
 
     // for keeping track of wifi session durations.
     void addSessionDuration(struct timeval duration);
+
+    void loadSessionLength(std::istream& in);
+    void saveSessionLength(std::ostream& out);
 
     double get_bandwidth_up(instruments_context_t ctx);
     double get_rtt(instruments_context_t ctx);

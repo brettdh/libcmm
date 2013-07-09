@@ -120,3 +120,14 @@ InstrumentsWrappedNetStats::addSessionDuration(struct timeval duration)
         add_observation(session_duration_estimator, duration_secs, duration_est);
     }
 }
+
+void 
+InstrumentsWrappedNetStats::loadSessionLength(std::istream& in)
+{
+    session_duration.load(in);
+}
+
+void InstrumentsWrappedNetStats::saveSessionLength(std::ostream& out)
+{
+    session_duration.save(out);
+}

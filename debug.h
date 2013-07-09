@@ -33,4 +33,12 @@ void dbgprintf_plain(const char *format, ...)
         }                                                              \
     } while (0)
 
+#ifdef __cplusplus
+#include <string>
+namespace intnw {
+    void check(bool success, const std::string& msg);
+}
+#endif
+
+
 #endif

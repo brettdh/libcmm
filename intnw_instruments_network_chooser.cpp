@@ -12,8 +12,12 @@
 #include <functional>
 #include <sstream>
 #include <string>
+#include <fstream>
 using std::max; using std::ostringstream;
 using std::string; using std::function;
+using std::ifstream; using std::ofstream; using std::endl;
+
+using intnw::check;
 
 #include <instruments_private.h>
 #include <resource_weights.h>
@@ -180,6 +184,10 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
 
     if (shouldLoadErrors()) {
         restore_evaluator(evaluator, getLoadErrorsFilename().c_str());
+    }
+    
+    if (shouldLoadStats()) {
+        loadStats(getLoadStatsFilename());
     }
 }
 
@@ -516,4 +524,52 @@ IntNWInstrumentsNetworkChooser::saveToFile()
                   this, filename.c_str());
         save_evaluator(evaluator, filename.c_str());
     }
+
+    if (shouldSaveStats()) {
+        string filename = getSaveStatsFilename();
+        saveStats(filename);
+    }
+}
+
+static const string SESSION_LENGTH_FIELD_NAME = "wifi_session_length";
+
+void 
+IntNWInstrumentsNetworkChooser::saveStats(const string& filename)
+{
+    ofstream out(filename);
+    out << SESSION_LENGTH_FIELD_NAME << endl;
+    wifi_stats->saveSessionLength(out);
+}
+
+void 
+IntNWInstrumentsNetworkChooser::loadStats(const string& filename)
+{
+    ifstream in(filename);
+    string name;
+    check(in >> name, "Failed to read wifi session length field name");
+    check(name == SESSION_LENGTH_FIELD_NAME, "Mismatched wifi session length field name");
+    wifi_stats->loadSessionLength(in);
+}
+
+bool
+IntNWInstrumentsNetworkChooser::shouldLoadStats()
+{
+    return !getLoadStatsFilename().empty();
+}
+bool
+IntNWInstrumentsNetworkChooser::shouldSaveStats()
+{
+    return !getSaveStatsFilename().empty();
+}
+
+std::string
+IntNWInstrumentsNetworkChooser::getLoadStatsFilename()
+{
+    return Config::getInstance()->getNetworkStatsLoadFilename();
+}
+
+std::string
+IntNWInstrumentsNetworkChooser::getSaveStatsFilename()
+{
+    return Config::getInstance()->getNetworkStatsSaveFilename();
 }

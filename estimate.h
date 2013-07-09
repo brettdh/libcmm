@@ -2,6 +2,7 @@
 #define ESTIMATE_H_INCL_HUUA90Y8E4GEUGHA
 
 #include <sys/types.h>
+#include <iostream>
 
 u_long round_nearest(double val);
 
@@ -15,6 +16,9 @@ class Estimate {
     void add_observation(double new_spot_value);
 
     void reset(double new_spot_value);
+
+    void save(std::ostream& out);
+    void load(std::istream& in);
     
     Estimate();
   private:

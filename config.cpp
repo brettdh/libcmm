@@ -34,12 +34,20 @@ static vector<string> boolean_option_keys = {
 // keys for string options
 static const string ESTIMATOR_ERROR_SAVE_FILE_KEY = "save_estimator_errors";
 static const string ESTIMATOR_ERROR_LOAD_FILE_KEY = "load_estimator_errors";
+
+// currently this file is only used to save/load wifi session duration;
+//  the breadcrumbs db is used for the rest.
+static const string NETWORK_STATS_SAVE_FILE_KEY = "save_network_stats";
+static const string NETWORK_STATS_LOAD_FILE_KEY = "load_network_stats";
+
 static const string ESTIMATOR_ERROR_EVAL_METHOD   = "estimator_error_eval_method";
 static const string INSTRUMENTS_DEBUG_LEVEL   = "instruments_debug_level";
 
 static vector<string> string_option_keys = {
     ESTIMATOR_ERROR_SAVE_FILE_KEY,
     ESTIMATOR_ERROR_LOAD_FILE_KEY,
+    NETWORK_STATS_SAVE_FILE_KEY,
+    NETWORK_STATS_LOAD_FILE_KEY,
     ESTIMATOR_ERROR_EVAL_METHOD,
     INSTRUMENTS_DEBUG_LEVEL
 };
@@ -282,6 +290,18 @@ string
 Config::getEstimatorErrorLoadFilename()
 {
     return getString(ESTIMATOR_ERROR_LOAD_FILE_KEY);
+}
+
+string
+Config::getNetworkStatsSaveFilename()
+{
+    return getString(NETWORK_STATS_SAVE_FILE_KEY);
+}
+
+string
+Config::getNetworkStatsLoadFilename()
+{
+    return getString(NETWORK_STATS_LOAD_FILE_KEY);
 }
 
 EvalMethod

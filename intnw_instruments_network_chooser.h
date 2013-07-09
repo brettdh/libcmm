@@ -64,11 +64,6 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
     //  specified by /etc/cmm_config (if specified)
     void saveToFile();
 
-    static std::string getLoadErrorsFilename();
-    static std::string getSaveErrorsFilename();
-    static bool shouldLoadErrors();
-    static bool shouldSaveErrors();
-
   protected:
     virtual void setRedundancyStrategy();
     
@@ -93,6 +88,19 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
     struct strategy_args *strategy_args[NUM_STRATEGIES - 1];
 
     instruments_strategy_evaluator_t evaluator;
+
+    static std::string getLoadErrorsFilename();
+    static std::string getSaveErrorsFilename();
+    static bool shouldLoadErrors();
+    static bool shouldSaveErrors();
+
+    void loadStats(const std::string& filename);
+    void saveStats(const std::string& filename);
+
+    static std::string getLoadStatsFilename();
+    static std::string getSaveStatsFilename();
+    static bool shouldLoadStats();
+    static bool shouldSaveStats();
 
     void updateResourceWeights();
 

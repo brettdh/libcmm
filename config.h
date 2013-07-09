@@ -15,6 +15,9 @@ class Config {
     bool getUseBreadcrumbsEstimates();
     bool getRecordFailoverLatency();
 
+    std::string getNetworkStatsSaveFilename();
+    std::string getNetworkStatsLoadFilename();
+
     std::string getEstimatorErrorLoadFilename();
     std::string getEstimatorErrorSaveFilename();
     EvalMethod getEstimatorErrorEvalMethod();

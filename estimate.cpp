@@ -1,8 +1,13 @@
 #include "estimate.h"
+#include "debug.h"
+using intnw::check;
 
 #include <sys/types.h>
 #include "timeops.h"
 #include <cmath>
+#include <string>
+#include <iomanip>
+using std::string; using std::setprecision;
 
 u_long round_nearest(double val)
 {
@@ -100,4 +105,39 @@ Estimate::spot_value_within_limits()
     double lower = center_line - limit_distance;
     double upper = center_line + limit_distance;
     return (spot_value >= lower && spot_value <= upper);
+}
+
+static const size_t PRECISION = 10;
+
+void 
+Estimate::save(std::ostream& out)
+{
+    out << setprecision(PRECISION)
+        << "stable_estimate " << stable_estimate
+        << "agile_estimate " << agile_estimate
+        << "spot_value " << spot_value
+        << "moving_range " << moving_range
+        << "center_line " << center_line;
+}
+
+void 
+Estimate::load(std::istream& in)
+{
+    struct {
+        string name;
+        double& dest;
+    } fields[] = {
+        { "stable_estimate", stable_estimate },
+        { "agile_estimate", agile_estimate },
+        { "spot_value", spot_value },
+        { "moving_range", moving_range },
+        { "center_line", center_line },
+    };
+
+    for (auto& f : fields) {
+        string field_name;
+        check(in >> field_name, "Failed to read a field in network stats file");
+        check(field_name == f.name, "Got unexpected field in network stats file");
+        check(in >> f.dest, "Failed to read field value");
+    }
 }
