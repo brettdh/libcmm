@@ -52,6 +52,7 @@ Estimate::operator=(const Estimate& other)
         *fields[i].dest = *other.fields[i].dest;
     }
     valid = other.valid;
+    return *this;
 }
 
 void
