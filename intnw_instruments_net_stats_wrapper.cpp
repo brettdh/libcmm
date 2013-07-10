@@ -136,3 +136,13 @@ void InstrumentsWrappedNetStats::saveSessionLength(std::ostream& out)
 {
     session_duration.save(out);
 }
+
+
+void InstrumentsWrappedNetStats::setWifiSessionLengthBound(double cur_session_length)
+{
+    if (Config::getInstance()->getConditionalWifiSessionLength()) {
+        set_estimator_condition(session_duration_estimator, 
+                                INSTRUMENTS_ESTIMATOR_VALUE_AT_LEAST, 
+                                cur_session_length);
+    }
+}

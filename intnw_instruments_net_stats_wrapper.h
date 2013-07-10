@@ -24,6 +24,10 @@ class InstrumentsWrappedNetStats {
     // for keeping track of wifi session durations.
     void addSessionDuration(struct timeval duration);
 
+    // used to tell instruments the lower bound on 
+    // current wifi session length.
+    void setWifiSessionLengthBound(double cur_session_length);
+
     void loadSessionLength(std::istream& in);
     void saveSessionLength(std::ostream& out);
 

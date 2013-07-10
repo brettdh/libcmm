@@ -295,6 +295,8 @@ IntNWInstrumentsNetworkChooser::reset()
 int 
 IntNWInstrumentsNetworkChooser::chooseNetwork(int bytelen)
 {
+    wifi_stats->setWifiSessionLengthBound(getCurrentWifiDuration());
+
     instruments_strategy_t chosen = choose_nonredundant_strategy(evaluator, (void *)bytelen);
     return getStrategyIndex(chosen);
 }
@@ -323,13 +325,7 @@ IntNWInstrumentsNetworkChooser::checkRedundancyAsync(CSockMapping *mapping,
     auto *pcallback = new CallbackWrapper(callback);
     *pcallback = callback;
 
-    // TODO: tweak the locking involved here so that the
-    // TODO:  long asynchronous redundancy calculation doesn't block
-    // TODO:  the short synchronous singular calculation.
-    // TODO: but only address this after I've rethought and 
-    // TODO:  written down how I think my system SHOULD
-    // TODO:  be making decisions.  (the problem might go away
-    // TODO:  depending on what method I adopt.)
+    wifi_stats->setWifiSessionLengthBound(getCurrentWifiDuration());
     choose_strategy_async(evaluator, (void *) psirob->expected_bytes(), callback_wrapper, pcallback);
 }
 

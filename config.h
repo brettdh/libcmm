@@ -14,6 +14,7 @@ class Config {
     bool getDebugOn();
     bool getUseBreadcrumbsEstimates();
     bool getRecordFailoverLatency();
+    bool getConditionalWifiSessionLength();
 
     std::string getNetworkStatsSaveFilename();
     std::string getNetworkStatsLoadFilename();
