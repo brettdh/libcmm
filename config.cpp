@@ -24,11 +24,13 @@ const char *CONFIG_FILE = "/etc/cmm_config";
 static const string DEBUG_OUTPUT_KEY = "debug";
 static const string USE_BREADCRUMBS_ESTIMATES_KEY = "use_breadcrumbs_estimates";
 static const string RECORD_FAILOVER_LATENCY_KEY = "record_failover_latency";
+static const string CONDITIONAL_WIFI_SESSION_LENGTH_KEY = "conditional_wifi_session_length";
 
 static vector<string> boolean_option_keys = {
     DEBUG_OUTPUT_KEY,
     USE_BREADCRUMBS_ESTIMATES_KEY,
     RECORD_FAILOVER_LATENCY_KEY,
+    CONDITIONAL_WIFI_SESSION_LENGTH_KEY,
 };
 
 // keys for string options
@@ -279,6 +281,13 @@ Config::getRecordFailoverLatency()
 {
     return getBoolean(RECORD_FAILOVER_LATENCY_KEY);
 }
+
+bool
+Config::getConditionalWifiSessionLength()
+{
+    return getBoolean(CONDITIONAL_WIFI_SESSION_LENGTH_KEY);
+}
+
 
 string
 Config::getEstimatorErrorSaveFilename()
