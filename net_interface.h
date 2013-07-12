@@ -23,6 +23,7 @@ struct net_interface {
     u_long bandwidth_up; // bytes/sec
     u_long RTT; // milliseconds
     int type; // NET_TYPE_WIFI or NET_TYPE_THREEG, currently.
+    u_long connection_duration; // seconds
 
     bool operator<(const struct net_interface& other) const {
         return ip_addr.s_addr < other.ip_addr.s_addr;
@@ -36,6 +37,8 @@ u_long iface_bandwidth(const struct net_interface& local_iface,
                        const struct net_interface& remote_iface);
 u_long iface_RTT(const struct net_interface& local_iface,
                  const struct net_interface& remote_iface);
+u_long iface_connection_duration(const struct net_interface& local_iface,
+                                 const struct net_interface& remote_iface);
 
 bool matches_type(int type, 
                   struct net_interface local_iface,

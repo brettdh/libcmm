@@ -13,10 +13,12 @@ public final class NetUpdate implements Parcelable, Cloneable {
     public int bw_down_Bps;
     public int bw_up_Bps;
     public int rtt_ms;
+    public int connection_duration_sec;
     
     private final static int BW_DOWN_NO_STATS = 1250000;
     private final static int BW_UP_NO_STATS = 1250000;
     private final static int RTT_NO_STATS = 1;
+    private final static int CONNECTION_DURATION_NO_STATS = Integer.MAX_VALUE;
     
     public NetUpdate(String ip) {
         timestamp = new Date();
@@ -28,6 +30,7 @@ public final class NetUpdate implements Parcelable, Cloneable {
         bw_down_Bps = BW_DOWN_NO_STATS;
         bw_up_Bps = BW_UP_NO_STATS;
         rtt_ms = RTT_NO_STATS;
+        connection_duration_sec = CONNECTION_DURATION_NO_STATS;
     }
     
     public Object clone() {
@@ -69,6 +72,7 @@ public final class NetUpdate implements Parcelable, Cloneable {
         dest.writeInt(bw_down_Bps);
         dest.writeInt(bw_up_Bps);
         dest.writeInt(rtt_ms);
+        dest.writeInt(connection_duration_sec);
     }
     
     public NetUpdate() {}
@@ -84,6 +88,7 @@ public final class NetUpdate implements Parcelable, Cloneable {
         bw_down_Bps = in.readInt();
         bw_up_Bps = in.readInt();
         rtt_ms = in.readInt();
+        connection_duration_sec = in.readInt();
     }
     
     public String toString() {
@@ -106,7 +111,8 @@ public final class NetUpdate implements Parcelable, Cloneable {
             return false;
         } else if (bw_down_Bps == BW_DOWN_NO_STATS && 
                    bw_up_Bps == BW_UP_NO_STATS && 
-                   rtt_ms == RTT_NO_STATS) {
+                   rtt_ms == RTT_NO_STATS &&
+                   connection_duration_sec == CONNECTION_DURATION_NO_STATS) {
             return false;
         } else {
             return true;
@@ -119,7 +125,10 @@ public final class NetUpdate implements Parcelable, Cloneable {
            .append(" / ")
            .append(bw_up_Bps)
            .append(" / ")
-           .append(rtt_ms);
+           .append(rtt_ms)
+           .append("  duration ")
+           .append(connection_duration_sec)
+           .append(" seconds");
         return str.toString();
     }
     
@@ -128,6 +137,7 @@ public final class NetUpdate implements Parcelable, Cloneable {
              bw_down_Bps = stats.bw_down;
              bw_up_Bps = stats.bw_up;
              rtt_ms = stats.rtt_ms;
+             connection_duration_sec = stats.connection_duration_sec;
          }
      }
      
@@ -136,6 +146,7 @@ public final class NetUpdate implements Parcelable, Cloneable {
              bw_down_Bps = other.bw_down_Bps;
              bw_up_Bps = other.bw_up_Bps;
              rtt_ms = other.rtt_ms;
+             connection_duration_sec = other.connection_duration_sec;
          }
      }
 };

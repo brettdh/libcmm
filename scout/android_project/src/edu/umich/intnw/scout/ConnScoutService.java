@@ -110,11 +110,13 @@ public class ConnScoutService extends ServiceCompat
     public native int startScoutIPC();
     public native void stopScoutIPC();
     public native void updateNetwork(String ip_addr,
-                                     int bw_down, int bw_up, int rtt,
+                                     int bw_down, int bw_up, int rtt, int connection_duration,
                                      boolean down, int networkType);
     
-    public void updateNetwork(String ip, int bw_down, int bw_up, int rtt, boolean down) {
-        updateNetwork(ip, bw_down, bw_up, rtt, down, 0); // default = unknown network type
+    public void updateNetwork(String ip, int bw_down, int bw_up, int rtt,
+                              int connection_duration, boolean down) {
+        updateNetwork(ip, bw_down, bw_up, rtt,
+                      connection_duration, down, 0); // default = unknown network type
     }
                
     private List<NetUpdate> updateHistory;

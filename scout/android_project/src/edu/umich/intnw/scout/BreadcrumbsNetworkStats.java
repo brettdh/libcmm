@@ -17,6 +17,7 @@ class BreadcrumbsNetworkStats {
     public int bw_down;
     public int bw_up;
     public int rtt_ms;
+    public int connection_duration_sec;
     
     public static BreadcrumbsNetworkStats lookupCurrentAP(Context ctx) {
         WifiManager wifi = (WifiManager)
@@ -44,7 +45,7 @@ class BreadcrumbsNetworkStats {
                 return null;
             }
             
-            String[] cols = {"dbw", "ubw", "rtt"};
+            String[] cols = {"dbw", "ubw", "rtt", "avg_ctime"};
             String[] whereArgs = {essid, bssid};
             c = db.query("aps", cols, "essid=? AND bssid=?", whereArgs, 
                          null, null, null);
@@ -59,6 +60,7 @@ class BreadcrumbsNetworkStats {
                 stats.bw_down = (int) c.getFloat(0);
                 stats.bw_up = (int) c.getFloat(1);
                 stats.rtt_ms = (int) c.getFloat(2);
+                stats.connection_duration_sec = (int) c.getFloat(3);
             } catch (CursorIndexOutOfBoundsException e) {
                 Log.e(TAG, "Failed to get AP data: " + e.toString());
                 stats = null;

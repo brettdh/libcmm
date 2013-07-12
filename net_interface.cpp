@@ -20,6 +20,13 @@ u_long iface_RTT(const struct net_interface& local_iface,
     return (u_long)rtt;
 }
 
+u_long iface_connection_duration(const struct net_interface& local_iface,
+                                 const struct net_interface& remote_iface)
+{
+    u_long duration = min(local_iface.duration, remote_iface.duration);
+    return duration;
+}
+
 bool matches_type(int type, 
                   struct net_interface local_iface,
                   struct net_interface remote_iface)

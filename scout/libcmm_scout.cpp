@@ -697,6 +697,7 @@ Java_edu_umich_intnw_scout_ConnScoutService_updateNetwork(JNIEnv *env,
                                                           jint bw_down, 
                                                           jint bw_up, 
                                                           jint rtt,
+                                                          jint connection_duration,
                                                           jboolean down,
                                                           jint networkType)
 {
@@ -705,6 +706,7 @@ Java_edu_umich_intnw_scout_ConnScoutService_updateNetwork(JNIEnv *env,
     iface.bandwidth_down = (u_long)bw_down;
     iface.bandwidth_up = (u_long)bw_up;
     iface.RTT = (u_long)rtt;
+    iface.connection_duration = (u_long) connection_duration;
     iface.type = networkType;
     const char *str = env->GetStringUTFChars(ip_addr, NULL);
     if (str == NULL) {
