@@ -31,9 +31,10 @@ class Estimate {
     // keep as double for precision; convert to u_long on request
     double stable_estimate;
     double agile_estimate;
-    double spot_value;
+    double last_spot_value;
     double moving_range;
     double center_line;
+    bool out_of_control;
     bool valid;
 
     void init();
@@ -44,7 +45,8 @@ class Estimate {
     };
     std::vector<field> fields;
     
-    bool spot_value_within_limits();
+    bool spot_value_within_limits(double spot_value);
+    double calc_limit_distance();
 
     void dbg_print(double new_spot_value);
 };
