@@ -188,6 +188,12 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
     
     if (shouldLoadStats()) {
         loadStats(getLoadStatsFilename());
+    } else {
+        // reasonable non-zero initial estimate, with the same effect as 
+        // having a zero inital estimate (since the failover delay
+        // is considered part of the session)
+        struct timeval init = { (time_t) WIFI_FAILURE_PENALTY, 0 };
+        wifi_stats->addSessionDuration(init);
     }
 }
 
