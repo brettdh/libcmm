@@ -577,13 +577,9 @@ class IntNWBehaviorPlot(QDialog):
             self.__drawSessions()
             self.__drawRedundancyDecisions()
 
-            max_trace_duration = self.__session_axes.get_xlim()[1]
             max_time = self.__session_axes.get_ylim()[1]
-            if self.__user_set_max_trace_duration:
-                max_trace_duration = self.__user_set_max_trace_duration
             if self.__user_set_max_time:
                 max_time = self.__user_set_max_time
-            self.__session_axes.set_xlim(0.0, max_trace_duration)
             self.__session_axes.set_ylim(0.0, max_time)
 
             if self.__show_debugging.isChecked():
@@ -591,11 +587,18 @@ class IntNWBehaviorPlot(QDialog):
 
             self.__drawWifi()
 
-        if not self.__user_set_max_time:
-            # hack, but I'm tired of it bouncing around.
-            buffer_perc = 0.05
-            buffer = buffer_perc * self.__xlim_max
-            self.__axes.set_xlim(-buffer, self.__xlim_max + buffer)
+        max_trace_duration = self.__session_axes.get_xlim()[1]
+        if self.__user_set_max_trace_duration:
+            max_trace_duration = self.__user_set_max_trace_duration
+        else:
+            max_trace_duration = self.__xlim_max
+
+        buffer_perc = 0.05
+        buffer = buffer_perc * max_trace_duration
+        xlims = [-buffer, max_trace_duration + buffer]
+        self.__axes.set_xlim(*xlims)
+        if not self.__measurements_only:
+            self.__session_axes.set_xlim(*xlims)
 
         self.__canvas.draw()
 
