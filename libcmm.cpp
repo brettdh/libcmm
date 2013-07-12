@@ -110,10 +110,10 @@ static void libcmm_deinit(void)
 void process_interface_update(struct net_interface iface, bool down)
 {
     dbgprintf("Got update from scout: %s is %s, bandwidth_down %lu bandwidth_up %lu bytes/sec "
-              "RTT %lu ms type %s\n",
+              "RTT %lu ms type %s duration %lu sec\n",
               StringifyIP(&iface.ip_addr).c_str(), down?"down":"up",
               iface.bandwidth_down, iface.bandwidth_up, iface.RTT,
-              net_type_name(iface.type));
+              net_type_name(iface.type), iface.connection_duration);
 
     //dbgprintf_always("Before:\n---\n");
     //print_thunks();

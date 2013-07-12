@@ -78,7 +78,9 @@ public class ConnectivityListener extends BroadcastReceiver {
                 mScoutService.updateNetwork(network.ipAddr, 
                                             network.bw_down_Bps,
                                             network.bw_up_Bps, 
-                                            network.rtt_ms, false,
+                                            network.rtt_ms, 
+                                            network.connection_duration_sec,
+                                            false,
                                             Constants.netTypeFromAndroidType(type));
                 mScoutService.logUpdate(network.ipAddr, type, true);
             }
@@ -265,6 +267,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                 int bw_down_Bps = 0;
                 int bw_up_Bps = 0;
                 int rtt_ms = 0;
+                int connection_duration_sec = 0;
                 
                 String ipAddr = getIpAddr(networkInfo);
                 
@@ -273,7 +276,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                     // put down the old network's IP addr
                     Log.d(TAG, String.format("Clearing network (IP changed from %s to %s)",
                                              prevNet.ipAddr, ipAddr));
-                    mScoutService.updateNetwork(prevNet.ipAddr, 0, 0, 0, true,
+                    mScoutService.updateNetwork(prevNet.ipAddr, 0, 0, 0, 0, true,
                                                 Constants.netTypeFromAndroidType(networkInfo.getType()));
                 }
                 
@@ -312,6 +315,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                     bw_down_Bps = network.bw_down_Bps;
                     bw_up_Bps = network.bw_up_Bps;
                     rtt_ms = network.rtt_ms;
+                    connection_duration_sec = network.connection_duration_sec;
                     
                     network.ipAddr = ipAddr;
                     ifaces.put(networkInfo.getType(), network);
@@ -328,6 +332,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                     // TODO: real network measurements here
                     mScoutService.updateNetwork(ipAddr, 
                                                 bw_down_Bps, bw_up_Bps, rtt_ms,
+                                                connection_duration_sec,
                                                 !networkInfo.isConnected(),
                                                 Constants.netTypeFromAndroidType(networkInfo.getType()));
                     mScoutService.logUpdate(network);
@@ -353,6 +358,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                                             network.bw_down_Bps,
                                             network.bw_up_Bps,
                                             network.rtt_ms,
+                                            network.connection_duration_sec,
                                             false, intnwNetType);
                 mScoutService.logUpdate(network);
                 
