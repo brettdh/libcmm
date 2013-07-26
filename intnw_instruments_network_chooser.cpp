@@ -81,21 +81,21 @@ IntNWInstrumentsNetworkChooser::getRttSeconds(instruments_context_t ctx,
 // I've seen variation from 7-14 seconds here, approximately, so I'll just
 //  pick something in the middle.
 // TODO: measure it, many times, and take an average.
+// XXX: this should be an actual average; e.g. half the average of failure measured as 
+// XXX:  time from radio-off to interface-down.
+// XXX: or, the average delay actually experienced by failed wifi transfers.
 static double WIFI_FAILURE_PENALTY = 10.0;
 
 double
 IntNWInstrumentsNetworkChooser::getWifiFailurePenalty(instruments_context_t ctx,
-                                                      InstrumentsWrappedNetStats *net_stats)
+                                                      InstrumentsWrappedNetStats *net_stats,
+                                                      double transfer_time)
 {
     double penalty = 0.0;
     if (net_stats == wifi_stats) {
-        double predicted_wifi_duration = wifi_stats->get_session_duration(ctx);
         double current_wifi_duration = getCurrentWifiDuration();
-        if (current_wifi_duration >= (predicted_wifi_duration - WIFI_FAILURE_PENALTY)) {
-            // must offset by failover delay, since I don't know
-            // whether I'm currently in a failover period
-            penalty = WIFI_FAILURE_PENALTY;
-        }
+        penalty = wifi_stats->getWifiFailurePenalty(ctx, transfer_time, 
+                                                    current_wifi_duration, WIFI_FAILURE_PENALTY);
     }
     return penalty;
 }
@@ -108,9 +108,10 @@ IntNWInstrumentsNetworkChooser::calculateTransferTime(instruments_context_t ctx,
     assert(net_stats);
     double bw = getBandwidthUp(ctx, net_stats);
     double rtt_seconds = getRttSeconds(ctx, net_stats);
-    double wifi_failure_penalty = getWifiFailurePenalty(ctx, net_stats);
+    double tx_time = (bytelen / bw) + rtt_seconds;
+    double wifi_failure_penalty = getWifiFailurePenalty(ctx, net_stats, tx_time);
 
-    return (bytelen / bw) + rtt_seconds + wifi_failure_penalty;
+    return tx_time + wifi_failure_penalty;
 }
 
 double

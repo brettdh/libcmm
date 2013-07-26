@@ -43,17 +43,27 @@ InstrumentsWrappedNetStats::InstrumentsWrappedNetStats(const std::string& networ
     
     bw_up_estimator = create_external_estimator((network + "-bandwidth").c_str());
     rtt_estimator = create_external_estimator((network + "-RTT").c_str());
-    session_duration_estimator = create_external_estimator((network + "-session-duration").c_str());
+    
+    double shape, scale;
+    use_session_distribution = Config::getInstance()->getWifiSessionLengthDistributionParams(shape, scale);
+    if (use_session_distribution) {
+        session_length_distribution = create_continuous_distribution(shape, scale);
+    } else {
+        session_duration_estimator = create_external_estimator((network + "-session-duration").c_str());
+    }
     
     EstimatorRangeHints bw_hints = get_range_hints(network, "bandwidth");
     EstimatorRangeHints rtt_hints = get_range_hints(network, "RTT");
     EstimatorRangeHints session_duration_hints = get_range_hints(network, "session-duration");
     set_estimator_range_hints(bw_up_estimator, bw_hints.min, bw_hints.max, bw_hints.num_bins);
     set_estimator_range_hints(rtt_estimator, rtt_hints.min, rtt_hints.max, rtt_hints.num_bins);
-    set_estimator_range_hints(session_duration_estimator, 
-                              session_duration_hints.min, 
-                              session_duration_hints.max, 
-                              session_duration_hints.num_bins);
+
+    if (!use_session_distribution) {
+        set_estimator_range_hints(session_duration_estimator, 
+                                  session_duration_hints.min, 
+                                  session_duration_hints.max, 
+                                  session_duration_hints.num_bins);
+    }
 }
 
 InstrumentsWrappedNetStats::~InstrumentsWrappedNetStats()
@@ -62,7 +72,11 @@ InstrumentsWrappedNetStats::~InstrumentsWrappedNetStats()
 
     free_external_estimator(bw_up_estimator);
     free_external_estimator(rtt_estimator);
-    free_external_estimator(session_duration_estimator);
+    if (use_session_distribution) {
+        free_continuous_distribution(session_length_distribution);
+    } else {
+        free_external_estimator(session_duration_estimator);
+    }
 }
 
 double InstrumentsWrappedNetStats::get_bandwidth_up(instruments_context_t ctx)
@@ -79,6 +93,29 @@ double
 InstrumentsWrappedNetStats::get_session_duration(instruments_context_t ctx)
 {
     return get_estimator_value(ctx, session_duration_estimator);
+}
+
+double
+InstrumentsWrappedNetStats::getWifiFailurePenalty(instruments_context_t ctx, 
+                                                  double transfer_time, 
+                                                  double current_wifi_duration,
+                                                  double wifi_failure_penalty)
+{
+    if (use_session_distribution) {
+        double failure_window_end = current_wifi_duration + transfer_time + wifi_failure_penalty;
+        double fail_prob = get_probability_value_is_in_range(session_length_distribution,
+                                                             current_wifi_duration, 
+                                                             failure_window_end);
+        return wifi_failure_penalty * fail_prob;
+    } else {
+        double predicted_wifi_duration = get_session_duration(ctx);
+        if (current_wifi_duration >= (predicted_wifi_duration - wifi_failure_penalty)) {
+            // must offset by failover delay, since I don't know
+            // whether I'm currently in a failover period
+            return wifi_failure_penalty;
+        }
+        return 0.0;
+    }
 }
 
 void InstrumentsWrappedNetStats::update(double bw_up, double bw_estimate,
@@ -117,7 +154,9 @@ InstrumentsWrappedNetStats::addSessionDuration(struct timeval duration)
     if (session_duration.get_estimate(duration_est)) {
         dbgprintf("Adding new session length %f  new estimate %f\n",
                   duration_secs, duration_est);
-        add_observation(session_duration_estimator, duration_secs, duration_est);
+        if (!use_session_distribution) {
+            add_observation(session_duration_estimator, duration_secs, duration_est);
+        }
     }
 }
 
@@ -140,7 +179,7 @@ void InstrumentsWrappedNetStats::saveSessionLength(std::ostream& out)
 
 void InstrumentsWrappedNetStats::setWifiSessionLengthBound(double cur_session_length)
 {
-    if (Config::getInstance()->getConditionalWifiSessionLength()) {
+    if (!use_session_distribution) {
         set_estimator_condition(session_duration_estimator, 
                                 INSTRUMENTS_ESTIMATOR_VALUE_AT_LEAST, 
                                 cur_session_length);

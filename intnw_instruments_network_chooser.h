@@ -113,7 +113,8 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
     double getRttSeconds(instruments_context_t ctx,
                          InstrumentsWrappedNetStats *net_stats);
     double getWifiFailurePenalty(instruments_context_t ctx,
-                                 InstrumentsWrappedNetStats *net_stats);
+                                 InstrumentsWrappedNetStats *net_stats,
+                                 double transfer_time);
 
     double getCurrentWifiDuration();
     

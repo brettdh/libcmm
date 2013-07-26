@@ -34,12 +34,19 @@ class InstrumentsWrappedNetStats {
     double get_bandwidth_up(instruments_context_t ctx);
     double get_rtt(instruments_context_t ctx);
     double get_session_duration(instruments_context_t ctx);
+    double getWifiFailurePenalty(instruments_context_t ctx, 
+                                 double transfer_time, 
+                                 double current_wifi_duration,
+                                 double wifi_failure_penalty);
   private:
     instruments_external_estimator_t bw_up_estimator;
     instruments_external_estimator_t rtt_estimator;
 
     Estimate session_duration;
     instruments_external_estimator_t session_duration_estimator;
+
+    bool use_session_distribution;
+    instruments_continuous_distribution_t session_length_distribution;
 
     // used to do a "double-update" on the first real update,
     //  so that I get an error value in the distribution.
