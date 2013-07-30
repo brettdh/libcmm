@@ -84,7 +84,7 @@ IntNWInstrumentsNetworkChooser::getRttSeconds(instruments_context_t ctx,
 // XXX: this should be an actual average; e.g. half the average of failure measured as 
 // XXX:  time from radio-off to interface-down.
 // XXX: or, the average delay actually experienced by failed wifi transfers.
-static double WIFI_FAILURE_PENALTY = 10.0;
+//static double WIFI_FAILURE_PENALTY = 10.0;
 
 double
 IntNWInstrumentsNetworkChooser::getWifiFailurePenalty(instruments_context_t ctx,
@@ -95,7 +95,8 @@ IntNWInstrumentsNetworkChooser::getWifiFailurePenalty(instruments_context_t ctx,
     if (net_stats == wifi_stats) {
         double current_wifi_duration = getCurrentWifiDuration();
         penalty = wifi_stats->getWifiFailurePenalty(ctx, transfer_time, 
-                                                    current_wifi_duration, WIFI_FAILURE_PENALTY);
+                                                    current_wifi_duration, 
+                                                    Config::getInstance()->getWifiFailoverDelay());
     }
     return penalty;
 }
@@ -193,7 +194,7 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
         // reasonable non-zero initial estimate, with the same effect as 
         // having a zero inital estimate (since the failover delay
         // is considered part of the session)
-        struct timeval init = { (time_t) WIFI_FAILURE_PENALTY, 0 };
+        struct timeval init = { (time_t) Config::getInstance()->getWifiFailoverDelay(), 0 };
         wifi_stats->addSessionDuration(init);
     }
 }

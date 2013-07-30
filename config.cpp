@@ -61,14 +61,16 @@ static map<string, instruments_debug_level_t> instruments_debug_levels = {
     {"debug", INSTRUMENTS_DEBUG_LEVEL_DEBUG},
 };
 
-static const string WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE = 
+static const string WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE_KEY = 
     "weibull_wifi_session_length_distribution_shape";
-static const string WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE = 
+static const string WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE_KEY = 
     "weibull_wifi_session_length_distribution_scale";
+static const string WIFI_FAILOVER_DELAY_KEY = "wifi_failover_delay";
 
 static vector<string> double_option_keys = {
-    WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE,
-    WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE
+    WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE_KEY,
+    WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE_KEY, 
+    WIFI_FAILOVER_DELAY_KEY
 };
 
 
@@ -380,11 +382,11 @@ Config::getCellularSessionDurationRangeHints()
 bool 
 Config::getWifiSessionLengthDistributionParams(double& shape, double& scale)
 {
-    if (double_options.count(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE) > 0 &&
-        double_options.count(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE) > 0) {
+    if (double_options.count(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE_KEY) > 0 &&
+        double_options.count(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE_KEY) > 0) {
         
-        shape = double_options[WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE];
-        scale = double_options[WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE];
+        shape = double_options[WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE_KEY];
+        scale = double_options[WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE_KEY];
         return true;
     }
     return false;
@@ -393,9 +395,15 @@ Config::getWifiSessionLengthDistributionParams(double& shape, double& scale)
 void
 Config::checkWifiSessionDistributionParamsValid()
 {
-    if (double_options.count(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE) !=
-        double_options.count(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE)) {
+    if (double_options.count(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE_KEY) !=
+        double_options.count(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE_KEY)) {
         dbgprintf_always("[config] error: need both shape and scale for weibull distribution\n");
         exit(EXIT_FAILURE);
     }
+}
+
+double
+Config::getWifiFailoverDelay()
+{
+    return double_options[WIFI_FAILOVER_DELAY_KEY];
 }
