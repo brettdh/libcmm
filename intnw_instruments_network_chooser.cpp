@@ -85,6 +85,11 @@ IntNWInstrumentsNetworkChooser::getRttSeconds(instruments_context_t ctx,
 // XXX:  time from radio-off to interface-down.
 // XXX: or, the average delay actually experienced by failed wifi transfers.
 //static double WIFI_FAILURE_PENALTY = 10.0;
+// DONE: measured the time from radio-off to interface down.
+//       It's 10.864 (0.090) for 21 samples.
+//       Stored this in the config file
+//       and now we divide it by two for the average 
+//       failover delay actually experienced by each failed wifi transfer.
 
 double
 IntNWInstrumentsNetworkChooser::getWifiFailurePenalty(instruments_context_t ctx,
@@ -96,7 +101,10 @@ IntNWInstrumentsNetworkChooser::getWifiFailurePenalty(instruments_context_t ctx,
         double current_wifi_duration = getCurrentWifiDuration();
         penalty = wifi_stats->getWifiFailurePenalty(ctx, transfer_time, 
                                                     current_wifi_duration, 
-                                                    Config::getInstance()->getWifiFailoverDelay());
+                                                    Config::getInstance()->getWifiFailoverDelay() / 2.0);
+        // divide wifi failover cost by 2, which will on average be
+        //  the amount of failover delay actually experienced by 
+        //  a failed wifi transfer.
     }
     return penalty;
 }
