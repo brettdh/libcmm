@@ -101,10 +101,7 @@ IntNWInstrumentsNetworkChooser::getWifiFailurePenalty(instruments_context_t ctx,
         double current_wifi_duration = getCurrentWifiDuration();
         penalty = wifi_stats->getWifiFailurePenalty(ctx, transfer_time, 
                                                     current_wifi_duration, 
-                                                    Config::getInstance()->getWifiFailoverDelay() / 2.0);
-        // divide wifi failover cost by 2, which will on average be
-        //  the amount of failover delay actually experienced by 
-        //  a failed wifi transfer.
+                                                    Config::getInstance()->getWifiFailoverDelay());
     }
     return penalty;
 }

@@ -99,20 +99,31 @@ double
 InstrumentsWrappedNetStats::getWifiFailurePenalty(instruments_context_t ctx, 
                                                   double transfer_time, 
                                                   double current_wifi_duration,
-                                                  double wifi_failure_penalty)
+                                                  double wifi_failover_window)
 {
+    // when detecting failure, use the entire failover window, since
+    //   some delay will be experienced if the window intersects the transfer.
+    // when calculating the penalty, though, 
+    //   divide wifi failover cost by 2, which will on average be
+    //   the amount of failover delay actually experienced by 
+    //   a failed wifi transfer.
+    // XXX: this should actually be calculated as the integral 
+    // XXX: over the failover window, but this is a decent approximation
+    // XXX: and much less complicated.
+
+    double penalty = wifi_failover_window / 2.0;
     if (use_session_distribution) {
-        double failure_window_end = current_wifi_duration + transfer_time + wifi_failure_penalty;
+        double failure_window_end = current_wifi_duration + transfer_time + wifi_failover_window;
         double fail_prob = get_probability_value_is_in_range(session_length_distribution,
                                                              current_wifi_duration, 
                                                              failure_window_end);
-        return wifi_failure_penalty * fail_prob;
+        return penalty * fail_prob;
     } else {
         double predicted_wifi_duration = get_session_duration(ctx);
-        if (current_wifi_duration >= (predicted_wifi_duration - wifi_failure_penalty)) {
+        if (current_wifi_duration >= (predicted_wifi_duration - wifi_failover_window)) {
             // must offset by failover delay, since I don't know
             // whether I'm currently in a failover period
-            return wifi_failure_penalty;
+            return penalty;
         }
         return 0.0;
     }
