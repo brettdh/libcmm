@@ -157,7 +157,7 @@ IntNWInstrumentsNetworkChooser::calculateTransferMobileData(InstrumentsWrappedNe
 
 
 IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
-    : wifi_present(false), needs_reevaluation(true), chosen_strategy_type(-1)
+    : wifi_present(false), needs_reevaluation(true), chosen_strategy_type(-1), chosen_singular_strategy_type(-1)
 {
     dbgprintf("creating InstrumentsNetworkChooser %p\n", this);
 
@@ -251,22 +251,21 @@ choose_networks(u_long send_label, size_t num_bytes,
                   getCurrentWifiDuration());
         struct timeval begin, end, duration;
         gettimeofday(&begin, NULL);
-        chosen_strategy_type = chooseNetwork(num_bytes);
+        chosen_singular_strategy_type = chooseNetwork(num_bytes);
         gettimeofday(&end, NULL);
         timersub(&end, &begin, &duration);
         dbgprintf("chooseNetwork: %s   took %lu.%06lu seconds\n", 
-                  strategy_names[chosen_strategy_type],
+                  strategy_names[chosen_singular_strategy_type],
                   duration.tv_sec, duration.tv_usec);
 
         needs_reevaluation = false;
     }
 
-    if (chosen_strategy_type == NETWORK_CHOICE_WIFI ||
-        chosen_strategy_type == NETWORK_CHOICE_BOTH) {
+    if (chosen_singular_strategy_type == NETWORK_CHOICE_WIFI) {
         local_iface = wifi_local;
         remote_iface = wifi_remote;
     } else {
-        assert(chosen_strategy_type == NETWORK_CHOICE_CELLULAR);
+        assert(chosen_singular_strategy_type == NETWORK_CHOICE_CELLULAR);
         local_iface = cellular_local;
         remote_iface = cellular_remote;
     }
@@ -299,6 +298,7 @@ IntNWInstrumentsNetworkChooser::reset()
     wifi_present = false;
     needs_reevaluation = true;
     chosen_strategy_type = -1;
+    chosen_singular_strategy_type = -1;
 
     label_matcher.reset();
 }
@@ -494,9 +494,12 @@ IntNWInstrumentsNetworkChooser::RedundancyStrategy::
 shouldTransmitRedundantly(PendingSenderIROB *psirob)
 {
     assert(chooser->has_match);
-    assert(chooser->chosen_strategy_type != -1);
-    dbgprintf("shouldTransmitRedundantly: Chosen network strategy: %s\n",
-              strategy_names[chooser->chosen_strategy_type]);
+    if (chooser->chosen_strategy_type == -1) {
+        dbgprintf("shouldTransmitRedundantly: redundancy decision in progress; non-redundant for now\n");
+    } else {
+        dbgprintf("shouldTransmitRedundantly: Chosen network strategy: %s\n",
+                  strategy_names[chooser->chosen_strategy_type]);
+    }
     return (chooser->chosen_strategy_type == NETWORK_CHOICE_BOTH);
 }
 

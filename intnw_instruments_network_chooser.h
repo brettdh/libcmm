@@ -73,6 +73,7 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
     
     bool needs_reevaluation;
     int chosen_strategy_type;
+    int chosen_singular_strategy_type;
     struct net_interface wifi_local, wifi_remote;
     struct net_interface cellular_local, cellular_remote;
 
