@@ -471,7 +471,9 @@ PendingSenderIROB::setScheduledReevaluation(instruments_scheduled_reevaluation_t
 void
 PendingSenderIROB::cancelReevaluation()
 {
+#ifndef CMM_UNIT_TESTING
     cancel_scheduled_reevaluation(reeval_handle);
     free_scheduled_reevaluation(reeval_handle);
+#endif
     reeval_handle = NULL;
 }
