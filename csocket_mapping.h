@@ -63,6 +63,7 @@ class CSockMapping {
 
     size_t count();
     size_t count_locked();
+    size_t count_connected();
     size_t count_connected_locked();
     bool empty();
     

@@ -94,6 +94,13 @@ CSockMapping::count_locked()
 }
 
 size_t 
+CsockMapping::count_connected()
+{
+    PthreadScopedRWLock lock(&sockset_mutex, false);
+    return count_connected_locked();
+}
+
+size_t 
 CSockMapping::count_connected_locked()
 {
     size_t num_connected_csocks = 0;
@@ -892,7 +899,8 @@ CSockMapping::onRedundancyDecision(const IROBSchedulingData& data)
         pass_request_to_all_senders(psirob, data);
         pthread_cond_broadcast(&skp->scheduling_state_cv);
     } else {
-        if (Config::getInstance()->getPeriodicReevaluationEnabled()) {
+        if (Config::getInstance()->getPeriodicReevaluationEnabled() &&
+            count_connected() <= 1) {
             network_chooser->scheduleReevaluation(this, psirob, data);
         }
     }
