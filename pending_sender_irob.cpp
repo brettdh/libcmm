@@ -474,6 +474,8 @@ PendingSenderIROB::cancelReevaluation()
 {
 #ifndef CMM_UNIT_TESTING
     if (reeval_handle) {
+        dbgprintf("Cancelling redundancy re-evaluation for IROB %d\n", id);
+
         cancel_scheduled_reevaluation(reeval_handle);
         free_scheduled_reevaluation(reeval_handle);
         reeval_handle = NULL;
