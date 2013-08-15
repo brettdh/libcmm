@@ -133,7 +133,6 @@ class PendingSenderIROB : public PendingIROB {
     // for dealing with periodic reevaluation
     bool alreadyReevaluated();
     void setScheduledReevaluation(instruments_scheduled_reevaluation_t reeval);
-    void cancelReevaluation();
 
   private:
     friend class PendingSenderIROBTest;
@@ -185,6 +184,7 @@ class PendingSenderIROB : public PendingIROB {
     // for deferred re-evaluation
     bool reevaluated;
     instruments_scheduled_reevaluation_t reeval_handle;
+    void cancelReevaluation();
 };
 
 #endif

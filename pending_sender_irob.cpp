@@ -47,6 +47,7 @@ void
 PendingSenderIROB::ack()
 {
     acked = true;
+    cancelReevaluation();
 }
 
 bool
