@@ -427,7 +427,7 @@ IntNWInstrumentsNetworkChooser::scheduleReevaluation(CSockMapping *mapping,
                 chosen_network_stats->clearRttLowerBound();
         });
     
-    dbgprintf("Scheduling redundancy re-evaluation for IROB %d in %f seconds\n",
+    dbgprintf("Scheduling redundancy re-evaluation for IROB %ld in %f seconds\n",
               psirob->get_id(), reeval_delay);
 
     instruments_scheduled_reevaluation_t reeval = 
