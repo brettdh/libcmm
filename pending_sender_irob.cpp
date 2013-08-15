@@ -473,8 +473,10 @@ void
 PendingSenderIROB::cancelReevaluation()
 {
 #ifndef CMM_UNIT_TESTING
-    cancel_scheduled_reevaluation(reeval_handle);
-    free_scheduled_reevaluation(reeval_handle);
+    if (reeval_handle) {
+        cancel_scheduled_reevaluation(reeval_handle);
+        free_scheduled_reevaluation(reeval_handle);
+        reeval_handle = NULL;
+    }
 #endif
-    reeval_handle = NULL;
 }
