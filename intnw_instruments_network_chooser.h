@@ -34,7 +34,9 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
     virtual void checkRedundancyAsync(CSockMapping *mapping,
                                       PendingSenderIROB *psirob, 
                                       const IROBSchedulingData& data);
-
+    virtual void scheduleReevaluation(CSockMapping *mapping, 
+                                      PendingSenderIROB *psirob,
+                                      const IROBSchedulingData& data);
 
     // for communicating simulated energy/data budgets.
     void setFixedResourceWeights(double energyWeight, double dataWeight);
@@ -118,6 +120,13 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
                                  double transfer_time);
 
     double getCurrentWifiDuration();
+
+    std::function<void(instruments_strategy_t)> *
+        getRedundancyDecisionCallback(CSockMapping *mapping, 
+                                      const IROBSchedulingData& data);
+    instruments_strategy_t getSingularStrategyNotChosen();
+    double getReevaluationDelay(PendingSenderIROB *psirob);
+    
     
     double calculateTransferTime(instruments_context_t ctx,
                                  InstrumentsWrappedNetStats *net_stats,

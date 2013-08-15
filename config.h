@@ -21,6 +21,8 @@ class Config {
     // else returns false and leaves shape and scale unchanged.
     bool getWifiSessionLengthDistributionParams(double& shape, double& scale);
 
+    bool getPeriodicReevaluationEnabled();
+
     double getWifiFailoverDelay();
 
     std::string getNetworkStatsSaveFilename();

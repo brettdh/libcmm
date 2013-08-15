@@ -49,6 +49,12 @@ class NetworkChooserImpl {
                                       PendingSenderIROB *psirob, 
                                       const IROBSchedulingData& data) {}
 
+    // override in subclass to schedule a re-evaluation
+    //  (after choosing a non-redundant strategy)
+    virtual void scheduleReevaluation(CSockMapping *mapping,
+                                      PendingSenderIROB *psirob, 
+                                      const IROBSchedulingData& data) {}
+
 
     virtual void saveToFile() {}
 

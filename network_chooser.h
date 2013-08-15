@@ -68,6 +68,9 @@ class NetworkChooser {
     void checkRedundancyAsync(CSockMapping *mapping,
                               PendingSenderIROB *psirob, 
                               const IROBSchedulingData& data);
+    void scheduleReevaluation(CSockMapping *mapping,
+                              PendingSenderIROB *psirob, 
+                              const IROBSchedulingData& data);
 
     void saveToFile();
 

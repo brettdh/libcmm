@@ -314,14 +314,31 @@ IntNWInstrumentsNetworkChooser::chooseNetwork(int bytelen)
     return getStrategyIndex(chosen);
 }
 
-typedef function<void(instruments_strategy_t)> CallbackWrapper;
+static void 
+pre_eval_callback_wrapper(void *arg)
+{
+    auto *fn = static_cast<function<void()> *>(arg);
+    (*fn)();
+    delete fn;
+}
 
 static void 
-callback_wrapper(instruments_strategy_t strategy, void *arg)
+chosen_strategy_callback_wrapper(instruments_strategy_t strategy, void *arg)
 {
-    CallbackWrapper *fn = (CallbackWrapper *) arg;
+    auto *fn = static_cast<function<void(instruments_strategy_t)> *>(arg);
     (*fn)(strategy);
     delete fn;
+}
+
+function<void(instruments_strategy_t)> *
+IntNWInstrumentsNetworkChooser::getRedundancyDecisionCallback(CSockMapping *mapping, 
+                                                              const IROBSchedulingData& data)
+{
+    auto callback = [=](instruments_strategy_t strategy) {
+        chosen_strategy_type = getStrategyIndex(strategy);
+        mapping->onRedundancyDecision(data);
+    };
+    return new function<void(instruments_strategy_t)>(callback);
 }
 
 void 
@@ -329,17 +346,94 @@ IntNWInstrumentsNetworkChooser::checkRedundancyAsync(CSockMapping *mapping,
                                                      PendingSenderIROB *psirob, 
                                                      const IROBSchedulingData& data)
 {
-    auto callback = [=](instruments_strategy_t strategy) {
-        chosen_strategy_type = getStrategyIndex(strategy);
-        if (chosen_strategy_type == NETWORK_CHOICE_BOTH) {
-            mapping->broadcastRedundancy(data);
-        }
-    };
-    auto *pcallback = new CallbackWrapper(callback);
-    *pcallback = callback;
+    auto *pcallback = getRedundancyDecisionCallback(mapping, data);
 
     wifi_stats->setWifiSessionLengthBound(getCurrentWifiDuration());
-    choose_strategy_async(evaluator, (void *) psirob->expected_bytes(), callback_wrapper, pcallback);
+    choose_strategy_async(evaluator, (void *) psirob->expected_bytes(), 
+                          chosen_strategy_callback_wrapper, pcallback);
+}
+
+instruments_strategy_t
+IntNWInstrumentsNetworkChooser::getSingularStrategyNotChosen()
+{
+    assert(NUM_STRATEGIES == 3);
+    if (chosen_strategy_type == NETWORK_CHOICE_BOTH) {
+        // shouldn't happen; we should only call this when 
+        //  preparing to schedule a re-evaluation.
+        // if we chose redundancy, we wouldn't be scheduling
+        //  a re-evaluation at all.
+        assert(false);
+        return NULL;
+    }
+    // return the other strategy - the one not chosen.
+    // strategies 0 and 1 are the two singular strategies,
+    //  so this picks the other one.
+    return strategies[(chosen_strategy_type + 1) % 2];
+}
+
+double
+IntNWInstrumentsNetworkChooser::getReevaluationDelay(PendingSenderIROB *psirob)
+{
+    double delay = 0.0;
+    instruments_strategy_t chosen_strategy = strategies[chosen_strategy_type];
+    instruments_strategy_t not_chosen_strategy = getSingularStrategyNotChosen();
+
+    double best_singular_time = get_last_strategy_time(evaluator, chosen_strategy);
+    if (psirob->alreadyReevaluated()) {
+        delay = get_last_strategy_time(evaluator, not_chosen_strategy);
+        delay -= best_singular_time;
+    } else {
+        delay = best_singular_time;
+    }
+
+    if (chosen_strategy_type == NETWORK_CHOICE_WIFI) {
+        // This only changes the delay if I'm using the weibull distribution
+        //  for calculating wifi failure penalty; otherwise the penalty here is zero.
+
+        // use transfer time of zero because I'm not storing the actual transfer time;
+        //  the faiulre penalty is baked into the total wifi time.
+        // happily, this results in a wifi failure penalty that's slightly smaller,
+        //  which means it's still less than the total wifi time.
+        delay -= getWifiFailurePenalty(NULL, wifi_stats, 0.0);
+    }
+    
+    return delay;
+}
+
+void
+IntNWInstrumentsNetworkChooser::scheduleReevaluation(CSockMapping *mapping, 
+                                                     PendingSenderIROB *psirob,
+                                                     const IROBSchedulingData& data)
+{
+    // if we chose redundancy, we wouldn't be here scheduling a reevaluation
+    // and we're holding the lock still, so it won't have been overwritten
+    assert(chosen_strategy_type != NETWORK_CHOICE_BOTH);
+
+    InstrumentsWrappedNetStats *chosen_network_stats = 
+        (chosen_strategy_type == NETWORK_CHOICE_WIFI
+         ? wifi_stats
+         : cellular_stats);
+    double reeval_delay = getReevaluationDelay(psirob);
+    
+    // holding scheduling_state_lock
+    auto *pcallback_pre_eval = new function<void()>([=]() {
+        chosen_network_stats->setRttLowerBound(reeval_delay);
+    });
+
+    auto *pcallback_chosen_strategy = 
+        new function<void(instruments_strategy_t)>([=](instruments_strategy_t strategy) {
+                auto *inner_cb = getRedundancyDecisionCallback(mapping, data);
+                chosen_strategy_callback_wrapper(strategy, inner_cb);
+                chosen_network_stats->clearRttLowerBound();
+        });
+    
+
+    instruments_scheduled_reevaluation_t reeval = 
+        schedule_reevaluation(evaluator, (void *) psirob->expected_bytes(), 
+                              pre_eval_callback_wrapper, pcallback_pre_eval,
+                              chosen_strategy_callback_wrapper, pcallback_chosen_strategy,
+                              reeval_delay);
+    psirob->setScheduledReevaluation(reeval);
 }
 
 

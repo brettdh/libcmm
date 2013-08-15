@@ -156,6 +156,15 @@ NetworkChooser::checkRedundancyAsync(CSockMapping *mapping,
     impl->checkRedundancyAsync(mapping, psirob, data);
 }
 
+void 
+NetworkChooser::scheduleReevaluation(CSockMapping *mapping,
+                                     PendingSenderIROB *psirob, 
+                                     const IROBSchedulingData& data)
+{
+    PthreadScopedLock guard(&lock);
+    impl->scheduleReevaluation(mapping, psirob, data);
+}
+
 void
 NetworkChooser::saveToFile()
 {

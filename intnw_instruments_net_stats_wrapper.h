@@ -28,6 +28,12 @@ class InstrumentsWrappedNetStats {
     // current wifi session length.
     void setWifiSessionLengthBound(double cur_session_length);
 
+    // for use just before a reevaluation
+    void setRttLowerBound(double min_rtt);
+    
+    // after the reevaluation is over
+    void clearRttLowerBound();
+
     void loadSessionLength(std::istream& in);
     void saveSessionLength(std::ostream& out);
 
@@ -52,6 +58,9 @@ class InstrumentsWrappedNetStats {
     //  so that I get an error value in the distribution.
     bool first_update;
     bool was_first_update();
+
+    double last_bw_estimate;
+    double last_RTT_estimate;
 };
 
 #endif /* _INTNW_INSTRUMENTS_NET_STATS_WRAPPER_H_ */

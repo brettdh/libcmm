@@ -23,6 +23,8 @@ using std::make_pair;
 #include "network_chooser.h"
 #include "irob_scheduling.h"
 
+#include "config.h"
+
 using std::unique_ptr;
 using std::pair;
 using std::vector;
@@ -873,7 +875,7 @@ CSockMapping::pass_request_to_all_senders(PendingSenderIROB *psirob,
 }
 
 void
-CSockMapping::broadcastRedundancy(const IROBSchedulingData& data)
+CSockMapping::onRedundancyDecision(const IROBSchedulingData& data)
 {
     CMMSocketImplPtr skp(sk);
     PthreadScopedLock lock(&skp->scheduling_state_lock);
@@ -888,10 +890,11 @@ CSockMapping::broadcastRedundancy(const IROBSchedulingData& data)
     check_redundancy(psirob);
     if (psirob->should_send_on_all_networks()) {
         pass_request_to_all_senders(psirob, data);
-        // TODO: figure out why there's a segfault around the time of a data-check.
-        // TODO:  probably more cases to handle.
-        
         pthread_cond_broadcast(&skp->scheduling_state_cv);
+    } else {
+        if (Config::getInstance()->getPeriodicReevaluationEnabled()) {
+            network_chooser->scheduleReevaluation(this, psirob, data);
+        }
     }
 }
 

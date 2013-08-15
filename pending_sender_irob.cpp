@@ -22,7 +22,9 @@ PendingSenderIROB::PendingSenderIROB(irob_id_t id_,
       //next_seqno_to_send(0), //next_chunk(0), chunk_offset(0),
       num_bytes(datalen), //irob_offset(0)
       //chunk_in_flight(false),
-      send_on_all_networks(false)
+      send_on_all_networks(false),
+      reevaluated(false),
+      reeval_handle(NULL)
 {
 }
 
@@ -451,4 +453,25 @@ PendingSenderIROB::get_total_network_bytes()
         bytes += (sent_chunks[i].datalen + sizeof(CMMSocketControlHdr));
     }
     return bytes;
+}
+
+bool 
+PendingSenderIROB::alreadyReevaluated()
+{
+    return reevaluated;
+}
+
+void 
+PendingSenderIROB::setScheduledReevaluation(instruments_scheduled_reevaluation_t reeval)
+{
+    reevaluated = true;
+    reeval_handle = reeval;
+}
+
+void
+PendingSenderIROB::cancelReevaluation()
+{
+    cancel_scheduled_reevaluation(reeval_handle);
+    free_scheduled_reevaluation(reeval_handle);
+    reeval_handle = NULL;
 }

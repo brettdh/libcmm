@@ -24,11 +24,13 @@ const char *CONFIG_FILE = "/etc/cmm_config";
 static const string DEBUG_OUTPUT_KEY = "debug";
 static const string USE_BREADCRUMBS_ESTIMATES_KEY = "use_breadcrumbs_estimates";
 static const string RECORD_FAILOVER_LATENCY_KEY = "record_failover_latency";
+static const string PERIODIC_REEVALUATION_ENABLED_KEY = "periodic_reevaluation";
 
 static vector<string> boolean_option_keys = {
     DEBUG_OUTPUT_KEY,
     USE_BREADCRUMBS_ESTIMATES_KEY,
     RECORD_FAILOVER_LATENCY_KEY,
+    PERIODIC_REEVALUATION_ENABLED_KEY,
 };
 
 // keys for string options
@@ -310,6 +312,13 @@ Config::getRecordFailoverLatency()
 {
     return getBoolean(RECORD_FAILOVER_LATENCY_KEY);
 }
+
+bool 
+Config::getPeriodicReevaluationEnabled()
+{
+    return getBoolean(PERIODIC_REEVALUATION_ENABLED_KEY);
+}
+
 
 
 string

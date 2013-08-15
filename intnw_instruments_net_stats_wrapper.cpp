@@ -37,7 +37,8 @@ get_range_hints(const string& network, const string& type)
 }
 
 InstrumentsWrappedNetStats::InstrumentsWrappedNetStats(const std::string& network)
-    : session_duration(network + "_session_duration"), first_update(true)
+    : session_duration(network + "_session_duration"), first_update(true),
+      last_bw_estimate(0.0), last_RTT_estimate(0.0) // will be filled in before use
 {
     dbgprintf("creating InstrumentsWrappedNetStats %p\n", this);
     
@@ -119,11 +120,13 @@ InstrumentsWrappedNetStats::getWifiFailurePenalty(instruments_context_t ctx,
                                                              failure_window_end);
         return penalty * fail_prob;
     } else {
-        double predicted_wifi_duration = get_session_duration(ctx);
-        if (current_wifi_duration >= (predicted_wifi_duration - wifi_failover_window)) {
-            // must offset by failover delay, since I don't know
-            // whether I'm currently in a failover period
-            return penalty;
+        if (ctx) { // so I can have a harmless call if for some reason I turn off the weibull distribution
+            double predicted_wifi_duration = get_session_duration(ctx);
+            if (current_wifi_duration >= (predicted_wifi_duration - wifi_failover_window)) {
+                // must offset by failover delay, since I don't know
+                // whether I'm currently in a failover period
+                return penalty;
+            }
         }
         return 0.0;
     }
@@ -141,9 +144,11 @@ void InstrumentsWrappedNetStats::update(double bw_up, double bw_estimate,
     do {
         if (bw_up > 0.0) {
             add_observation(bw_up_estimator, bw_up, bw_estimate);
+            last_bw_estimate = bw_estimate;
         }
         if (RTT_seconds > 0.0) {
             add_observation(rtt_estimator, RTT_seconds, RTT_estimate);
+            last_RTT_estimate = RTT_estimate;
         }
     } while (was_first_update());
 }
@@ -198,4 +203,25 @@ void InstrumentsWrappedNetStats::setWifiSessionLengthBound(double cur_session_le
                                 INSTRUMENTS_ESTIMATOR_VALUE_AT_LEAST, 
                                 cur_session_length);
     }
+}
+
+void
+InstrumentsWrappedNetStats::setRttLowerBound(double min_rtt)
+{
+    // don't update the estimate, just add an error value that reflects
+    // the RTT bound (so that the conditional distribution is never empty.
+    //   if it would have been empty, this pushes towards redundancy,
+    //   which is the right thing to do in the longer-RTT-than-ever scenario.)
+    // XXX: hacky.  should be inside set_estimator_condition, probably.
+    add_observation(rtt_estimator, min_rtt, last_RTT_estimate);
+    
+    set_estimator_condition(rtt_estimator, 
+                            INSTRUMENTS_ESTIMATOR_VALUE_AT_LEAST,
+                            min_rtt);
+}
+
+void
+InstrumentsWrappedNetStats::clearRttLowerBound()
+{
+    clear_estimator_conditions(rtt_estimator);
 }
