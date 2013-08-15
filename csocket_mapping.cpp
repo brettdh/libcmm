@@ -900,7 +900,7 @@ CSockMapping::onRedundancyDecision(const IROBSchedulingData& data)
         pthread_cond_broadcast(&skp->scheduling_state_cv);
     } else {
         if (Config::getInstance()->getPeriodicReevaluationEnabled() &&
-            count_connected() <= 1) {
+            count_connected() > 1) {
             network_chooser->scheduleReevaluation(this, psirob, data);
         }
     }
