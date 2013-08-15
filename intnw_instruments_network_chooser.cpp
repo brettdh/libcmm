@@ -415,12 +415,13 @@ IntNWInstrumentsNetworkChooser::scheduleReevaluation(CSockMapping *mapping,
          : cellular_stats);
     double reeval_delay = getReevaluationDelay(psirob);
     irob_id_t id = psirob->get_id();
-    
+
     // holding scheduling_state_lock
     auto *pcallback_pre_eval = new function<void()>([=]() {
+        double min_rtt = psirob->getTimeSinceSent();
         dbgprintf("No ack on %s for IROB %ld; supposing RTT is at least %f seconds and re-evaluating\n",
-                  strategy_names[chosen_strategy_type], id, reeval_delay);
-        chosen_network_stats->setRttLowerBound(reeval_delay);
+                  strategy_names[chosen_strategy_type], id, min_rtt);
+        chosen_network_stats->setRttLowerBound(min_rtt);
     });
 
     auto *pcallback_chosen_strategy = 

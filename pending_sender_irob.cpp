@@ -1,6 +1,7 @@
 #include "pending_irob.h"
 #include "pending_sender_irob.h"
 #include "debug.h"
+#include "timeops.h"
 #include <vector>
 #include <functional>
 #include <deque>
@@ -26,6 +27,7 @@ PendingSenderIROB::PendingSenderIROB(irob_id_t id_,
       reevaluated(false),
       reeval_handle(NULL)
 {
+    gettimeofday(&last_send_time, NULL);
 }
 
 bool
@@ -259,6 +261,10 @@ PendingSenderIROB::add_sent_chunk(CSocket *csock, ssize_t len)
         ASSERT(already_sent_chunk.offset == offset);
         ASSERT((ssize_t) already_sent_chunk.datalen == len);
     }
+
+    // we only get here when we've grabbed some new data to send, 
+    //  so this is the last send time.
+    gettimeofday(&last_send_time, NULL);
 }
 
 vector<struct iovec>
@@ -481,4 +487,14 @@ PendingSenderIROB::cancelReevaluation()
         reeval_handle = NULL;
     }
 #endif
+}
+
+double
+PendingSenderIROB::getTimeSinceSent()
+{
+    struct timeval now, diff;
+    gettimeofday(&now, NULL);
+    TIMEDIFF(last_send_time, now, diff);
+    
+    return diff.tv_sec + (diff.tv_usec / 1000000.0);
 }

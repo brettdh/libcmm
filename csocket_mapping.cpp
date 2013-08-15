@@ -94,7 +94,7 @@ CSockMapping::count_locked()
 }
 
 size_t 
-CsockMapping::count_connected()
+CSockMapping::count_connected()
 {
     PthreadScopedRWLock lock(&sockset_mutex, false);
     return count_connected_locked();
