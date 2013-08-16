@@ -30,6 +30,18 @@ public class ConnectivityListener extends BroadcastReceiver {
         Collections.synchronizedMap(new HashMap<Integer, NetUpdate>());
     
     private NetUpdate lastMobileStats;
+    private String lastSSID;
+    private String lastBSSID;
+    
+    private void setWifiInfo(WifiInfo wifiInfo) {
+        if (wifiInfo == null) {
+            lastSSID = null;
+            lastBSSID = null;
+        } else {
+            lastSSID = wifiInfo.getSSID();
+            lastBSSID = wifiInfo.getBSSID();
+        }
+    }
 
     public ConnectivityListener(ConnScoutService service) {
         mScoutService = service;
@@ -46,6 +58,8 @@ public class ConnectivityListener extends BroadcastReceiver {
             wifiNetwork = new NetUpdate(intToIp(wifiInfo.getIpAddress()));
             wifiNetwork.type = ConnectivityManager.TYPE_WIFI;
             wifiNetwork.connected = true;
+            setWifiInfo(wifiInfo);
+            
             BreadcrumbsNetworkStats stats = 
                 BreadcrumbsNetworkStats.lookup(wifiInfo.getSSID(), 
                                                wifiInfo.getBSSID());
@@ -238,6 +252,25 @@ public class ConnectivityListener extends BroadcastReceiver {
         mScoutService.sendBroadcast(startNotification);
     }
     
+    private boolean networkHasChanged(NetUpdate prevNet, NetworkInfo networkInfo)
+        throws SocketException, NetworkStatusException {
+        boolean wifi_change = false;
+        if (networkInfo.getType() == ConnectivityManager.TYPE_WIFI) {
+            WifiManager wifi = 
+                (WifiManager) mScoutService.getSystemService(Context.WIFI_SERVICE);
+            WifiInfo wifiInfo = wifi.getConnectionInfo();
+            if (wifiInfo != null) {
+                wifi_change = ((lastSSID == null || lastBSSID == null) || 
+                               (!lastSSID.equals(wifiInfo.getSSID()) || 
+                                !lastBSSID.equals(wifiInfo.getBSSID())));
+            }
+        }
+        String ipAddr = getIpAddr(networkInfo);
+        boolean ip_change = !prevNet.ipAddr.equals(ipAddr);
+        
+        return wifi_change || ip_change;
+    }
+    
     @Override
     public void onReceive(Context context, Intent intent) {
         Log.d(TAG, "Got event");
@@ -269,7 +302,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                 String ipAddr = getIpAddr(networkInfo);
                 
                 NetUpdate prevNet = ifaces.get(networkInfo.getType());
-                if (prevNet != null && !prevNet.ipAddr.equals(ipAddr)) {
+                if (prevNet != null && networkHasChanged(prevNet, networkInfo)) {
                     // put down the old network's IP addr
                     Log.d(TAG, String.format("Clearing network (IP changed from %s to %s)",
                                              prevNet.ipAddr, ipAddr));
@@ -286,7 +319,7 @@ public class ConnectivityListener extends BroadcastReceiver {
                         network.type = networkInfo.getType();
                         network.connected = true;
                     }
-                    if (prevNet != null && prevNet.ipAddr.equals(ipAddr)) {
+                    if (prevNet != null && !networkHasChanged(prevNet, networkInfo)) {
                         // preserve existing stats; don't send this 'update' to IntNW apps
                         // just ignore it
                         ignore = true;
@@ -298,6 +331,11 @@ public class ConnectivityListener extends BroadcastReceiver {
                         BreadcrumbsNetworkStats bcStats = null;
                         if (networkInfo.getType() == ConnectivityManager.TYPE_WIFI) {
                             bcStats = BreadcrumbsNetworkStats.lookupCurrentAP(mScoutService);
+
+                            WifiManager wifi = 
+                                (WifiManager) mScoutService.getSystemService(Context.WIFI_SERVICE);
+                            WifiInfo wifiInfo = wifi.getConnectionInfo();
+                            setWifiInfo(wifiInfo);
                         }
                         if (bcStats != null) {
                             Log.d(TAG, String.format("Got wifi network stats for %s from breadcrumbs db", ipAddr));
@@ -322,6 +360,10 @@ public class ConnectivityListener extends BroadcastReceiver {
                     network = new NetUpdate(ipAddr);
                     network.type = networkInfo.getType();
                     network.connected = false;
+                    
+                    if (network.type == ConnectivityManager.TYPE_WIFI) {
+                        setWifiInfo(null);
+                    }
                 }
 
                 if (!ignore) {
