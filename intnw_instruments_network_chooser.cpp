@@ -381,23 +381,24 @@ IntNWInstrumentsNetworkChooser::getReevaluationDelay(PendingSenderIROB *psirob)
     double best_singular_time = get_last_strategy_time(evaluator, chosen_strategy);
     if (psirob->alreadyReevaluated()) {
         delay = get_last_strategy_time(evaluator, not_chosen_strategy);
-        delay -= best_singular_time;
+        delay -= psirob->getTimeSinceSent();
     } else {
         delay = best_singular_time;
-    }
 
-    if (chosen_strategy_type == NETWORK_CHOICE_WIFI) {
-        // This only changes the delay if I'm using the weibull distribution
-        //  for calculating wifi failure penalty; otherwise the penalty here is zero.
-
-        // use transfer time of zero because I'm not storing the actual transfer time;
-        //  the faiulre penalty is baked into the total wifi time.
-        // happily, this results in a wifi failure penalty that's slightly smaller,
-        //  which means it's still less than the total wifi time.
-        delay -= getWifiFailurePenalty(NULL, wifi_stats, 0.0);
+        if (chosen_strategy_type == NETWORK_CHOICE_WIFI) {
+            // This only changes the delay if I'm using the weibull distribution
+            //  for calculating wifi failure penalty; otherwise the penalty here is zero.
+            
+            // use transfer time of zero because I'm not storing the actual transfer time;
+            //  the failure penalty is baked into the total wifi time.
+            // happily, this results in a wifi failure penalty that's slightly smaller,
+            //  which means it's still less than the total wifi time.
+            delay -= getWifiFailurePenalty(NULL, wifi_stats, 0.0);
+        }
+        delay *= 2.0;
     }
     
-    return delay;
+    return max(0.0, delay);
 }
 
 void
