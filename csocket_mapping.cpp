@@ -898,6 +898,7 @@ CSockMapping::onRedundancyDecision(const IROBSchedulingData& data)
     if (psirob->should_send_on_all_networks()) {
         pass_request_to_all_senders(psirob, data);
         pthread_cond_broadcast(&skp->scheduling_state_cv);
+        psirob->onReevaluationDone();
     } else {
         if (Config::getInstance()->getPeriodicReevaluationEnabled() &&
             count_connected() > 1) {

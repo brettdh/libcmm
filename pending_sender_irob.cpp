@@ -49,7 +49,7 @@ void
 PendingSenderIROB::ack()
 {
     acked = true;
-    cancelReevaluation();
+    freeReevaluation(true); // cancel if not run already
 }
 
 bool
@@ -476,13 +476,18 @@ PendingSenderIROB::setScheduledReevaluation(instruments_scheduled_reevaluation_t
 }
 
 void
-PendingSenderIROB::cancelReevaluation()
+PendingSenderIROB::freeReevaluation(bool cancel)
 {
 #ifndef CMM_UNIT_TESTING
     if (reeval_handle) {
-        dbgprintf("Cancelling redundancy re-evaluation for IROB %ld\n", id);
+        if (cancel) {
+            dbgprintf("Cancelling redundancy re-evaluation for IROB %ld\n", id);
+            cancel_scheduled_reevaluation(reeval_handle);
+        } else {
+            // not cancelled, since it already ran.
+            dbgprintf("Freeing redundancy re-evaluation handle for IROB %ld\n", id);
+        }
 
-        cancel_scheduled_reevaluation(reeval_handle);
         free_scheduled_reevaluation(reeval_handle);
         reeval_handle = NULL;
     }
@@ -497,4 +502,10 @@ PendingSenderIROB::getTimeSinceSent()
     TIMEDIFF(last_send_time, now, diff);
     
     return diff.tv_sec + (diff.tv_usec / 1000000.0);
+}
+
+void 
+PendingSenderIROB::onReevaluationDone()
+{
+    freeReevaluation(false);
 }

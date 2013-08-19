@@ -135,6 +135,8 @@ class PendingSenderIROB : public PendingIROB {
     void setScheduledReevaluation(instruments_scheduled_reevaluation_t reeval);
     double getTimeSinceSent();
 
+    void onReevaluationDone();
+
   private:
     friend class PendingSenderIROBTest;
 
@@ -185,7 +187,7 @@ class PendingSenderIROB : public PendingIROB {
     // for deferred re-evaluation
     bool reevaluated;
     instruments_scheduled_reevaluation_t reeval_handle;
-    void cancelReevaluation();
+    void freeReevaluation(bool cancel);
 
     struct timeval last_send_time;
 };
