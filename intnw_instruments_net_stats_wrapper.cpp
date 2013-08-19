@@ -208,13 +208,6 @@ void InstrumentsWrappedNetStats::setWifiSessionLengthBound(double cur_session_le
 void
 InstrumentsWrappedNetStats::setRttLowerBound(double min_rtt)
 {
-    // don't update the estimate, just add an error value that reflects
-    // the RTT bound (so that the conditional distribution is never empty.
-    //   if it would have been empty, this pushes towards redundancy,
-    //   which is the right thing to do in the longer-RTT-than-ever scenario.)
-    // XXX: hacky.  should be inside set_estimator_condition, probably.
-    add_observation(rtt_estimator, min_rtt, last_RTT_estimate);
-    
     set_estimator_condition(rtt_estimator, 
                             INSTRUMENTS_ESTIMATOR_VALUE_AT_LEAST,
                             min_rtt);
