@@ -605,8 +605,9 @@ shouldTransmitRedundantly(PendingSenderIROB *psirob)
     // either the async evaluation decided on redundancy, 
     // or I'm doing a deferred re-evaluation, and the passage of time
     // changed the decision.
-    return (chooser->chosen_strategy_type == NETWORK_CHOICE_BOTH ||
-            chooser->chosen_singular_strategy_type != chooser->chosen_strategy_type);
+    return (chooser->chosen_strategy_type != -1 &&
+            (chooser->chosen_strategy_type == NETWORK_CHOICE_BOTH ||
+             chooser->chosen_singular_strategy_type != chooser->chosen_strategy_type));
     // XXX: this is kind of a hack, since in the current world,
     // XXX: there are only ever two network interfaces, and
     // XXX: therefore changing the decision from one to the other
