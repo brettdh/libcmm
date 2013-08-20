@@ -375,14 +375,25 @@ double
 IntNWInstrumentsNetworkChooser::getReevaluationDelay(PendingSenderIROB *psirob)
 {
     double delay = 0.0;
-    instruments_strategy_t chosen_strategy = strategies[chosen_strategy_type];
-    instruments_strategy_t not_chosen_strategy = getSingularStrategyNotChosen();
 
-    double best_singular_time = get_last_strategy_time(evaluator, chosen_strategy);
     if (psirob->alreadyReevaluated()) {
-        delay = get_last_strategy_time(evaluator, not_chosen_strategy);
-        delay -= psirob->getTimeSinceSent();
+        // 200ms is the default minimum TCP retransmission timeout.
+        // At this point, we've fallen back to periodic re-evaluation.
+        // This is still better than the old trouble mode, because
+        //  we're not just assuming that the network is bad after this delay;
+        //  we're checking again by doing our conditional probability calculation.
+        // Also, we've already waited twice the time we expected it to take
+        //  using our best network, so now we're just trying to find the tipping point
+        //  where redundancy wins.  This is much simpler than calculating that point
+        //  directly, and it's also independent of the eval method we're using.
+        // I thought about using some multiple of the expected redundant-strategy
+        //  time, but that just feels like rubbish, since it's definitely
+        //  less than the time we've already waited.
+        const double periodic_reeval_timeout = 0.200;
+        delay = periodic_reeval_timeout;
     } else {
+        instruments_strategy_t chosen_strategy = strategies[chosen_strategy_type];
+        double best_singular_time = get_last_strategy_time(evaluator, chosen_strategy);
         delay = best_singular_time;
 
         if (chosen_strategy_type == NETWORK_CHOICE_WIFI) {
