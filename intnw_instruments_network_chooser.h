@@ -123,7 +123,7 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
 
     std::function<void(instruments_strategy_t)> *
         getRedundancyDecisionCallback(CSockMapping *mapping, 
-                                      const IROBSchedulingData& data);
+                                      IROBSchedulingData data);
     instruments_strategy_t getSingularStrategyNotChosen();
     double getReevaluationDelay(PendingSenderIROB *psirob);
     

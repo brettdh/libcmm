@@ -909,6 +909,10 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         s << "]";
     }
     dbgprintf("%s\n", s.str().c_str());
+    if (sending_all_irob_info) {
+        dbgprintf("About to send message: %s\n", chunk_hdr.describe().c_str());
+        dbgprintf("About to send message: %s\n", end_irob_hdr.describe().c_str());
+    }
 
     if (data.send_labels & CMM_LABEL_ONDEMAND) {
         sk->update_last_fg();

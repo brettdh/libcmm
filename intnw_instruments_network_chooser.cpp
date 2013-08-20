@@ -332,7 +332,7 @@ chosen_strategy_callback_wrapper(instruments_strategy_t strategy, void *arg)
 
 function<void(instruments_strategy_t)> *
 IntNWInstrumentsNetworkChooser::getRedundancyDecisionCallback(CSockMapping *mapping, 
-                                                              const IROBSchedulingData& data)
+                                                              IROBSchedulingData data)
 {
     auto callback = [=](instruments_strategy_t strategy) {
         chosen_strategy_type = getStrategyIndex(strategy);
