@@ -100,7 +100,7 @@ double
 InstrumentsWrappedNetStats::getWifiFailurePenalty(instruments_context_t ctx, 
                                                   double transfer_time, 
                                                   double current_wifi_duration,
-                                                  double wifi_failover_window)
+                                                  double penalty)
 {
     // when detecting failure, use the entire failover window, since
     //   some delay will be experienced if the window intersects the transfer.
@@ -112,7 +112,7 @@ InstrumentsWrappedNetStats::getWifiFailurePenalty(instruments_context_t ctx,
     // XXX: over the failover window, but this is a decent approximation
     // XXX: and much less complicated.
 
-    double penalty = wifi_failover_window / 2.0;
+    double wifi_failover_window = Config::getInstance()->getWifiFailoverDelay();
     if (use_session_distribution) {
         double failure_window_end = current_wifi_duration + transfer_time + wifi_failover_window;
         double fail_prob = get_probability_value_is_in_range(session_length_distribution,

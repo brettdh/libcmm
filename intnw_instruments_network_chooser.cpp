@@ -59,7 +59,7 @@ network_transfer_data_cost(instruments_context_t ctx, void *strategy_arg, void *
     int bytelen = (int) chooser_arg;
     assert(args->net_stats);
     
-    return args->chooser->calculateTransferMobileData(*args->net_stats, bytelen);
+    return args->chooser->calculateTransferMobileData(ctx, *args->net_stats, bytelen);
 }
 
 double
@@ -94,17 +94,27 @@ IntNWInstrumentsNetworkChooser::getRttSeconds(instruments_context_t ctx,
 double
 IntNWInstrumentsNetworkChooser::getWifiFailurePenalty(instruments_context_t ctx,
                                                       InstrumentsWrappedNetStats *net_stats,
-                                                      double transfer_time)
+                                                      double transfer_time,
+                                                      double penalty)
 {
-    double penalty = 0.0;
+    double failure_penalty = 0.0;
     if (net_stats == wifi_stats) {
         double current_wifi_duration = getCurrentWifiDuration();
-        penalty = wifi_stats->getWifiFailurePenalty(ctx, transfer_time, 
-                                                    current_wifi_duration, 
-                                                    Config::getInstance()->getWifiFailoverDelay());
+        failure_penalty = wifi_stats->getWifiFailurePenalty(ctx, transfer_time, 
+                                                            current_wifi_duration, penalty);
     }
-    return penalty;
+    return failure_penalty;
 }
+
+double
+IntNWInstrumentsNetworkChooser::averageWifiFailoverPenalty()
+{
+    // the time impact of wifi failover 
+    //  (A transfer occurs with uniform probability across the entire 
+    //   failover window, so it experiences half the max delay on average)
+    return  Config::getInstance()->getWifiFailoverDelay() / 2.0;
+}
+
 
 double
 IntNWInstrumentsNetworkChooser::calculateTransferTime(instruments_context_t ctx,
@@ -115,7 +125,9 @@ IntNWInstrumentsNetworkChooser::calculateTransferTime(instruments_context_t ctx,
     double bw = getBandwidthUp(ctx, net_stats);
     double rtt_seconds = getRttSeconds(ctx, net_stats);
     double tx_time = (bytelen / bw) + rtt_seconds;
-    double wifi_failure_penalty = getWifiFailurePenalty(ctx, net_stats, tx_time);
+    
+    double wifi_failure_penalty = getWifiFailurePenalty(ctx, net_stats, tx_time,
+                                                        averageWifiFailoverPenalty());
 
     return tx_time + wifi_failure_penalty;
 }
@@ -136,20 +148,37 @@ IntNWInstrumentsNetworkChooser::calculateTransferEnergy(instruments_context_t ct
     
     double bw = getBandwidthUp(ctx, net_stats);
     double rtt_seconds = getRttSeconds(ctx, net_stats);
+    double tx_time = (bytelen / bw) + rtt_seconds;
+
+    // Calculate the expected energy cost due to having to retransmit on cellular if wifi fails.
+    //    (cellular_energy * P(wifi fails before transfer completes)
+    // Don't bother using the error-adjusted estimates here; great precision is not necessary.
+    //    (passing NULL to the get_estimator_value function just returns the estimator value)
+    // The reason is that the tail energy will dominate here if the 3G radio
+    // isn't active, and if it was activated recently, the energy will be small.
+    double cellular_bw = cellular_stats->get_bandwidth_up(NULL);
+    double cellular_rtt_seconds = cellular_stats->get_rtt(NULL);
+    double cellular_fallback_energy = estimate_energy_cost(TYPE_MOBILE, bytelen, 
+                                                           cellular_bw, cellular_rtt_seconds * 1000.0);
+    double wifi_failure_penalty = getWifiFailurePenalty(ctx, net_stats, tx_time,
+                                                        cellular_fallback_energy);
     
-    // TODO: incorporate wifi failure_penalty somehow?
-    // TODO: e.g. energy cost of sending on cellular anyway
-    return estimate_energy_cost(type, bytelen, bw, rtt_seconds * 1000.0);
+    return estimate_energy_cost(type, bytelen, bw, rtt_seconds * 1000.0) + wifi_failure_penalty;
 }
 
 double
-IntNWInstrumentsNetworkChooser::calculateTransferMobileData(InstrumentsWrappedNetStats *net_stats,
+IntNWInstrumentsNetworkChooser::calculateTransferMobileData(instruments_context_t ctx,
+                                                            InstrumentsWrappedNetStats *net_stats,
                                                             int bytelen)
 {
     if (net_stats == wifi_stats) {
-        // TODO: incorporate wifi failure_penalty somehow?
-        // TODO: e.g. data cost of sending on cellular anyway
-        return 0;
+        double bw = getBandwidthUp(ctx, net_stats);
+        double rtt_seconds = getRttSeconds(ctx, net_stats);
+        double tx_time = (bytelen / bw) + rtt_seconds;
+        
+        // the penalty is having to send the bytes over cellular anyway if the wifi fails.
+        return getWifiFailurePenalty(ctx, net_stats, tx_time, 
+                                     (double) bytelen);
     } else if (net_stats == cellular_stats) {
         return bytelen;
     } else assert(0);
@@ -404,7 +433,7 @@ IntNWInstrumentsNetworkChooser::getReevaluationDelay(PendingSenderIROB *psirob)
             //  the failure penalty is baked into the total wifi time.
             // happily, this results in a wifi failure penalty that's slightly smaller,
             //  which means it's still less than the total wifi time.
-            delay -= getWifiFailurePenalty(NULL, wifi_stats, 0.0);
+            delay -= getWifiFailurePenalty(NULL, wifi_stats, 0.0, averageWifiFailoverPenalty());
         }
         delay *= 2.0;
     }

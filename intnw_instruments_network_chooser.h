@@ -117,10 +117,12 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
                          InstrumentsWrappedNetStats *net_stats);
     double getWifiFailurePenalty(instruments_context_t ctx,
                                  InstrumentsWrappedNetStats *net_stats,
-                                 double transfer_time);
+                                 double transfer_time,
+                                 double penalty);
 
     double getCurrentWifiDuration();
-
+    double averageWifiFailoverPenalty();
+    
     std::function<void(instruments_strategy_t)> *
         getRedundancyDecisionCallback(CSockMapping *mapping, 
                                       IROBSchedulingData data);
@@ -134,7 +136,8 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
     double calculateTransferEnergy(instruments_context_t ctx, 
                                    InstrumentsWrappedNetStats *net_stats,
                                    int bytelen);
-    double calculateTransferMobileData(InstrumentsWrappedNetStats *net_stats,
+    double calculateTransferMobileData(instruments_context_t ctx, 
+                                       InstrumentsWrappedNetStats *net_stats,
                                        int bytelen);
 
     friend double network_transfer_time(instruments_context_t ctx,
