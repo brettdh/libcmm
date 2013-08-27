@@ -132,6 +132,45 @@ IntNWInstrumentsNetworkChooser::calculateTransferTime(instruments_context_t ctx,
     return tx_time + wifi_failure_penalty;
 }
 
+static struct timeval estimate_energy_time = {0, 0};
+static int estimate_energy_calls = 0;
+
+static void
+reset_estimate_energy_stats()
+{
+    memset(&estimate_energy_time, 0, sizeof(estimate_energy_time));
+    estimate_energy_calls = 0;
+}
+
+static void
+print_estimate_energy_stats()
+{
+    dbgprintf("estimate_energy_cost: %d calls, %lu.%06lu seconds\n",
+              estimate_energy_calls,
+              estimate_energy_time.tv_sec, estimate_energy_time.tv_usec);
+}
+
+static inline int
+time_estimate_energy_cost(EnergyComputer& calculator, size_t datalen, 
+                         size_t bandwidth, size_t rtt_ms)
+{
+    struct timeval begin, end, diff;
+    TIME(begin);
+    int cost = calculator(datalen, bandwidth, rtt_ms);
+    TIME(end);
+    TIMEDIFF(begin, end, diff);
+    timeradd(&estimate_energy_time, &diff, &estimate_energy_time);
+    estimate_energy_calls++;
+    return cost;
+}
+
+void
+IntNWInstrumentsNetworkChooser::refreshEnergyCalculators()
+{
+    cellular_energy_calculator = get_energy_computer(TYPE_MOBILE);
+    wifi_energy_calculator = get_energy_computer(TYPE_WIFI);
+}
+
 double
 IntNWInstrumentsNetworkChooser::calculateTransferEnergy(instruments_context_t ctx, 
                                                         InstrumentsWrappedNetStats *net_stats,
@@ -145,6 +184,8 @@ IntNWInstrumentsNetworkChooser::calculateTransferEnergy(instruments_context_t ct
     } else if (net_stats == cellular_stats) {
         type = TYPE_MOBILE;
     } else assert(0);
+
+    EnergyComputer& energy_calculator = (type == TYPE_WIFI) ? wifi_energy_calculator : cellular_energy_calculator;
     
     double bw = getBandwidthUp(ctx, net_stats);
     double rtt_seconds = getRttSeconds(ctx, net_stats);
@@ -156,14 +197,17 @@ IntNWInstrumentsNetworkChooser::calculateTransferEnergy(instruments_context_t ct
     //    (passing NULL to the get_estimator_value function just returns the estimator value)
     // The reason is that the tail energy will dominate here if the 3G radio
     // isn't active, and if it was activated recently, the energy will be small.
-    double cellular_bw = cellular_stats->get_bandwidth_up(NULL);
-    double cellular_rtt_seconds = cellular_stats->get_rtt(NULL);
-    double cellular_fallback_energy = estimate_energy_cost(TYPE_MOBILE, bytelen, 
-                                                           cellular_bw, cellular_rtt_seconds * 1000.0);
-    double wifi_failure_penalty = getWifiFailurePenalty(ctx, net_stats, tx_time,
-                                                        cellular_fallback_energy);
+    double wifi_failure_penalty = 0.0;
+    if (type == TYPE_WIFI) {
+        double cellular_bw = cellular_stats->get_bandwidth_up(NULL);
+        double cellular_rtt_seconds = cellular_stats->get_rtt(NULL);
+        double cellular_fallback_energy = time_estimate_energy_cost(cellular_energy_calculator, bytelen, 
+                                                                    cellular_bw, cellular_rtt_seconds * 1000.0);
+        wifi_failure_penalty = getWifiFailurePenalty(ctx, net_stats, tx_time,
+                                                     cellular_fallback_energy);
+    }
     
-    return estimate_energy_cost(type, bytelen, bw, rtt_seconds * 1000.0) + wifi_failure_penalty;
+    return time_estimate_energy_cost(energy_calculator, bytelen, bw, rtt_seconds * 1000.0) + wifi_failure_penalty;
 }
 
 double
@@ -203,6 +247,7 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
     strategy_args[NETWORK_CHOICE_WIFI]->net_stats = &wifi_stats;
     strategy_args[NETWORK_CHOICE_CELLULAR]->net_stats = &cellular_stats;
 
+    refreshEnergyCalculators();
     for (int i = NETWORK_CHOICE_WIFI; i <= NETWORK_CHOICE_CELLULAR; ++i) {
         strategies[i] = 
             make_strategy(network_transfer_time, 
@@ -339,7 +384,10 @@ IntNWInstrumentsNetworkChooser::chooseNetwork(int bytelen)
 {
     wifi_stats->setWifiSessionLengthBound(getCurrentWifiDuration());
 
+    reset_estimate_energy_stats();
+    refreshEnergyCalculators();
     instruments_strategy_t chosen = choose_nonredundant_strategy(evaluator, (void *)bytelen);
+    print_estimate_energy_stats();
     return getStrategyIndex(chosen);
 }
 
@@ -378,6 +426,7 @@ IntNWInstrumentsNetworkChooser::checkRedundancyAsync(CSockMapping *mapping,
     auto *pcallback = getRedundancyDecisionCallback(mapping, data);
 
     wifi_stats->setWifiSessionLengthBound(getCurrentWifiDuration());
+    refreshEnergyCalculators();
     choose_strategy_async(evaluator, (void *) psirob->expected_bytes(), 
                           chosen_strategy_callback_wrapper, pcallback);
 }

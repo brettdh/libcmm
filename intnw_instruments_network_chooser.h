@@ -6,6 +6,8 @@
 #include "intnw_instruments_net_stats_wrapper.h"
 #include <instruments.h>
 
+#include <libpowertutor.h>
+
 #include <string>
 
 #define NETWORK_CHOICE_WIFI 0
@@ -85,6 +87,10 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
 
     InstrumentsWrappedNetStats *wifi_stats;
     InstrumentsWrappedNetStats *cellular_stats;
+
+    EnergyComputer cellular_energy_calculator;
+    EnergyComputer wifi_energy_calculator;
+    void refreshEnergyCalculators();
 
     int getStrategyIndex(instruments_strategy_t strategy);
     instruments_strategy_t strategies[NUM_STRATEGIES]; // wifi, cellular, or both
