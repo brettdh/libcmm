@@ -41,7 +41,9 @@ NetworkChooser::create(int redundancy_strategy_type)
     impl->reset();
     impl->setRedundancyStrategy();
 
-    return new NetworkChooser(impl);
+    NetworkChooser *wrapper = new NetworkChooser(impl);
+    impl->setWrapper(wrapper);
+    return wrapper;
 }
 
 NetworkChooser::NetworkChooser(NetworkChooserImpl *impl_)

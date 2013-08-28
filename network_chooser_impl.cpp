@@ -9,8 +9,21 @@
 using std::make_pair;
 
 NetworkChooserImpl::NetworkChooserImpl()
-    : redundancyStrategy(NULL)
+    : wrapper(NULL), redundancyStrategy(NULL)
 {
+}
+
+void 
+NetworkChooserImpl::setWrapper(NetworkChooser *wrapper_)
+{
+    wrapper = wrapper_;
+}
+
+GuardedNetworkChooser
+NetworkChooserImpl::getGuardedChooser()
+{
+    assert(wrapper);
+    return wrapper->getGuardedChooser();
 }
 
 void

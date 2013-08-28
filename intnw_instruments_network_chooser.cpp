@@ -1,3 +1,4 @@
+#include "network_chooser.h"
 #include "intnw_instruments_network_chooser.h"
 #include "intnw_instruments_net_stats_wrapper.h"
 #include "libcmm_net_restriction.h"
@@ -412,6 +413,9 @@ IntNWInstrumentsNetworkChooser::getRedundancyDecisionCallback(CSockMapping *mapp
                                                               IROBSchedulingData data)
 {
     auto callback = [=](instruments_strategy_t strategy) {
+        // hold lock to prevent CSockMapping from coming in and reset()ing me before I 
+        //  act on this redundancy decision
+        GuardedNetworkChooser guarded_chooser = getGuardedChooser();
         chosen_strategy_type = getStrategyIndex(strategy);
         mapping->onRedundancyDecision(data);
     };
