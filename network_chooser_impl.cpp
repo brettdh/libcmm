@@ -9,7 +9,7 @@
 using std::make_pair;
 
 NetworkChooserImpl::NetworkChooserImpl()
-    : wrapper(NULL), redundancyStrategy(NULL)
+    : redundancyStrategy(NULL), wrapper(NULL)
 {
 }
 
