@@ -6,6 +6,8 @@
 #include <assert.h>
 #include <string.h>
 
+#include "debug.h"
+
 const char *
 RedundancyStrategy::strategy_types[NUM_REDUNDANCY_STRATEGY_TYPES] = {
     "intnw_never_redundant", "always_redundant", "intnw_redundant",
@@ -15,7 +17,7 @@ RedundancyStrategy::strategy_types[NUM_REDUNDANCY_STRATEGY_TYPES] = {
 std::string
 RedundancyStrategy::describe_type(int type)
 {
-    assert(type >= INTNW_NEVER_REDUNDANT && type < NUM_REDUNDANCY_STRATEGY_TYPES);
+    ASSERT(type >= INTNW_NEVER_REDUNDANT && type < NUM_REDUNDANCY_STRATEGY_TYPES);
     return strategy_types[type];
 }
 
@@ -43,7 +45,7 @@ RedundancyStrategy::create(int type)
     case INTNW_REDUNDANT:
         // shouldn't be here.  the Chooser calls the constructor itself.
     default:
-        assert(0);
+        ASSERT(0);
     }
 }
 

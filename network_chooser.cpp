@@ -33,7 +33,7 @@ NetworkChooser::create(int redundancy_strategy_type)
         impl = new AlwaysRedundantChooser;
         break;
     default:
-        assert(0);
+        ASSERT(0);
     }
 
     dbgprintf("Constructing NetworkChooserImpl %p\n", impl);

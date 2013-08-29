@@ -71,7 +71,7 @@ CSockMapping::set_redundancy_strategy(int type)
 int 
 CSockMapping::get_redundancy_strategy()
 {
-    assert(network_chooser);
+    ASSERT(network_chooser);
     return redundancy_strategy_type;
 }
 
@@ -402,7 +402,7 @@ CSockMapping::connected_csock_with_labels(u_long send_label,
             //  iterate twice
             pair<struct net_interface, struct net_interface> key = 
                 make_pair(csock->local_iface, csock->remote_iface);
-            assert(lookup.count(key) == 0);
+            ASSERT(lookup.count(key) == 0);
             lookup[key] = csock;
         }
     }
@@ -413,7 +413,7 @@ CSockMapping::connected_csock_with_labels(u_long send_label,
     } else {
         if (guarded_chooser->choose_networks(send_label, num_bytes, 
                                              iface_pair.first, iface_pair.second)) {
-            assert(lookup.count(iface_pair) > 0);
+            ASSERT(lookup.count(iface_pair) > 0);
             return lookup[iface_pair];
         } else {
             return CSocketPtr();

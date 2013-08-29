@@ -29,7 +29,7 @@ get_range_hints(const string& network, const string& type)
           
         }
     };
-    assert(getters.count(network) > 0 &&
+    ASSERT(getters.count(network) > 0 &&
            getters[network].count(type) > 0);
     auto getter = getters[network][type];
     Config *config = Config::getInstance();
@@ -182,7 +182,7 @@ InstrumentsWrappedNetStats::loadSessionLength(std::istream& in)
     session_duration.load(in);
     double duration_est;
     bool success = session_duration.get_estimate(duration_est);
-    assert(success); // if we are loading it, there must be a valid estimate.
+    ASSERT(success); // if we are loading it, there must be a valid estimate.
 
     if (!use_session_distribution) {
         // add initial value to instruments estimator

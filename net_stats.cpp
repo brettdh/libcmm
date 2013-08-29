@@ -1058,7 +1058,7 @@ IROBTransfersPerNetwork::hasAllBytes(struct in_addr local_addr,
 {
     // because this doesn't get checked until post-ACK,
     // and ACK doesn't happen before I've sent any bytes
-    assert(total_bytes > 0);
+    ASSERT(total_bytes > 0);
     return (getValueRef(local_addr, remote_addr) >= total_bytes);
 }
 
@@ -1071,7 +1071,7 @@ IROBTransfersPerNetwork::reportTotalBytes(size_t total_bytes_)
 
     // it should never change after the first assignment, though
     //  it may be assigned again
-    assert(total_bytes == total_bytes_);
+    ASSERT(total_bytes == total_bytes_);
 }
 
 // return true iff there are no more transfers in this map.

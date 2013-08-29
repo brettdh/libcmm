@@ -670,7 +670,7 @@ CSocket::network_type()
         return NET_TYPE_WIFI;
     } else {
         // TODO: other network types might exist.
-        assert(fits_net_restriction(CMM_LABEL_THREEG_ONLY));
+        ASSERT(fits_net_restriction(CMM_LABEL_THREEG_ONLY));
         return NET_TYPE_THREEG;
     }
 }

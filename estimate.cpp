@@ -47,10 +47,10 @@ Estimate::Estimate(const Estimate& other)
 Estimate& 
 Estimate::operator=(const Estimate& other)
 {
-    assert(fields.size() > 0);
-    assert(fields.size() == other.fields.size());
+    ASSERT(fields.size() > 0);
+    ASSERT(fields.size() == other.fields.size());
     for (size_t i = 0; i < fields.size(); ++i) {
-        assert(fields[i].name == other.fields[i].name);
+        ASSERT(fields[i].name == other.fields[i].name);
         *fields[i].dest = *other.fields[i].dest;
     }
     out_of_control = other.out_of_control;
@@ -141,7 +141,7 @@ Estimate::dbg_print(double new_spot_value)
 {
     double flipflop_value = 0.0;
     bool success = get_estimate(flipflop_value);
-    assert(success);
+    ASSERT(success);
     double limit_distance = calc_limit_distance();
     dbgprintf("%s estimate: new_obs %f stable %f agile %f "
               "center_line %f moving_range %f "
@@ -197,7 +197,7 @@ Estimate::load(std::istream& in)
 
     double dummy_spot_value = 0.0;
     bool success = get_estimate(dummy_spot_value);
-    assert(success);
+    ASSERT(success);
     
     dbg_print(dummy_spot_value);
 }

@@ -22,7 +22,7 @@ NetworkChooserImpl::setWrapper(NetworkChooser *wrapper_)
 GuardedNetworkChooser
 NetworkChooserImpl::getGuardedChooser()
 {
-    assert(wrapper);
+    ASSERT(wrapper);
     return wrapper->getGuardedChooser();
 }
 
@@ -31,14 +31,14 @@ NetworkChooserImpl::setRedundancyStrategy()
 { 
     dbgprintf("In NetworkChooserImpl::setRedundancyStrategy\n");
 
-    assert(redundancyStrategy == NULL);
+    ASSERT(redundancyStrategy == NULL);
     redundancyStrategy = RedundancyStrategy::create(INTNW_NEVER_REDUNDANT);
 }
 
 bool
 NetworkChooserImpl::shouldTransmitRedundantly(PendingSenderIROB *psirob)
 {
-    assert(redundancyStrategy != NULL);
+    ASSERT(redundancyStrategy != NULL);
     return redundancyStrategy->shouldTransmitRedundantly(psirob);
 }
 
@@ -196,6 +196,6 @@ AlwaysRedundantChooser::AlwaysRedundantChooser()
 void
 AlwaysRedundantChooser::setRedundancyStrategy()
 {
-    assert(redundancyStrategy == NULL);
+    ASSERT(redundancyStrategy == NULL);
     redundancyStrategy = RedundancyStrategy::create(ALWAYS_REDUNDANT);
 }

@@ -37,7 +37,7 @@ network_transfer_time(instruments_context_t ctx, void *strategy_arg, void *choos
 {
     struct strategy_args *args = (struct strategy_args *)strategy_arg;
     int bytelen = (int) chooser_arg;
-    assert(args->net_stats);
+    ASSERT(args->net_stats);
     return args->chooser->calculateTransferTime(ctx, *args->net_stats, 
                                                 bytelen);
 }
@@ -47,7 +47,7 @@ network_transfer_energy_cost(instruments_context_t ctx, void *strategy_arg, void
 {
     struct strategy_args *args = (struct strategy_args *)strategy_arg;
     int bytelen = (int) chooser_arg;
-    assert(args->net_stats);
+    ASSERT(args->net_stats);
 
     return args->chooser->calculateTransferEnergy(ctx, *args->net_stats,
                                                   bytelen);
@@ -58,7 +58,7 @@ network_transfer_data_cost(instruments_context_t ctx, void *strategy_arg, void *
 {
     struct strategy_args *args = (struct strategy_args *)strategy_arg;
     int bytelen = (int) chooser_arg;
-    assert(args->net_stats);
+    ASSERT(args->net_stats);
     
     return args->chooser->calculateTransferMobileData(ctx, *args->net_stats, bytelen);
 }
@@ -122,7 +122,7 @@ IntNWInstrumentsNetworkChooser::calculateTransferTime(instruments_context_t ctx,
                                                       InstrumentsWrappedNetStats *net_stats,
                                                       int bytelen)
 {
-    assert(net_stats);
+    ASSERT(net_stats);
     double bw = getBandwidthUp(ctx, net_stats);
     double rtt_seconds = getRttSeconds(ctx, net_stats);
     double tx_time = (bytelen / bw) + rtt_seconds;
@@ -177,14 +177,14 @@ IntNWInstrumentsNetworkChooser::calculateTransferEnergy(instruments_context_t ct
                                                         InstrumentsWrappedNetStats *net_stats,
                                                         int bytelen)
 {
-    assert(net_stats);
+    ASSERT(net_stats);
 
     NetworkType type;
     if (net_stats == wifi_stats) {
         type = TYPE_WIFI;
     } else if (net_stats == cellular_stats) {
         type = TYPE_MOBILE;
-    } else assert(0);
+    } else ASSERT(0);
 
     EnergyComputer& energy_calculator = (type == TYPE_WIFI) ? wifi_energy_calculator : cellular_energy_calculator;
     
@@ -226,7 +226,7 @@ IntNWInstrumentsNetworkChooser::calculateTransferMobileData(instruments_context_
                                      (double) bytelen);
     } else if (net_stats == cellular_stats) {
         return bytelen;
-    } else assert(0);
+    } else ASSERT(0);
 }
 
 
@@ -313,7 +313,7 @@ choose_networks(u_long send_label, size_t num_bytes,
                                              local_iface, remote_iface);
     }
 
-    assert(has_match);
+    ASSERT(has_match);
     
     if (!wifi_present) {
         local_iface = cellular_local;
@@ -340,7 +340,7 @@ choose_networks(u_long send_label, size_t num_bytes,
         local_iface = wifi_local;
         remote_iface = wifi_remote;
     } else {
-        assert(chosen_singular_strategy_type == NETWORK_CHOICE_CELLULAR);
+        ASSERT(chosen_singular_strategy_type == NETWORK_CHOICE_CELLULAR);
         local_iface = cellular_local;
         remote_iface = cellular_remote;
     }
@@ -363,7 +363,7 @@ IntNWInstrumentsNetworkChooser::consider(struct net_interface local_iface,
     } else if (matches_type(NET_TYPE_THREEG, local_iface, remote_iface)) {
         cellular_local = local_iface;
         cellular_remote = remote_iface;
-    } else assert(false);
+    } else ASSERT(false);
 }
 
 void
@@ -437,13 +437,13 @@ IntNWInstrumentsNetworkChooser::checkRedundancyAsync(CSockMapping *mapping,
 instruments_strategy_t
 IntNWInstrumentsNetworkChooser::getSingularStrategyNotChosen()
 {
-    assert(NUM_STRATEGIES == 3);
+    ASSERT(NUM_STRATEGIES == 3);
     if (chosen_strategy_type == NETWORK_CHOICE_BOTH) {
         // shouldn't happen; we should only call this when 
         //  preparing to schedule a re-evaluation.
         // if we chose redundancy, we wouldn't be scheduling
         //  a re-evaluation at all.
-        assert(false);
+        ASSERT(false);
         return NULL;
     }
     // return the other strategy - the one not chosen.
@@ -500,7 +500,7 @@ IntNWInstrumentsNetworkChooser::scheduleReevaluation(CSockMapping *mapping,
 {
     // if we chose redundancy, we wouldn't be here scheduling a reevaluation
     // and we're holding the lock still, so it won't have been overwritten
-    assert(chosen_strategy_type != NETWORK_CHOICE_BOTH);
+    ASSERT(chosen_strategy_type != NETWORK_CHOICE_BOTH);
 
     InstrumentsWrappedNetStats *chosen_network_stats = 
         (chosen_strategy_type == NETWORK_CHOICE_WIFI
@@ -544,7 +544,7 @@ int IntNWInstrumentsNetworkChooser::getStrategyIndex(instruments_strategy_t stra
             return i;
         }
     }
-    assert(0);
+    ASSERT(0);
 }
 
 void 
@@ -610,7 +610,7 @@ IntNWInstrumentsNetworkChooser::reportNetStats(int network_type,
         stats = cellular_stats;
         break;
     default:
-        assert(false);
+        ASSERT(false);
         break;
     }
 
@@ -672,7 +672,7 @@ void
 IntNWInstrumentsNetworkChooser::setRedundancyStrategy()
 {
     dbgprintf("setting IntNWInstrumentsNetworkChooser::RedundancyStrategy\n");
-    assert(redundancyStrategy == NULL);
+    ASSERT(redundancyStrategy == NULL);
     redundancyStrategy = 
         new IntNWInstrumentsNetworkChooser::RedundancyStrategy(this);
 }
@@ -700,7 +700,7 @@ bool
 IntNWInstrumentsNetworkChooser::RedundancyStrategy::
 shouldTransmitRedundantly(PendingSenderIROB *psirob)
 {
-    assert(chooser->has_match);
+    ASSERT(chooser->has_match);
     if (chooser->chosen_strategy_type == -1) {
         dbgprintf("shouldTransmitRedundantly: redundancy decision in progress; non-redundant for now\n");
     } else {
