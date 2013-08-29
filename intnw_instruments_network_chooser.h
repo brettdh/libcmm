@@ -131,7 +131,8 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
     
     std::function<void(instruments_strategy_t)> *
         getRedundancyDecisionCallback(CSockMapping *mapping, 
-                                      IROBSchedulingData data);
+                                      IROBSchedulingData data,
+                                      int singular_type);
     instruments_strategy_t getSingularStrategyNotChosen();
     double getReevaluationDelay(PendingSenderIROB *psirob);
     
@@ -156,5 +157,9 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
                                              void *strategy_arg, 
                                              void *chooser_arg);
 };
+
+bool
+is_redundant(int chosen_singular_strategy_type,
+             int chosen_strategy_type);
 
 #endif /* _INTNW_INSTRUMENTS_NET_STATS_WRAPPER_H_ */

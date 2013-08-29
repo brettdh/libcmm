@@ -410,14 +410,13 @@ chosen_strategy_callback_wrapper(instruments_strategy_t strategy, void *arg)
 
 function<void(instruments_strategy_t)> *
 IntNWInstrumentsNetworkChooser::getRedundancyDecisionCallback(CSockMapping *mapping, 
-                                                              IROBSchedulingData data)
+                                                              IROBSchedulingData data,
+                                                              int singular_type)
 {
     auto callback = [=](instruments_strategy_t strategy) {
-        // hold lock to prevent CSockMapping from coming in and reset()ing me before I 
-        //  act on this redundancy decision
-        GuardedNetworkChooser guarded_chooser = getGuardedChooser();
-        chosen_strategy_type = getStrategyIndex(strategy);
-        mapping->onRedundancyDecision(data);
+        int type = getStrategyIndex(strategy);
+        chosen_strategy_type = type;
+        mapping->onRedundancyDecision(data, singular_type, type);
     };
     return new function<void(instruments_strategy_t)>(callback);
 }
@@ -427,7 +426,7 @@ IntNWInstrumentsNetworkChooser::checkRedundancyAsync(CSockMapping *mapping,
                                                      PendingSenderIROB *psirob, 
                                                      const IROBSchedulingData& data)
 {
-    auto *pcallback = getRedundancyDecisionCallback(mapping, data);
+    auto *pcallback = getRedundancyDecisionCallback(mapping, data, chosen_singular_strategy_type);
 
     wifi_stats->setWifiSessionLengthBound(getCurrentWifiDuration());
     refreshEnergyCalculators();
@@ -521,7 +520,7 @@ IntNWInstrumentsNetworkChooser::scheduleReevaluation(CSockMapping *mapping,
 
     auto *pcallback_chosen_strategy = 
         new function<void(instruments_strategy_t)>([=](instruments_strategy_t strategy) {
-                auto *inner_cb = getRedundancyDecisionCallback(mapping, data);
+                auto *inner_cb = getRedundancyDecisionCallback(mapping, data, chosen_singular_strategy_type);
                 chosen_strategy_callback_wrapper(strategy, inner_cb);
                 chosen_network_stats->clearRttLowerBound();
         });
@@ -684,6 +683,19 @@ RedundancyStrategy(IntNWInstrumentsNetworkChooser *chooser_)
 {
 }
 
+bool
+is_redundant(int chosen_singular_strategy_type,
+             int chosen_strategy_type)
+{
+    return (chosen_strategy_type != -1 &&
+            (chosen_strategy_type == NETWORK_CHOICE_BOTH ||
+             chosen_singular_strategy_type != chosen_strategy_type));
+    // XXX: this is kind of a hack, since in the current world,
+    // XXX: there are only ever two network interfaces, and
+    // XXX: therefore changing the decision from one to the other
+    // XXX: is equivalent to choosing both in the first place.
+}
+
 bool 
 IntNWInstrumentsNetworkChooser::RedundancyStrategy::
 shouldTransmitRedundantly(PendingSenderIROB *psirob)
@@ -698,13 +710,8 @@ shouldTransmitRedundantly(PendingSenderIROB *psirob)
     // either the async evaluation decided on redundancy, 
     // or I'm doing a deferred re-evaluation, and the passage of time
     // changed the decision.
-    return (chooser->chosen_strategy_type != -1 &&
-            (chooser->chosen_strategy_type == NETWORK_CHOICE_BOTH ||
-             chooser->chosen_singular_strategy_type != chooser->chosen_strategy_type));
-    // XXX: this is kind of a hack, since in the current world,
-    // XXX: there are only ever two network interfaces, and
-    // XXX: therefore changing the decision from one to the other
-    // XXX: is equivalent to choosing both in the first place.
+    return is_redundant(chooser->chosen_singular_strategy_type,
+                        chooser->chosen_strategy_type);
 }
 
 
