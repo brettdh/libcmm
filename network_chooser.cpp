@@ -124,6 +124,20 @@ NetworkChooser::reportNetStats(int network_type,
                          new_latency_seconds, new_latency_estimate);
 }
 
+void
+NetworkChooser::reportNetworkSetup(int network_type)
+{
+    PthreadScopedLock guard(&lock);
+    impl->reportNetworkSetup(network_type);
+}
+
+void
+NetworkChooser::reportNetworkTeardown(int network_type)
+{
+    PthreadScopedLock guard(&lock);
+    impl->reportNetworkTeardown(network_type);
+}
+
 bool
 NetworkChooser::shouldTransmitRedundantly(PendingSenderIROB *psirob)
 {
@@ -140,6 +154,15 @@ NetworkChooser::checkRedundancyAsync(CSockMapping *mapping,
 {
     PthreadScopedLock guard(&lock);
     impl->checkRedundancyAsync(mapping, psirob, data);
+}
+
+void 
+NetworkChooser::scheduleReevaluation(CSockMapping *mapping,
+                                     PendingSenderIROB *psirob, 
+                                     const IROBSchedulingData& data)
+{
+    PthreadScopedLock guard(&lock);
+    impl->scheduleReevaluation(mapping, psirob, data);
 }
 
 void

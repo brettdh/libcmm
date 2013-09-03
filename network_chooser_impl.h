@@ -36,6 +36,9 @@ class NetworkChooserImpl {
                                 double new_latency_seconds,
                                 double new_latency_estimate) {}
 
+    virtual void reportNetworkSetup(int network_type) {}
+    virtual void reportNetworkTeardown(int network_type) {}
+    
     bool shouldTransmitRedundantly(PendingSenderIROB *psirob);
     virtual void setRedundancyStrategy();
 
@@ -43,6 +46,12 @@ class NetworkChooserImpl {
     // (that is, after doing a cheap single-network calculation
     //  and sending on at least one network)
     virtual void checkRedundancyAsync(CSockMapping *mapping,
+                                      PendingSenderIROB *psirob, 
+                                      const IROBSchedulingData& data) {}
+
+    // override in subclass to schedule a re-evaluation
+    //  (after choosing a non-redundant strategy)
+    virtual void scheduleReevaluation(CSockMapping *mapping,
                                       PendingSenderIROB *psirob, 
                                       const IROBSchedulingData& data) {}
 

@@ -24,22 +24,32 @@ const char *CONFIG_FILE = "/etc/cmm_config";
 static const string DEBUG_OUTPUT_KEY = "debug";
 static const string USE_BREADCRUMBS_ESTIMATES_KEY = "use_breadcrumbs_estimates";
 static const string RECORD_FAILOVER_LATENCY_KEY = "record_failover_latency";
+static const string PERIODIC_REEVALUATION_ENABLED_KEY = "periodic_reevaluation";
 
 static vector<string> boolean_option_keys = {
     DEBUG_OUTPUT_KEY,
     USE_BREADCRUMBS_ESTIMATES_KEY,
     RECORD_FAILOVER_LATENCY_KEY,
+    PERIODIC_REEVALUATION_ENABLED_KEY,
 };
 
 // keys for string options
 static const string ESTIMATOR_ERROR_SAVE_FILE_KEY = "save_estimator_errors";
 static const string ESTIMATOR_ERROR_LOAD_FILE_KEY = "load_estimator_errors";
+
+// currently this file is only used to save/load wifi session duration;
+//  the breadcrumbs db is used for the rest.
+static const string NETWORK_STATS_SAVE_FILE_KEY = "save_network_stats";
+static const string NETWORK_STATS_LOAD_FILE_KEY = "load_network_stats";
+
 static const string ESTIMATOR_ERROR_EVAL_METHOD   = "estimator_error_eval_method";
 static const string INSTRUMENTS_DEBUG_LEVEL   = "instruments_debug_level";
 
 static vector<string> string_option_keys = {
     ESTIMATOR_ERROR_SAVE_FILE_KEY,
     ESTIMATOR_ERROR_LOAD_FILE_KEY,
+    NETWORK_STATS_SAVE_FILE_KEY,
+    NETWORK_STATS_LOAD_FILE_KEY,
     ESTIMATOR_ERROR_EVAL_METHOD,
     INSTRUMENTS_DEBUG_LEVEL
 };
@@ -53,17 +63,34 @@ static map<string, instruments_debug_level_t> instruments_debug_levels = {
     {"debug", INSTRUMENTS_DEBUG_LEVEL_DEBUG},
 };
 
+static const string WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE_KEY = 
+    "weibull_wifi_session_length_distribution_shape";
+static const string WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE_KEY = 
+    "weibull_wifi_session_length_distribution_scale";
+static const string WIFI_FAILOVER_DELAY_KEY = "wifi_failover_delay";
+
+static vector<string> double_option_keys = {
+    WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE_KEY,
+    WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE_KEY, 
+    WIFI_FAILOVER_DELAY_KEY
+};
+
+
 // keys for range_hints values
-static const string WIFI_BANDWIDTH_RANGE_HINTS     = "wifi_bandwidth_range_hints";
-static const string WIFI_RTT_RANGE_HINTS           = "wifi_rtt_range_hints";
-static const string CELLULAR_BANDWIDTH_RANGE_HINTS = "cellular_bandwidth_range_hints";
-static const string CELLULAR_RTT_RANGE_HINTS       = "cellular_rtt_range_hints";
+static const string WIFI_BANDWIDTH_RANGE_HINTS            = "wifi_bandwidth_range_hints";
+static const string WIFI_RTT_RANGE_HINTS                  = "wifi_rtt_range_hints";
+static const string CELLULAR_BANDWIDTH_RANGE_HINTS        = "cellular_bandwidth_range_hints";
+static const string CELLULAR_RTT_RANGE_HINTS              = "cellular_rtt_range_hints";
+static const string WIFI_SESSION_DURATION_RANGE_HINTS     = "wifi_session_duration_range_hints";
+static const string CELLULAR_SESSION_DURATION_RANGE_HINTS = "cellular_session_duration_range_hints";
 
 static vector<string> range_hints_option_keys = {
     WIFI_BANDWIDTH_RANGE_HINTS,
     WIFI_RTT_RANGE_HINTS,
     CELLULAR_BANDWIDTH_RANGE_HINTS,
-    CELLULAR_RTT_RANGE_HINTS
+    CELLULAR_RTT_RANGE_HINTS,
+    WIFI_SESSION_DURATION_RANGE_HINTS,
+    CELLULAR_SESSION_DURATION_RANGE_HINTS,
 };
 
 static bool has_param(const string& line, const string& name)
@@ -106,12 +133,14 @@ Config::load()
     vector<decltype(&Config::readBooleanOption)> readers = {
         &Config::readBooleanOption, 
         &Config::readStringOption, 
-        &Config::readRangeHintsOption 
+        &Config::readRangeHintsOption,
+        &Config::readDoubleOption
     };
     vector<decltype(boolean_option_keys)> keys = {
         boolean_option_keys, 
         string_option_keys, 
-        range_hints_option_keys
+        range_hints_option_keys,
+        double_option_keys
     };
 
     ifstream config_input(CONFIG_FILE);
@@ -142,6 +171,7 @@ Config::load()
         }
         config_input.close();
 
+        checkWifiSessionDistributionParamsValid();
         checkBayesianParamsValid();
         setInstrumentsDebugLevel();
     } else {
@@ -235,6 +265,21 @@ Config::readRangeHintsOption(const string& line, const string& key)
     range_hints_options[key] = hints;
 }
 
+void
+Config::readDoubleOption(const string& line, const string& key)
+{
+    string value_str = get_param(line, key);
+
+    string dummy;
+    istringstream iss(line);
+    double value;
+    if (!(iss >> dummy >> value)) {
+        dbgprintf_always("[config] failed to parse number from line: \"%s\"\n", line.c_str());
+        exit(EXIT_FAILURE);
+    }
+    dbgprintf_always("[config] %s=%.*f\n", key.c_str(), value_str.length(), value);
+    double_options[key] = value;
+}
 
 bool
 Config::getBoolean(const string& key)
@@ -268,6 +313,14 @@ Config::getRecordFailoverLatency()
     return getBoolean(RECORD_FAILOVER_LATENCY_KEY);
 }
 
+bool 
+Config::getPeriodicReevaluationEnabled()
+{
+    return getBoolean(PERIODIC_REEVALUATION_ENABLED_KEY);
+}
+
+
+
 string
 Config::getEstimatorErrorSaveFilename()
 {
@@ -278,6 +331,18 @@ string
 Config::getEstimatorErrorLoadFilename()
 {
     return getString(ESTIMATOR_ERROR_LOAD_FILE_KEY);
+}
+
+string
+Config::getNetworkStatsSaveFilename()
+{
+    return getString(NETWORK_STATS_SAVE_FILE_KEY);
+}
+
+string
+Config::getNetworkStatsLoadFilename()
+{
+    return getString(NETWORK_STATS_LOAD_FILE_KEY);
 }
 
 EvalMethod
@@ -309,4 +374,45 @@ EstimatorRangeHints
 Config:: getCellularRttRangeHints()
 {
     return range_hints_options[CELLULAR_RTT_RANGE_HINTS];
+}
+
+EstimatorRangeHints
+Config::getWifiSessionDurationRangeHints()
+{
+    return range_hints_options[WIFI_SESSION_DURATION_RANGE_HINTS];
+}
+
+EstimatorRangeHints
+Config::getCellularSessionDurationRangeHints()
+{
+    return range_hints_options[CELLULAR_SESSION_DURATION_RANGE_HINTS];
+}
+
+bool 
+Config::getWifiSessionLengthDistributionParams(double& shape, double& scale)
+{
+    if (double_options.count(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE_KEY) > 0 &&
+        double_options.count(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE_KEY) > 0) {
+        
+        shape = double_options[WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE_KEY];
+        scale = double_options[WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE_KEY];
+        return true;
+    }
+    return false;
+}
+
+void
+Config::checkWifiSessionDistributionParamsValid()
+{
+    if (double_options.count(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE_KEY) !=
+        double_options.count(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE_KEY)) {
+        dbgprintf_always("[config] error: need both shape and scale for weibull distribution\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+double
+Config::getWifiFailoverDelay()
+{
+    return double_options[WIFI_FAILOVER_DELAY_KEY];
 }

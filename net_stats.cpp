@@ -4,6 +4,7 @@
 #include "pthread_util.h"
 #include <netinet/in.h>
 
+#include "libcmm_net_restriction.h"
 #include "network_chooser.h"
 #ifndef CMM_UNIT_TESTING
 #include "config.h"
@@ -104,6 +105,7 @@ static struct timeval time_to_send(size_t msg_size, u_long bw_estimate)
 NetStats::NetStats(struct net_interface local_iface, 
                    struct net_interface remote_iface)
     : local_addr(local_iface.ip_addr), remote_addr(remote_iface.ip_addr),
+      name(net_type_name(get_network_type(local_iface, remote_iface))),
       error_estimators_initialized(false)
 {
     RWLOCK_INIT(&my_lock, NULL);
@@ -112,6 +114,13 @@ NetStats::NetStats(struct net_interface local_iface,
     last_req_size = 0;
     last_irob = -1;
 
+    net_estimates.estimates.assign({
+        Estimate(name + "_latency"),
+        Estimate(name + "_bw_up"), 
+        Estimate(name + "_bw_down")
+    });
+
+    
     // don't do this until cache-by-BSSID is implemented.
     //  the last WiFi estimates don't predict the next ones.
     // anyway, the 3G stats stay as long as that CSocket does,
@@ -243,9 +252,8 @@ NetStats::cache_save()
     remote_iface.ip_addr = remote_addr;
     StatsCache::key_type key = make_pair(local_iface, remote_iface);
     struct estimate_set& cached_estimates = (*stats_cache)[key];
-    for (size_t i = 0; i < NUM_ESTIMATES; ++i) {
-        cached_estimates.estimates[i] = net_estimates.estimates[i];
-    }
+    cached_estimates.estimates = net_estimates.estimates;
+    
     cached_estimates.error_estimators_initialized = error_estimators_initialized;
 
     cached_estimates.last_RTT = last_RTT;

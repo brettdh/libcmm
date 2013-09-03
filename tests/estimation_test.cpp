@@ -14,7 +14,7 @@ CPPUNIT_TEST_SUITE_REGISTRATION(EstimationTest);
 void
 EstimationTest::setUp()
 {
-    estimate = new Estimate;
+    estimate = new Estimate("test");
     delays = new QueuingDelay;
 
     struct net_interface dummy;
@@ -48,18 +48,20 @@ EstimationTest::testFlipFlop()
     double stable_estimate = 0.0;
 
     double spot_value = 0.0;
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 11; ++i) {
+        spot_value += (i % 2 == 0 ? 1 : -1);
         update_EWMA(stable_estimate, spot_value, STABLE_GAIN);
         update_EWMA(agile_estimate, spot_value, AGILE_GAIN);
         estimate->add_observation((u_long)spot_value);
     }
 
-    u_long est_value;
+    double est_value;
     bool ret = estimate->get_estimate(est_value);
     CPPUNIT_ASSERT(ret);
-    CPPUNIT_ASSERT_EQUAL_MESSAGE("Returns agile estimate at first",
-                                 round_nearest(agile_estimate),
-                                 est_value);
+    MY_CPPUNIT_ASSERT_EQWITHIN_MESSAGE(agile_estimate,
+                                       est_value,
+                                       1.0,
+                                       "Returns agile estimate at first");
 
     spot_value = 2000.0;
     update_EWMA(stable_estimate, spot_value, STABLE_GAIN);
@@ -68,26 +70,26 @@ EstimationTest::testFlipFlop()
 
     ret = estimate->get_estimate(est_value);
     CPPUNIT_ASSERT(ret);    
-    printf("stable: %lu agile: %lu flipflop: %lu\n",
-           round_nearest(stable_estimate), 
-           round_nearest(agile_estimate),
+    printf("stable: %f agile: %f flipflop: %f\n",
+           stable_estimate, 
+           agile_estimate,
            est_value);
 
-    CPPUNIT_ASSERT_EQUAL_MESSAGE("Returns stable estimate "
-                                 "when variance is too big",
-                                 round_nearest(stable_estimate), 
-                                 est_value);
+    MY_CPPUNIT_ASSERT_EQWITHIN_MESSAGE(stable_estimate, 
+                                       est_value, 1.0,
+                                       "Returns stable estimate "
+                                       "when variance is too big");
 
     for (int i = 0; i < 20; ++i) {
         update_EWMA(stable_estimate, spot_value, STABLE_GAIN);
         update_EWMA(agile_estimate, spot_value, AGILE_GAIN);
-        estimate->add_observation((u_long)spot_value);
+        estimate->add_observation(spot_value);
 
         ret = estimate->get_estimate(est_value);
         CPPUNIT_ASSERT(ret);    
-        printf("stable: %lu agile: %lu flipflop: %lu\n",
-               round_nearest(stable_estimate),
-               round_nearest(agile_estimate),
+        printf("stable: %f agile: %f flipflop: %f\n",
+               stable_estimate,
+               agile_estimate,
                est_value);
     }
 }

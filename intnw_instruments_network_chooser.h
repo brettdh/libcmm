@@ -34,7 +34,9 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
     virtual void checkRedundancyAsync(CSockMapping *mapping,
                                       PendingSenderIROB *psirob, 
                                       const IROBSchedulingData& data);
-
+    virtual void scheduleReevaluation(CSockMapping *mapping, 
+                                      PendingSenderIROB *psirob,
+                                      const IROBSchedulingData& data);
 
     // for communicating simulated energy/data budgets.
     void setFixedResourceWeights(double energyWeight, double dataWeight);
@@ -47,6 +49,9 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
                                 double new_bw_estimate,
                                 double new_latency,
                                 double new_latency_estimate);
+
+    virtual void reportNetworkSetup(int network_type);
+    virtual void reportNetworkTeardown(int network_type);
     
     class RedundancyStrategy : public ::RedundancyStrategy {
       public:
@@ -61,18 +66,16 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
     //  specified by /etc/cmm_config (if specified)
     void saveToFile();
 
-    static std::string getLoadErrorsFilename();
-    static std::string getSaveErrorsFilename();
-    static bool shouldLoadErrors();
-    static bool shouldSaveErrors();
-
   protected:
     virtual void setRedundancyStrategy();
     
   private:
     bool wifi_present;
+    struct timeval wifi_begin;
+    
     bool needs_reevaluation;
     int chosen_strategy_type;
+    int chosen_singular_strategy_type;
     struct net_interface wifi_local, wifi_remote;
     struct net_interface cellular_local, cellular_remote;
 
@@ -89,6 +92,19 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
 
     instruments_strategy_evaluator_t evaluator;
 
+    static std::string getLoadErrorsFilename();
+    static std::string getSaveErrorsFilename();
+    static bool shouldLoadErrors();
+    static bool shouldSaveErrors();
+
+    void loadStats(const std::string& filename);
+    void saveStats(const std::string& filename);
+
+    static std::string getLoadStatsFilename();
+    static std::string getSaveStatsFilename();
+    static bool shouldLoadStats();
+    static bool shouldSaveStats();
+
     void updateResourceWeights();
 
     double getEnergyWeight();
@@ -99,7 +115,18 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
                           InstrumentsWrappedNetStats *net_stats);
     double getRttSeconds(instruments_context_t ctx,
                          InstrumentsWrappedNetStats *net_stats);
+    double getWifiFailurePenalty(instruments_context_t ctx,
+                                 InstrumentsWrappedNetStats *net_stats,
+                                 double transfer_time);
 
+    double getCurrentWifiDuration();
+
+    std::function<void(instruments_strategy_t)> *
+        getRedundancyDecisionCallback(CSockMapping *mapping, 
+                                      IROBSchedulingData data);
+    instruments_strategy_t getSingularStrategyNotChosen();
+    double getReevaluationDelay(PendingSenderIROB *psirob);
+    
     
     double calculateTransferTime(instruments_context_t ctx,
                                  InstrumentsWrappedNetStats *net_stats,

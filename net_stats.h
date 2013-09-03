@@ -92,7 +92,7 @@ class IROBMeasurement {
 // data needed to re-start passive measurement calculation
 //  from previous measurements.
 struct estimate_set {
-    Estimate estimates[NUM_ESTIMATES];
+    std::vector<Estimate> estimates;
     bool error_estimators_initialized;
     
     struct timeval last_RTT;
@@ -203,6 +203,8 @@ class NetStats {
 
     QueuingDelay outgoing_qdelay;
     //QueuingDelay incoming_qdelay;
+
+    std::string name;
 
     //Estimate net_estimates[NUM_ESTIMATES];
     struct estimate_set net_estimates;

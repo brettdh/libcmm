@@ -16,6 +16,7 @@
 #include "common.h"
 #include "net_interface.h"
 #include "libcmm_net_restriction.h"
+#include "network_chooser.h"
 
 using std::max;
 
@@ -267,7 +268,9 @@ CSocket::phys_connect()
         return rc;
     }
 
-    stats.getStats(sk->csock_map->get_network_chooser(), network_type());
+    NetworkChooser *network_chooser = sk->csock_map->get_network_chooser();
+    stats.getStats(network_chooser, network_type());
+    network_chooser->reportNetworkSetup(network_type());
 
     {
         PthreadScopedLock lock(&csock_lock);
@@ -322,6 +325,8 @@ CSocket::wait_until_connected()
     if (connection_failed) {
         return -1;
     }
+    NetworkChooser *network_chooser = sk->csock_map->get_network_chooser();
+    network_chooser->reportNetworkSetup(network_type());
     return 0;
 }
 

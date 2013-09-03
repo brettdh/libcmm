@@ -63,6 +63,7 @@ class CSockMapping {
 
     size_t count();
     size_t count_locked();
+    size_t count_connected();
     size_t count_connected_locked();
     bool empty();
     
@@ -96,7 +97,7 @@ class CSockMapping {
                                      const IROBSchedulingData& data);
 
     // to be called from async callback.
-    void broadcastRedundancy(const IROBSchedulingData& data);
+    void onRedundancyDecision(const IROBSchedulingData& data);
 
     void check_redundancy_async(PendingSenderIROB *psirob, 
                                 const IROBSchedulingData& data);

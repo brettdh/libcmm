@@ -1,6 +1,7 @@
 #include "pending_irob.h"
 #include "pending_sender_irob.h"
 #include "debug.h"
+#include "timeops.h"
 #include <vector>
 #include <functional>
 #include <deque>
@@ -22,8 +23,11 @@ PendingSenderIROB::PendingSenderIROB(irob_id_t id_,
       //next_seqno_to_send(0), //next_chunk(0), chunk_offset(0),
       num_bytes(datalen), //irob_offset(0)
       //chunk_in_flight(false),
-      send_on_all_networks(false)
+      send_on_all_networks(false),
+      reevaluated(false),
+      reeval_handle(NULL)
 {
+    gettimeofday(&last_send_time, NULL);
 }
 
 bool
@@ -45,6 +49,7 @@ void
 PendingSenderIROB::ack()
 {
     acked = true;
+    freeReevaluation(true); // cancel if not run already
 }
 
 bool
@@ -256,6 +261,10 @@ PendingSenderIROB::add_sent_chunk(CSocket *csock, ssize_t len)
         ASSERT(already_sent_chunk.offset == offset);
         ASSERT((ssize_t) already_sent_chunk.datalen == len);
     }
+
+    // we only get here when we've grabbed some new data to send, 
+    //  so this is the last send time.
+    gettimeofday(&last_send_time, NULL);
 }
 
 vector<struct iovec>
@@ -451,4 +460,52 @@ PendingSenderIROB::get_total_network_bytes()
         bytes += (sent_chunks[i].datalen + sizeof(CMMSocketControlHdr));
     }
     return bytes;
+}
+
+bool 
+PendingSenderIROB::alreadyReevaluated()
+{
+    return reevaluated;
+}
+
+void 
+PendingSenderIROB::setScheduledReevaluation(instruments_scheduled_reevaluation_t reeval)
+{
+    reevaluated = true;
+    reeval_handle = reeval;
+}
+
+void
+PendingSenderIROB::freeReevaluation(bool cancel)
+{
+#ifndef CMM_UNIT_TESTING
+    if (reeval_handle) {
+        if (cancel) {
+            dbgprintf("Cancelling redundancy re-evaluation for IROB %ld\n", id);
+            cancel_scheduled_reevaluation(reeval_handle);
+        } else {
+            // not cancelled, since it already ran.
+            dbgprintf("Freeing redundancy re-evaluation handle for IROB %ld\n", id);
+        }
+
+        free_scheduled_reevaluation(reeval_handle);
+        reeval_handle = NULL;
+    }
+#endif
+}
+
+double
+PendingSenderIROB::getTimeSinceSent()
+{
+    struct timeval now, diff;
+    gettimeofday(&now, NULL);
+    TIMEDIFF(last_send_time, now, diff);
+    
+    return diff.tv_sec + (diff.tv_usec / 1000000.0);
+}
+
+void 
+PendingSenderIROB::onReevaluationDone()
+{
+    freeReevaluation(false);
 }

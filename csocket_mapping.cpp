@@ -23,6 +23,8 @@ using std::make_pair;
 #include "network_chooser.h"
 #include "irob_scheduling.h"
 
+#include "config.h"
+
 using std::unique_ptr;
 using std::pair;
 using std::vector;
@@ -89,6 +91,13 @@ size_t
 CSockMapping::count_locked()
 {
     return available_csocks.size();
+}
+
+size_t 
+CSockMapping::count_connected()
+{
+    PthreadScopedRWLock lock(&sockset_mutex, false);
+    return count_connected_locked();
 }
 
 size_t 
@@ -208,7 +217,7 @@ CSockMapping::setup(struct net_interface iface, bool local,
             local_iface = iface;
             remote_iface = *it;
             if (need_data_check || !csock_by_ifaces(local_iface, remote_iface)) {
-                (void)make_new_csocket(local_iface, remote_iface);
+                (void) make_new_csocket(local_iface, remote_iface);
             }
         }
     }
@@ -257,8 +266,6 @@ CSockMapping::teardown(struct net_interface iface, bool local)
         CSocketPtr victim = victims.back();
         victims.pop_back();
         available_csocks.erase(victim);
-
-        victim->stats.mark_irob_failures(network_chooser, victim->network_type());
 
         dbgprintf("Tearing down CSocket %d (%s interface %s is gone\n",
                   victim->osfd, local ? "local" : "remote", StringifyIP(&iface.ip_addr).c_str());
@@ -720,6 +727,9 @@ CSockMapping::remove_csock(CSocketPtr victim)
     // CSockets are reference-counted by the 
     // CSocketSender and CSocketReceiver objects,
     // so we don't delete CSockets anywhere else
+
+    victim->stats.mark_irob_failures(network_chooser, victim->network_type());
+    network_chooser->reportNetworkTeardown(victim->network_type());
 }
 
 class AddrMatch {
@@ -872,7 +882,7 @@ CSockMapping::pass_request_to_all_senders(PendingSenderIROB *psirob,
 }
 
 void
-CSockMapping::broadcastRedundancy(const IROBSchedulingData& data)
+CSockMapping::onRedundancyDecision(const IROBSchedulingData& data)
 {
     CMMSocketImplPtr skp(sk);
     PthreadScopedLock lock(&skp->scheduling_state_lock);
@@ -887,10 +897,13 @@ CSockMapping::broadcastRedundancy(const IROBSchedulingData& data)
     check_redundancy(psirob);
     if (psirob->should_send_on_all_networks()) {
         pass_request_to_all_senders(psirob, data);
-        // TODO: figure out why there's a segfault around the time of a data-check.
-        // TODO:  probably more cases to handle.
-        
         pthread_cond_broadcast(&skp->scheduling_state_cv);
+        psirob->onReevaluationDone();
+    } else {
+        if (Config::getInstance()->getPeriodicReevaluationEnabled() &&
+            count_connected() > 1) {
+            network_chooser->scheduleReevaluation(this, psirob, data);
+        }
     }
 }
 

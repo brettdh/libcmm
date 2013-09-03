@@ -61,8 +61,14 @@ class NetworkChooser {
                         double new_latency_seconds,
                         double new_latency_estimate);
 
+    void reportNetworkSetup(int network_type);
+    void reportNetworkTeardown(int network_type);
+
     bool shouldTransmitRedundantly(PendingSenderIROB *psirob);
     void checkRedundancyAsync(CSockMapping *mapping,
+                              PendingSenderIROB *psirob, 
+                              const IROBSchedulingData& data);
+    void scheduleReevaluation(CSockMapping *mapping,
                               PendingSenderIROB *psirob, 
                               const IROBSchedulingData& data);
 

@@ -16,6 +16,8 @@
 #include <set>
 #include <map>
 
+#include <instruments.h>
+
 /* Terminology:
  *  An IROB is _pending_ if the application has not yet received all of its
  *    bytes.
@@ -128,6 +130,13 @@ class PendingSenderIROB : public PendingIROB {
     bool should_send_on_all_networks();
     void mark_send_on_all_networks();
 
+    // for dealing with periodic reevaluation
+    bool alreadyReevaluated();
+    void setScheduledReevaluation(instruments_scheduled_reevaluation_t reeval);
+    double getTimeSinceSent();
+
+    void onReevaluationDone();
+
   private:
     friend class PendingSenderIROBTest;
 
@@ -173,6 +182,14 @@ class PendingSenderIROB : public PendingIROB {
     
     typedef std::set<std::pair<in_addr_t, in_addr_t> > IfacePairSet;
     IfacePairSet sending_ifaces;
+
+
+    // for deferred re-evaluation
+    bool reevaluated;
+    instruments_scheduled_reevaluation_t reeval_handle;
+    void freeReevaluation(bool cancel);
+
+    struct timeval last_send_time;
 };
 
 #endif

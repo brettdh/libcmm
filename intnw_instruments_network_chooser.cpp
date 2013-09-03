@@ -5,14 +5,19 @@
 #include "config.h"
 #include "csocket_mapping.h"
 #include "pending_sender_irob.h"
+#include "timeops.h"
 #include <assert.h>
 #include "libpowertutor.h"
 
 #include <functional>
 #include <sstream>
 #include <string>
+#include <fstream>
 using std::max; using std::ostringstream;
 using std::string; using std::function;
+using std::ifstream; using std::ofstream; using std::endl;
+
+using intnw::check;
 
 #include <instruments_private.h>
 #include <resource_weights.h>
@@ -73,6 +78,34 @@ IntNWInstrumentsNetworkChooser::getRttSeconds(instruments_context_t ctx,
     return max(0.0, rtt_seconds); // TODO: revisit.  This is a hack to avoid bogus calculations.
 }
 
+// I've seen variation from 7-14 seconds here, approximately, so I'll just
+//  pick something in the middle.
+// TODO: measure it, many times, and take an average.
+// XXX: this should be an actual average; e.g. half the average of failure measured as 
+// XXX:  time from radio-off to interface-down.
+// XXX: or, the average delay actually experienced by failed wifi transfers.
+//static double WIFI_FAILURE_PENALTY = 10.0;
+// DONE: measured the time from radio-off to interface down.
+//       It's 10.864 (0.090) for 21 samples.
+//       Stored this in the config file
+//       and now we divide it by two for the average 
+//       failover delay actually experienced by each failed wifi transfer.
+
+double
+IntNWInstrumentsNetworkChooser::getWifiFailurePenalty(instruments_context_t ctx,
+                                                      InstrumentsWrappedNetStats *net_stats,
+                                                      double transfer_time)
+{
+    double penalty = 0.0;
+    if (net_stats == wifi_stats) {
+        double current_wifi_duration = getCurrentWifiDuration();
+        penalty = wifi_stats->getWifiFailurePenalty(ctx, transfer_time, 
+                                                    current_wifi_duration, 
+                                                    Config::getInstance()->getWifiFailoverDelay());
+    }
+    return penalty;
+}
+
 double
 IntNWInstrumentsNetworkChooser::calculateTransferTime(instruments_context_t ctx,
                                                       InstrumentsWrappedNetStats *net_stats,
@@ -81,8 +114,10 @@ IntNWInstrumentsNetworkChooser::calculateTransferTime(instruments_context_t ctx,
     assert(net_stats);
     double bw = getBandwidthUp(ctx, net_stats);
     double rtt_seconds = getRttSeconds(ctx, net_stats);
+    double tx_time = (bytelen / bw) + rtt_seconds;
+    double wifi_failure_penalty = getWifiFailurePenalty(ctx, net_stats, tx_time);
 
-    return (bytelen / bw) + rtt_seconds;
+    return tx_time + wifi_failure_penalty;
 }
 
 double
@@ -102,6 +137,8 @@ IntNWInstrumentsNetworkChooser::calculateTransferEnergy(instruments_context_t ct
     double bw = getBandwidthUp(ctx, net_stats);
     double rtt_seconds = getRttSeconds(ctx, net_stats);
     
+    // TODO: incorporate wifi failure_penalty somehow?
+    // TODO: e.g. energy cost of sending on cellular anyway
     return estimate_energy_cost(type, bytelen, bw, rtt_seconds * 1000.0);
 }
 
@@ -110,6 +147,8 @@ IntNWInstrumentsNetworkChooser::calculateTransferMobileData(InstrumentsWrappedNe
                                                             int bytelen)
 {
     if (net_stats == wifi_stats) {
+        // TODO: incorporate wifi failure_penalty somehow?
+        // TODO: e.g. data cost of sending on cellular anyway
         return 0;
     } else if (net_stats == cellular_stats) {
         return bytelen;
@@ -118,12 +157,15 @@ IntNWInstrumentsNetworkChooser::calculateTransferMobileData(InstrumentsWrappedNe
 
 
 IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
-    : wifi_present(false), needs_reevaluation(true), chosen_strategy_type(-1)
+    : wifi_present(false), needs_reevaluation(true), chosen_strategy_type(-1), chosen_singular_strategy_type(-1)
 {
     dbgprintf("creating InstrumentsNetworkChooser %p\n", this);
 
-    wifi_stats = new InstrumentsWrappedNetStats("wifi");
     cellular_stats = new InstrumentsWrappedNetStats("cellular");
+    wifi_stats = new InstrumentsWrappedNetStats("wifi");
+    // TODO: sensible (or historical) initial value for wifi session length
+
+    wifi_begin.tv_sec = wifi_begin.tv_usec = 0;
 
     for (int i = 0; i < NUM_STRATEGIES - 1; ++i) {
         strategy_args[i] = new struct strategy_args;
@@ -149,6 +191,16 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
 
     if (shouldLoadErrors()) {
         restore_evaluator(evaluator, getLoadErrorsFilename().c_str());
+    }
+    
+    if (shouldLoadStats()) {
+        loadStats(getLoadStatsFilename());
+    } else {
+        // reasonable non-zero initial estimate, with the same effect as 
+        // having a zero inital estimate (since the failover delay
+        // is considered part of the session)
+        struct timeval init = { (time_t) Config::getInstance()->getWifiFailoverDelay(), 0 };
+        wifi_stats->addSessionDuration(init);
     }
 }
 
@@ -195,24 +247,25 @@ choose_networks(u_long send_label, size_t num_bytes,
     }
 
     if (needs_reevaluation) {
+        dbgprintf("About to choose a network; current wifi session length: %f seconds\n",
+                  getCurrentWifiDuration());
         struct timeval begin, end, duration;
         gettimeofday(&begin, NULL);
-        chosen_strategy_type = chooseNetwork(num_bytes);
+        chosen_singular_strategy_type = chooseNetwork(num_bytes);
         gettimeofday(&end, NULL);
         timersub(&end, &begin, &duration);
         dbgprintf("chooseNetwork: %s   took %lu.%06lu seconds\n", 
-                  strategy_names[chosen_strategy_type],
+                  strategy_names[chosen_singular_strategy_type],
                   duration.tv_sec, duration.tv_usec);
 
         needs_reevaluation = false;
     }
 
-    if (chosen_strategy_type == NETWORK_CHOICE_WIFI ||
-        chosen_strategy_type == NETWORK_CHOICE_BOTH) {
+    if (chosen_singular_strategy_type == NETWORK_CHOICE_WIFI) {
         local_iface = wifi_local;
         remote_iface = wifi_remote;
     } else {
-        assert(chosen_strategy_type == NETWORK_CHOICE_CELLULAR);
+        assert(chosen_singular_strategy_type == NETWORK_CHOICE_CELLULAR);
         local_iface = cellular_local;
         remote_iface = cellular_remote;
     }
@@ -245,6 +298,7 @@ IntNWInstrumentsNetworkChooser::reset()
     wifi_present = false;
     needs_reevaluation = true;
     chosen_strategy_type = -1;
+    chosen_singular_strategy_type = -1;
 
     label_matcher.reset();
 }
@@ -254,18 +308,37 @@ IntNWInstrumentsNetworkChooser::reset()
 int 
 IntNWInstrumentsNetworkChooser::chooseNetwork(int bytelen)
 {
+    wifi_stats->setWifiSessionLengthBound(getCurrentWifiDuration());
+
     instruments_strategy_t chosen = choose_nonredundant_strategy(evaluator, (void *)bytelen);
     return getStrategyIndex(chosen);
 }
 
-typedef function<void(instruments_strategy_t)> CallbackWrapper;
+static void 
+pre_eval_callback_wrapper(void *arg)
+{
+    auto *fn = static_cast<function<void()> *>(arg);
+    (*fn)();
+    delete fn;
+}
 
 static void 
-callback_wrapper(instruments_strategy_t strategy, void *arg)
+chosen_strategy_callback_wrapper(instruments_strategy_t strategy, void *arg)
 {
-    CallbackWrapper *fn = (CallbackWrapper *) arg;
+    auto *fn = static_cast<function<void(instruments_strategy_t)> *>(arg);
     (*fn)(strategy);
     delete fn;
+}
+
+function<void(instruments_strategy_t)> *
+IntNWInstrumentsNetworkChooser::getRedundancyDecisionCallback(CSockMapping *mapping, 
+                                                              IROBSchedulingData data)
+{
+    auto callback = [=](instruments_strategy_t strategy) {
+        chosen_strategy_type = getStrategyIndex(strategy);
+        mapping->onRedundancyDecision(data);
+    };
+    return new function<void(instruments_strategy_t)>(callback);
 }
 
 void 
@@ -273,23 +346,113 @@ IntNWInstrumentsNetworkChooser::checkRedundancyAsync(CSockMapping *mapping,
                                                      PendingSenderIROB *psirob, 
                                                      const IROBSchedulingData& data)
 {
-    auto callback = [=](instruments_strategy_t strategy) {
-        chosen_strategy_type = getStrategyIndex(strategy);
-        if (chosen_strategy_type == NETWORK_CHOICE_BOTH) {
-            mapping->broadcastRedundancy(data);
-        }
-    };
-    auto *pcallback = new CallbackWrapper(callback);
-    *pcallback = callback;
+    auto *pcallback = getRedundancyDecisionCallback(mapping, data);
 
-    // TODO: tweak the locking involved here so that the
-    // TODO:  long asynchronous redundancy calculation doesn't block
-    // TODO:  the short synchronous singular calculation.
-    // TODO: but only address this after I've rethought and 
-    // TODO:  written down how I think my system SHOULD
-    // TODO:  be making decisions.  (the problem might go away
-    // TODO:  depending on what method I adopt.)
-    choose_strategy_async(evaluator, (void *) psirob->expected_bytes(), callback_wrapper, pcallback);
+    wifi_stats->setWifiSessionLengthBound(getCurrentWifiDuration());
+    choose_strategy_async(evaluator, (void *) psirob->expected_bytes(), 
+                          chosen_strategy_callback_wrapper, pcallback);
+}
+
+instruments_strategy_t
+IntNWInstrumentsNetworkChooser::getSingularStrategyNotChosen()
+{
+    assert(NUM_STRATEGIES == 3);
+    if (chosen_strategy_type == NETWORK_CHOICE_BOTH) {
+        // shouldn't happen; we should only call this when 
+        //  preparing to schedule a re-evaluation.
+        // if we chose redundancy, we wouldn't be scheduling
+        //  a re-evaluation at all.
+        assert(false);
+        return NULL;
+    }
+    // return the other strategy - the one not chosen.
+    // strategies 0 and 1 are the two singular strategies,
+    //  so this picks the other one.
+    return strategies[(chosen_strategy_type + 1) % 2];
+}
+
+double
+IntNWInstrumentsNetworkChooser::getReevaluationDelay(PendingSenderIROB *psirob)
+{
+    double delay = 0.0;
+
+    if (psirob->alreadyReevaluated()) {
+        // 200ms is the default minimum TCP retransmission timeout.
+        // At this point, we've fallen back to periodic re-evaluation.
+        // This is still better than the old trouble mode, because
+        //  we're not just assuming that the network is bad after this delay;
+        //  we're checking again by doing our conditional probability calculation.
+        // Also, we've already waited twice the time we expected it to take
+        //  using our best network, so now we're just trying to find the tipping point
+        //  where redundancy wins.  This is much simpler than calculating that point
+        //  directly, and it's also independent of the eval method we're using.
+        // I thought about using some multiple of the expected redundant-strategy
+        //  time, but that just feels like rubbish, since it's definitely
+        //  less than the time we've already waited.
+        const double periodic_reeval_timeout = 0.200;
+        delay = periodic_reeval_timeout;
+    } else {
+        instruments_strategy_t chosen_strategy = strategies[chosen_strategy_type];
+        double best_singular_time = get_last_strategy_time(evaluator, chosen_strategy);
+        delay = best_singular_time;
+
+        if (chosen_strategy_type == NETWORK_CHOICE_WIFI) {
+            // This only changes the delay if I'm using the weibull distribution
+            //  for calculating wifi failure penalty; otherwise the penalty here is zero.
+            
+            // use transfer time of zero because I'm not storing the actual transfer time;
+            //  the failure penalty is baked into the total wifi time.
+            // happily, this results in a wifi failure penalty that's slightly smaller,
+            //  which means it's still less than the total wifi time.
+            delay -= getWifiFailurePenalty(NULL, wifi_stats, 0.0);
+        }
+        delay *= 2.0;
+    }
+    
+    return max(0.0, delay);
+}
+
+void
+IntNWInstrumentsNetworkChooser::scheduleReevaluation(CSockMapping *mapping, 
+                                                     PendingSenderIROB *psirob,
+                                                     const IROBSchedulingData& data)
+{
+    // if we chose redundancy, we wouldn't be here scheduling a reevaluation
+    // and we're holding the lock still, so it won't have been overwritten
+    assert(chosen_strategy_type != NETWORK_CHOICE_BOTH);
+
+    InstrumentsWrappedNetStats *chosen_network_stats = 
+        (chosen_strategy_type == NETWORK_CHOICE_WIFI
+         ? wifi_stats
+         : cellular_stats);
+    string strategy_name(strategy_names[chosen_strategy_type]);
+    double reeval_delay = getReevaluationDelay(psirob);
+    irob_id_t id = psirob->get_id();
+
+    // holding scheduling_state_lock
+    auto *pcallback_pre_eval = new function<void()>([=]() {
+        double min_rtt = psirob->getTimeSinceSent();
+        dbgprintf("No ack on %s for IROB %ld; supposing RTT is at least %f seconds and re-evaluating\n",
+                  strategy_name.c_str(), id, min_rtt);
+        chosen_network_stats->setRttLowerBound(min_rtt);
+    });
+
+    auto *pcallback_chosen_strategy = 
+        new function<void(instruments_strategy_t)>([=](instruments_strategy_t strategy) {
+                auto *inner_cb = getRedundancyDecisionCallback(mapping, data);
+                chosen_strategy_callback_wrapper(strategy, inner_cb);
+                chosen_network_stats->clearRttLowerBound();
+        });
+    
+    dbgprintf("Scheduling redundancy re-evaluation for IROB %ld in %f seconds\n",
+              psirob->get_id(), reeval_delay);
+
+    instruments_scheduled_reevaluation_t reeval = 
+        schedule_reevaluation(evaluator, (void *) psirob->expected_bytes(), 
+                              pre_eval_callback_wrapper, pcallback_pre_eval,
+                              chosen_strategy_callback_wrapper, pcallback_chosen_strategy,
+                              reeval_delay);
+    psirob->setScheduledReevaluation(reeval);
 }
 
 
@@ -389,6 +552,42 @@ IntNWInstrumentsNetworkChooser::reportNetStats(int network_type,
 }
 
 void
+IntNWInstrumentsNetworkChooser::reportNetworkSetup(int network_type)
+{
+    if (network_type == TYPE_WIFI && wifi_begin.tv_sec == 0) {
+        dbgprintf("Beginning new wifi session\n");
+        TIME(wifi_begin);
+    }
+}
+
+void 
+IntNWInstrumentsNetworkChooser::reportNetworkTeardown(int network_type)
+{
+    if (network_type == TYPE_WIFI && wifi_begin.tv_sec != 0) {
+        struct timeval end, diff;
+        TIME(end);
+        TIMEDIFF(wifi_begin, end, diff);
+        wifi_begin.tv_sec = wifi_begin.tv_usec = 0;
+        dbgprintf("Ending wifi session; was %lu.%06lu seconds\n",
+                  diff.tv_sec, diff.tv_usec);
+        
+        wifi_stats->addSessionDuration(diff);
+    }
+}
+
+double
+IntNWInstrumentsNetworkChooser::getCurrentWifiDuration()
+{
+    struct timeval now, duration;
+    if (wifi_begin.tv_sec != 0) {
+        TIME(now);
+        TIMEDIFF(wifi_begin, now, duration);
+        return duration.tv_sec + (duration.tv_usec / 1000000.0);
+    }
+    return 0.0;
+}
+
+void
 IntNWInstrumentsNetworkChooser::setRedundancyStrategy()
 {
     dbgprintf("setting IntNWInstrumentsNetworkChooser::RedundancyStrategy\n");
@@ -408,10 +607,22 @@ IntNWInstrumentsNetworkChooser::RedundancyStrategy::
 shouldTransmitRedundantly(PendingSenderIROB *psirob)
 {
     assert(chooser->has_match);
-    assert(chooser->chosen_strategy_type != -1);
-    dbgprintf("shouldTransmitRedundantly: Chosen network strategy: %s\n",
-              strategy_names[chooser->chosen_strategy_type]);
-    return (chooser->chosen_strategy_type == NETWORK_CHOICE_BOTH);
+    if (chooser->chosen_strategy_type == -1) {
+        dbgprintf("shouldTransmitRedundantly: redundancy decision in progress; non-redundant for now\n");
+    } else {
+        dbgprintf("shouldTransmitRedundantly: Chosen network strategy: %s\n",
+                  strategy_names[chooser->chosen_strategy_type]);
+    }
+    // either the async evaluation decided on redundancy, 
+    // or I'm doing a deferred re-evaluation, and the passage of time
+    // changed the decision.
+    return (chooser->chosen_strategy_type != -1 &&
+            (chooser->chosen_strategy_type == NETWORK_CHOICE_BOTH ||
+             chooser->chosen_singular_strategy_type != chooser->chosen_strategy_type));
+    // XXX: this is kind of a hack, since in the current world,
+    // XXX: there are only ever two network interfaces, and
+    // XXX: therefore changing the decision from one to the other
+    // XXX: is equivalent to choosing both in the first place.
 }
 
 
@@ -447,4 +658,52 @@ IntNWInstrumentsNetworkChooser::saveToFile()
                   this, filename.c_str());
         save_evaluator(evaluator, filename.c_str());
     }
+
+    if (shouldSaveStats()) {
+        string filename = getSaveStatsFilename();
+        saveStats(filename);
+    }
+}
+
+static const string SESSION_LENGTH_FIELD_NAME = "wifi_session_length";
+
+void 
+IntNWInstrumentsNetworkChooser::saveStats(const string& filename)
+{
+    ofstream out(filename);
+    out << SESSION_LENGTH_FIELD_NAME << endl;
+    wifi_stats->saveSessionLength(out);
+}
+
+void 
+IntNWInstrumentsNetworkChooser::loadStats(const string& filename)
+{
+    ifstream in(filename);
+    string name;
+    check(in >> name, "Failed to read wifi session length field name");
+    check(name == SESSION_LENGTH_FIELD_NAME, "Mismatched wifi session length field name");
+    wifi_stats->loadSessionLength(in);
+}
+
+bool
+IntNWInstrumentsNetworkChooser::shouldLoadStats()
+{
+    return !getLoadStatsFilename().empty();
+}
+bool
+IntNWInstrumentsNetworkChooser::shouldSaveStats()
+{
+    return !getSaveStatsFilename().empty();
+}
+
+std::string
+IntNWInstrumentsNetworkChooser::getLoadStatsFilename()
+{
+    return Config::getInstance()->getNetworkStatsLoadFilename();
+}
+
+std::string
+IntNWInstrumentsNetworkChooser::getSaveStatsFilename()
+{
+    return Config::getInstance()->getNetworkStatsSaveFilename();
 }
