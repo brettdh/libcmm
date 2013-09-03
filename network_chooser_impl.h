@@ -6,6 +6,7 @@
 #include "net_interface.h"
 #include "libcmm.h"
 #include "csocket.h"
+#include "network_chooser.h"
 
 class RedundancyStrategy;
 class CSockMapping;
@@ -59,8 +60,12 @@ class NetworkChooserImpl {
     virtual void saveToFile() {}
 
     virtual ~NetworkChooserImpl() {}
+    
+    void setWrapper(NetworkChooser *wrapper_);
   protected:
     NetworkChooserImpl();
+
+    GuardedNetworkChooser getGuardedChooser();
 
     bool has_match;
 
@@ -68,6 +73,9 @@ class NetworkChooserImpl {
     //   subclasses should override this to replace
     //   the default with a custom redundancy strategy
     RedundancyStrategy *redundancyStrategy;
+
+  private:
+    NetworkChooser *wrapper;
 };
 
 class PreferredNetwork : public NetworkChooserImpl {

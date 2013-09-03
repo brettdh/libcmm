@@ -436,7 +436,7 @@ PendingSenderIROB::get_next_seqno_to_send(CSocket *csock)
         next_seqnos_to_send[csock] = 0;
     }
     u_long seqno = next_seqnos_to_send[csock];
-    assert(seqno <= sent_chunks.size());
+    ASSERT(seqno <= sent_chunks.size());
     return seqno;
 }
 

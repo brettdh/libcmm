@@ -628,7 +628,7 @@ CMMSocketImpl::mc_connect(const struct sockaddr *serv_addr,
 int 
 CMMSocketImpl::set_all_sockopts(int osfd)
 {
-    assert(osfd != -1);
+    ASSERT(osfd != -1);
     for (SockOptHash::const_iterator i = sockopts.begin(); i != sockopts.end(); i++) {
         int level = i->first;
         const SockOptNames &optnames = i->second;
@@ -2276,7 +2276,7 @@ CMMSocketImpl::default_irob(irob_id_t next_irob,
     }
 
     rc = send_default_irob(pirob, csock);
-    assert((size_t) rc == len);
+    ASSERT((size_t) rc == len);
     
     TIME(end);
     TIMEDIFF(begin, end, diff);
@@ -2319,7 +2319,7 @@ CMMSocketImpl::default_irob_writev(irob_id_t next_irob,
 
     dbgprintf("Calling send_default_irob with %d bytes\n", (int)total_bytes);
     rc = send_default_irob(pirob, csock);
-    assert(rc == total_bytes);
+    ASSERT(rc == total_bytes);
 
     TIME(end);
     TIMEDIFF(begin, end, diff);

@@ -1,3 +1,4 @@
+#include "network_chooser.h"
 #include "intnw_instruments_network_chooser.h"
 #include "intnw_instruments_net_stats_wrapper.h"
 #include "libcmm_net_restriction.h"
@@ -36,7 +37,7 @@ network_transfer_time(instruments_context_t ctx, void *strategy_arg, void *choos
 {
     struct strategy_args *args = (struct strategy_args *)strategy_arg;
     int bytelen = (int) chooser_arg;
-    assert(args->net_stats);
+    ASSERT(args->net_stats);
     return args->chooser->calculateTransferTime(ctx, *args->net_stats, 
                                                 bytelen);
 }
@@ -46,7 +47,7 @@ network_transfer_energy_cost(instruments_context_t ctx, void *strategy_arg, void
 {
     struct strategy_args *args = (struct strategy_args *)strategy_arg;
     int bytelen = (int) chooser_arg;
-    assert(args->net_stats);
+    ASSERT(args->net_stats);
 
     return args->chooser->calculateTransferEnergy(ctx, *args->net_stats,
                                                   bytelen);
@@ -57,9 +58,9 @@ network_transfer_data_cost(instruments_context_t ctx, void *strategy_arg, void *
 {
     struct strategy_args *args = (struct strategy_args *)strategy_arg;
     int bytelen = (int) chooser_arg;
-    assert(args->net_stats);
+    ASSERT(args->net_stats);
     
-    return args->chooser->calculateTransferMobileData(*args->net_stats, bytelen);
+    return args->chooser->calculateTransferMobileData(ctx, *args->net_stats, bytelen);
 }
 
 double
@@ -94,30 +95,81 @@ IntNWInstrumentsNetworkChooser::getRttSeconds(instruments_context_t ctx,
 double
 IntNWInstrumentsNetworkChooser::getWifiFailurePenalty(instruments_context_t ctx,
                                                       InstrumentsWrappedNetStats *net_stats,
-                                                      double transfer_time)
+                                                      double transfer_time,
+                                                      double penalty)
 {
-    double penalty = 0.0;
+    double failure_penalty = 0.0;
     if (net_stats == wifi_stats) {
         double current_wifi_duration = getCurrentWifiDuration();
-        penalty = wifi_stats->getWifiFailurePenalty(ctx, transfer_time, 
-                                                    current_wifi_duration, 
-                                                    Config::getInstance()->getWifiFailoverDelay());
+        failure_penalty = wifi_stats->getWifiFailurePenalty(ctx, transfer_time, 
+                                                            current_wifi_duration, penalty);
     }
-    return penalty;
+    return failure_penalty;
 }
+
+double
+IntNWInstrumentsNetworkChooser::averageWifiFailoverPenalty()
+{
+    // the time impact of wifi failover 
+    //  (A transfer occurs with uniform probability across the entire 
+    //   failover window, so it experiences half the max delay on average)
+    return  Config::getInstance()->getWifiFailoverDelay() / 2.0;
+}
+
 
 double
 IntNWInstrumentsNetworkChooser::calculateTransferTime(instruments_context_t ctx,
                                                       InstrumentsWrappedNetStats *net_stats,
                                                       int bytelen)
 {
-    assert(net_stats);
+    ASSERT(net_stats);
     double bw = getBandwidthUp(ctx, net_stats);
     double rtt_seconds = getRttSeconds(ctx, net_stats);
     double tx_time = (bytelen / bw) + rtt_seconds;
-    double wifi_failure_penalty = getWifiFailurePenalty(ctx, net_stats, tx_time);
+    
+    double wifi_failure_penalty = getWifiFailurePenalty(ctx, net_stats, tx_time,
+                                                        averageWifiFailoverPenalty());
 
     return tx_time + wifi_failure_penalty;
+}
+
+static struct timeval estimate_energy_time = {0, 0};
+static int estimate_energy_calls = 0;
+
+static void
+reset_estimate_energy_stats()
+{
+    memset(&estimate_energy_time, 0, sizeof(estimate_energy_time));
+    estimate_energy_calls = 0;
+}
+
+static void
+print_estimate_energy_stats()
+{
+    dbgprintf("estimate_energy_cost: %d calls, %lu.%06lu seconds\n",
+              estimate_energy_calls,
+              estimate_energy_time.tv_sec, estimate_energy_time.tv_usec);
+}
+
+static inline int
+time_estimate_energy_cost(EnergyComputer& calculator, size_t datalen, 
+                         size_t bandwidth, size_t rtt_ms)
+{
+    struct timeval begin, end, diff;
+    TIME(begin);
+    int cost = calculator(datalen, bandwidth, rtt_ms);
+    TIME(end);
+    TIMEDIFF(begin, end, diff);
+    timeradd(&estimate_energy_time, &diff, &estimate_energy_time);
+    estimate_energy_calls++;
+    return cost;
+}
+
+void
+IntNWInstrumentsNetworkChooser::refreshEnergyCalculators()
+{
+    cellular_energy_calculator = get_energy_computer(TYPE_MOBILE);
+    wifi_energy_calculator = get_energy_computer(TYPE_WIFI);
 }
 
 double
@@ -125,34 +177,56 @@ IntNWInstrumentsNetworkChooser::calculateTransferEnergy(instruments_context_t ct
                                                         InstrumentsWrappedNetStats *net_stats,
                                                         int bytelen)
 {
-    assert(net_stats);
+    ASSERT(net_stats);
 
     NetworkType type;
     if (net_stats == wifi_stats) {
         type = TYPE_WIFI;
     } else if (net_stats == cellular_stats) {
         type = TYPE_MOBILE;
-    } else assert(0);
+    } else ASSERT(0);
+
+    EnergyComputer& energy_calculator = (type == TYPE_WIFI) ? wifi_energy_calculator : cellular_energy_calculator;
     
     double bw = getBandwidthUp(ctx, net_stats);
     double rtt_seconds = getRttSeconds(ctx, net_stats);
+    double tx_time = (bytelen / bw) + rtt_seconds;
+
+    // Calculate the expected energy cost due to having to retransmit on cellular if wifi fails.
+    //    (cellular_energy * P(wifi fails before transfer completes)
+    // Don't bother using the error-adjusted estimates here; great precision is not necessary.
+    //    (passing NULL to the get_estimator_value function just returns the estimator value)
+    // The reason is that the tail energy will dominate here if the 3G radio
+    // isn't active, and if it was activated recently, the energy will be small.
+    double wifi_failure_penalty = 0.0;
+    if (type == TYPE_WIFI) {
+        double cellular_bw = cellular_stats->get_bandwidth_up(NULL);
+        double cellular_rtt_seconds = cellular_stats->get_rtt(NULL);
+        double cellular_fallback_energy = time_estimate_energy_cost(cellular_energy_calculator, bytelen, 
+                                                                    cellular_bw, cellular_rtt_seconds * 1000.0);
+        wifi_failure_penalty = getWifiFailurePenalty(ctx, net_stats, tx_time,
+                                                     cellular_fallback_energy);
+    }
     
-    // TODO: incorporate wifi failure_penalty somehow?
-    // TODO: e.g. energy cost of sending on cellular anyway
-    return estimate_energy_cost(type, bytelen, bw, rtt_seconds * 1000.0);
+    return time_estimate_energy_cost(energy_calculator, bytelen, bw, rtt_seconds * 1000.0) + wifi_failure_penalty;
 }
 
 double
-IntNWInstrumentsNetworkChooser::calculateTransferMobileData(InstrumentsWrappedNetStats *net_stats,
+IntNWInstrumentsNetworkChooser::calculateTransferMobileData(instruments_context_t ctx,
+                                                            InstrumentsWrappedNetStats *net_stats,
                                                             int bytelen)
 {
     if (net_stats == wifi_stats) {
-        // TODO: incorporate wifi failure_penalty somehow?
-        // TODO: e.g. data cost of sending on cellular anyway
-        return 0;
+        double bw = getBandwidthUp(ctx, net_stats);
+        double rtt_seconds = getRttSeconds(ctx, net_stats);
+        double tx_time = (bytelen / bw) + rtt_seconds;
+        
+        // the penalty is having to send the bytes over cellular anyway if the wifi fails.
+        return getWifiFailurePenalty(ctx, net_stats, tx_time, 
+                                     (double) bytelen);
     } else if (net_stats == cellular_stats) {
         return bytelen;
-    } else assert(0);
+    } else ASSERT(0);
 }
 
 
@@ -174,6 +248,7 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
     strategy_args[NETWORK_CHOICE_WIFI]->net_stats = &wifi_stats;
     strategy_args[NETWORK_CHOICE_CELLULAR]->net_stats = &cellular_stats;
 
+    refreshEnergyCalculators();
     for (int i = NETWORK_CHOICE_WIFI; i <= NETWORK_CHOICE_CELLULAR; ++i) {
         strategies[i] = 
             make_strategy(network_transfer_time, 
@@ -238,7 +313,7 @@ choose_networks(u_long send_label, size_t num_bytes,
                                              local_iface, remote_iface);
     }
 
-    assert(has_match);
+    ASSERT(has_match);
     
     if (!wifi_present) {
         local_iface = cellular_local;
@@ -265,7 +340,7 @@ choose_networks(u_long send_label, size_t num_bytes,
         local_iface = wifi_local;
         remote_iface = wifi_remote;
     } else {
-        assert(chosen_singular_strategy_type == NETWORK_CHOICE_CELLULAR);
+        ASSERT(chosen_singular_strategy_type == NETWORK_CHOICE_CELLULAR);
         local_iface = cellular_local;
         remote_iface = cellular_remote;
     }
@@ -288,7 +363,7 @@ IntNWInstrumentsNetworkChooser::consider(struct net_interface local_iface,
     } else if (matches_type(NET_TYPE_THREEG, local_iface, remote_iface)) {
         cellular_local = local_iface;
         cellular_remote = remote_iface;
-    } else assert(false);
+    } else ASSERT(false);
 }
 
 void
@@ -310,7 +385,10 @@ IntNWInstrumentsNetworkChooser::chooseNetwork(int bytelen)
 {
     wifi_stats->setWifiSessionLengthBound(getCurrentWifiDuration());
 
+    reset_estimate_energy_stats();
+    refreshEnergyCalculators();
     instruments_strategy_t chosen = choose_nonredundant_strategy(evaluator, (void *)bytelen);
+    print_estimate_energy_stats();
     return getStrategyIndex(chosen);
 }
 
@@ -332,11 +410,13 @@ chosen_strategy_callback_wrapper(instruments_strategy_t strategy, void *arg)
 
 function<void(instruments_strategy_t)> *
 IntNWInstrumentsNetworkChooser::getRedundancyDecisionCallback(CSockMapping *mapping, 
-                                                              IROBSchedulingData data)
+                                                              IROBSchedulingData data,
+                                                              int singular_type)
 {
     auto callback = [=](instruments_strategy_t strategy) {
-        chosen_strategy_type = getStrategyIndex(strategy);
-        mapping->onRedundancyDecision(data);
+        int type = getStrategyIndex(strategy);
+        chosen_strategy_type = type;
+        mapping->onRedundancyDecision(data, singular_type, type);
     };
     return new function<void(instruments_strategy_t)>(callback);
 }
@@ -346,9 +426,10 @@ IntNWInstrumentsNetworkChooser::checkRedundancyAsync(CSockMapping *mapping,
                                                      PendingSenderIROB *psirob, 
                                                      const IROBSchedulingData& data)
 {
-    auto *pcallback = getRedundancyDecisionCallback(mapping, data);
+    auto *pcallback = getRedundancyDecisionCallback(mapping, data, chosen_singular_strategy_type);
 
     wifi_stats->setWifiSessionLengthBound(getCurrentWifiDuration());
+    refreshEnergyCalculators();
     choose_strategy_async(evaluator, (void *) psirob->expected_bytes(), 
                           chosen_strategy_callback_wrapper, pcallback);
 }
@@ -356,13 +437,13 @@ IntNWInstrumentsNetworkChooser::checkRedundancyAsync(CSockMapping *mapping,
 instruments_strategy_t
 IntNWInstrumentsNetworkChooser::getSingularStrategyNotChosen()
 {
-    assert(NUM_STRATEGIES == 3);
+    ASSERT(NUM_STRATEGIES == 3);
     if (chosen_strategy_type == NETWORK_CHOICE_BOTH) {
         // shouldn't happen; we should only call this when 
         //  preparing to schedule a re-evaluation.
         // if we chose redundancy, we wouldn't be scheduling
         //  a re-evaluation at all.
-        assert(false);
+        ASSERT(false);
         return NULL;
     }
     // return the other strategy - the one not chosen.
@@ -404,7 +485,7 @@ IntNWInstrumentsNetworkChooser::getReevaluationDelay(PendingSenderIROB *psirob)
             //  the failure penalty is baked into the total wifi time.
             // happily, this results in a wifi failure penalty that's slightly smaller,
             //  which means it's still less than the total wifi time.
-            delay -= getWifiFailurePenalty(NULL, wifi_stats, 0.0);
+            delay -= getWifiFailurePenalty(NULL, wifi_stats, 0.0, averageWifiFailoverPenalty());
         }
         delay *= 2.0;
     }
@@ -419,7 +500,7 @@ IntNWInstrumentsNetworkChooser::scheduleReevaluation(CSockMapping *mapping,
 {
     // if we chose redundancy, we wouldn't be here scheduling a reevaluation
     // and we're holding the lock still, so it won't have been overwritten
-    assert(chosen_strategy_type != NETWORK_CHOICE_BOTH);
+    ASSERT(chosen_strategy_type != NETWORK_CHOICE_BOTH);
 
     InstrumentsWrappedNetStats *chosen_network_stats = 
         (chosen_strategy_type == NETWORK_CHOICE_WIFI
@@ -439,7 +520,7 @@ IntNWInstrumentsNetworkChooser::scheduleReevaluation(CSockMapping *mapping,
 
     auto *pcallback_chosen_strategy = 
         new function<void(instruments_strategy_t)>([=](instruments_strategy_t strategy) {
-                auto *inner_cb = getRedundancyDecisionCallback(mapping, data);
+                auto *inner_cb = getRedundancyDecisionCallback(mapping, data, chosen_singular_strategy_type);
                 chosen_strategy_callback_wrapper(strategy, inner_cb);
                 chosen_network_stats->clearRttLowerBound();
         });
@@ -463,7 +544,7 @@ int IntNWInstrumentsNetworkChooser::getStrategyIndex(instruments_strategy_t stra
             return i;
         }
     }
-    assert(0);
+    ASSERT(0);
 }
 
 void 
@@ -529,7 +610,7 @@ IntNWInstrumentsNetworkChooser::reportNetStats(int network_type,
         stats = cellular_stats;
         break;
     default:
-        assert(false);
+        ASSERT(false);
         break;
     }
 
@@ -591,7 +672,7 @@ void
 IntNWInstrumentsNetworkChooser::setRedundancyStrategy()
 {
     dbgprintf("setting IntNWInstrumentsNetworkChooser::RedundancyStrategy\n");
-    assert(redundancyStrategy == NULL);
+    ASSERT(redundancyStrategy == NULL);
     redundancyStrategy = 
         new IntNWInstrumentsNetworkChooser::RedundancyStrategy(this);
 }
@@ -602,11 +683,24 @@ RedundancyStrategy(IntNWInstrumentsNetworkChooser *chooser_)
 {
 }
 
+bool
+is_redundant(int chosen_singular_strategy_type,
+             int chosen_strategy_type)
+{
+    return (chosen_strategy_type != -1 &&
+            (chosen_strategy_type == NETWORK_CHOICE_BOTH ||
+             chosen_singular_strategy_type != chosen_strategy_type));
+    // XXX: this is kind of a hack, since in the current world,
+    // XXX: there are only ever two network interfaces, and
+    // XXX: therefore changing the decision from one to the other
+    // XXX: is equivalent to choosing both in the first place.
+}
+
 bool 
 IntNWInstrumentsNetworkChooser::RedundancyStrategy::
 shouldTransmitRedundantly(PendingSenderIROB *psirob)
 {
-    assert(chooser->has_match);
+    ASSERT(chooser->has_match);
     if (chooser->chosen_strategy_type == -1) {
         dbgprintf("shouldTransmitRedundantly: redundancy decision in progress; non-redundant for now\n");
     } else {
@@ -616,13 +710,8 @@ shouldTransmitRedundantly(PendingSenderIROB *psirob)
     // either the async evaluation decided on redundancy, 
     // or I'm doing a deferred re-evaluation, and the passage of time
     // changed the decision.
-    return (chooser->chosen_strategy_type != -1 &&
-            (chooser->chosen_strategy_type == NETWORK_CHOICE_BOTH ||
-             chooser->chosen_singular_strategy_type != chooser->chosen_strategy_type));
-    // XXX: this is kind of a hack, since in the current world,
-    // XXX: there are only ever two network interfaces, and
-    // XXX: therefore changing the decision from one to the other
-    // XXX: is equivalent to choosing both in the first place.
+    return is_redundant(chooser->chosen_singular_strategy_type,
+                        chooser->chosen_strategy_type);
 }
 
 

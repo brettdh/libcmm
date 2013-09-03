@@ -21,6 +21,7 @@ using std::make_pair;
 
 #include "redundancy_strategy.h"
 #include "network_chooser.h"
+#include "intnw_instruments_network_chooser.h"
 #include "irob_scheduling.h"
 
 #include "config.h"
@@ -70,7 +71,7 @@ CSockMapping::set_redundancy_strategy(int type)
 int 
 CSockMapping::get_redundancy_strategy()
 {
-    assert(network_chooser);
+    ASSERT(network_chooser);
     return redundancy_strategy_type;
 }
 
@@ -401,7 +402,7 @@ CSockMapping::connected_csock_with_labels(u_long send_label,
             //  iterate twice
             pair<struct net_interface, struct net_interface> key = 
                 make_pair(csock->local_iface, csock->remote_iface);
-            assert(lookup.count(key) == 0);
+            ASSERT(lookup.count(key) == 0);
             lookup[key] = csock;
         }
     }
@@ -412,7 +413,7 @@ CSockMapping::connected_csock_with_labels(u_long send_label,
     } else {
         if (guarded_chooser->choose_networks(send_label, num_bytes, 
                                              iface_pair.first, iface_pair.second)) {
-            assert(lookup.count(iface_pair) > 0);
+            ASSERT(lookup.count(iface_pair) > 0);
             return lookup[iface_pair];
         } else {
             return CSocketPtr();
@@ -693,7 +694,9 @@ CSockMapping::get_csock(PendingSenderIROB *psirob, CSocketPtr& csock)
 }
 
 void
-CSockMapping::check_redundancy(PendingSenderIROB *psirob)
+CSockMapping::check_redundancy(PendingSenderIROB *psirob,
+                               int chosen_singular_strategy_type,
+                               int chosen_strategy_type)
 {
     irob_id_t id = psirob->get_id();
     dbgprintf("Checking whether to send IROB %ld redundantly...\n", id);
@@ -710,7 +713,13 @@ CSockMapping::check_redundancy(PendingSenderIROB *psirob)
         return;
     }
 
-    if (network_chooser->shouldTransmitRedundantly(psirob)) {
+    bool redundant = false;
+    if (chosen_strategy_type != -1) {
+        redundant = is_redundant(chosen_singular_strategy_type, chosen_strategy_type);
+    } else {
+        redundant = network_chooser->shouldTransmitRedundantly(psirob);
+    }
+    if (redundant) {
         dbgprintf("Decided to send IROB %ld redundantly\n", id);
         psirob->mark_send_on_all_networks();
     } else {
@@ -882,7 +891,9 @@ CSockMapping::pass_request_to_all_senders(PendingSenderIROB *psirob,
 }
 
 void
-CSockMapping::onRedundancyDecision(const IROBSchedulingData& data)
+CSockMapping::onRedundancyDecision(const IROBSchedulingData& data, 
+                                   int chosen_singular_strategy_type,
+                                   int chosen_strategy_type)
 {
     CMMSocketImplPtr skp(sk);
     PthreadScopedLock lock(&skp->scheduling_state_lock);
@@ -894,7 +905,7 @@ CSockMapping::onRedundancyDecision(const IROBSchedulingData& data)
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
     ASSERT(psirob);
     
-    check_redundancy(psirob);
+    check_redundancy(psirob, chosen_singular_strategy_type, chosen_strategy_type);
     if (psirob->should_send_on_all_networks()) {
         pass_request_to_all_senders(psirob, data);
         pthread_cond_broadcast(&skp->scheduling_state_cv);

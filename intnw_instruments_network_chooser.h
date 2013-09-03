@@ -6,6 +6,8 @@
 #include "intnw_instruments_net_stats_wrapper.h"
 #include <instruments.h>
 
+#include <libpowertutor.h>
+
 #include <string>
 
 #define NETWORK_CHOICE_WIFI 0
@@ -86,6 +88,10 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
     InstrumentsWrappedNetStats *wifi_stats;
     InstrumentsWrappedNetStats *cellular_stats;
 
+    EnergyComputer cellular_energy_calculator;
+    EnergyComputer wifi_energy_calculator;
+    void refreshEnergyCalculators();
+
     int getStrategyIndex(instruments_strategy_t strategy);
     instruments_strategy_t strategies[NUM_STRATEGIES]; // wifi, cellular, or both
     struct strategy_args *strategy_args[NUM_STRATEGIES - 1];
@@ -117,13 +123,16 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
                          InstrumentsWrappedNetStats *net_stats);
     double getWifiFailurePenalty(instruments_context_t ctx,
                                  InstrumentsWrappedNetStats *net_stats,
-                                 double transfer_time);
+                                 double transfer_time,
+                                 double penalty);
 
     double getCurrentWifiDuration();
-
+    double averageWifiFailoverPenalty();
+    
     std::function<void(instruments_strategy_t)> *
         getRedundancyDecisionCallback(CSockMapping *mapping, 
-                                      IROBSchedulingData data);
+                                      IROBSchedulingData data,
+                                      int singular_type);
     instruments_strategy_t getSingularStrategyNotChosen();
     double getReevaluationDelay(PendingSenderIROB *psirob);
     
@@ -134,7 +143,8 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
     double calculateTransferEnergy(instruments_context_t ctx, 
                                    InstrumentsWrappedNetStats *net_stats,
                                    int bytelen);
-    double calculateTransferMobileData(InstrumentsWrappedNetStats *net_stats,
+    double calculateTransferMobileData(instruments_context_t ctx, 
+                                       InstrumentsWrappedNetStats *net_stats,
                                        int bytelen);
 
     friend double network_transfer_time(instruments_context_t ctx,
@@ -147,5 +157,9 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
                                              void *strategy_arg, 
                                              void *chooser_arg);
 };
+
+bool
+is_redundant(int chosen_singular_strategy_type,
+             int chosen_strategy_type);
 
 #endif /* _INTNW_INSTRUMENTS_NET_STATS_WRAPPER_H_ */

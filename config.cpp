@@ -100,7 +100,7 @@ static bool has_param(const string& line, const string& name)
 
 static string get_param(const string& line, const string& name)
 {
-    assert(has_param(line, name));
+    ASSERT(has_param(line, name));
     return line.substr(name.length() + 1);
 }
 
@@ -253,7 +253,7 @@ Config::readRangeHintsOption(const string& line, const string& key)
     for (size_t i = 0; i < 2; ++i) {
         string value;
         precision_iss >> value;
-        assert(precision_iss);
+        ASSERT(precision_iss);
         precision.push_back(value.length());
     }
 

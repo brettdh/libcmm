@@ -97,7 +97,8 @@ class CSockMapping {
                                      const IROBSchedulingData& data);
 
     // to be called from async callback.
-    void onRedundancyDecision(const IROBSchedulingData& data);
+    void onRedundancyDecision(const IROBSchedulingData& data,
+                              int singular_type, int redundant_type);
 
     void check_redundancy_async(PendingSenderIROB *psirob, 
                                 const IROBSchedulingData& data);
@@ -132,7 +133,9 @@ class CSockMapping {
 
     int redundancy_strategy_type;
     //RedundancyStrategy *redundancy_strategy;
-    void check_redundancy(PendingSenderIROB *psirob);
+    void check_redundancy(PendingSenderIROB *psirob,
+                          int singular_type=-1,
+                          int redundant_type=-1);
 
     NetworkChooser *network_chooser;
 

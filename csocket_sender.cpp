@@ -890,7 +890,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         }
 
         // because it is very small, and we're sending all of its data now
-        assert(psirob->all_bytes_chunked());
+        ASSERT(psirob->all_bytes_chunked());
         csock->stats.report_total_irob_bytes(data.id, psirob->get_total_network_bytes());
     }
 

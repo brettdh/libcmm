@@ -43,7 +43,7 @@ class InstrumentsWrappedNetStats {
     double getWifiFailurePenalty(instruments_context_t ctx, 
                                  double transfer_time, 
                                  double current_wifi_duration,
-                                 double wifi_failover_window);
+                                 double penalty);
   private:
     instruments_external_estimator_t bw_up_estimator;
     instruments_external_estimator_t rtt_estimator;
