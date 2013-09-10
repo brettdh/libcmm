@@ -143,7 +143,13 @@ void InstrumentsWrappedNetStats::update(double bw_up, double bw_estimate,
     // XXX: hackish.  Should separate bw and RTT updates.
     do {
         if (bw_up > 0.0) {
-            add_observation(bw_up_estimator, bw_up, bw_estimate);
+            // The prob-bounds method gets wildly thrown off by erratic, infrequent bandwidth measurments.
+            // Furthermore, bandwidth hardly makes any difference in the network decisions for small transfers.
+            // So, we'll just ignore it for that method.
+            // (Could ignore it for the others too, but it doesn't seem to hurt them.)
+            if (Config::getInstance()->getEstimatorErrorEvalMethod() & CONFIDENCE_BOUNDS == 0) {
+                add_observation(bw_up_estimator, bw_up, bw_estimate);
+            }
             last_bw_estimate = bw_estimate;
         }
         if (RTT_seconds > 0.0) {
