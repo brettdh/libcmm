@@ -147,7 +147,8 @@ void InstrumentsWrappedNetStats::update(double bw_up, double bw_estimate,
             // Furthermore, bandwidth hardly makes any difference in the network decisions for small transfers.
             // So, we'll just ignore it for that method.
             // (Could ignore it for the others too, but it doesn't seem to hurt them.)
-            if ((Config::getInstance()->getEstimatorErrorEvalMethod() & CONFIDENCE_BOUNDS) == 0) {
+            EvalMethod method = Config::getInstance()->getEstimatorErrorEvalMethod();
+            if (method != CONFIDENCE_BOUNDS && method != CONFIDENCE_BOUNDS_WEIGHTED) {
                 add_observation(bw_up_estimator, bw_up, bw_estimate);
             }
             last_bw_estimate = bw_estimate;
