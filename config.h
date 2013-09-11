@@ -22,6 +22,7 @@ class Config {
     bool getWifiSessionLengthDistributionParams(double& shape, double& scale);
 
     bool getPeriodicReevaluationEnabled();
+    bool getDisableBandwidthError();
 
     double getWifiFailoverDelay();
 

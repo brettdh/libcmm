@@ -26,11 +26,15 @@ static const string USE_BREADCRUMBS_ESTIMATES_KEY = "use_breadcrumbs_estimates";
 static const string RECORD_FAILOVER_LATENCY_KEY = "record_failover_latency";
 static const string PERIODIC_REEVALUATION_ENABLED_KEY = "periodic_reevaluation";
 
+// if set, only applies to prob-bounds.
+static const string DISABLE_BANDWIDTH_ERROR_KEY = "disable_bandwidth_error";
+
 static vector<string> boolean_option_keys = {
     DEBUG_OUTPUT_KEY,
     USE_BREADCRUMBS_ESTIMATES_KEY,
     RECORD_FAILOVER_LATENCY_KEY,
     PERIODIC_REEVALUATION_ENABLED_KEY,
+    DISABLE_BANDWIDTH_ERROR_KEY,
 };
 
 // keys for string options
@@ -317,6 +321,12 @@ bool
 Config::getPeriodicReevaluationEnabled()
 {
     return getBoolean(PERIODIC_REEVALUATION_ENABLED_KEY);
+}
+
+bool 
+Config::getDisableBandwidthError()
+{
+    return getBoolean(DISABLE_BANDWIDTH_ERROR_KEY);
 }
 
 

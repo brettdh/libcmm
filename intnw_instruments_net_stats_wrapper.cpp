@@ -148,7 +148,8 @@ void InstrumentsWrappedNetStats::update(double bw_up, double bw_estimate,
             // So, we'll just ignore it for that method.
             // (Could ignore it for the others too, but it doesn't seem to hurt them.)
             EvalMethod method = Config::getInstance()->getEstimatorErrorEvalMethod();
-            if (method != CONFIDENCE_BOUNDS && method != CONFIDENCE_BOUNDS_WEIGHTED) {
+            if (Config::getInstance()->getDisableBandwidthError() == false &&
+                method != CONFIDENCE_BOUNDS && method != CONFIDENCE_BOUNDS_WEIGHTED) {
                 add_observation(bw_up_estimator, bw_up, bw_estimate);
             }
             last_bw_estimate = bw_estimate;

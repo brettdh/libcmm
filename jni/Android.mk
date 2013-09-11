@@ -85,9 +85,16 @@ include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := flipflop
-LOCAL_SRC_FILES := flipflop_estimate.cpp debug_ext.cpp
+LOCAL_SRC_FILES := $(addprefix ../, flipflop_estimate.cpp debug_ext.cpp)
 LOCAL_CFLAGS += $(common_CFLAGS)
 include $(BUILD_STATIC_LIBRARY)
+
+# This target is necessary in order to build the static library at all.
+include $(CLEAR_VARS)
+LOCAL_MODULE := flipflop_shared
+LOCAL_STATIC_LIBRARIES := flipflop
+
+include $(BUILD_SHARED_LIBRARY)
 
 # cmm_test_sender: libcmm_test_sender.o libcmm.so 
 #   $(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -lcmm -o $@ $<
