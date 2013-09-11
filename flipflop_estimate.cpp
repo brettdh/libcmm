@@ -1,4 +1,4 @@
-#include "estimate.h"
+#include "flipflop_estimate.h"
 #include "debug.h"
 using intnw::check;
 
@@ -15,14 +15,14 @@ u_long round_nearest(double val)
     return static_cast<u_long>(val + 0.5);
 }
 
-Estimate::Estimate(const string& name_)
+FlipFlopEstimate::FlipFlopEstimate(const string& name_)
     : name(name_)
 {
     init();
 }
 
 void
-Estimate::init()
+FlipFlopEstimate::init()
 {
     fields.assign({
         { "stable_estimate", &stable_estimate },
@@ -38,14 +38,14 @@ Estimate::init()
     valid = false;
 }
 
-Estimate::Estimate(const Estimate& other)
+FlipFlopEstimate::FlipFlopEstimate(const FlipFlopEstimate& other)
 {
     init();
     *this = other;
 }
 
-Estimate& 
-Estimate::operator=(const Estimate& other)
+FlipFlopEstimate& 
+FlipFlopEstimate::operator=(const FlipFlopEstimate& other)
 {
     ASSERT(fields.size() > 0);
     ASSERT(fields.size() == other.fields.size());
@@ -60,16 +60,16 @@ Estimate::operator=(const Estimate& other)
 }
 
 void
-Estimate::reset(double new_spot_value)
+FlipFlopEstimate::reset(double new_spot_value)
 {
     init();
     add_observation(new_spot_value);
 }
 
 bool
-Estimate::get_estimate(double& est)
+FlipFlopEstimate::get_estimate(double& est)
 {
-    // Estimate can be:
+    // FlipFlopEstimate can be:
     //  * nothing if there have been no spot values (returns false)
     //  * the first spot value if there's only been one (returns true)
     //  * A real estimate based on two or more spot values (returns true)
@@ -87,7 +87,7 @@ Estimate::get_estimate(double& est)
 }
 
 bool
-Estimate::get_estimate(u_long& est)
+FlipFlopEstimate::get_estimate(u_long& est)
 {
     double float_est;
     bool ret = get_estimate(float_est);
@@ -113,7 +113,7 @@ void update_EWMA(double& EWMA, double spot, double gain)
 }
 
 void
-Estimate::add_observation(double new_spot_value)
+FlipFlopEstimate::add_observation(double new_spot_value)
 {
     double new_MR_value = fabs(new_spot_value - last_spot_value);
     last_spot_value = new_spot_value;
@@ -137,7 +137,7 @@ Estimate::add_observation(double new_spot_value)
 }
 
 void
-Estimate::dbg_print(double new_spot_value)
+FlipFlopEstimate::dbg_print(double new_spot_value)
 {
     double flipflop_value = 0.0;
     bool success = get_estimate(flipflop_value);
@@ -153,13 +153,13 @@ Estimate::dbg_print(double new_spot_value)
 }
 
 double
-Estimate::calc_limit_distance()
+FlipFlopEstimate::calc_limit_distance()
 {
     return 3.0 * moving_range / STDDEV_ESTIMATOR;
 }
 
 bool
-Estimate::spot_value_within_limits(double spot_value)
+FlipFlopEstimate::spot_value_within_limits(double spot_value)
 {
     double limit_distance = calc_limit_distance();
     double lower = center_line - limit_distance;
@@ -171,7 +171,7 @@ static const size_t PRECISION = 10;
 
 
 void 
-Estimate::save(std::ostream& out)
+FlipFlopEstimate::save(std::ostream& out)
 {
     out << setprecision(PRECISION);
     for (auto& f : fields) {
@@ -181,7 +181,7 @@ Estimate::save(std::ostream& out)
 }
 
 void 
-Estimate::load(std::istream& in)
+FlipFlopEstimate::load(std::istream& in)
 {
     string field_name;
     for (auto& f : fields) {

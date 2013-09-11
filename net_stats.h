@@ -7,7 +7,7 @@
 #include "pthread_util.h"
 #include "libcmm_irob.h"
 #include "intset.h"
-#include "estimate.h"
+#include "flipflop_estimate.h"
 #include <map>
 
 class NetworkChooser;
@@ -92,7 +92,7 @@ class IROBMeasurement {
 // data needed to re-start passive measurement calculation
 //  from previous measurements.
 struct estimate_set {
-    std::vector<Estimate> estimates;
+    std::vector<FlipFlopEstimate> estimates;
     bool error_estimators_initialized;
     
     struct timeval last_RTT;
@@ -206,7 +206,7 @@ class NetStats {
 
     std::string name;
 
-    //Estimate net_estimates[NUM_ESTIMATES];
+    //FlipFlopEstimate net_estimates[NUM_ESTIMATES];
     struct estimate_set net_estimates;
 
     struct timeval last_RTT;

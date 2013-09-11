@@ -8,7 +8,7 @@
 
 u_long round_nearest(double val);
 
-class Estimate {
+class FlipFlopEstimate {
   public:
     // pick estimate based on control limits
     // returns true on success, false if there are no observations yet
@@ -22,9 +22,9 @@ class Estimate {
     void save(std::ostream& out);
     void load(std::istream& in);
     
-    Estimate(const std::string& name_);
-    Estimate(const Estimate& other);
-    Estimate& operator=(const Estimate& other);
+    FlipFlopEstimate(const std::string& name_);
+    FlipFlopEstimate(const FlipFlopEstimate& other);
+    FlipFlopEstimate& operator=(const FlipFlopEstimate& other);
   private:
     std::string name;
 

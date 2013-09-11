@@ -115,9 +115,9 @@ NetStats::NetStats(struct net_interface local_iface,
     last_irob = -1;
 
     net_estimates.estimates.assign({
-        Estimate(name + "_latency"),
-        Estimate(name + "_bw_up"), 
-        Estimate(name + "_bw_down")
+        FlipFlopEstimate(name + "_latency"),
+        FlipFlopEstimate(name + "_bw_up"), 
+        FlipFlopEstimate(name + "_bw_down")
     });
 
     
@@ -774,7 +774,7 @@ NetStats::mark_irob_failures(NetworkChooser *chooser, int network_type,
             dbgprintf("Adding max failover delay as latency: %.6f seconds\n",
                       latency_seconds);
             
-            Estimate& latency_estimate = net_estimates.estimates[NET_STATS_LATENCY];
+            FlipFlopEstimate& latency_estimate = net_estimates.estimates[NET_STATS_LATENCY];
             latency_estimate.add_observation(round_nearest(latency_ms));
             u_long new_latency_est;
             if (latency_estimate.get_estimate(new_latency_est)) {

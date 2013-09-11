@@ -3,7 +3,7 @@
 
 #include <libcmm_irob.h>
 #include <net_interface.h>
-#include "estimate.h"
+#include "flipflop_estimate.h"
 
 #include <instruments.h>
 
@@ -48,7 +48,7 @@ class InstrumentsWrappedNetStats {
     instruments_external_estimator_t bw_up_estimator;
     instruments_external_estimator_t rtt_estimator;
 
-    Estimate session_duration;
+    FlipFlopEstimate session_duration;
     instruments_external_estimator_t session_duration_estimator;
 
     bool use_session_distribution;
