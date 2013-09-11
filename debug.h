@@ -19,7 +19,7 @@ void dbgprintf(const char *format, ...)
 void dbgprintf_plain(const char *format, ...)
   __attribute__((format(printf, 1, 2)));
 #else
-#define is_debugging_on() (0)
+#define is_debugging_on(...) (0)
 #define dbgprintf(...)
 #define dbgprintf_plain(...)
 #endif

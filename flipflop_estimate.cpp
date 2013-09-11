@@ -142,7 +142,9 @@ FlipFlopEstimate::dbg_print(double new_spot_value)
     double flipflop_value = 0.0;
     bool success = get_estimate(flipflop_value);
     ASSERT(success);
+#ifdef CMM_DEBUG
     double limit_distance = calc_limit_distance();
+#endif
     dbgprintf("%s estimate: new_obs %f stable %f agile %f "
               "center_line %f moving_range %f "
               "control_limits [ %f %f ] flipflop_value %f\n",

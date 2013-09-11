@@ -6,16 +6,18 @@ endif
 
 INSTRUMENTS_DIR := $(HOME)/src/instruments
 
-CXXFLAGS+=-Wall -Werror -I. -I/usr/local/include \
+NODEBUG_CXXFLAGS := $(CXXFLAGS) 
+NODEBUG_CXXFLAGS +=-Wall -Werror -I. -I/usr/local/include \
 	   -I./libancillary \
 	   $(shell pkg-config --cflags --libs glib-2.0) \
-	   -pthread -fPIC -m32 -std=gnu++0x $(DEBUG_FLAGS) $(OPT_FLAGS) \
+	   -pthread -fPIC -m32 -std=gnu++0x  $(OPT_FLAGS) \
 	   -I$(INSTRUMENTS_DIR)/include -I$(INSTRUMENTS_DIR)/src
+CXXFLAGS := $(NODEBUG_CXXFLAGS) $(DEBUG_FLAGS)
 #LIBTBB:=-ltbb_debug
 LDFLAGS:=-L.  -L/usr/local/lib -L$(INSTRUMENTS_DIR)/src -m32
 LIBS:=-lrt -lglib-2.0 -lboost_thread -lpowertutor -linstruments
 
-LIBRARIES:=libcmm.so
+LIBRARIES:=libcmm.so libflipflop.a
 EXECUTABLES:=cmm_test_sender cmm_test_receiver cdf_test\
 	     vanilla_test_sender vanilla_test_receiver \
 	     cmm_throughput_test vanilla_throughput_test
@@ -51,6 +53,16 @@ vanilla_throughput_test: vanilla_throughput_test.o timeops.o
 
 vanilla_%.o: libcmm_%.cpp
 	$(CXX) $(CXXFLAGS) -DNOMULTISOCK $(LDFLAGS) -c -o $@ $<
+
+debug_ext.o: debug_ext.cpp
+	$(CXX) $(NODEBUG_CXXFLAGS) -c -o $@ $<
+
+flipflop_estimate_ext.o: flipflop_estimate.cpp
+	$(CXX) $(NODEBUG_CXXFLAGS) -c -o $@ $<
+
+libflipflop.a: flipflop_estimate_ext.o debug_ext.o
+	rm -f $@
+	ar rcs $@ $^
 
 libcmm.so: libcmm.o libcmm_ipc.o libcmm_external_ipc.o libcmm_net_restriction.o \
 	       cmm_socket.o cmm_socket_impl.o \
@@ -93,8 +105,9 @@ clean: subdirclean
 #	install $(TBB_LIBS) /usr/local/lib
 #	-touch .tbbinstall
 
-.libinstall: libcmm.so 
+.libinstall: $(LIBRARIES)
 	install libcmm.so /usr/local/lib/
+	install libflipflop.a /usr/local/lib/
 	-touch .libinstall
 
 .hdrinstall: libcmm.h libcmm_irob.h

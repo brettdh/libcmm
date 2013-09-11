@@ -1,5 +1,7 @@
 LOCAL_PATH := $(call my-dir)
 
+common_CFLAGS := -DANDROID -DNDK_BUILD -g -ggdb -O0 -std=gnu++0x -I$(LOCAL_PATH)/..
+
 include $(CLEAR_VARS)
 
 LOCAL_MODULE=boost_thread
@@ -32,7 +34,7 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libcmm
-LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -ggdb -O0 -std=gnu++0x -I$(LOCAL_PATH)/.. \
+LOCAL_CFLAGS += $(common_CFLAGS) -DCMM_DEBUG  \
 	-I../$(INSTRUMENTS_ROOT)/include -I../$(INSTRUMENTS_ROOT)/src -I$(LIBPT_ROOT)
 LOCAL_SRC_FILES := $(addprefix ../, \
 	cmm_conn_bootstrapper.cpp \
@@ -79,6 +81,13 @@ LOCAL_SHARED_LIBRARIES := libinstruments libpowertutor libmocktime
 LOCAL_LDLIBS := -llog
 LOCAL_PRELINK_MODULE := false
 include $(BUILD_SHARED_LIBRARY)
+
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := flipflop
+LOCAL_SRC_FILES := flipflop_estimate.cpp debug_ext.cpp
+LOCAL_CFLAGS += $(common_CFLAGS)
+include $(BUILD_STATIC_LIBRARY)
 
 # cmm_test_sender: libcmm_test_sender.o libcmm.so 
 #   $(CXX) $(CXXFLAGS) $(LDFLAGS) $(LIBS) -lcmm -o $@ $<
