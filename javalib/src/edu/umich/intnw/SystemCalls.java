@@ -24,6 +24,9 @@ class SystemCalls {
     static native void shutdownOutput(int msock_fd) throws SocketException;
 
     static {
+        System.loadLibrary("mocktime");
+        System.loadLibrary("powertutor");
+        System.loadLibrary("instruments");
         System.loadLibrary("cmm");
         System.loadLibrary("intnw_javalib");
     }
