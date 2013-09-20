@@ -272,3 +272,38 @@ int get_redundancy_strategy_type(const char *strategy_name)
 {
     return RedundancyStrategy::get_type(strategy_name);
 }
+
+double
+cmm_estimate_transfer_time(mc_socket_t sock, intnw_network_strategy_t strategy, size_t datalen)
+{
+    return CMMSocket::lookup(sock)->mc_estimate_transfer_time(strategy, datalen);
+}
+
+double
+cmm_estimate_transfer_energy(mc_socket_t sock, intnw_network_strategy_t strategy, size_t datalen)
+{
+    return CMMSocket::lookup(sock)->mc_estimate_transfer_energy(strategy, datalen);
+}
+
+double
+cmm_estimate_transfer_data(mc_socket_t sock, intnw_network_strategy_t strategy, size_t datalen)
+{
+    return CMMSocket::lookup(sock)->mc_estimate_transfer_data(strategy, datalen);
+}
+
+intnw_network_strategy_t cmm_get_network_strategy(mc_socket_t sock, instruments_context_t context)
+{
+    return CMMSocket::lookup(sock)->mc_get_network_strategy(context);
+}
+
+void
+cmm_free_network_strategy(mc_socket_t sock, intnw_network_strategy_t strategy)
+{
+    CMMSocket::lookup(sock)->mc_free_network_strategy(strategy);
+}
+
+EvalMethod
+cmm_get_estimator_error_eval_method()
+{
+    return Config::getInstance()->getEstimatorErrorEvalMethod();
+}

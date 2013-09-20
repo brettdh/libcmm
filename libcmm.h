@@ -10,6 +10,8 @@
  * with the desired characteristics becomes available.
  */
 
+#include <eval_method.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -45,12 +47,15 @@ typedef int mc_socket_t;
 
 #define MAX_LABEL_LENGTH 20
 
-#define INTNW_NEVER_REDUNDANT         0
-#define ALWAYS_REDUNDANT              1
-#define INTNW_REDUNDANT               2
-#define CELLULAR_ONLY                 3
-#define WIFI_PREFERRED                4
-#define NUM_REDUNDANCY_STRATEGY_TYPES 5
+enum IntNWNetworkStrategyType {
+    INTNW_NEVER_REDUNDANT=0,
+    ALWAYS_REDUNDANT,
+    INTNW_REDUNDANT,
+    CELLULAR_ONLY,
+    WIFI_PREFERRED,
+    
+    NUM_REDUNDANCY_STRATEGY_TYPES
+};
 
 int get_redundancy_strategy_type(const char *strategy_name);
 
@@ -197,6 +202,49 @@ int cmm_thunk_cancel(mc_socket_t sock, u_long label,
 int cmm_get_failure_timeout(mc_socket_t sock, u_long label, struct timespec *ts);
 int cmm_set_failure_timeout(mc_socket_t sock, u_long label, const struct timespec *ts);
 
+typedef void *instruments_context_t;
+struct intnw_network_strategy;
+typedef struct intnw_network_strategy * intnw_network_strategy_t;
+
+/* Retrieve the strategy that IntNW will currently use when selecting
+ * a network or networks.  For a typical phone, this is "cellular", "wifi", or both.
+ * This strategy can then be passed to cmm_estimate_transfer_time 
+ * to compose a higher-level application's strategy; e.g.
+ * remote-exec is local or remote or both, and remote/both is composed from
+ * the IntNW-based transfer time/energy/data estimates.
+ *
+ * Note: this also grabs a lock, so that the strategy will not change
+ *  while performing external calculations.  Caller must release this lock
+ *  when finished by calling cmm_free_network_strategy.
+ */
+intnw_network_strategy_t
+cmm_get_network_strategy(mc_socket_t sock, instruments_context_t context);
+
+/* Frees the opaque handle to IntNW's current network strategy and releases its lock.
+ */
+void
+cmm_free_network_strategy(mc_socket_t sock, intnw_network_strategy_t strategy);
+
+/* Estimate the time (seconds) it will take to deliver datalen bytes on this socket.
+ * This is time to receive the ACK for all the data, so it always includes
+ * one full roundtrip.
+ */
+double cmm_estimate_transfer_time(mc_socket_t sock, 
+                                  intnw_network_strategy_t strategy, 
+                                  size_t datalen);
+
+/* same as above, but for energy and cellular data. */
+double cmm_estimate_transfer_energy(mc_socket_t sock, 
+                                    intnw_network_strategy_t strategy, 
+                                    size_t datalen);
+double cmm_estimate_transfer_data(mc_socket_t sock, 
+                                  intnw_network_strategy_t strategy, 
+                                  size_t datalen);
+
+
+/* return the configured eval method. */
+EvalMethod cmm_get_estimator_error_eval_method();
+
 #ifdef __cplusplus
 }
 #endif
@@ -212,6 +260,7 @@ void delete_arg(void *victim)
     T *real_victim = (T*)victim;
     delete real_victim;
 }
+
 #endif
 
 #endif

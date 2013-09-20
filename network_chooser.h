@@ -8,6 +8,8 @@
 #include "libcmm.h"
 #include "csocket.h"
 
+#include <instruments.h>
+
 class PendingSenderIROB;
 class RedundancyStrategy;
 class NetworkChooserImpl;
@@ -39,6 +41,19 @@ class NetworkChooserGuard {
     bool choose_networks(u_long send_label, size_t num_bytes,
                          struct net_interface& local_iface,
                          struct net_interface& remote_iface);
+
+    
+    instruments_strategy_t getChosenStrategy();
+    
+    double getEstimatedTransferTime(instruments_context_t context, 
+                                    instruments_strategy_t strategy,
+                                    size_t bytes);
+    double getEstimatedTransferEnergy(instruments_context_t context, 
+                                      instruments_strategy_t strategy,
+                                      size_t bytes);
+    double getEstimatedTransferData(instruments_context_t context, 
+                                    instruments_strategy_t strategy,
+                                    size_t bytes);
 
     ~NetworkChooserGuard();
   private:

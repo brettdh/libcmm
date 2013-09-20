@@ -2797,3 +2797,51 @@ CMMSocketImpl::mc_num_networks()
     PthreadScopedLock lock(&scheduling_state_lock);
     return csock_map->count();
 }
+
+struct intnw_network_strategy {
+    instruments_context_t ctx;
+    GuardedNetworkChooser chooser;
+    instruments_strategy_t strategy;
+
+    intnw_network_strategy(instruments_context_t ctx_, GuardedNetworkChooser chooser_) 
+        : ctx(ctx_), chooser(chooser_), strategy(chooser->getChosenStrategy()) {}
+};
+
+intnw_network_strategy_t
+CMMSocketImpl::mc_get_network_strategy(instruments_context_t ctx)
+{
+    return new intnw_network_strategy(ctx, csock_map->get_network_chooser()->getGuardedChooser());
+}
+
+void
+CMMSocketImpl::mc_free_network_strategy(intnw_network_strategy_t strategy)
+{
+    delete strategy;
+}
+
+double
+CMMSocketImpl::mc_estimate_transfer_time(intnw_network_strategy_t opaque_strategy, 
+                                         size_t datalen)
+{
+    instruments_context_t ctx = opaque_strategy->ctx;
+    return opaque_strategy->chooser->getEstimatedTransferTime(ctx, opaque_strategy->strategy, 
+                                                              datalen);
+}
+
+double
+CMMSocketImpl::mc_estimate_transfer_energy(intnw_network_strategy_t opaque_strategy, 
+                                           size_t datalen)
+{
+    instruments_context_t ctx = opaque_strategy->ctx;
+    return opaque_strategy->chooser->getEstimatedTransferEnergy(ctx, opaque_strategy->strategy, 
+                                                                datalen);
+}
+
+double
+CMMSocketImpl::mc_estimate_transfer_data(intnw_network_strategy_t opaque_strategy, 
+                                         size_t datalen)
+{
+    instruments_context_t ctx = opaque_strategy->ctx;
+    return opaque_strategy->chooser->getEstimatedTransferData(ctx, opaque_strategy->strategy, 
+                                                              datalen);
+}

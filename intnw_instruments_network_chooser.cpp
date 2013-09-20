@@ -668,6 +668,47 @@ IntNWInstrumentsNetworkChooser::getCurrentWifiDuration()
     return 0.0;
 }
 
+instruments_strategy_t
+IntNWInstrumentsNetworkChooser::getChosenStrategy()
+{
+    // we're holding this chooser's lock (only accessible via GuardedNetworkChooser
+    if (chosen_strategy_type != -1) {
+        return strategies[chosen_strategy_type];
+    } else if (chosen_singular_strategy_type != -1) {
+        return strategies[chosen_singular_strategy_type];
+    } else {
+        // this shouldn't happen, because IntNW should choose a strategy
+        //  at the beginning, and after that, reset + re-choose is atomic.
+        dbgprintf("WARNING! BAD! IntNW hasn't chosen a strategy yet.\n");
+        ASSERT(false);
+        return nullptr;
+    }
+}
+
+double
+IntNWInstrumentsNetworkChooser::getEstimatedTransferTime(instruments_context_t context, 
+                                                         instruments_strategy_t strategy,
+                                                         size_t bytes)
+{
+    return calculate_strategy_time(context, strategy, (void *) bytes);
+}
+
+double
+IntNWInstrumentsNetworkChooser::getEstimatedTransferEnergy(instruments_context_t context, 
+                                                           instruments_strategy_t strategy,
+                                                           size_t bytes)
+{
+    return calculate_strategy_energy(context, strategy, (void *) bytes);
+}
+
+double
+IntNWInstrumentsNetworkChooser::getEstimatedTransferData(instruments_context_t context, 
+                                                         instruments_strategy_t strategy,
+                                                         size_t bytes)
+{
+    return calculate_strategy_data(context, strategy, (void *) bytes);
+}
+
 void
 IntNWInstrumentsNetworkChooser::setRedundancyStrategy()
 {

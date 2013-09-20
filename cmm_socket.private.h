@@ -137,6 +137,13 @@ class CMMSocketImpl : public CMMSocket {
 
     virtual int mc_num_networks();
     
+    virtual intnw_network_strategy_t mc_get_network_strategy(instruments_context_t ctx);
+    virtual void mc_free_network_strategy(intnw_network_strategy_t);
+    
+    virtual double mc_estimate_transfer_time(intnw_network_strategy_t strategy, size_t datalen);
+    virtual double mc_estimate_transfer_energy(intnw_network_strategy_t strategy, size_t datalen);
+    virtual double mc_estimate_transfer_data(intnw_network_strategy_t strategy, size_t datalen);
+    
   private:
     // XXX: WHAT.  this is kind of silly.
     // TODO: refactor the boundaries between these classes
@@ -415,6 +422,13 @@ class CMMSocketPassThrough : public CMMSocket {
     virtual int mc_set_failure_timeout(u_long label, const struct timespec *ts);
 
     virtual int mc_num_networks();
+
+    virtual intnw_network_strategy_t mc_get_network_strategy(instruments_context_t);
+    virtual void mc_free_network_strategy(intnw_network_strategy_t);
+    
+    virtual double mc_estimate_transfer_time(intnw_network_strategy_t strategy, size_t datalen);
+    virtual double mc_estimate_transfer_energy(intnw_network_strategy_t strategy, size_t datalen);
+    virtual double mc_estimate_transfer_data(intnw_network_strategy_t strategy, size_t datalen);
   private:
     mc_socket_t sock;
 };

@@ -26,6 +26,15 @@ public class MultiSocket extends Socket {
         SocketAddress remoteAddr = new InetSocketAddress(host, port);
         connect(remoteAddr);
     }
+    
+    /**
+     * Returns this multisocket's integer file descriptor, so that it can be passed
+     * to JNI code for further use.
+     * @return integer file descriptor for this multisocket
+     */
+    public int getFileDescriptor() {
+        return msock_fd;
+    }
 
     @Override
     public void bind(SocketAddress localAddr) throws IOException {

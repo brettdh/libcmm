@@ -68,6 +68,18 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
     //  specified by /etc/cmm_config (if specified)
     void saveToFile();
 
+    virtual instruments_strategy_t getChosenStrategy();
+
+    virtual double getEstimatedTransferTime(instruments_context_t context, 
+                                            instruments_strategy_t strategy,
+                                            size_t bytes);
+    virtual double getEstimatedTransferEnergy(instruments_context_t context, 
+                                              instruments_strategy_t strategy,
+                                              size_t bytes);
+    virtual double getEstimatedTransferData(instruments_context_t context, 
+                                            instruments_strategy_t strategy,
+                                            size_t bytes);
+    
   protected:
     virtual void setRedundancyStrategy();
     

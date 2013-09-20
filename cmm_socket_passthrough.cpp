@@ -171,3 +171,33 @@ CMMSocketPassThrough::mc_num_networks()
     //  the answer is obviously 1.
     return 1;
 }
+
+
+intnw_network_strategy_t
+CMMSocketPassThrough::mc_get_network_strategy(instruments_context_t ctx)
+{
+    return nullptr;
+}
+
+void
+CMMSocketPassThrough::mc_free_network_strategy(intnw_network_strategy_t)
+{
+}
+
+double
+CMMSocketPassThrough::mc_estimate_transfer_time(intnw_network_strategy_t strategy, size_t datalen)
+{
+    return 0.0;
+}
+
+double
+CMMSocketPassThrough::mc_estimate_transfer_energy(intnw_network_strategy_t strategy, size_t datalen)
+{
+    return 0.0;
+}
+
+double
+CMMSocketPassThrough::mc_estimate_transfer_data(intnw_network_strategy_t strategy, size_t datalen)
+{
+    return 0.0;
+}

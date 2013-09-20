@@ -114,6 +114,37 @@ NetworkChooserGuard::choose_networks(u_long send_label, size_t num_bytes,
     return result;
 }
 
+
+instruments_strategy_t 
+NetworkChooserGuard::getChosenStrategy()
+{
+    return chooser->impl->getChosenStrategy();
+}
+
+double 
+NetworkChooserGuard::getEstimatedTransferTime(instruments_context_t context, 
+                                              instruments_strategy_t strategy,
+                                              size_t bytes)
+{
+    return chooser->impl->getEstimatedTransferTime(context, strategy, bytes);
+}
+
+double 
+NetworkChooserGuard::getEstimatedTransferEnergy(instruments_context_t context, 
+                                                instruments_strategy_t strategy,
+                                                size_t bytes)
+{
+    return chooser->impl->getEstimatedTransferEnergy(context, strategy, bytes);
+}
+
+double 
+NetworkChooserGuard::getEstimatedTransferData(instruments_context_t context, 
+                                              instruments_strategy_t strategy,
+                                              size_t bytes)
+{
+    return chooser->impl->getEstimatedTransferData(context, strategy, bytes);
+}
+
 void 
 NetworkChooser::reportNetStats(int network_type,
                                double new_bw,
