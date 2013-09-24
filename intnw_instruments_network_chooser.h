@@ -85,6 +85,7 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
     
   private:
     bool wifi_present;
+    bool cellular_present;
     struct timeval wifi_begin;
     
     bool needs_reevaluation;

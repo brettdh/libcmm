@@ -231,7 +231,8 @@ IntNWInstrumentsNetworkChooser::calculateTransferMobileData(instruments_context_
 
 
 IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
-    : wifi_present(false), needs_reevaluation(true), chosen_strategy_type(-1), chosen_singular_strategy_type(-1)
+    : wifi_present(false), cellular_present(false),
+      needs_reevaluation(true), chosen_strategy_type(-1), chosen_singular_strategy_type(-1)
 {
     dbgprintf("creating InstrumentsNetworkChooser %p\n", this);
 
@@ -314,10 +315,21 @@ choose_networks(u_long send_label, size_t num_bytes,
     }
 
     ASSERT(has_match);
+    ASSERT(wifi_present || cellular_present);
     
     if (!wifi_present) {
+        chosen_singular_strategy_type = NETWORK_CHOICE_CELLULAR;
+        chosen_strategy_type = NETWORK_CHOICE_CELLULAR;
         local_iface = cellular_local;
         remote_iface = cellular_remote;
+        return true;
+    }
+
+    if (!cellular_present) {
+        chosen_singular_strategy_type = NETWORK_CHOICE_WIFI;
+        chosen_strategy_type = NETWORK_CHOICE_WIFI;
+        local_iface = wifi_local;
+        remote_iface = wifi_remote;
         return true;
     }
 
@@ -361,6 +373,7 @@ IntNWInstrumentsNetworkChooser::consider(struct net_interface local_iface,
         wifi_local = local_iface;
         wifi_remote = remote_iface;
     } else if (matches_type(NET_TYPE_THREEG, local_iface, remote_iface)) {
+        cellular_present = true;
         cellular_local = local_iface;
         cellular_remote = remote_iface;
     } else ASSERT(false);
@@ -371,6 +384,7 @@ IntNWInstrumentsNetworkChooser::reset()
 {
     NetworkChooserImpl::reset();
     wifi_present = false;
+    cellular_present = false;
     needs_reevaluation = true;
     chosen_strategy_type = -1;
     chosen_singular_strategy_type = -1;
