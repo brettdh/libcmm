@@ -2810,6 +2810,9 @@ struct intnw_network_strategy {
 intnw_network_strategy_t
 CMMSocketImpl::mc_get_network_strategy(instruments_context_t ctx)
 {
+    // make sure that we've at least initially chosen some network strategy.
+    csock_map->new_csock_with_labels(CMM_LABEL_ONDEMAND, 1, true);
+    
     return new intnw_network_strategy(ctx, csock_map->get_network_chooser()->getGuardedChooser());
 }
 

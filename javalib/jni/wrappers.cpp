@@ -141,7 +141,7 @@ Java_edu_umich_intnw_SystemCalls_ms_1connect(JNIEnv *jenv, jclass,
         jniThrowIOException(jenv, "Failed to convert socket address");
     }
     if (cmm_connect(msock_fd, (struct sockaddr *)&ss, addrlen) < 0) {
-        jniThrowIOException(jenv, "Failed to connect multisocket");
+        jniThrowIOException(jenv, "Failed to connect multisocket: %s", strerror(errno));
     }
 }
 
