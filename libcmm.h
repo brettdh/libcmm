@@ -10,7 +10,9 @@
  * with the desired characteristics becomes available.
  */
 
+#ifndef BUILDING_SCOUT
 #include <eval_method.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -242,8 +244,10 @@ double cmm_estimate_transfer_data(mc_socket_t sock,
                                   size_t datalen);
 
 
+#ifndef BUILDING_SCOUT
 /* return the configured eval method. */
 EvalMethod cmm_get_estimator_error_eval_method();
+#endif
 
 #ifdef __cplusplus
 }
