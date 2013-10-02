@@ -1900,7 +1900,9 @@ CMMSocketImpl::net_available(mc_socket_t sock,
 bool
 CMMSocketImpl::is_shutting_down()
 {
-    PthreadScopedLock lock(&scheduling_state_lock);
+    //PthreadScopedLock lock(&scheduling_state_lock);
+    
+    // shutting_down is a std::atomic now, so don't need the lock here.
     return shutting_down;
 }
 
@@ -2298,6 +2300,7 @@ CMMSocketImpl::default_irob_writev(irob_id_t next_irob,
 
     char *data = new char[total_bytes];
     ssize_t bytes_copied = 0;
+    dbgprintf("Copying %d bytes into default IROB %ld\n", total_bytes, next_irob);
     for (int i = 0; i < count; ++i) {
         memcpy(data + bytes_copied, vec[i].iov_base, vec[i].iov_len);
         bytes_copied += vec[i].iov_len;
@@ -2305,11 +2308,13 @@ CMMSocketImpl::default_irob_writev(irob_id_t next_irob,
     }
     ASSERT(bytes_copied == total_bytes);
 
+    dbgprintf("Constructing default IROB %ld\n", next_irob);
     PendingSenderIROB *pirob = new PendingSenderIROB(next_irob, 0, NULL,
                                                      total_bytes, data,
                                                      send_labels, 
                                                      resume_handler, rh_arg);
 
+    dbgprintf("Deciding how to send IROB %ld\n", next_irob);
     CSocketPtr csock;
     int rc = validate_default_irob(pirob, csock);
     if (rc < 0) {
@@ -2333,6 +2338,7 @@ int
 CMMSocketImpl::validate_default_irob(PendingSenderIROB *psirob,
                                      CSocketPtr& csock)
 {
+    dbgprintf("Checking whether socket is still alive\n");
     if (is_shutting_down()) {
         dbgprintf("Tried to send default IROB, but mc_socket %d is shutting down\n", 
                   sock);
@@ -2340,6 +2346,7 @@ CMMSocketImpl::validate_default_irob(PendingSenderIROB *psirob,
         return CMM_FAILED;
     }
 
+    dbgprintf("Getting a csock to send IROB %ld on\n", psirob->get_id());
     // checking for thunking here makes sense too; it's separate
     //  from the begin->chunk->end function flow.
     int ret = get_csock(psirob, csock, true);

@@ -4,7 +4,9 @@ INSTRUMENTS_ROOT := ../../../../../../../$(HOME)/src/instruments
 LIBPT_ROOT := ../libpowertutor/cpp_source
 MOCKTIME_ROOT := ../mocktime
 
-common_CFLAGS := -DANDROID -DNDK_BUILD -g -ggdb -O0 -std=gnu++0x -I$(LOCAL_PATH)/.. \
+OPTI := -O3
+
+common_CFLAGS := -DANDROID -DNDK_BUILD -g -ggdb $(OPTI) -std=gnu++0x -I$(LOCAL_PATH)/.. \
 	-I../$(INSTRUMENTS_ROOT)/include -I../$(INSTRUMENTS_ROOT)/src -I$(LIBPT_ROOT)
 
 include $(CLEAR_VARS)
@@ -105,7 +107,7 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := cmm_test_sender
 LOCAL_CFLAGS += $(common_CFLAGS)
-LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -ggdb  -O0 -I$(LOCAL_PATH)/..
+LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -ggdb  $(OPTI) -I$(LOCAL_PATH)/..
 LOCAL_SRC_FILES := $(addprefix ../, libcmm_test_sender.cpp)
 LOCAL_SHARED_LIBRARIES := libcmm liblog libinstruments libpowertutor libmocktime
 LOCAL_LDLIBS := -llog
@@ -119,7 +121,7 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := cmm_test_receiver
 LOCAL_CFLAGS += $(common_CFLAGS)
-LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -ggdb  -O0 -I$(LOCAL_PATH)/..
+LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -ggdb  $(OPTI) -I$(LOCAL_PATH)/..
 LOCAL_SRC_FILES := $(addprefix ../, libcmm_test_receiver.cpp)
 LOCAL_SHARED_LIBRARIES := libcmm liblog libinstruments libpowertutor libmocktime
 LOCAL_LDLIBS := -llog
@@ -133,7 +135,7 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := vanilla_test_sender
 LOCAL_CFLAGS += $(common_CFLAGS)
-LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -ggdb  -O0 -I$(LOCAL_PATH)/..
+LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -ggdb  $(OPTI) -I$(LOCAL_PATH)/..
 LOCAL_SRC_FILES := $(addprefix ../, libcmm_test_sender.cpp timeops.cpp)
 LOCAL_CFLAGS += -DNOMULTISOCK
 LOCAL_STATIC_LIBRARIES := libboost_thread
@@ -150,7 +152,7 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := vanilla_test_receiver
 LOCAL_CFLAGS += $(common_CFLAGS)
-LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -ggdb  -O0 -I$(LOCAL_PATH)/..
+LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -ggdb  $(OPTI) -I$(LOCAL_PATH)/..
 LOCAL_SRC_FILES := $(addprefix ../, libcmm_test_receiver.cpp timeops.cpp)
 LOCAL_SHARED_LIBRARIES := libcmm liblog libinstruments libpowertutor libmocktime
 LOCAL_LDLIBS := -llog
@@ -165,7 +167,7 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := cmm_throughput_test
 LOCAL_CFLAGS += $(common_CFLAGS)
-LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -ggdb  -O0 -I$(LOCAL_PATH)/..
+LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -ggdb  $(OPTI) -I$(LOCAL_PATH)/..
 LOCAL_SRC_FILES := $(addprefix ../, libcmm_throughput_test.cpp)
 LOCAL_SHARED_LIBRARIES := libcmm liblog libinstruments libpowertutor libmocktime
 LOCAL_LDLIBS := -llog
@@ -179,7 +181,7 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)/libcmm_bin
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := vanilla_throughput_test
 LOCAL_CFLAGS += $(common_CFLAGS)
-LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -ggdb  -O0 -I$(LOCAL_PATH)/..
+LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -ggdb  $(OPTI) -I$(LOCAL_PATH)/..
 LOCAL_SRC_FILES := $(addprefix ../, libcmm_throughput_test.cpp timeops.cpp)
 LOCAL_CFLAGS += -DNOMULTISOCK
 LOCAL_SHARED_LIBRARIES := libcmm liblog libinstruments libpowertutor libmocktime

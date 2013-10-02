@@ -16,6 +16,8 @@
 #include <boost/shared_ptr.hpp>
 #include <time.h>
 
+#include <atomic>
+
 #include <arpa/inet.h>
 
 struct BlockingRequest;
@@ -321,7 +323,7 @@ class CMMSocketImpl : public CMMSocket {
 
     /* true iff the socket has begun shutting down 
      * via shutdown() or close(). */
-    bool shutting_down;
+    std::atomic<bool> shutting_down;
     bool remote_shutdown; /* true if remote has ack'd the shutdown */
     bool goodbye_sent;
     
