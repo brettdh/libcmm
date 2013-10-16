@@ -169,6 +169,13 @@ PendingIROB::subsume(PendingIROB *other)
     complete = other->complete;
 }
 
+bool 
+PendingIROB::can_be_redundant()
+{
+    return (send_labels & CMM_LABEL_ONDEMAND &&
+            send_labels & CMM_LABEL_SMALL);
+}
+
 PendingIROBLattice::PendingIROBLattice()
     : offset(0), last_anon_irob_id(-1), count(0)
 {
@@ -509,3 +516,4 @@ PendingIROBLattice::irob_was_dropped(irob_id_t irob_id)
 {
     return dropped_irobs.contains(irob_id);
 }
+

@@ -96,6 +96,8 @@ class CSockMapping {
     void pass_request_to_all_senders(PendingSenderIROB *psirob,
                                      const IROBSchedulingData& data);
 
+    bool shouldReevaluate(PendingSenderIROB *psirob);
+
     // to be called from async callback.
     void onRedundancyDecision(const IROBSchedulingData& data,
                               int singular_type, int redundant_type);

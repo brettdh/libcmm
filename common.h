@@ -11,6 +11,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
+#include <string>
+#include <sstream>
 
 #include <arpa/inet.h>
 
@@ -96,5 +98,11 @@ class StringifyIP {
   private:
     char buffer[INET_ADDRSTRLEN + 1];
 };
+
+int
+modify_bits_string(int value, int mask, const char *str,
+                   std::ostringstream& msg);
+
+std::string describe_labels(u_long send_labels);
 
 #endif

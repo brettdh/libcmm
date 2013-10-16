@@ -75,6 +75,7 @@ class PendingIROB {
 
     irob_id_t get_id() { return id; }
     u_long get_send_labels() { return send_labels; }
+    bool can_be_redundant();
     int get_status() { return status; }
     void set_status(int new_status) { status = new_status; }
     bool is_placeholder() { return placeholder; }

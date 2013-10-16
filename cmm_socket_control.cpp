@@ -49,41 +49,10 @@ irob_chunk_data::operator<(const struct irob_chunk_data& other) const
             (id == other.id && seqno < other.seqno));
 }
 
-int
-modify_bits_string(int value, int mask, const char *str,
-                   std::ostringstream& msg)
-{
-    if (value & mask) {
-        msg << str;
-        value &= ~mask;
-        if (value) {
-            msg << ",";
-        }
-    }
-    return value;
-}
-
 std::string
 CMMSocketControlHdr::labels_str() const
 {
-    static const char *strs[] = {
-        "FG", "BG", "SMALL", "LARGE"
-    };
-    std::ostringstream msg;
-    int h_labels = ntohl(send_labels);
-    for (int i = 0; i < 4; ++i) {
-        int label_mask = 1 << (i + 2); // labels are 4, 8, 16, 32
-        h_labels = modify_bits_string(h_labels, label_mask, strs[i], msg);
-    }
-    
-    static const char *net_restriction_strs[] = {
-        "WIFI_ONLY", "3G_ONLY"
-    };
-    for (int i = 0; i < 2; ++i) {
-        int label_mask = 1 << (NET_RESTRICTION_LABEL_SHIFT + i);
-        h_labels = modify_bits_string(h_labels, label_mask, net_restriction_strs[i], msg);
-    }
-    return msg.str();
+    return describe_labels(ntohl(send_labels));
 }
 
 std::string

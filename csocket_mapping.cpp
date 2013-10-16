@@ -706,10 +706,9 @@ CSockMapping::check_redundancy(PendingSenderIROB *psirob,
         return;
     }
     
-    u_long send_labels = psirob->get_send_labels();
-    if (!(send_labels & CMM_LABEL_ONDEMAND &&
-          send_labels & CMM_LABEL_SMALL)) {
-        dbgprintf("IROB %ld is not (FG & SMALL); no redundancy\n", id);
+    if (!psirob->can_be_redundant()) {
+        dbgprintf("IROB %ld labels (%s) preclude redundancy\n", 
+                  id, describe_labels(psirob->get_send_labels()).c_str());
         return;
     }
 
@@ -911,11 +910,18 @@ CSockMapping::onRedundancyDecision(const IROBSchedulingData& data,
         pthread_cond_broadcast(&skp->scheduling_state_cv);
         psirob->onReevaluationDone();
     } else {
-        if (Config::getInstance()->getPeriodicReevaluationEnabled() &&
-            count_connected() > 1) {
+        if (shouldReevaluate(psirob)) {
             network_chooser->scheduleReevaluation(this, psirob, data);
         }
     }
+}
+
+bool
+CSockMapping::shouldReevaluate(PendingSenderIROB *psirob)
+{
+    return (psirob->can_be_redundant() &&
+            count_connected() > 1 && 
+            Config::getInstance()->getPeriodicReevaluationEnabled());
 }
 
 void
