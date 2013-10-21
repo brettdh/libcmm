@@ -24,7 +24,7 @@ using std::make_pair;
 #include "intnw_instruments_network_chooser.h"
 #include "irob_scheduling.h"
 
-#include "config.h"
+#include "intnw_config.h"
 
 using std::unique_ptr;
 using std::pair;

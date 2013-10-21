@@ -58,7 +58,7 @@ TESTOBJS := pending_irob_test.o lattice_test.o intset_test.o \
 	    pthread_util_test.o net_interface_test.o util_test.o \
 	    estimation_test.o 
 SUPPORTOBJS := pending_irob.o intset.o testing_debug.o  pending_receiver_irob.o \
-	       pending_sender_irob.o timeops.o net_stats.o estimate.o \
+	       pending_sender_irob.o timeops.o net_stats.o \
 	       test_common.o testing_debug.o  net_interface.o irob_scheduling.o common.o \
 	       csocket.o redundancy_strategy.o  \
 		   cmm_socket_control.o libcmm_net_restriction.o
@@ -67,7 +67,7 @@ SUPPORTOBJS := pending_irob.o intset.o testing_debug.o  pending_receiver_irob.o 
 
 run_unit_tests:: shmem_test_helper
 run_unit_tests:: run_all_tests_unit.o StdioOutputter.o $(TESTOBJS) $(SUPPORTOBJS)
-	g++ -o $@ $^ $(CXXFLAGS) -DCMM_UNIT_TESTING $(LDFLAGS)
+	g++ -o $@ $^ $(CXXFLAGS) -DCMM_UNIT_TESTING $(LDFLAGS) -lflipflop
 
 LIBTESTOBJS:=end_to_end_tests_base.o end_to_end_tests_forked.o forked_tests.o
 

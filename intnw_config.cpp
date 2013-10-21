@@ -1,4 +1,17 @@
 #include "intnw_config.h"
+#include "debug.h"
+
+#include <map>
+#include <set>
+#include <string>
+#include <vector>
+#include <fstream>
+#include <sstream>
+#include <algorithm>
+using std::string; using std::ifstream;
+using std::map; using std::set; using std::vector;
+using std::istringstream; using std::ostringstream;
+using std::for_each;
 
 const char *CONFIG_FILE = "/etc/cmm_config";
 
@@ -11,7 +24,7 @@ static const string PERIODIC_REEVALUATION_ENABLED_KEY = "periodic_reevaluation";
 // if set, only applies to prob-bounds.
 static const string DISABLE_BANDWIDTH_ERROR_KEY = "disable_bandwidth_error";
 
-static vector<string> boolean_option_keys = {
+static vector<string> my_boolean_option_keys = {
     DEBUG_OUTPUT_KEY,
     USE_BREADCRUMBS_ESTIMATES_KEY,
     RECORD_FAILOVER_LATENCY_KEY,
@@ -31,14 +44,12 @@ static const string NETWORK_STATS_LOAD_FILE_KEY = "load_network_stats";
 static const string ESTIMATOR_ERROR_EVAL_METHOD   = "estimator_error_eval_method";
 static const string INSTRUMENTS_DEBUG_LEVEL   = "instruments_debug_level";
 
-static vector<string> unconstrained_string_option_keys = {
+static vector<string> my_unconstrained_string_option_keys = {
     ESTIMATOR_ERROR_SAVE_FILE_KEY,
     ESTIMATOR_ERROR_LOAD_FILE_KEY,
     NETWORK_STATS_SAVE_FILE_KEY,
     NETWORK_STATS_LOAD_FILE_KEY,
 };
-
-static map<string, set<string> > string_option_constraints;
 
 static map<string, instruments_debug_level_t> instruments_debug_levels = {
     {"none", INSTRUMENTS_DEBUG_LEVEL_NONE},
@@ -53,7 +64,7 @@ static const string WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE_KEY =
     "weibull_wifi_session_length_distribution_scale";
 static const string WIFI_FAILOVER_DELAY_KEY = "wifi_failover_delay";
 
-static vector<string> double_option_keys = {
+static vector<string> my_double_option_keys = {
     WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE_KEY,
     WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE_KEY, 
     WIFI_FAILOVER_DELAY_KEY
@@ -68,7 +79,7 @@ static const string CELLULAR_RTT_RANGE_HINTS              = "cellular_rtt_range_
 static const string WIFI_SESSION_DURATION_RANGE_HINTS     = "wifi_session_duration_range_hints";
 static const string CELLULAR_SESSION_DURATION_RANGE_HINTS = "cellular_session_duration_range_hints";
 
-static vector<string> range_hints_option_keys = {
+static set<string> my_range_hints_option_keys = {
     WIFI_BANDWIDTH_RANGE_HINTS,
     WIFI_RTT_RANGE_HINTS,
     CELLULAR_BANDWIDTH_RANGE_HINTS,
@@ -77,10 +88,13 @@ static vector<string> range_hints_option_keys = {
     CELLULAR_SESSION_DURATION_RANGE_HINTS,
 };
 
-static Config& getInstance()
+Config *Config::instance = nullptr;
+
+Config *Config::getInstance()
 {
     if (!instance) {
-        instance = configumerator::getInstance(factory);
+        instance = new Config;
+        instance->loadConfig(CONFIG_FILE);
     }
     return instance;
 }
@@ -88,17 +102,22 @@ static Config& getInstance()
 void
 Config::setup()
 {
-    for (const string& name : boolean_option_keys) {
+    for (const string& name : my_boolean_option_keys) {
         registerBooleanOption(name);
     }
-
+    for (const string& name : my_double_option_keys) {
+        registerDoubleOption(name);
+    }
+    for (const string& name : my_unconstrained_string_option_keys) {
+        registerStringOption(name);
+    }
     
-    registerStringOption(ESTIMATOR_ERROR_EVAL_METHOD, get_all_method_names());
-    registerStringOption(INSTRUMENTS_DEBUG_LEVEL,
+    registerStringOption(ESTIMATOR_ERROR_EVAL_METHOD, get_method_name(TRUSTED_ORACLE), get_all_method_names());
+    registerStringOption(INSTRUMENTS_DEBUG_LEVEL, "info",
                          {"none", "error", "info", "debug"});
-
-
-    string_options[ESTIMATOR_ERROR_EVAL_METHOD] = get_method_name(TRUSTED_ORACLE);
+    
+    using namespace std::placeholders;
+    registerOptionReader(bind(&Config::readRangeHintsOption, this, _1, _2), &my_range_hints_option_keys);
 }
 
 void
@@ -114,7 +133,7 @@ Config::checkBayesianParamsValid()
 {
     bool fail = false;
     if (getEstimatorErrorEvalMethod() == BAYESIAN) {
-        for (const string& key : range_hints_option_keys) {
+        for (const string& key : my_range_hints_option_keys) {
             if (range_hints_options.count(key) == 0) {
                 dbgprintf_always("[config] Error: bayesian method requires %s option\n", key.c_str());
                 fail = true;
@@ -129,7 +148,7 @@ Config::checkBayesianParamsValid()
 void
 Config::setInstrumentsDebugLevel()
 {
-    if (string_options.count(INSTRUMENTS_DEBUG_LEVEL) > 0) {
+    if (hasString(INSTRUMENTS_DEBUG_LEVEL)) {
         instruments_debug_level_t level = instruments_debug_levels[getString(INSTRUMENTS_DEBUG_LEVEL)];
         instruments_set_debug_level(level);
     }
@@ -138,8 +157,9 @@ Config::setInstrumentsDebugLevel()
 void
 Config::checkWifiSessionDistributionParamsValid()
 {
-    if (double_options.count(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE_KEY) !=
-        double_options.count(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE_KEY)) {
+    bool has_shape = hasDouble(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE_KEY);
+    bool has_scale = hasDouble(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE_KEY);
+    if (has_shape != has_scale) {
         dbgprintf_always("[config] error: need both shape and scale for weibull distribution\n");
         exit(EXIT_FAILURE);
     }
@@ -208,6 +228,35 @@ Config::getEstimatorErrorEvalMethod()
     return get_method(name.c_str());
 }
 
+void
+Config::readRangeHintsOption(const string& line, const string& key)
+{
+    string dummy;
+    istringstream iss(line);
+    EstimatorRangeHints hints;
+    if (!(iss >> dummy >> hints.min >> hints.max >> hints.num_bins)) {
+        dbgprintf_always("[config] failed to parse number from line: \"%s\"\n", line.c_str());
+        exit(EXIT_FAILURE);
+    }
+
+    vector<size_t> precision;
+    istringstream precision_iss(line);
+    precision_iss >> dummy;
+    for (size_t i = 0; i < 2; ++i) {
+        string value;
+        precision_iss >> value;
+        ASSERT(precision_iss);
+        precision.push_back(value.length());
+    }
+
+    dbgprintf_always("[config] %s=[min=%.*f, max=%.*f, num_bins=%zu]\n", 
+                     key.c_str(), 
+                     precision[0], hints.min,
+                     precision[1], hints.max,
+                     hints.num_bins);
+    range_hints_options[key] = hints;
+}
+
 EstimatorRangeHints
 Config:: getWifiBandwidthRangeHints()
 {
@@ -247,11 +296,11 @@ Config::getCellularSessionDurationRangeHints()
 bool 
 Config::getWifiSessionLengthDistributionParams(double& shape, double& scale)
 {
-    if (double_options.count(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE_KEY) > 0 &&
-        double_options.count(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE_KEY) > 0) {
+    if (hasDouble(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE_KEY) &&
+        hasDouble(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE_KEY)) {
         
-        shape = double_options[WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE_KEY];
-        scale = double_options[WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE_KEY];
+        shape = getDouble(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SHAPE_KEY);
+        scale = getDouble(WEIBULL_WIFI_SESSION_LENGTH_DISTRIBUTION_SCALE_KEY);
         return true;
     }
     return false;
@@ -260,5 +309,5 @@ Config::getWifiSessionLengthDistributionParams(double& shape, double& scale)
 double
 Config::getWifiFailoverDelay()
 {
-    return double_options[WIFI_FAILOVER_DELAY_KEY];
+    return getDouble(WIFI_FAILOVER_DELAY_KEY);
 }

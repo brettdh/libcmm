@@ -3,7 +3,7 @@
 #include "intnw_instruments_net_stats_wrapper.h"
 #include "libcmm_net_restriction.h"
 #include "debug.h"
-#include "config.h"
+#include "intnw_config.h"
 #include "csocket_mapping.h"
 #include "pending_sender_irob.h"
 #include "timeops.h"

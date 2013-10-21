@@ -1,5 +1,5 @@
 #include "debug.h"
-#include "config.h"
+#include "intnw_config.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <errno.h>

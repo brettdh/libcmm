@@ -1,7 +1,7 @@
 #include "intnw_net_stats_wrapper.h"
 #include "intnw_instruments_net_stats_wrapper.h"
 #include "debug.h"
-#include "config.h"
+#include "intnw_config.h"
 
 #include <instruments_private.h>
 

@@ -1,13 +1,13 @@
 #pragma once
 
-#include <configumerator.h>
+#include "config.h"
 #include <instruments.h>
 #include <instruments_private.h>
 
 
 class Config : public configumerator::Config {
   public:
-    static ::Config& getInstance();
+    static ::Config *getInstance();
 
     bool getDebugOn();
     bool getUseBreadcrumbsEstimates();
@@ -50,4 +50,6 @@ class Config : public configumerator::Config {
     void checkBayesianParamsValid();
     void checkWifiSessionDistributionParamsValid();
     void setInstrumentsDebugLevel();
+
+    static Config *instance;
 };

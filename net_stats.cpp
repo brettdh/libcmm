@@ -7,7 +7,7 @@
 #include "libcmm_net_restriction.h"
 #include "network_chooser.h"
 #ifndef CMM_UNIT_TESTING
-#include "config.h"
+#include "intnw_config.h"
 #endif
 
 // tcp.h is temperamental.

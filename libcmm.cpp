@@ -27,7 +27,7 @@ using std::unique_ptr;
 #include "libcmm_net_restriction.h"
 #include "pending_irob.h"
 #include "debug.h"
-#include "config.h"
+#include "intnw_config.h"
 
 #include "cmm_timing.h"
 #include "pthread_util.h"

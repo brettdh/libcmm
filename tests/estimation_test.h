@@ -6,8 +6,10 @@
 #include "net_stats.h"
 #include <string>
 
+#include "flipflop_estimate.h"
+
 class EstimationTest : public CppUnit::TestFixture {
-    Estimate *estimate;
+    FlipFlopEstimate *estimate;
     QueuingDelay *delays;
     NetStats *stats;
     NetStats *other_stats;

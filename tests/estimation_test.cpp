@@ -14,7 +14,7 @@ CPPUNIT_TEST_SUITE_REGISTRATION(EstimationTest);
 void
 EstimationTest::setUp()
 {
-    estimate = new Estimate("test");
+    estimate = new FlipFlopEstimate("test");
     delays = new QueuingDelay;
 
     struct net_interface dummy;

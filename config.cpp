@@ -1,4 +1,4 @@
-#include "config.h"
+#include "intnw_config.h"
 #include "debug.h"
 
 #include <instruments.h>    
@@ -30,59 +30,60 @@ static string get_param(const string& line, const string& name)
     return line.substr(name.length() + 1);
 }
 
-Config::Config(string filename_)
-    : filename(filename_)
+configumerator::Config::Config()
 {
 }
 
-void Config::loadConfig()
+void configumerator::Config::loadConfig(const string& filename)
 {
     setup();
-    readFile();
+    readFile(filename);
     validate();
 }
 
 void
-Config::registerOptionReader(decltype(&Config::readBooleanOption) reader, 
-                             decltype(boolean_option_keys)& keys)
+configumerator::Config::registerOptionReader(std::function<void(const std::string&, const std::string&)> reader,
+                                             decltype(boolean_option_keys) *keys)
 {
-    readers[reader] = keys;
+    auto p = make_pair(reader, keys);
+    readers.push_back(p);
 }
 
 void
-Config::registerBooleanOption(const string& name, bool default_value=false)
+configumerator::Config::registerBooleanOption(const string& name, bool default_value)
 {
     boolean_option_keys.insert(name);
-    boolean_options[name] = default_value);
+    boolean_options[name] = default_value;
 }
 
 
 void
-Config::registerStringOption(const string& name, const string& default_value="", const set<string>& constraints = {})
+configumerator::Config::registerStringOption(const string& name, const string& default_value, const set<string>& constraints)
 {
     string_option_keys.insert(name);
     if (!constraints.empty()) {
         string_option_constraints[name] = constraints;
     }
     checkStringConstraints(name, default_value);
-    string_options[name] = default_value
+    string_options[name] = default_value;
 }
 
 void
-Config::registerDoubleOption(const string& name, double default_value=0.0)
+configumerator::Config::registerDoubleOption(const string& name, double default_value)
 {
     double_option_keys.insert(name);
     double_options[name] = default_value;
 }
 
 void
-Config::load()
+configumerator::Config::readFile(const string& filename)
 {
-    registerOptionReader(&Config::readBooleanOption, boolean_option_keys);
-    registerOptionReader(&Config::readStringOption, string_option_keys);
-    registerOptionReader(&Config::readDoubleOption, double_option_keys);
+    using namespace std::placeholders; // _1, _2, ..
+    registerOptionReader(bind(&Config::readBooleanOption, this, _1, _2), &boolean_option_keys);
+    registerOptionReader(bind(&Config::readStringOption, this, _1, _2), &string_option_keys);
+    registerOptionReader(bind(&Config::readDoubleOption, this, _1, _2), &double_option_keys);
     
-    ifstream config_input(CONFIG_FILE);
+    ifstream config_input(filename.c_str());
     if (config_input) {
         string line;
         size_t line_num = 0;
@@ -95,10 +96,10 @@ Config::load()
             
             for (auto pair : readers) {
                 auto reader = pair.first;
-                auto& keys = pair.second;
+                auto& keys = *pair.second;
                 for (const string& key : keys) {
                     if (has_param(line, key)) {
-                        (this->*reader)(line, key);
+                        reader(line, key);
                         matched = true;
                     }
                 }
@@ -112,21 +113,21 @@ Config::load()
         config_input.close();
     } else {
         dbgprintf_always("[config] Error: config file not read; couldn't open \"%s\"\n",
-                         CONFIG_FILE);
+                         filename.c_str());
         exit(EXIT_FAILURE);
     }
 }
 
 
 void
-Config::readBooleanOption(const string& line, const string& key)
+configumerator::Config::readBooleanOption(const string& line, const string& key)
 {
     dbgprintf_always("[config] %s=true\n", key.c_str());
     boolean_options[key] = true;
 }
 
 void
-Config::checkStringConstraints(const string& key, const string& value)
+configumerator::Config::checkStringConstraints(const string& key, const string& value)
 {
     if (string_option_constraints.count(key) > 0) {
         auto& constraints = string_option_constraints[key];
@@ -144,45 +145,16 @@ Config::checkStringConstraints(const string& key, const string& value)
 }
 
 void
-Config::readStringOption(const string& line, const string& key)
+configumerator::Config::readStringOption(const string& line, const string& key)
 {
     string value = get_param(line, key);
-    check_string_constraints(key, value);
+    checkStringConstraints(key, value);
     dbgprintf_always("[config] %s=\"%s\"\n", key.c_str(), value.c_str());
     string_options[key] = value;
 }
 
 void
-Config::readRangeHintsOption(const string& line, const string& key)
-{
-    string dummy;
-    istringstream iss(line);
-    EstimatorRangeHints hints;
-    if (!(iss >> dummy >> hints.min >> hints.max >> hints.num_bins)) {
-        dbgprintf_always("[config] failed to parse number from line: \"%s\"\n", line.c_str());
-        exit(EXIT_FAILURE);
-    }
-
-    vector<size_t> precision;
-    istringstream precision_iss(line);
-    precision_iss >> dummy;
-    for (size_t i = 0; i < 2; ++i) {
-        string value;
-        precision_iss >> value;
-        ASSERT(precision_iss);
-        precision.push_back(value.length());
-    }
-
-    dbgprintf_always("[config] %s=[min=%.*f, max=%.*f, num_bins=%zu]\n", 
-                     key.c_str(), 
-                     precision[0], hints.min,
-                     precision[1], hints.max,
-                     hints.num_bins);
-    range_hints_options[key] = hints;
-}
-
-void
-Config::readDoubleOption(const string& line, const string& key)
+configumerator::Config::readDoubleOption(const string& line, const string& key)
 {
     string value_str = get_param(line, key);
 
@@ -198,15 +170,33 @@ Config::readDoubleOption(const string& line, const string& key)
 }
 
 bool
-Config::getBoolean(const string& key)
+configumerator::Config::getBoolean(const string& key)
 {
     // false by default, if unset.
     return boolean_options[key];
 }
 
+bool 
+configumerator::Config::hasString(const std::string& key)
+{
+    return string_options.count(key) > 0;
+}
+
 string
-Config::getString(const string& key)
+configumerator::Config::getString(const string& key)
 {
     // empty by default, if unset.
     return string_options[key];
+}
+
+bool 
+configumerator::Config::hasDouble(const std::string& key)
+{
+    return double_options.count(key) > 0;
+}
+
+double
+configumerator::Config::getDouble(const string& key)
+{
+    return double_options[key];
 }
