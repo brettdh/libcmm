@@ -263,7 +263,7 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
     set_strategy_name(strategies[NETWORK_CHOICE_BOTH], strategy_names[NETWORK_CHOICE_BOTH]);
 
     EvalMethod method = Config::getInstance()->getEstimatorErrorEvalMethod();
-    evaluator = register_strategy_set_with_method(strategies, NUM_STRATEGIES, method);
+    evaluator = register_strategy_set_with_method("IntNW", strategies, NUM_STRATEGIES, method);
 
     if (shouldLoadErrors()) {
         restore_evaluator(evaluator, getLoadErrorsFilename().c_str());
@@ -683,8 +683,16 @@ IntNWInstrumentsNetworkChooser::getCurrentWifiDuration()
 }
 
 instruments_strategy_t
-IntNWInstrumentsNetworkChooser::getChosenStrategy()
+IntNWInstrumentsNetworkChooser::getChosenStrategy(u_long net_restriction_labels)
 {
+    assert(!(net_restriction_labels & CMM_LABEL_WIFI_ONLY) ||
+           !(net_restriction_labels & CMM_LABEL_THREEG_ONLY));
+    if (net_restriction_labels & CMM_LABEL_WIFI_ONLY) {
+        return strategies[NETWORK_CHOICE_WIFI];
+    } else if (net_restriction_labels & CMM_LABEL_THREEG_ONLY) {
+        return strategies[NETWORK_CHOICE_CELLULAR];
+    }
+
     // we're holding this chooser's lock (only accessible via GuardedNetworkChooser
     if (chosen_strategy_type != -1) {
         return strategies[chosen_strategy_type];

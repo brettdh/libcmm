@@ -116,9 +116,9 @@ NetworkChooserGuard::choose_networks(u_long send_label, size_t num_bytes,
 
 
 instruments_strategy_t 
-NetworkChooserGuard::getChosenStrategy()
+NetworkChooserGuard::getChosenStrategy(u_long net_restriction_labels)
 {
-    return chooser->impl->getChosenStrategy();
+    return chooser->impl->getChosenStrategy(net_restriction_labels);
 }
 
 double 

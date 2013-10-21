@@ -222,6 +222,12 @@ typedef struct intnw_network_strategy * intnw_network_strategy_t;
 intnw_network_strategy_t
 cmm_get_network_strategy(mc_socket_t sock, instruments_context_t context);
 
+/* Same as above, but allows explicit restriction to one network or the other.
+ */
+intnw_network_strategy_t
+cmm_get_network_strategy_with_restriction(mc_socket_t sock, instruments_context_t context,
+                                          u_long net_restriction_labels);
+
 /* Frees the opaque handle to IntNW's current network strategy and releases its lock.
  */
 void

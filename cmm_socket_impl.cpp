@@ -2810,17 +2810,19 @@ struct intnw_network_strategy {
     GuardedNetworkChooser chooser;
     instruments_strategy_t strategy;
 
-    intnw_network_strategy(instruments_context_t ctx_, GuardedNetworkChooser chooser_) 
-        : ctx(ctx_), chooser(chooser_), strategy(chooser->getChosenStrategy()) {}
+    intnw_network_strategy(instruments_context_t ctx_, GuardedNetworkChooser chooser_,
+                           u_long net_restriction_labels)
+        : ctx(ctx_), chooser(chooser_), strategy(chooser->getChosenStrategy(net_restriction_labels)) {}
 };
 
 intnw_network_strategy_t
-CMMSocketImpl::mc_get_network_strategy(instruments_context_t ctx)
+CMMSocketImpl::mc_get_network_strategy(instruments_context_t ctx, u_long net_restriction_labels)
 {
     // make sure that we've at least initially chosen some network strategy.
     csock_map->new_csock_with_labels(CMM_LABEL_ONDEMAND, 1, true);
     
-    return new intnw_network_strategy(ctx, csock_map->get_network_chooser()->getGuardedChooser());
+    return new intnw_network_strategy(ctx, csock_map->get_network_chooser()->getGuardedChooser(),
+                                      net_restriction_labels);
 }
 
 void

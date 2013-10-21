@@ -60,7 +60,7 @@ class NetworkChooserImpl {
     virtual void saveToFile() {}
 
     // implement if the chooser uses libinstruments.
-    virtual instruments_strategy_t getChosenStrategy() { return nullptr; }
+    virtual instruments_strategy_t getChosenStrategy(u_long net_restriction_labels) { return nullptr; }
     virtual double getEstimatedTransferTime(instruments_context_t context, 
                                             instruments_strategy_t strategy,
                                             size_t bytes) { return 0.0; }

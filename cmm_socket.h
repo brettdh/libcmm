@@ -78,7 +78,8 @@ class CMMSocket {
 
     virtual int mc_num_networks() = 0;
 
-    virtual intnw_network_strategy_t mc_get_network_strategy(instruments_context_t) = 0;
+    virtual intnw_network_strategy_t mc_get_network_strategy(instruments_context_t xtc, 
+                                                             u_long net_restriction_labels=0) = 0;
     virtual void mc_free_network_strategy(intnw_network_strategy_t strategy) = 0;
 
     virtual double mc_estimate_transfer_time(intnw_network_strategy_t strategy, 

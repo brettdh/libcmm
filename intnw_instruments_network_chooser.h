@@ -68,7 +68,7 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
     //  specified by /etc/cmm_config (if specified)
     void saveToFile();
 
-    virtual instruments_strategy_t getChosenStrategy();
+    virtual instruments_strategy_t getChosenStrategy(u_long net_restriction_labels);
 
     virtual double getEstimatedTransferTime(instruments_context_t context, 
                                             instruments_strategy_t strategy,

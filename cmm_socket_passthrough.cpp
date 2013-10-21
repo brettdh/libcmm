@@ -174,7 +174,7 @@ CMMSocketPassThrough::mc_num_networks()
 
 
 intnw_network_strategy_t
-CMMSocketPassThrough::mc_get_network_strategy(instruments_context_t ctx)
+CMMSocketPassThrough::mc_get_network_strategy(instruments_context_t ctx, u_long net_restriction_labels)
 {
     return nullptr;
 }

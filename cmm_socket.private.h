@@ -139,7 +139,7 @@ class CMMSocketImpl : public CMMSocket {
 
     virtual int mc_num_networks();
     
-    virtual intnw_network_strategy_t mc_get_network_strategy(instruments_context_t ctx);
+    virtual intnw_network_strategy_t mc_get_network_strategy(instruments_context_t ctx, u_long net_restriction_labels);
     virtual void mc_free_network_strategy(intnw_network_strategy_t);
     
     virtual double mc_estimate_transfer_time(intnw_network_strategy_t strategy, size_t datalen);
@@ -425,7 +425,7 @@ class CMMSocketPassThrough : public CMMSocket {
 
     virtual int mc_num_networks();
 
-    virtual intnw_network_strategy_t mc_get_network_strategy(instruments_context_t);
+    virtual intnw_network_strategy_t mc_get_network_strategy(instruments_context_t ctx, u_long net_restriction_labels);
     virtual void mc_free_network_strategy(intnw_network_strategy_t);
     
     virtual double mc_estimate_transfer_time(intnw_network_strategy_t strategy, size_t datalen);

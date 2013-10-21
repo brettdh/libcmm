@@ -43,7 +43,7 @@ class NetworkChooserGuard {
                          struct net_interface& remote_iface);
 
     
-    instruments_strategy_t getChosenStrategy();
+    instruments_strategy_t getChosenStrategy(u_long net_restriction_labels=0);
     
     double getEstimatedTransferTime(instruments_context_t context, 
                                     instruments_strategy_t strategy,

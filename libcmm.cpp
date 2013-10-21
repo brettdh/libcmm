@@ -291,9 +291,17 @@ cmm_estimate_transfer_data(mc_socket_t sock, intnw_network_strategy_t strategy, 
     return CMMSocket::lookup(sock)->mc_estimate_transfer_data(strategy, datalen);
 }
 
-intnw_network_strategy_t cmm_get_network_strategy(mc_socket_t sock, instruments_context_t context)
+intnw_network_strategy_t 
+cmm_get_network_strategy(mc_socket_t sock, instruments_context_t context)
 {
     return CMMSocket::lookup(sock)->mc_get_network_strategy(context);
+}
+
+intnw_network_strategy_t 
+cmm_get_network_strategy_with_restriction(mc_socket_t sock, instruments_context_t context,
+                                          u_long net_restriction_labels)
+{
+    return CMMSocket::lookup(sock)->mc_get_network_strategy(context, net_restriction_labels);
 }
 
 void
