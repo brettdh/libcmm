@@ -49,13 +49,13 @@ LOCAL_SRC_FILES := $(addprefix ../, \
 	cmm_thread.cpp \
 	cmm_timing.cpp \
 	common.cpp \
-	config.cpp \
 	csocket.cpp \
 	csocket_mapping.cpp \
 	csocket_receiver.cpp \
 	csocket_sender.cpp \
 	debug.cpp \
 	flipflop_estimate.cpp \
+	intnw_config.cpp \
 	intnw_instruments_network_chooser.cpp \
 	intnw_instruments_net_stats_wrapper.cpp \
 	intset.cpp \
@@ -205,3 +205,5 @@ include $(CLEAR_VARS)
 # LOCAL_LDLIBS := -llog
 
 # include $(BUILD_EXECUTABLE)
+
+$(call import-module, edu.umich.mobility/configumerator)
