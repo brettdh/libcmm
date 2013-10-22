@@ -11,12 +11,6 @@ common_CFLAGS := -DANDROID -DNDK_BUILD -g -ggdb $(OPTI) -std=gnu++0x -I$(LOCAL_P
 
 include $(CLEAR_VARS)
 
-LOCAL_MODULE=boost_thread
-LOCAL_SRC_FILES := ../android_libs/libboost_thread.a
-include $(PREBUILT_STATIC_LIBRARY)
-
-include $(CLEAR_VARS)
-
 LOCAL_MODULE=instruments
 LOCAL_SRC_FILES := ../$(INSTRUMENTS_ROOT)/obj/local/$(TARGET_ARCH_ABI)/libinstruments.so
 include $(PREBUILT_SHARED_LIBRARY)
@@ -78,8 +72,7 @@ LOCAL_SRC_FILES := $(addprefix ../, \
 	timeops.cpp)
 
 
-LOCAL_STATIC_LIBRARIES := libboost_thread
-LOCAL_STATIC_LIBRARIES += libancillary
+LOCAL_STATIC_LIBRARIES += libancillary configumerator
 LOCAL_SHARED_LIBRARIES := libinstruments libpowertutor libmocktime
 LOCAL_LDLIBS := -llog
 LOCAL_PRELINK_MODULE := false
@@ -138,7 +131,6 @@ LOCAL_CFLAGS += $(common_CFLAGS)
 LOCAL_CFLAGS += -DANDROID -DNDK_BUILD -DCMM_DEBUG -g -ggdb  $(OPTI) -I$(LOCAL_PATH)/..
 LOCAL_SRC_FILES := $(addprefix ../, libcmm_test_sender.cpp timeops.cpp)
 LOCAL_CFLAGS += -DNOMULTISOCK
-LOCAL_STATIC_LIBRARIES := libboost_thread
 LOCAL_STATIC_LIBRARIES += libancillary
 LOCAL_SHARED_LIBRARIES := libcmm liblog libinstruments libpowertutor libmocktime
 LOCAL_LDLIBS := -llog
@@ -200,7 +192,6 @@ include $(CLEAR_VARS)
 # LOCAL_CFLAGS += $(common_CFLAGS)
 # LOCAL_CFLAGS += -DBUILDING_SCOUT -DANDROID -DNDK_BUILD -I$(LOCAL_PATH)/..
 # LOCAL_C_INCLUDES += $(LOCAL_PATH)/../
-# LOCAL_STATIC_LIBRARIES := libboost_thread
 # LOCAL_SHARED_LIBRARIES := liblog
 # LOCAL_LDLIBS := -llog
 

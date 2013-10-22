@@ -20,7 +20,8 @@
         }                                               \
     } while (0)
 
-#ifdef ANDROID
+#if 0 /* ifdef ANDROID */
+/* no longer needed as of NDK r5c. */
 #include <boost/thread/shared_mutex.hpp>
 typedef boost::shared_mutex RWLOCK_T;
 #define RWLOCK_INIT(LOCK, ATTR)
