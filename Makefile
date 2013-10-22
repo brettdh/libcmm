@@ -15,7 +15,7 @@ NODEBUG_CXXFLAGS +=-Wall -Werror -I. -I/usr/local/include \
 CXXFLAGS := $(NODEBUG_CXXFLAGS) $(DEBUG_FLAGS)
 #LIBTBB:=-ltbb_debug
 LDFLAGS:=-L.  -L/usr/local/lib -L$(INSTRUMENTS_DIR)/src -m32
-LIBS:=-lrt -lglib-2.0 -lboost_thread -lpowertutor -linstruments
+LIBS:=-lrt -lglib-2.0 -lboost_thread -lpowertutor -linstruments -lconfigumerator
 
 LIBRARIES:=libcmm.so libflipflop.a
 EXECUTABLES:=cmm_test_sender cmm_test_receiver cdf_test\
@@ -64,10 +64,6 @@ libflipflop.a: flipflop_estimate_ext.o debug_ext.o
 	rm -f $@
 	ar rcs $@ $^
 
-libconfigumerator.a: configumerator.o debug_ext.o
-	rm -f $@
-	ar rcs $@ $^
-
 libcmm.so: libcmm.o libcmm_ipc.o libcmm_external_ipc.o libcmm_net_restriction.o \
 	       cmm_socket.o cmm_socket_impl.o \
 	       cmm_socket_passthrough.o thunks.o cmm_timing.o csocket.o \
@@ -81,7 +77,7 @@ libcmm.so: libcmm.o libcmm_ipc.o libcmm_external_ipc.o libcmm_net_restriction.o 
 		   network_chooser.o network_chooser_impl.o \
 		   intnw_instruments_network_chooser.o \
 		   intnw_instruments_net_stats_wrapper.o \
-           libcmm_shmem.o common.o libancillary/libancillary.a libconfigumerator.a
+           libcmm_shmem.o common.o libancillary/libancillary.a
 	$(CXX) -shared -o $@ $^ $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 
 .PHONY: libcmm.tgz
