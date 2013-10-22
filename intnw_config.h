@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config.h"
+#include "configumerator.h"
 #include <instruments.h>
 #include <instruments_private.h>
 

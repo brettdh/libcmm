@@ -64,20 +64,24 @@ libflipflop.a: flipflop_estimate_ext.o debug_ext.o
 	rm -f $@
 	ar rcs $@ $^
 
+libconfigumerator.a: configumerator.o debug_ext.o
+	rm -f $@
+	ar rcs $@ $^
+
 libcmm.so: libcmm.o libcmm_ipc.o libcmm_external_ipc.o libcmm_net_restriction.o \
 	       cmm_socket.o cmm_socket_impl.o \
 	       cmm_socket_passthrough.o thunks.o cmm_timing.o csocket.o \
            csocket_mapping.o csocket_sender.o csocket_receiver.o \
 		   flipflop_estimate.o \
            pending_irob.o pending_sender_irob.o pending_receiver_irob.o \
-           cmm_thread.o cmm_internal_listener.o libcmm_irob.o debug.o config.o intnw_config.o \
+           cmm_thread.o cmm_internal_listener.o libcmm_irob.o debug.o intnw_config.o \
            intset.o cmm_socket_control.o irob_scheduling.o timeops.o \
            net_interface.o net_stats.o cmm_conn_bootstrapper.o \
            redundancy_strategy.o \
 		   network_chooser.o network_chooser_impl.o \
 		   intnw_instruments_network_chooser.o \
 		   intnw_instruments_net_stats_wrapper.o \
-           libcmm_shmem.o common.o libancillary/libancillary.a
+           libcmm_shmem.o common.o libancillary/libancillary.a libconfigumerator.a
 	$(CXX) -shared -o $@ $^ $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 
 .PHONY: libcmm.tgz
