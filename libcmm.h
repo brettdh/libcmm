@@ -252,7 +252,7 @@ double cmm_estimate_transfer_data(mc_socket_t sock,
 
 #ifndef BUILDING_SCOUT
 /* return the configured eval method. */
-EvalMethod cmm_get_estimator_error_eval_method();
+enum EvalMethod cmm_get_estimator_error_eval_method();
 #endif
 
 #ifdef __cplusplus
