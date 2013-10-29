@@ -20,7 +20,7 @@ LIBS:=-lrt -lglib-2.0 -lboost_thread -lpowertutor -linstruments -lconfigumerator
 LIBRARIES:=libcmm.so libflipflop.a
 EXECUTABLES:=cmm_test_sender cmm_test_receiver cdf_test\
 	     vanilla_test_sender vanilla_test_receiver \
-	     cmm_throughput_test vanilla_throughput_test
+	     cmm_throughput_test vanilla_throughput_test simple_http_client
 
 all: $(LIBRARIES) $(EXECUTABLES) subdirs
 
@@ -34,6 +34,9 @@ cdf_test: cdf_test.o cdf_sampler.o timeops.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
 cmm_test_sender: libcmm_test_sender.o libcmm.so 
+	$(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS) $(LIBS)
+
+simple_http_client: simple_http_client.o libcmm.so 
 	$(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 
 cmm_test_receiver: libcmm_test_receiver.o libcmm.so 
