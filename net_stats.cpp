@@ -745,7 +745,7 @@ NetStats::mark_irob_failures(NetworkChooser *chooser, int network_type,
     PthreadScopedRWLock lock(&my_lock, true);
 
     struct timeval max_delay = {0, 0};
-    bool failure = !irob_measurements.empty();
+    bool failure = false;
     
     ostringstream s;
     for (irob_measurements_t::iterator it = irob_measurements.begin();
@@ -754,9 +754,14 @@ NetStats::mark_irob_failures(NetworkChooser *chooser, int network_type,
         IROBMeasurement& measurement = it->second;
         measurement.mark_failed();
         s << id << " ";
-        struct timeval delay = measurement.RTT();
-        if (timercmp(&max_delay, &delay, <)) {
-            max_delay = delay;
+        try {
+            struct timeval delay = measurement.RTT();
+            if (timercmp(&max_delay, &delay, <)) {
+                max_delay = delay;
+                failure = true;
+            }
+        } catch (InvalidEstimateException& e) {
+            // ignore; not adding
         }
     }
     irob_measurements.clear();

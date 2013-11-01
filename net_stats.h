@@ -152,6 +152,7 @@ class NetStats {
     //  if there are any unACKed IROBs, 
     //  add a latency measurement equal to the time since
     //  the first of them was sent.  This captures failover delay.
+    //  (failover delay only used if 'record_failover_latency' config option is set).
     bool mark_irob_failures(NetworkChooser *chooser, int network_type,
                             double *latency_seconds_out=NULL);
 

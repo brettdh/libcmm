@@ -644,12 +644,16 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
         }
         return true;
     } else {
-        StringifyIP local_ip(&csock->local_iface.ip_addr);
-        StringifyIP remote_ip(&csock->remote_iface.ip_addr);
+        StringifyIP my_local_ip(&csock->local_iface.ip_addr);
+        StringifyIP my_remote_ip(&csock->remote_iface.ip_addr);
+        StringifyIP match_local_ip(&match->local_iface.ip_addr);
+        StringifyIP match_remote_ip(&match->remote_iface.ip_addr);
         dbgprintf("Deciding to send %s for IROB %d on socket %d (%s -> %s)\n",
                   data.chunks_ready ? "data" : "metadata", (int) id,
-                  csock->osfd, local_ip.c_str(), remote_ip.c_str());
-        if (match != csock && match->is_connected()) {
+                  match->osfd, match_local_ip.c_str(), match_remote_ip.c_str());
+        
+        if (match != csock && 
+            (match->is_connected() || !csock->fits_net_restriction(send_labels))) {
             bool ret = true;
             // pass this task to the right thread
             if (data.data_check) {
@@ -659,16 +663,22 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
             } else {
                 match->irob_indexes.new_chunks.insert(data);
                 if (striping && psirob->get_send_labels() & CMM_LABEL_BACKGROUND &&
-                    !has_network_restriction(psirob->get_send_labels())) {
+                    csock->fits_net_restriction(psirob->get_send_labels())) {
                     //  Try to send this chunk in parallel
                     ret = false;
                 }
             }
             pthread_cond_broadcast(&sk->scheduling_state_cv);
 
-            if (redundant) {
+            if (redundant && csock->fits_net_restriction(psirob->get_send_labels())) {
                 ret = false;
             }
+            if (!ret) {
+                dbgprintf("Deciding to also send %s for IROB %d on socket %d (%s -> %s)\n",
+                          data.chunks_ready ? "data" : "metadata", (int) id,
+                          csock->osfd, my_local_ip.c_str(), my_remote_ip.c_str());
+            }
+
             return ret;
         } // otherwise, I'll do it myself (this thread)
     }
@@ -760,6 +770,13 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     ASSERT(psirob);
 
     irob_id_t id = data.id;
+
+    if (!csock->fits_net_restriction(psirob->get_send_labels())) {
+        if (delegate_if_necessary(id, pirob, data) 
+            || !pirob) { // checked after return; could have been modified
+            return true;
+        }
+    }
 
     // XXX: this is problematic, I think.  Now that
     // XXX:  'was_announced' is per-CSocket, I'm getting multiple
@@ -1535,6 +1552,7 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
             return;
         }
 
+        data_check_hdr.send_labels = htonl(pirob->get_send_labels());
         ssize_t chunksize = MIN_CHUNKSIZE;
         u_long seqno = 0;
         size_t offset = 0;

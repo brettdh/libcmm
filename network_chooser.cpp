@@ -12,6 +12,9 @@
 
 #include "pending_sender_irob.h"
 
+#include <string>
+using std::string;
+
 NetworkChooser* 
 NetworkChooser::create(int redundancy_strategy_type)
 {
@@ -105,12 +108,19 @@ NetworkChooserGuard::choose_networks(u_long send_label, size_t num_bytes,
 {
     bool result = chooser->impl->choose_networks(send_label, num_bytes,
                                                  local_iface, remote_iface);
+    
+    string labels_str = describe_labels(send_label);
 
-    StringifyIP local_ip(&local_iface.ip_addr);
-    StringifyIP remote_ip(&remote_iface.ip_addr);
-
-    dbgprintf("Decided to send %d bytes over connection %s -> %s\n",
-              num_bytes, local_ip.c_str(), remote_ip.c_str());
+    if (result) {
+        StringifyIP local_ip(&local_iface.ip_addr);
+        StringifyIP remote_ip(&remote_iface.ip_addr);
+        int type = get_network_type(local_iface, remote_iface);
+        dbgprintf("Decided to send %d bytes labeled %s over connection %s -> %s (%s)\n",
+                  num_bytes, labels_str.c_str(), local_ip.c_str(), remote_ip.c_str(), net_type_name(type));
+    } else {
+        dbgprintf("Failed to choose a network for sending %d bytes labeled %s\n",
+                  num_bytes, labels_str.c_str());
+    }
     return result;
 }
 

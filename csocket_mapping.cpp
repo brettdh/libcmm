@@ -11,9 +11,11 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <functional>
+#include <string>
 using std::bind2nd;
 using std::ptr_fun;
 using std::make_pair;
+using std::string;
 
 #include "cmm_socket.private.h"
 #include "libcmm.h"
@@ -521,29 +523,31 @@ CSockMapping::get_iface_pair_locked_internal(u_long send_label,
         return true;
     }
 
+    bool at_least_one = false;
     GuardedNetworkChooser guarded_chooser = network_chooser->getGuardedChooser();
     guarded_chooser->reset();
-    vector<CSocketPtr> csocks; // only one per iface pair
     for (NetInterfaceSet::iterator i = skp->local_ifaces.begin();
          i != skp->local_ifaces.end(); ++i) {
         for (NetInterfaceSet::iterator j = skp->remote_ifaces.begin();
              j != skp->remote_ifaces.end(); ++j) {
-            csocks.clear();
-            CSocketPtr existing_csock;
-            if (!csocks.empty()) {
-                existing_csock = csocks[0];
-            }
-            if (!existing_csock || count() == 1) {
+            int type = get_network_type(*i, *j);
+            if (network_fits_restriction(type, send_label)) {
                 guarded_chooser->consider(*i, *j);
+                at_least_one = true;
             } else {
                 StringifyIP local_ip(&i->ip_addr);
                 StringifyIP remote_ip(&j->ip_addr);
-                dbgprintf("Not considering (%s -> %s) for labels %d; csock is troubled\n",
-                          local_ip.c_str(), remote_ip.c_str(), (int) send_label);
+                string labels_str = describe_labels(send_label);
+                dbgprintf("Not considering (%s -> %s) (%s) for labels [ %s ]\n",
+                          local_ip.c_str(), remote_ip.c_str(), 
+                          net_type_name(type), labels_str.c_str());
             }
         }
     }
 
+    if (!at_least_one) {
+        return false;
+    }
     return guarded_chooser->choose_networks(send_label, num_bytes,
                                             local_iface, remote_iface);
 }

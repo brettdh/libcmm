@@ -318,6 +318,9 @@ choose_networks(u_long send_label, size_t num_bytes,
     ASSERT(wifi_present || cellular_present);
     
     if (!wifi_present) {
+        if (send_label & CMM_LABEL_WIFI_ONLY) {
+            return false;
+        }
         chosen_singular_strategy_type = NETWORK_CHOICE_CELLULAR;
         chosen_strategy_type = NETWORK_CHOICE_CELLULAR;
         local_iface = cellular_local;
@@ -326,6 +329,9 @@ choose_networks(u_long send_label, size_t num_bytes,
     }
 
     if (!cellular_present) {
+        if (send_label & CMM_LABEL_THREEG_ONLY) {
+            return false;
+        }
         chosen_singular_strategy_type = NETWORK_CHOICE_WIFI;
         chosen_strategy_type = NETWORK_CHOICE_WIFI;
         local_iface = wifi_local;
