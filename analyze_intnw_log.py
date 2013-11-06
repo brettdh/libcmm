@@ -25,7 +25,7 @@
 
 '''
 
-import sys, re, os
+import sys, re, os, datetime, time
 from argparse import ArgumentParser
 
 from PyQt4.QtCore import *
@@ -343,6 +343,8 @@ class IntNWBehaviorPlot(QDialog):
         # redundancy decision calculations from instruments.log
         self.__redundancy_decisions = []
 
+        self.__radio_switches = []
+
         self.__irob_height = 0.25
         self.__network_pos_offsets = {'wifi': 1.0, '3G': -1.0}
         self.__direction_pos_offsets = {'down': self.__irob_height / 2.0,
@@ -370,6 +372,14 @@ class IntNWBehaviorPlot(QDialog):
 
     def setRedundancyDecisions(self, redundancy_decisions):
         self.__redundancy_decisions = redundancy_decisions
+        
+    def setRadioSwitches(self, radio_switches):
+        self.__radio_switches = []
+        for switch in radio_switches:
+            timestamp, prev_type, new_type = switch
+            rel_timestamp = self.getAdjustedTime(timestamp)
+            if timestamp >= self.__start:
+                self.__radio_switches.append([rel_timestamp, prev_type, new_type])
         
     def create_main_frame(self):
         self.__frame = QWidget()
@@ -576,6 +586,7 @@ class IntNWBehaviorPlot(QDialog):
             self.__drawIROBs()
             self.__drawSessions()
             self.__drawRedundancyDecisions()
+            self.__drawRadioSwitches()
 
             max_time = self.__session_axes.get_ylim()[1]
             if self.__user_set_max_time:
@@ -587,7 +598,7 @@ class IntNWBehaviorPlot(QDialog):
 
             self.__drawWifi()
 
-        max_trace_duration = self.__session_axes.get_xlim()[1]
+        #max_trace_duration = self.__session_axes.get_xlim()[1]
         if self.__user_set_max_trace_duration:
             max_trace_duration = self.__user_set_max_trace_duration
         else:
@@ -1258,6 +1269,34 @@ class IntNWBehaviorPlot(QDialog):
                     markersize=3, color='green')
             ax.plot(timestamps, redundancy_costs, marker='o', markersize=3, color='orange')
 
+    def __drawRadioSwitches(self):
+        positions = {
+            "HSDPA": -0.15,
+            "UMTS": -0.20,
+            "unknown": -0.30
+        }
+        height = 0.05
+        colors = {
+            "HSDPA": "green",
+            "UMTS": "yellow",
+            "unknown": "red"
+        }
+        print self.__radio_switches
+        if self.__radio_switches:
+            bars = {
+                "HSDPA": [],
+                "UMTS": [],
+                "unknown": []
+            }
+            last_timestamp = self.__radio_switches[0][0]
+            for timestamp, prev_type, new_type in self.__radio_switches:
+                bars[prev_type].append([last_timestamp, timestamp-last_timestamp])
+
+            for type in bars:
+                print bars[type]
+                self.__axes.broken_barh(bars[type], [positions[type] - height/2.0, height],
+                                        colors[type])
+
     def __getWifiPeriods(self):
         wifi_periods = filter(lambda p: p['end'] is not None,
                               self.__network_periods['wifi'])
@@ -1857,6 +1896,7 @@ class IntNWPlotter(object):
         self.__timing_log = args.basedir + "/" + timing_log
         self.__trace_replayer_log = args.basedir + "/" + trace_replayer_log
         self.__redundancy_eval_log = args.basedir + "/" + instruments_log
+        self.__radio_logs = args.radio_log
         self.__cross_country_latency = args.cross_country_latency
         self.__history_dir = args.history
         
@@ -1983,11 +2023,29 @@ class IntNWPlotter(object):
                 dprint("Redundancy cost: %f" % decision.cost)
         return runs
 
+    def __readRadioLogs(self):
+        switches = []
+        rx = re.compile("(.+) D/GSM.+RAT switched (.+) -> (.+) at cell")
+        with open(self.__radio_logs) as f:
+            for line in f.readlines():
+                match = rx.search(line)
+                if match:
+                    timestamp_str, prev_type, new_type = match.groups()
+
+                    # strip millis and parse
+                    timestamp = datetime.datetime.strptime(timestamp_str[:-4], "%m-%d-%Y %H:%M:%S")
+                    timestamp_secs = time.mktime(timestamp.timetuple())
+                    switches.append((timestamp_secs, prev_type, new_type))
+        return switches
+
     def __readFile(self, filename):
         session_runs = None
         redundancy_decisions = None
+        radio_switches = None
         if self.__trace_replayer_log:
             session_runs = self.__readSessions()
+        if self.__radio_logs:
+            radio_switches = self.__readRadioLogs()
         if self.__redundancy_eval_log:
             redundancy_decisions_runs = self.__readRedundancyDecisions()
         
@@ -2009,6 +2067,11 @@ class IntNWPlotter(object):
                     continue
 
                 if self.__lineStartsNewRun(line, self.__currentPid):
+                    if len(self.__windows) > 0:
+                        if radio_switches:
+                            self.__windows[-1].setRadioSwitches(radio_switches)
+
+
                     start = session_runs[len(self.__windows)][0]['start']
                     window = IntNWBehaviorPlot(len(self.__windows) + 1, start, 
                                                self.__measurements_only,
@@ -2078,6 +2141,7 @@ def main():
     parser.add_argument("--history", default=None,
                         help=("Start the plotting with error history from files in this directory:"
                               +" {client,server}_error_distributions.txt"))
+    parser.add_argument("--radio-log", default=None)
     parser.add_argument("-d", "--debug", action="store_true", default=False)
     args = parser.parse_args()
 
