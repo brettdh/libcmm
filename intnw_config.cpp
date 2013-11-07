@@ -93,6 +93,7 @@ Config *Config::instance = nullptr;
 Config *Config::getInstance()
 {
     if (!instance) {
+        dbgprintf_always("Loading intnw config from %s\n", CONFIG_FILE);
         instance = new Config;
         instance->loadConfig(CONFIG_FILE);
     }

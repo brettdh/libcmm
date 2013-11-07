@@ -513,6 +513,47 @@ void resume_operation_thunk(ResumeOperation *op)
     delete op;
 }
 
+bool
+CSocketSender::delegate_resend_request_if_necessary(irob_id_t id, PendingReceiverIROB *prirob, 
+                                                    const IROBSchedulingData& data)
+{
+    // TODO: check whether I should be sending this.
+    // TODO: only thing to check, really, is the net restriction labels.
+    // TODO: otherwise, I wasn't checking at all before.
+    // TODO: I think this only gets invoked when a network goes down, anyway.
+
+    u_long send_labels = prirob->get_send_labels();
+    if (!csock->fits_net_restriction(send_labels)) {
+        pthread_mutex_unlock(&sk->scheduling_state_lock);
+
+        CSocketPtr match;
+        if (sk->accepting_side) {
+            match = sk->csock_map->connected_csock_with_labels(send_labels);
+        } else {
+            match = sk->csock_map->new_csock_with_labels(send_labels);
+        }
+
+        pthread_mutex_lock(&sk->scheduling_state_lock);
+
+        PendingIROBPtr pirob = sk->incoming_irobs.find(id);
+        if (!pirob) {
+            // it got ACKEd while I was checking.  no need for the resend request.
+            return true;
+        }
+        
+        if (match) {
+            match->irob_indexes.resend_requests.insert(data);
+        } else {
+            // it gets dropped.  oh well.
+            //   it was restricted to a network type that's now gone. 
+            dbgprintf("Warning: silently dropping resend request for IROB %ld\n", id);
+        }
+
+        return true;
+    }
+    return false;
+}
+
 /* Must hold sk->scheduling_state_lock when calling.
  * It's possible that pirob will be ACK'd, removed, and deleted
  * during the time when this function doesn't hold the lock.
@@ -531,10 +572,12 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
         return true;
     }
     ASSERT(pirob);
+
+    u_long send_labels = pirob->get_send_labels();
+
     PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
     ASSERT(psirob);
 
-    u_long send_labels = pirob->get_send_labels();
     size_t num_bytes = 0;
     if (psirob->is_complete()) {
         num_bytes = psirob->expected_bytes();
@@ -1464,7 +1507,15 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
                   data.id);
         return;
     }
-        
+
+    if (prirob) { 
+        if (delegate_resend_request_if_necessary(data.id, prirob, data)) {
+            // should try resend requests on label-matched thread first
+            //  also, shouldn't data-check contrary to net restriction labels
+            return;
+        }
+    }
+
     size_t hdrcount = missing_chunks.empty() ? 1 : missing_chunks.size();
     struct CMMSocketControlHdr *hdrs = new struct CMMSocketControlHdr[hdrcount];
     memset(hdrs, 0, sizeof(struct CMMSocketControlHdr) * hdrcount);

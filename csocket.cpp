@@ -159,7 +159,7 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
 
 CSocket::~CSocket()
 {
-    dbgprintf("CSocket %d is being destroyed\n", osfd);
+    dbgprintf_always("CSocket %d is being destroyed\n", osfd);
     if (osfd > 0) {
         /* if it's a real open socket */
         ASSERT(!csock_sendr && !csock_recvr);
@@ -200,9 +200,9 @@ CSocket::phys_connect()
             close(osfd);
             throw -1;
         }
-        dbgprintf("Successfully bound osfd %d to %s:%d\n",
-                  osfd, StringifyIP(&local_addr.sin_addr).c_str(), 
-                  ntohs(local_addr.sin_port));
+        dbgprintf_always("Successfully bound osfd %d to %s:%d\n",
+                         osfd, StringifyIP(&local_addr.sin_addr).c_str(), 
+                         ntohs(local_addr.sin_port));
     
         rc = connect(osfd, (struct sockaddr *)&remote_addr, 
                      sizeof(remote_addr));
@@ -215,9 +215,9 @@ CSocket::phys_connect()
             throw -1;
         }
 
-        dbgprintf("Successfully connected osfd %d to %s:%d\n",
-                  osfd, StringifyIP(&remote_addr.sin_addr).c_str(), 
-                  ntohs(remote_addr.sin_port));
+        dbgprintf_always("Successfully connected osfd %d to %s:%d\n",
+                         osfd, StringifyIP(&remote_addr.sin_addr).c_str(), 
+                         ntohs(remote_addr.sin_port));
 
         update_last_app_data_sent();
         

@@ -12,6 +12,8 @@
 #include <vector>
 #include "pending_sender_irob.h"
 
+class PendingReceiverIROB;
+
 class CMMSocketImpl;
 
 class CSocketSender : public CMMThread {
@@ -32,7 +34,8 @@ class CSocketSender : public CMMThread {
     bool schedule_work(IROBSchedulingIndexes& indexes);
     bool delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
                                const IROBSchedulingData& data);
-
+    bool delegate_resend_request_if_necessary(irob_id_t id, PendingReceiverIROB *prirob, 
+                                              const IROBSchedulingData& data);
     bool okay_to_send_bg(ssize_t& chunksize);
 
     bool begin_irob(const IROBSchedulingData& data);
