@@ -16,7 +16,7 @@ using std::ostringstream;
 
 #include "pthread_util.h"
 
-static pthread_mutex_t count_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t count_mutex = MY_PTHREAD_MUTEX_INITIALIZER;
 ssize_t PendingIROB::obj_count = 0;
 
 PendingIROB::PendingIROB(irob_id_t id_)
@@ -179,7 +179,7 @@ PendingIROB::can_be_redundant()
 PendingIROBLattice::PendingIROBLattice()
     : offset(0), last_anon_irob_id(-1), count(0)
 {
-    pthread_mutex_init(&membership_lock, NULL);
+    MY_PTHREAD_MUTEX_INIT(&membership_lock);
 }
 
 PendingIROBLattice::~PendingIROBLattice()

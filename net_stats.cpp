@@ -30,7 +30,7 @@ NetStats::static_initializer NetStats::init;
 
 NetStats::IROBTransfers *NetStats::irob_transfers = NULL;
 IntSet *NetStats::striped_irobs = NULL;
-pthread_mutex_t NetStats::irob_transfers_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t NetStats::irob_transfers_lock = MY_PTHREAD_MUTEX_INITIALIZER;
 
 class IROBTransfersPerNetwork {
 public:

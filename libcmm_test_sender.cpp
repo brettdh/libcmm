@@ -46,7 +46,7 @@ int shared_sock;
 #else
 mc_socket_t shared_sock;
 #endif
-static pthread_mutex_t socket_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t socket_lock = MY_PTHREAD_MUTEX_INITIALIZER;
 
 static struct sockaddr_in srv_addr;
 

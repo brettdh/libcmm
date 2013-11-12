@@ -52,7 +52,7 @@ VanillaListenerSet CMMSocketImpl::cmm_listeners;
 NetInterfaceSet CMMSocketImpl::ifaces;
 IROBSockHash CMMSocketImpl::irob_sock_hash;
 irob_id_t CMMSocketImpl::g_next_irob;
-pthread_mutex_t CMMSocketImpl::hashmaps_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t CMMSocketImpl::hashmaps_mutex = MY_PTHREAD_MUTEX_INITIALIZER;
 
 // struct timeval CMMSocketImpl::last_fg;
 // struct timeval CMMSocketImpl::total_inter_fg_time;
@@ -543,7 +543,7 @@ CMMSocketImpl::CMMSocketImpl(int family, int type, int protocol)
 
     csock_map = NULL;
     //csock_map = new CSockMapping(this);
-    pthread_mutex_init(&scheduling_state_lock, NULL);
+    MY_PTHREAD_MUTEX_INIT(&scheduling_state_lock);
     pthread_cond_init(&scheduling_state_cv, NULL);
     
     RWLOCK_INIT(&my_lock, NULL);

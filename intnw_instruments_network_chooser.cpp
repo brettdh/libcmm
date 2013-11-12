@@ -188,6 +188,9 @@ IntNWInstrumentsNetworkChooser::calculateTransferEnergy(instruments_context_t ct
 
     EnergyComputer& energy_calculator = (type == TYPE_WIFI) ? wifi_energy_calculator : cellular_energy_calculator;
     
+    ASSERT(this);
+    ASSERT(ctx);
+    ASSERT(net_stats);
     double bw = getBandwidthUp(ctx, net_stats);
     double rtt_seconds = getRttSeconds(ctx, net_stats);
     double tx_time = (bytelen / bw) + rtt_seconds;

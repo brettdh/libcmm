@@ -38,6 +38,23 @@ typedef pthread_rwlock_t RWLOCK_T;
 #define RWLOCK_WRUNLOCK pthread_rwlock_unlock
 #endif
 
+#define MUTEX_DEBUGGING
+#ifdef MUTEX_DEBUGGING
+#define MY_PTHREAD_MUTEX_INITIALIZER PTHREAD_ERRORCHECK_MUTEX_INITIALIZER
+
+#define MY_PTHREAD_MUTEX_INIT(pmutex)                                   \
+    do {                                                                \
+        pthread_mutexattr_t attr;                                       \
+        PTHREAD_ASSERT_SUCCESS(pthread_mutexattr_init(&attr));          \
+        PTHREAD_ASSERT_SUCCESS(pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK)); \
+        PTHREAD_ASSERT_SUCCESS(pthread_mutex_init((pmutex), &attr));    \
+    } while (0)
+#else
+#define MY_PTHREAD_MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER 
+#define MY_PTHREAD_MUTEX_INIT(pmutex) pthread_mutex_init(pmutex, NULL)
+#endif
+
+
 class PthreadScopedLock {
   public:
     PthreadScopedLock() : mutex(NULL) {}

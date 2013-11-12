@@ -51,7 +51,7 @@ CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
       accepting(false),
       irob_indexes("csocket"), busy(false)
 {
-    pthread_mutex_init(&csock_lock, NULL);
+    MY_PTHREAD_MUTEX_INIT(&csock_lock);
     pthread_cond_init(&csock_cv, NULL);
 
     //TIME(last_fg);

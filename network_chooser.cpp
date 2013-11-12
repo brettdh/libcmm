@@ -52,7 +52,7 @@ NetworkChooser::create(int redundancy_strategy_type)
 NetworkChooser::NetworkChooser(NetworkChooserImpl *impl_)
     : impl(impl_)
 {
-    pthread_mutex_init(&lock, NULL);
+    MY_PTHREAD_MUTEX_INIT(&lock);
 }
 
 NetworkChooser::~NetworkChooser()

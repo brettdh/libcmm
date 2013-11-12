@@ -10,7 +10,7 @@
 using std::for_each; using std::bind2nd;
 using std::ptr_fun;
 
-pthread_mutex_t CMMThread::joinable_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t CMMThread::joinable_lock = MY_PTHREAD_MUTEX_INITIALIZER;
 std::set<pthread_t> *CMMThread::joinable_threads = NULL;
 
 // must be holding joinable_lock.
@@ -119,7 +119,7 @@ CMMThread::start()
 CMMThread::CMMThread()
     : tid(0), running(false), exiting(false), start_has_returned(false)
 {
-    pthread_mutex_init(&starter_mutex, NULL);
+    MY_PTHREAD_MUTEX_INIT(&starter_mutex);
     pthread_cond_init(&starter_cv, NULL);
     pthread_cond_init(&start_return_cv, NULL);
 }

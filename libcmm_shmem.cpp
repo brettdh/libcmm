@@ -154,7 +154,7 @@ public:
     int sock;
     
     FDSharingThread() {
-        pthread_mutex_init(&running_mutex, NULL);
+        MY_PTHREAD_MUTEX_INIT(&running_mutex);
         running = true;
         
         sock = -1;

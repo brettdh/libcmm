@@ -6,6 +6,9 @@
 #include "common.h"
 #include "net_interface.h"
 
+#include <pthread.h>
+#include "pthread_util.h"
+
 #include "pending_irob.h"
 #include "pending_receiver_irob.h"
 #include "irob_scheduling.h"
@@ -50,7 +53,6 @@ typedef std::map<int, struct sockopt> SockOptNames;
 typedef std::map<int, SockOptNames> SockOptHash;
 
 
-#include "pthread_util.h"
 typedef LockWrappedMap<mc_socket_t, CMMSocketImplPtr> CMMSockHash;
 
 typedef LockingMap<irob_id_t, mc_socket_t> IROBSockHash;
@@ -283,7 +285,7 @@ class CMMSocketImpl : public CMMSocket {
         long rc;
         
         AppThread() : rc(CMM_INVALID_RC) {
-            pthread_mutex_init(&mutex, NULL);
+            MY_PTHREAD_MUTEX_INIT(&mutex);
             pthread_cond_init(&cv, NULL);
         }
         ~AppThread() {

@@ -114,7 +114,7 @@ void dbgprintf_always(const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
-    vdbgprintf(true, fmt, ap);
+    vdbgprintf(false, fmt, ap);
     va_end(ap);
 }
 
