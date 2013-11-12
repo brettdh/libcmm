@@ -47,6 +47,8 @@ using std::max; using std::min;
 
 #include "libcmm_shmem.h"
 
+#include "pthread_util.h"
+
 CMMSockHash CMMSocketImpl::cmm_sock_hash;
 VanillaListenerSet CMMSocketImpl::cmm_listeners;
 NetInterfaceSet CMMSocketImpl::ifaces;
