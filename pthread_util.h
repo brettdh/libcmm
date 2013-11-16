@@ -40,7 +40,11 @@ typedef pthread_rwlock_t RWLOCK_T;
 
 #define MUTEX_DEBUGGING
 #ifdef MUTEX_DEBUGGING
+#ifndef PTHREAD_ERRORCHECK_MUTEX_INITIALIZER
+#define MY_PTHREAD_MUTEX_INITIALIZER PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP
+#else
 #define MY_PTHREAD_MUTEX_INITIALIZER PTHREAD_ERRORCHECK_MUTEX_INITIALIZER
+#endif
 
 #define MY_PTHREAD_MUTEX_INIT(pmutex)                                   \
     do {                                                                \
