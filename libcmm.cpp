@@ -274,22 +274,32 @@ int get_redundancy_strategy_type(const char *strategy_name)
 }
 
 double
-cmm_estimate_transfer_time(mc_socket_t sock, intnw_network_strategy_t strategy, size_t datalen)
+cmm_estimate_transfer_time(mc_socket_t sock, intnw_network_strategy_t strategy, 
+                           u_long labels, size_t datalen)
 {
-    return CMMSocket::lookup(sock)->mc_estimate_transfer_time(strategy, datalen);
+    return CMMSocket::lookup(sock)->mc_estimate_transfer_time(strategy, labels, datalen);
 }
 
 double
-cmm_estimate_transfer_energy(mc_socket_t sock, intnw_network_strategy_t strategy, size_t datalen)
+cmm_estimate_transfer_energy(mc_socket_t sock, intnw_network_strategy_t strategy, 
+                             u_long labels, size_t datalen)
 {
-    return CMMSocket::lookup(sock)->mc_estimate_transfer_energy(strategy, datalen);
+    return CMMSocket::lookup(sock)->mc_estimate_transfer_energy(strategy, labels, datalen);
 }
 
 double
-cmm_estimate_transfer_data(mc_socket_t sock, intnw_network_strategy_t strategy, size_t datalen)
+cmm_estimate_transfer_data(mc_socket_t sock, intnw_network_strategy_t strategy, 
+                           u_long labels, size_t datalen)
 {
-    return CMMSocket::lookup(sock)->mc_estimate_transfer_data(strategy, datalen);
+    return CMMSocket::lookup(sock)->mc_estimate_transfer_data(strategy, labels, datalen);
 }
+
+double
+cmm_get_oldest_irob_delay(mc_socket_t sock)
+{
+    return CMMSocket::lookup(sock)->mc_get_oldest_irob_delay();
+}
+
 
 intnw_network_strategy_t 
 cmm_get_network_strategy(mc_socket_t sock, instruments_context_t context)
@@ -314,4 +324,10 @@ EvalMethod
 cmm_get_estimator_error_eval_method()
 {
     return Config::getInstance()->getEstimatorErrorEvalMethod();
+}
+
+instruments_estimator_t
+cmm_get_latency_estimator(mc_socket_t sock, u_long net_restriction_labels)
+{
+    return CMMSocket::lookup(sock)->mc_get_rtt_estimator(net_restriction_labels);
 }

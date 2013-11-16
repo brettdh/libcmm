@@ -44,6 +44,10 @@ class InstrumentsWrappedNetStats {
                                  double transfer_time, 
                                  double current_wifi_duration,
                                  double penalty);
+
+    instruments_estimator_t getRttEstimator() {
+        return rtt_estimator;
+    }
   private:
     instruments_external_estimator_t bw_up_estimator;
     instruments_external_estimator_t rtt_estimator;

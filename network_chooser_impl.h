@@ -63,13 +63,20 @@ class NetworkChooserImpl {
     virtual instruments_strategy_t getChosenStrategy(u_long net_restriction_labels) { return nullptr; }
     virtual double getEstimatedTransferTime(instruments_context_t context, 
                                             instruments_strategy_t strategy,
+                                            u_long send_label,
                                             size_t bytes) { return 0.0; }
     virtual double getEstimatedTransferEnergy(instruments_context_t context, 
                                               instruments_strategy_t strategy,
+                                              u_long send_label,
                                               size_t bytes){ return 0.0; }
     virtual double getEstimatedTransferData(instruments_context_t context, 
                                             instruments_strategy_t strategy,
+                                            u_long send_label,
                                             size_t bytes) { return 0.0; }
+
+    virtual instruments_estimator_t get_rtt_estimator(u_long net_restriction_labels) {
+        return nullptr;
+    }
 
     virtual ~NetworkChooserImpl() {}
     

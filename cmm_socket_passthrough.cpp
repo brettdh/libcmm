@@ -185,19 +185,32 @@ CMMSocketPassThrough::mc_free_network_strategy(intnw_network_strategy_t)
 }
 
 double
-CMMSocketPassThrough::mc_estimate_transfer_time(intnw_network_strategy_t strategy, size_t datalen)
+CMMSocketPassThrough::mc_estimate_transfer_time(intnw_network_strategy_t strategy, u_long labels, size_t datalen)
 {
     return 0.0;
 }
 
 double
-CMMSocketPassThrough::mc_estimate_transfer_energy(intnw_network_strategy_t strategy, size_t datalen)
+CMMSocketPassThrough::mc_estimate_transfer_energy(intnw_network_strategy_t strategy, u_long labels, size_t datalen)
 {
     return 0.0;
 }
 
 double
-CMMSocketPassThrough::mc_estimate_transfer_data(intnw_network_strategy_t strategy, size_t datalen)
+CMMSocketPassThrough::mc_estimate_transfer_data(intnw_network_strategy_t strategy, u_long labels, size_t datalen)
 {
     return 0.0;
 }
+
+double
+CMMSocketPassThrough::mc_get_oldest_irob_delay()
+{
+    return 0.0;
+}
+
+instruments_estimator_t 
+CMMSocketPassThrough::mc_get_rtt_estimator(u_long net_restriction_labels)
+{
+    return nullptr;
+}
+

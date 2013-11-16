@@ -32,35 +32,60 @@ struct strategy_args {
     InstrumentsWrappedNetStats **net_stats;
 };
 
+// per-invocation data for network selection.
+struct labeled_data {
+    u_long send_label;
+    int bytelen;
+};
+
+static int chooser_arg_less(void *left, void *right)
+{
+    struct labeled_data *l_data = (struct labeled_data *) left;
+    struct labeled_data *r_data = (struct labeled_data *) right;
+    
+}
+
+static void *chooser_arg_copier(void *arg)
+{
+    struct labeled_data *source = (struct labeled_data *) arg;
+    return new labeled_data{source->send_label, source->bytelen};
+}
+
+static void chooser_arg_deleter(void *arg)
+{
+    struct labeled_data *victim = (struct labeled_data *) arg;
+    delete victim;
+}
+
 double
 network_transfer_time(instruments_context_t ctx, void *strategy_arg, void *chooser_arg)
 {
     struct strategy_args *args = (struct strategy_args *)strategy_arg;
-    int bytelen = (int) chooser_arg;
+    struct labeled_data *data = (struct labeled_data *)chooser_arg;
     ASSERT(args->net_stats);
     return args->chooser->calculateTransferTime(ctx, *args->net_stats, 
-                                                bytelen);
+                                                data);
 }
 
 double
 network_transfer_energy_cost(instruments_context_t ctx, void *strategy_arg, void *chooser_arg)
 {
     struct strategy_args *args = (struct strategy_args *)strategy_arg;
-    int bytelen = (int) chooser_arg;
+    struct labeled_data *data = (struct labeled_data *)chooser_arg;
     ASSERT(args->net_stats);
 
     return args->chooser->calculateTransferEnergy(ctx, *args->net_stats,
-                                                  bytelen);
+                                                  data);
 }
 
 double
 network_transfer_data_cost(instruments_context_t ctx, void *strategy_arg, void *chooser_arg)
 {
     struct strategy_args *args = (struct strategy_args *)strategy_arg;
-    int bytelen = (int) chooser_arg;
+    struct labeled_data *data = (struct labeled_data *)chooser_arg;
     ASSERT(args->net_stats);
     
-    return args->chooser->calculateTransferMobileData(ctx, *args->net_stats, bytelen);
+    return args->chooser->calculateTransferMobileData(ctx, *args->net_stats, data);
 }
 
 double
@@ -120,15 +145,24 @@ IntNWInstrumentsNetworkChooser::averageWifiFailoverPenalty()
 double
 IntNWInstrumentsNetworkChooser::calculateTransferTime(instruments_context_t ctx,
                                                       InstrumentsWrappedNetStats *net_stats,
-                                                      int bytelen)
+                                                      struct labeled_data *data)
 {
     ASSERT(net_stats);
     double bw = getBandwidthUp(ctx, net_stats);
     double rtt_seconds = getRttSeconds(ctx, net_stats);
+    u_long send_label = 0;
+    int bytelen = 0;
+    if (data) {
+        send_label = data->send_label;
+        bytelen = data->bytelen;
+    }
     double tx_time = (bytelen / bw) + rtt_seconds;
     
-    double wifi_failure_penalty = getWifiFailurePenalty(ctx, net_stats, tx_time,
-                                                        averageWifiFailoverPenalty());
+    double wifi_failure_penalty = 0.0;
+    if (send_label & CMM_LABEL_WIFI_ONLY == 0) {
+        wifi_failure_penalty = getWifiFailurePenalty(ctx, net_stats, tx_time,
+                                                     averageWifiFailoverPenalty());
+    }
 
     return tx_time + wifi_failure_penalty;
 }
@@ -175,7 +209,7 @@ IntNWInstrumentsNetworkChooser::refreshEnergyCalculators()
 double
 IntNWInstrumentsNetworkChooser::calculateTransferEnergy(instruments_context_t ctx, 
                                                         InstrumentsWrappedNetStats *net_stats,
-                                                        int bytelen)
+                                                        struct labeled_data *data)
 {
     ASSERT(net_stats);
 
@@ -193,6 +227,12 @@ IntNWInstrumentsNetworkChooser::calculateTransferEnergy(instruments_context_t ct
     ASSERT(net_stats);
     double bw = getBandwidthUp(ctx, net_stats);
     double rtt_seconds = getRttSeconds(ctx, net_stats);
+    u_long send_label = 0;
+    int bytelen = 0;
+    if (data) {
+        send_label = data->send_label;
+        bytelen = data->bytelen;
+    }
     double tx_time = (bytelen / bw) + rtt_seconds;
 
     // Calculate the expected energy cost due to having to retransmit on cellular if wifi fails.
@@ -202,7 +242,7 @@ IntNWInstrumentsNetworkChooser::calculateTransferEnergy(instruments_context_t ct
     // The reason is that the tail energy will dominate here if the 3G radio
     // isn't active, and if it was activated recently, the energy will be small.
     double wifi_failure_penalty = 0.0;
-    if (type == TYPE_WIFI) {
+    if (type == TYPE_WIFI && send_label & CMM_LABEL_WIFI_ONLY == 0) {
         double cellular_bw = cellular_stats->get_bandwidth_up(NULL);
         double cellular_rtt_seconds = cellular_stats->get_rtt(NULL);
         double cellular_fallback_energy = time_estimate_energy_cost(cellular_energy_calculator, bytelen, 
@@ -217,9 +257,19 @@ IntNWInstrumentsNetworkChooser::calculateTransferEnergy(instruments_context_t ct
 double
 IntNWInstrumentsNetworkChooser::calculateTransferMobileData(instruments_context_t ctx,
                                                             InstrumentsWrappedNetStats *net_stats,
-                                                            int bytelen)
+                                                            struct labeled_data *data)
 {
+    u_long send_label = 0;
+    int bytelen = 0;
+    if (data) {
+        send_label = data->send_label;
+        bytelen = data->bytelen;
+    }
     if (net_stats == wifi_stats) {
+        if (send_label & CMM_LABEL_WIFI_ONLY) {
+            return 0.0;
+        }
+
         double bw = getBandwidthUp(ctx, net_stats);
         double rtt_seconds = getRttSeconds(ctx, net_stats);
         double tx_time = (bytelen / bw) + rtt_seconds;
@@ -231,7 +281,6 @@ IntNWInstrumentsNetworkChooser::calculateTransferMobileData(instruments_context_
         return bytelen;
     } else ASSERT(0);
 }
-
 
 IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
     : wifi_present(false), cellular_present(false),
@@ -258,7 +307,7 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
             make_strategy(network_transfer_time, 
                           network_transfer_energy_cost,
                           network_transfer_data_cost, 
-                          (void *)strategy_args[i], (void *) 0);
+                          (void *)strategy_args[i], nullptr);
         set_strategy_name(strategies[i], strategy_names[i]);
     }
 
@@ -266,7 +315,11 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
     set_strategy_name(strategies[NETWORK_CHOICE_BOTH], strategy_names[NETWORK_CHOICE_BOTH]);
 
     EvalMethod method = Config::getInstance()->getEstimatorErrorEvalMethod();
-    evaluator = register_strategy_set_with_method("IntNW", strategies, NUM_STRATEGIES, method);
+    struct instruments_chooser_arg_fns chooser_arg_fns = {
+        chooser_arg_less, chooser_arg_copier, chooser_arg_deleter
+    };
+    evaluator = register_strategy_set_with_method_and_fns("IntNW", strategies, NUM_STRATEGIES, method,
+                                                          chooser_arg_fns);
 
     if (shouldLoadErrors()) {
         restore_evaluator(evaluator, getLoadErrorsFilename().c_str());
@@ -347,7 +400,7 @@ choose_networks(u_long send_label, size_t num_bytes,
                   getCurrentWifiDuration());
         struct timeval begin, end, duration;
         gettimeofday(&begin, NULL);
-        chosen_singular_strategy_type = chooseNetwork(num_bytes);
+        chosen_singular_strategy_type = chooseNetwork(send_label, num_bytes);
         gettimeofday(&end, NULL);
         timersub(&end, &begin, &duration);
         dbgprintf("chooseNetwork: %s   took %lu.%06lu seconds\n", 
@@ -401,16 +454,16 @@ IntNWInstrumentsNetworkChooser::reset()
     label_matcher.reset();
 }
 
-
-
 int 
-IntNWInstrumentsNetworkChooser::chooseNetwork(int bytelen)
+IntNWInstrumentsNetworkChooser::chooseNetwork(u_long send_label, int bytelen)
 {
     wifi_stats->setWifiSessionLengthBound(getCurrentWifiDuration());
 
     reset_estimate_energy_stats();
     refreshEnergyCalculators();
-    instruments_strategy_t chosen = choose_nonredundant_strategy(evaluator, (void *)bytelen);
+    
+    struct labeled_data data{send_label, bytelen};
+    instruments_strategy_t chosen = choose_nonredundant_strategy(evaluator, &data);
     print_estimate_energy_stats();
     return getStrategyIndex(chosen);
 }
@@ -453,7 +506,8 @@ IntNWInstrumentsNetworkChooser::checkRedundancyAsync(CSockMapping *mapping,
 
     wifi_stats->setWifiSessionLengthBound(getCurrentWifiDuration());
     refreshEnergyCalculators();
-    choose_strategy_async(evaluator, (void *) psirob->expected_bytes(), 
+    struct labeled_data chooser_data{psirob->get_send_labels(), psirob->expected_bytes()};
+    choose_strategy_async(evaluator, (void *) &chooser_data, 
                           chosen_strategy_callback_wrapper, pcallback);
 }
 
@@ -719,25 +773,31 @@ IntNWInstrumentsNetworkChooser::getChosenStrategy(u_long net_restriction_labels)
 double
 IntNWInstrumentsNetworkChooser::getEstimatedTransferTime(instruments_context_t context, 
                                                          instruments_strategy_t strategy,
+                                                         u_long send_label,
                                                          size_t bytes)
 {
-    return calculate_strategy_time(context, strategy, (void *) bytes);
+    struct labeled_data data{send_label, bytes};
+    return calculate_strategy_time(context, strategy, (void *) &data);
 }
 
 double
 IntNWInstrumentsNetworkChooser::getEstimatedTransferEnergy(instruments_context_t context, 
                                                            instruments_strategy_t strategy,
+                                                           u_long send_label,
                                                            size_t bytes)
 {
-    return calculate_strategy_energy(context, strategy, (void *) bytes);
+    struct labeled_data data{send_label, bytes};
+    return calculate_strategy_energy(context, strategy, (void *) &data);
 }
 
 double
 IntNWInstrumentsNetworkChooser::getEstimatedTransferData(instruments_context_t context, 
                                                          instruments_strategy_t strategy,
+                                                         u_long send_label,
                                                          size_t bytes)
 {
-    return calculate_strategy_data(context, strategy, (void *) bytes);
+    struct labeled_data data{send_label, bytes};
+    return calculate_strategy_data(context, strategy, (void *) &data);
 }
 
 void
@@ -867,4 +927,15 @@ std::string
 IntNWInstrumentsNetworkChooser::getSaveStatsFilename()
 {
     return Config::getInstance()->getNetworkStatsSaveFilename();
+}
+
+instruments_estimator_t 
+IntNWInstrumentsNetworkChooser::get_rtt_estimator(u_long net_restriction_labels)
+{
+    if (net_restriction_labels & CMM_LABEL_WIFI_ONLY) {
+        return wifi_stats->getRttEstimator();
+    } else if (net_restriction_labels & CMM_LABEL_THREEG_ONLY) {
+        return cellular_stats->getRttEstimator();
+    }
+    return nullptr;
 }

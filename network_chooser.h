@@ -47,12 +47,15 @@ class NetworkChooserGuard {
     
     double getEstimatedTransferTime(instruments_context_t context, 
                                     instruments_strategy_t strategy,
+                                    u_long send_label,
                                     size_t bytes);
     double getEstimatedTransferEnergy(instruments_context_t context, 
                                       instruments_strategy_t strategy,
+                                      u_long send_label,
                                       size_t bytes);
     double getEstimatedTransferData(instruments_context_t context, 
                                     instruments_strategy_t strategy,
+                                    u_long send_label,
                                     size_t bytes);
 
     ~NetworkChooserGuard();
@@ -86,6 +89,8 @@ class NetworkChooser {
     void scheduleReevaluation(CSockMapping *mapping,
                               PendingSenderIROB *psirob, 
                               const IROBSchedulingData& data);
+
+    instruments_estimator_t get_rtt_estimator(u_long net_restriction_labels);
 
     void saveToFile();
 

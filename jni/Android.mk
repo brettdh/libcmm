@@ -4,7 +4,7 @@ INSTRUMENTS_ROOT := ../../../../../../../$(HOME)/src/instruments
 LIBPT_ROOT := ../libpowertutor/cpp_source
 MOCKTIME_ROOT := ../mocktime
 
-OPTI := -O3
+OPTI := -O0 #-O3
 
 common_CFLAGS := -DANDROID -DNDK_BUILD -g -ggdb $(OPTI) -std=gnu++0x -I$(LOCAL_PATH)/.. \
 	-I../$(INSTRUMENTS_ROOT)/include -I../$(INSTRUMENTS_ROOT)/src -I$(LIBPT_ROOT)

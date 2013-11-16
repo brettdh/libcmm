@@ -16,6 +16,7 @@
 #define NUM_STRATEGIES 3
 
 struct strategy_args;
+struct labeled_data;
 class InstrumentsWrappedNetStats;
 class CSockMapping;
 
@@ -72,13 +73,18 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
 
     virtual double getEstimatedTransferTime(instruments_context_t context, 
                                             instruments_strategy_t strategy,
+                                            u_long send_label,
                                             size_t bytes);
     virtual double getEstimatedTransferEnergy(instruments_context_t context, 
                                               instruments_strategy_t strategy,
+                                              u_long send_label,
                                               size_t bytes);
     virtual double getEstimatedTransferData(instruments_context_t context, 
                                             instruments_strategy_t strategy,
+                                            u_long send_label,
                                             size_t bytes);
+
+    virtual instruments_estimator_t get_rtt_estimator(u_long net_restriction_labels);
     
   protected:
     virtual void setRedundancyStrategy();
@@ -96,7 +102,7 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
 
     LabelMatcher label_matcher;
 
-    int chooseNetwork(int bytelen);
+    int chooseNetwork(u_long send_label, int bytelen);
 
     InstrumentsWrappedNetStats *wifi_stats;
     InstrumentsWrappedNetStats *cellular_stats;
@@ -152,13 +158,13 @@ class IntNWInstrumentsNetworkChooser : public NetworkChooserImpl {
     
     double calculateTransferTime(instruments_context_t ctx,
                                  InstrumentsWrappedNetStats *net_stats,
-                                 int bytelen);
+                                 struct labeled_data *data);
     double calculateTransferEnergy(instruments_context_t ctx, 
                                    InstrumentsWrappedNetStats *net_stats,
-                                   int bytelen);
+                                   struct labeled_data *data);
     double calculateTransferMobileData(instruments_context_t ctx, 
                                        InstrumentsWrappedNetStats *net_stats,
-                                       int bytelen);
+                                       struct labeled_data *data);
 
     friend double network_transfer_time(instruments_context_t ctx,
                                         void *strategy_arg, 

@@ -2831,29 +2831,52 @@ CMMSocketImpl::mc_free_network_strategy(intnw_network_strategy_t strategy)
     delete strategy;
 }
 
+instruments_estimator_t 
+CMMSocketImpl::mc_get_rtt_estimator(u_long net_restriction_labels)
+{
+    NetworkChooser *chooser = csock_map->get_network_chooser();
+    return chooser->get_rtt_estimator(net_restriction_labels);
+}
+
+
 double
 CMMSocketImpl::mc_estimate_transfer_time(intnw_network_strategy_t opaque_strategy, 
-                                         size_t datalen)
+                                         u_long labels, size_t datalen)
 {
     instruments_context_t ctx = opaque_strategy->ctx;
     return opaque_strategy->chooser->getEstimatedTransferTime(ctx, opaque_strategy->strategy, 
-                                                              datalen);
+                                                              labels, datalen);
 }
 
 double
 CMMSocketImpl::mc_estimate_transfer_energy(intnw_network_strategy_t opaque_strategy, 
-                                           size_t datalen)
+                                           u_long labels, size_t datalen)
 {
     instruments_context_t ctx = opaque_strategy->ctx;
     return opaque_strategy->chooser->getEstimatedTransferEnergy(ctx, opaque_strategy->strategy, 
-                                                                datalen);
+                                                                labels, datalen);
 }
 
 double
 CMMSocketImpl::mc_estimate_transfer_data(intnw_network_strategy_t opaque_strategy, 
-                                         size_t datalen)
+                                         u_long labels, size_t datalen)
 {
     instruments_context_t ctx = opaque_strategy->ctx;
     return opaque_strategy->chooser->getEstimatedTransferData(ctx, opaque_strategy->strategy, 
-                                                              datalen);
+                                                              labels, datalen);
+}
+
+double
+CMMSocketImpl::mc_get_oldest_irob_delay()
+{
+    PthreadScopedLock lock(&scheduling_state_lock);
+    
+    PendingIROBPtr oldest = outgoing_irobs.get_oldest();
+    if (!oldest) {
+        return 0.0;
+    }
+    
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(oldest));
+    ASSERT(psirob);
+    return psirob->getTimeSinceSent();
 }

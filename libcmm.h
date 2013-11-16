@@ -11,6 +11,7 @@
  */
 
 #ifndef BUILDING_SCOUT
+#include <instruments.h>
 #include <eval_method.h>
 #endif
 
@@ -228,6 +229,9 @@ intnw_network_strategy_t
 cmm_get_network_strategy_with_restriction(mc_socket_t sock, instruments_context_t context,
                                           u_long net_restriction_labels);
 
+instruments_estimator_t
+cmm_get_latency_estimator(mc_socket_t sock, u_long net_restriction_labels);
+
 /* Frees the opaque handle to IntNW's current network strategy and releases its lock.
  */
 void
@@ -239,16 +243,23 @@ cmm_free_network_strategy(mc_socket_t sock, intnw_network_strategy_t strategy);
  */
 double cmm_estimate_transfer_time(mc_socket_t sock, 
                                   intnw_network_strategy_t strategy, 
+                                  u_long labels, 
                                   size_t datalen);
 
 /* same as above, but for energy and cellular data. */
 double cmm_estimate_transfer_energy(mc_socket_t sock, 
                                     intnw_network_strategy_t strategy, 
+                                    u_long labels, 
                                     size_t datalen);
 double cmm_estimate_transfer_data(mc_socket_t sock, 
                                   intnw_network_strategy_t strategy, 
+                                  u_long labels, 
                                   size_t datalen);
 
+/* looks up the oldest unack'd IROB and returns the 
+ * time since it was sent (in seconds). 
+ * Returns 0.0 if there are no unack'd IROBs. */
+double cmm_get_oldest_irob_delay(mc_socket_t sock);
 
 #ifndef BUILDING_SCOUT
 /* return the configured eval method. */

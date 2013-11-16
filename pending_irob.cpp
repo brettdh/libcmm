@@ -1,3 +1,4 @@
+#include "libcmm_net_restriction.h"
 #include "pending_irob.h"
 #include "pending_sender_irob.h"
 #include "debug.h"
@@ -173,7 +174,8 @@ bool
 PendingIROB::can_be_redundant()
 {
     return (send_labels & CMM_LABEL_ONDEMAND &&
-            send_labels & CMM_LABEL_SMALL);
+            send_labels & CMM_LABEL_SMALL &&
+            (send_labels & ALL_NETWORK_RESTRICTIONS) == 0);
 }
 
 PendingIROBLattice::PendingIROBLattice()
@@ -517,3 +519,17 @@ PendingIROBLattice::irob_was_dropped(irob_id_t irob_id)
     return dropped_irobs.contains(irob_id);
 }
 
+
+PendingIROBPtr 
+PendingIROBLattice::get_oldest()
+{
+    PthreadScopedLock lock(&membership_lock);
+
+    if (pending_irobs.empty()) {
+        return PendingIROBPtr();
+    }
+    
+    PendingIROBPtr oldest = pending_irobs.front();
+    ASSERT(oldest);
+    return oldest;
+}

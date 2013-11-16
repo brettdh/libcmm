@@ -134,25 +134,28 @@ NetworkChooserGuard::getChosenStrategy(u_long net_restriction_labels)
 double 
 NetworkChooserGuard::getEstimatedTransferTime(instruments_context_t context, 
                                               instruments_strategy_t strategy,
+                                              u_long send_label,
                                               size_t bytes)
 {
-    return chooser->impl->getEstimatedTransferTime(context, strategy, bytes);
+    return chooser->impl->getEstimatedTransferTime(context, strategy, send_label, bytes);
 }
 
 double 
 NetworkChooserGuard::getEstimatedTransferEnergy(instruments_context_t context, 
                                                 instruments_strategy_t strategy,
+                                                u_long send_label,
                                                 size_t bytes)
 {
-    return chooser->impl->getEstimatedTransferEnergy(context, strategy, bytes);
+    return chooser->impl->getEstimatedTransferEnergy(context, strategy, send_label, bytes);
 }
 
 double 
 NetworkChooserGuard::getEstimatedTransferData(instruments_context_t context, 
                                               instruments_strategy_t strategy,
+                                              u_long send_label,
                                               size_t bytes)
 {
-    return chooser->impl->getEstimatedTransferData(context, strategy, bytes);
+    return chooser->impl->getEstimatedTransferData(context, strategy, send_label, bytes);
 }
 
 void 
@@ -213,4 +216,11 @@ NetworkChooser::saveToFile()
 {
     PthreadScopedLock guard(&lock);
     impl->saveToFile();
+}
+
+instruments_estimator_t 
+NetworkChooser::get_rtt_estimator(u_long net_restriction_labels)
+{
+    PthreadScopedLock guard(&lock);
+    return impl->get_rtt_estimator(net_restriction_labels);
 }

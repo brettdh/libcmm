@@ -144,9 +144,14 @@ class CMMSocketImpl : public CMMSocket {
     virtual intnw_network_strategy_t mc_get_network_strategy(instruments_context_t ctx, u_long net_restriction_labels);
     virtual void mc_free_network_strategy(intnw_network_strategy_t);
     
-    virtual double mc_estimate_transfer_time(intnw_network_strategy_t strategy, size_t datalen);
-    virtual double mc_estimate_transfer_energy(intnw_network_strategy_t strategy, size_t datalen);
-    virtual double mc_estimate_transfer_data(intnw_network_strategy_t strategy, size_t datalen);
+    virtual instruments_estimator_t mc_get_rtt_estimator(u_long net_restriction_labels);
+
+    virtual double mc_estimate_transfer_time(intnw_network_strategy_t strategy, u_long labels, size_t datalen);
+    virtual double mc_estimate_transfer_energy(intnw_network_strategy_t strategy, u_long labels, size_t datalen);
+    virtual double mc_estimate_transfer_data(intnw_network_strategy_t strategy, u_long labels, size_t datalen);
+
+    virtual double mc_get_oldest_irob_delay();
+
     
   private:
     // XXX: WHAT.  this is kind of silly.
@@ -430,9 +435,12 @@ class CMMSocketPassThrough : public CMMSocket {
     virtual intnw_network_strategy_t mc_get_network_strategy(instruments_context_t ctx, u_long net_restriction_labels);
     virtual void mc_free_network_strategy(intnw_network_strategy_t);
     
-    virtual double mc_estimate_transfer_time(intnw_network_strategy_t strategy, size_t datalen);
-    virtual double mc_estimate_transfer_energy(intnw_network_strategy_t strategy, size_t datalen);
-    virtual double mc_estimate_transfer_data(intnw_network_strategy_t strategy, size_t datalen);
+    virtual instruments_estimator_t mc_get_rtt_estimator(u_long net_restriction_labels);
+
+    virtual double mc_estimate_transfer_time(intnw_network_strategy_t strategy, u_long labels, size_t datalen);
+    virtual double mc_estimate_transfer_energy(intnw_network_strategy_t strategy, u_long labels, size_t datalen);
+    virtual double mc_estimate_transfer_data(intnw_network_strategy_t strategy, u_long labels, size_t datalen);
+    virtual double mc_get_oldest_irob_delay();
   private:
     mc_socket_t sock;
 };

@@ -78,17 +78,21 @@ class CMMSocket {
 
     virtual int mc_num_networks() = 0;
 
-    virtual intnw_network_strategy_t mc_get_network_strategy(instruments_context_t xtc, 
+    virtual intnw_network_strategy_t mc_get_network_strategy(instruments_context_t ctx, 
                                                              u_long net_restriction_labels=0) = 0;
     virtual void mc_free_network_strategy(intnw_network_strategy_t strategy) = 0;
 
-    virtual double mc_estimate_transfer_time(intnw_network_strategy_t strategy, 
-                                             size_t datalen) = 0;
-    virtual double mc_estimate_transfer_energy(intnw_network_strategy_t strategy,
-                                               size_t datalen) = 0;
-    virtual double mc_estimate_transfer_data(intnw_network_strategy_t strategy, 
-                                             size_t datalen) = 0;
+    virtual instruments_estimator_t mc_get_rtt_estimator(u_long net_restriction_labels) = 0;
 
+    virtual double mc_estimate_transfer_time(intnw_network_strategy_t strategy, 
+                                             u_long labels, size_t datalen) = 0;
+    virtual double mc_estimate_transfer_energy(intnw_network_strategy_t strategy,
+                                               u_long labels, size_t datalen) = 0;
+    virtual double mc_estimate_transfer_data(intnw_network_strategy_t strategy, 
+                                             u_long labels, size_t datalen) = 0;
+
+    virtual double mc_get_oldest_irob_delay() = 0;
+    
     virtual ~CMMSocket() {}
 };
 
