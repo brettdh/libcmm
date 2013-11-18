@@ -42,7 +42,10 @@ static int chooser_arg_less(void *left, void *right)
 {
     struct labeled_data *l_data = (struct labeled_data *) left;
     struct labeled_data *r_data = (struct labeled_data *) right;
-    
+    return (l_data->send_label < r_data->send_label ||
+            (l_data->send_label == r_data->send_label &&
+             l_data->bytelen < r_data->bytelen));
+    ;
 }
 
 static void *chooser_arg_copier(void *arg)
@@ -159,7 +162,7 @@ IntNWInstrumentsNetworkChooser::calculateTransferTime(instruments_context_t ctx,
     double tx_time = (bytelen / bw) + rtt_seconds;
     
     double wifi_failure_penalty = 0.0;
-    if (send_label & CMM_LABEL_WIFI_ONLY == 0) {
+    if ((send_label & CMM_LABEL_WIFI_ONLY) == 0) {
         wifi_failure_penalty = getWifiFailurePenalty(ctx, net_stats, tx_time,
                                                      averageWifiFailoverPenalty());
     }
@@ -242,7 +245,7 @@ IntNWInstrumentsNetworkChooser::calculateTransferEnergy(instruments_context_t ct
     // The reason is that the tail energy will dominate here if the 3G radio
     // isn't active, and if it was activated recently, the energy will be small.
     double wifi_failure_penalty = 0.0;
-    if (type == TYPE_WIFI && send_label & CMM_LABEL_WIFI_ONLY == 0) {
+    if (type == TYPE_WIFI && (send_label & CMM_LABEL_WIFI_ONLY) == 0) {
         double cellular_bw = cellular_stats->get_bandwidth_up(NULL);
         double cellular_rtt_seconds = cellular_stats->get_rtt(NULL);
         double cellular_fallback_energy = time_estimate_energy_cost(cellular_energy_calculator, bytelen, 
@@ -506,7 +509,7 @@ IntNWInstrumentsNetworkChooser::checkRedundancyAsync(CSockMapping *mapping,
 
     wifi_stats->setWifiSessionLengthBound(getCurrentWifiDuration());
     refreshEnergyCalculators();
-    struct labeled_data chooser_data{psirob->get_send_labels(), psirob->expected_bytes()};
+    struct labeled_data chooser_data{psirob->get_send_labels(), (int) psirob->expected_bytes()};
     choose_strategy_async(evaluator, (void *) &chooser_data, 
                           chosen_strategy_callback_wrapper, pcallback);
 }
@@ -776,7 +779,7 @@ IntNWInstrumentsNetworkChooser::getEstimatedTransferTime(instruments_context_t c
                                                          u_long send_label,
                                                          size_t bytes)
 {
-    struct labeled_data data{send_label, bytes};
+    struct labeled_data data{send_label, (int) bytes};
     return calculate_strategy_time(context, strategy, (void *) &data);
 }
 
@@ -786,7 +789,7 @@ IntNWInstrumentsNetworkChooser::getEstimatedTransferEnergy(instruments_context_t
                                                            u_long send_label,
                                                            size_t bytes)
 {
-    struct labeled_data data{send_label, bytes};
+    struct labeled_data data{send_label, (int) bytes};
     return calculate_strategy_energy(context, strategy, (void *) &data);
 }
 
@@ -796,7 +799,7 @@ IntNWInstrumentsNetworkChooser::getEstimatedTransferData(instruments_context_t c
                                                          u_long send_label,
                                                          size_t bytes)
 {
-    struct labeled_data data{send_label, bytes};
+    struct labeled_data data{send_label, (int) bytes};
     return calculate_strategy_data(context, strategy, (void *) &data);
 }
 

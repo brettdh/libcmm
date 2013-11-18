@@ -229,8 +229,10 @@ intnw_network_strategy_t
 cmm_get_network_strategy_with_restriction(mc_socket_t sock, instruments_context_t context,
                                           u_long net_restriction_labels);
 
+#ifndef BUILDING_SCOUT
 instruments_estimator_t
 cmm_get_latency_estimator(mc_socket_t sock, u_long net_restriction_labels);
+#endif
 
 /* Frees the opaque handle to IntNW's current network strategy and releases its lock.
  */
