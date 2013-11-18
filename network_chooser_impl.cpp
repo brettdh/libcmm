@@ -56,6 +56,20 @@ NetworkChooserImpl::choose_networks(u_long send_label,
     return choose_networks(send_label, 0, local_iface, remote_iface);
 }
 
+void 
+NetworkChooserImpl::lock()
+{
+    int rc = pthread_mutex_lock(&wrapper->lock);
+    PTHREAD_ASSERT_SUCCESS(rc);
+}
+
+void 
+NetworkChooserImpl::unlock()
+{
+    int rc = pthread_mutex_unlock(&wrapper->lock);
+    PTHREAD_ASSERT_SUCCESS(rc);
+}
+
 
 PreferredNetwork::PreferredNetwork(int preferred_type_)
 {

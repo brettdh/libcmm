@@ -1,5 +1,6 @@
 #include "intnw_net_stats_wrapper.h"
 #include "intnw_instruments_net_stats_wrapper.h"
+#include "intnw_instruments_network_chooser.h"
 #include "debug.h"
 #include "intnw_config.h"
 
@@ -36,8 +37,9 @@ get_range_hints(const string& network, const string& type)
     return (config->*getter)();
 }
 
-InstrumentsWrappedNetStats::InstrumentsWrappedNetStats(const std::string& network)
-    : session_duration(network + "_session_duration"), first_update(true),
+InstrumentsWrappedNetStats::InstrumentsWrappedNetStats(const std::string& network,
+                                                       IntNWInstrumentsNetworkChooser *chooser_)
+    : chooser(chooser_), session_duration(network + "_session_duration"), first_update(true),
       last_bw_estimate(0.0), last_RTT_estimate(0.0) // will be filled in before use
 {
     dbgprintf("creating InstrumentsWrappedNetStats %p\n", this);
@@ -147,15 +149,23 @@ void InstrumentsWrappedNetStats::update(double bw_up, double bw_estimate,
             // Furthermore, bandwidth hardly makes any difference in the network decisions for small transfers.
             // So, we'll just ignore it for that method.
             // (Could ignore it for the others too, but it doesn't seem to hurt them.)
+            // XXX: this is a gross hack, and it's actually disabled via config.
+            // XXX: bandwidth error is always considered in my experiments.
             EvalMethod method = Config::getInstance()->getEstimatorErrorEvalMethod();
             if (Config::getInstance()->getDisableBandwidthError() == false ||
                 (method != CONFIDENCE_BOUNDS && method != CONFIDENCE_BOUNDS_WEIGHTED)) {
+                chooser->unlock();
+                // this grabs a lock on each subscriber to this estimator,
+                // which can result in deadlock, so drop the eval lock first.
                 add_observation(bw_up_estimator, bw_up, bw_estimate);
+                chooser->lock();
             }
             last_bw_estimate = bw_estimate;
         }
         if (RTT_seconds > 0.0) {
+            chooser->unlock(); // see above.
             add_observation(rtt_estimator, RTT_seconds, RTT_estimate);
+            chooser->lock();
             last_RTT_estimate = RTT_estimate;
         }
     } while (was_first_update());
@@ -179,7 +189,9 @@ InstrumentsWrappedNetStats::addSessionDuration(struct timeval duration)
         dbgprintf("Adding new session length %f  new estimate %f\n",
                   duration_secs, duration_est);
         if (!use_session_distribution) {
+            chooser->unlock(); // see comments in update()
             add_observation(session_duration_estimator, duration_secs, duration_est);
+            chooser->lock();
         }
     }
 }

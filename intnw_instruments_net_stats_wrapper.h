@@ -11,10 +11,12 @@
 #include <iostream>
 
 class WrappedNetStats;
+class IntNWInstrumentsNetworkChooser;
 
 class InstrumentsWrappedNetStats {
   public:
-    InstrumentsWrappedNetStats(const std::string& network);
+    InstrumentsWrappedNetStats(const std::string& network,
+                               IntNWInstrumentsNetworkChooser *chooser_);
     ~InstrumentsWrappedNetStats();
 
     // add active measurement result to stats.
@@ -49,6 +51,8 @@ class InstrumentsWrappedNetStats {
         return rtt_estimator;
     }
   private:
+    IntNWInstrumentsNetworkChooser *chooser;
+
     instruments_external_estimator_t bw_up_estimator;
     instruments_external_estimator_t rtt_estimator;
 

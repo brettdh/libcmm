@@ -288,8 +288,8 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
 {
     dbgprintf("creating InstrumentsNetworkChooser %p\n", this);
 
-    cellular_stats = new InstrumentsWrappedNetStats("cellular");
-    wifi_stats = new InstrumentsWrappedNetStats("wifi");
+    cellular_stats = new InstrumentsWrappedNetStats("cellular", this);
+    wifi_stats = new InstrumentsWrappedNetStats("wifi", this);
     // TODO: sensible (or historical) initial value for wifi session length
 
     wifi_begin.tv_sec = wifi_begin.tv_usec = 0;

@@ -81,6 +81,11 @@ class NetworkChooserImpl {
     virtual ~NetworkChooserImpl() {}
     
     void setWrapper(NetworkChooser *wrapper_);
+
+    // for releasing wrapper lock briefly, as needed to avoid deadlock
+    void lock();
+    void unlock();
+
   protected:
     NetworkChooserImpl();
 

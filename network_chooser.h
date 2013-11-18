@@ -97,6 +97,7 @@ class NetworkChooser {
     ~NetworkChooser();
   private:
     friend class NetworkChooserGuard;
+    friend class NetworkChooserImpl;
 
     NetworkChooser(NetworkChooserImpl *pimpl_);
     NetworkChooserImpl *impl;
