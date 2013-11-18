@@ -2820,8 +2820,12 @@ struct intnw_network_strategy {
 intnw_network_strategy_t
 CMMSocketImpl::mc_get_network_strategy(instruments_context_t ctx, u_long net_restriction_labels)
 {
-    // make sure that we've at least initially chosen some network strategy.
-    csock_map->new_csock_with_labels(CMM_LABEL_ONDEMAND, 1, true);
+    if ((net_restriction_labels & ALL_NETWORK_RESTRICTIONS) == 0) {
+        // if we're going to return the strategy actually chosen 
+        // (not just the one forced by the restriction labels), 
+        // make sure that we've at least initially chosen some network strategy.
+        csock_map->new_csock_with_labels(CMM_LABEL_ONDEMAND, 1, true);
+    }
     
     return new intnw_network_strategy(ctx, csock_map->get_network_chooser()->getGuardedChooser(),
                                       net_restriction_labels);

@@ -932,5 +932,7 @@ void
 CSockMapping::check_redundancy_async(PendingSenderIROB *psirob, 
                                      const IROBSchedulingData& data)
 {
-    network_chooser->checkRedundancyAsync(this, psirob, data);
+    if (psirob->can_be_redundant()) {
+        network_chooser->checkRedundancyAsync(this, psirob, data);
+    }
 }
