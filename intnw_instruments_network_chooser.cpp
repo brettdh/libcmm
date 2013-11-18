@@ -376,7 +376,7 @@ choose_networks(u_long send_label, size_t num_bytes,
     ASSERT(has_match);
     ASSERT(wifi_present || cellular_present);
     
-    if (!wifi_present) {
+    if (!wifi_present || send_label & CMM_LABEL_THREEG_ONLY) {
         if (send_label & CMM_LABEL_WIFI_ONLY) {
             return false;
         }
@@ -387,7 +387,7 @@ choose_networks(u_long send_label, size_t num_bytes,
         return true;
     }
 
-    if (!cellular_present) {
+    if (!cellular_present || send_label & CMM_LABEL_WIFI_ONLY) {
         if (send_label & CMM_LABEL_THREEG_ONLY) {
             return false;
         }
