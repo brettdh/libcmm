@@ -377,7 +377,7 @@ choose_networks(u_long send_label, size_t num_bytes,
     ASSERT(wifi_present || cellular_present);
     
     if (!wifi_present || send_label & CMM_LABEL_THREEG_ONLY) {
-        if (send_label & CMM_LABEL_WIFI_ONLY) {
+        if (send_label & CMM_LABEL_WIFI_ONLY && !fallback_allowed(send_label)) {
             return false;
         }
         chosen_singular_strategy_type = NETWORK_CHOICE_CELLULAR;
@@ -388,7 +388,7 @@ choose_networks(u_long send_label, size_t num_bytes,
     }
 
     if (!cellular_present || send_label & CMM_LABEL_WIFI_ONLY) {
-        if (send_label & CMM_LABEL_THREEG_ONLY) {
+        if (send_label & CMM_LABEL_THREEG_ONLY && !fallback_allowed(send_label)) {
             return false;
         }
         chosen_singular_strategy_type = NETWORK_CHOICE_WIFI;

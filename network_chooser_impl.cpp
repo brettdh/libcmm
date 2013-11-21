@@ -153,7 +153,7 @@ LabelMatcher::choose_networks(u_long send_label, size_t num_bytes,
 
     // first, check net type restriction labels, since they take precedence
     if (send_label & CMM_LABEL_WIFI_ONLY) {
-        if (!has_wifi_match) {
+        if (!has_wifi_match && !fallback_allowed(send_label)) {
             return false;
         }
 
@@ -161,7 +161,7 @@ LabelMatcher::choose_networks(u_long send_label, size_t num_bytes,
         remote_iface = wifi_pair.second;
         return true;
     } else if (send_label & CMM_LABEL_THREEG_ONLY) {
-        if (!has_threeg_match) {
+        if (!has_threeg_match && !fallback_allowed(send_label)) {
             return false;
         }
 

@@ -46,7 +46,7 @@ bool network_fits_restriction(u_long labels,
                              struct net_interface local_iface,
                              struct net_interface remote_iface)
 {
-    if (!has_network_restriction(labels)) {
+    if (!has_network_restriction(labels) || fallback_allowed(labels)) {
         return true;
     }
 

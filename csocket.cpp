@@ -656,7 +656,7 @@ CSocket::fits_net_restriction(u_long labels)
 void
 CSocket::update_net_restriction_stats(u_long labels, size_t bytes_sent, size_t bytes_recvd)
 {
-    if (!fits_net_restriction(labels)) {
+    if (!fits_net_restriction(labels) && !fallback_allowed(labels)) {
         // should never happen; if unable to respect network restriction,
         //  the sending of that IROB should just fail.
         sk->update_net_restriction_stats(labels, bytes_sent, bytes_recvd);

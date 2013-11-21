@@ -23,6 +23,9 @@ bool has_network_restriction(u_long labels)
 
 int network_fits_restriction(int type, u_long labels)
 {
+    if (fallback_allowed(labels)) {
+        return true;
+    }
     int restriction_labels = labels & ALL_NETWORK_RESTRICTIONS;
     int restriction_mask = type << NET_RESTRICTION_LABEL_SHIFT;
     return (restriction_labels == 0 || restriction_mask & restriction_labels);
@@ -44,5 +47,13 @@ string describe_network_restrictions(u_long labels)
         }
         oss << "3G";
     }
+    if (labels & CMM_LABEL_FALLBACK_ALLOWED) {
+        oss << "+fallback";
+    }
     return oss.str();
+}
+
+bool fallback_allowed(u_long labels)
+{
+    return (labels & CMM_LABEL_FALLBACK_ALLOWED);
 }

@@ -12,6 +12,9 @@
 #define CMM_LABEL_WIFI_ONLY (NET_TYPE_WIFI << NET_RESTRICTION_LABEL_SHIFT)
 #define CMM_LABEL_THREEG_ONLY (NET_TYPE_THREEG << NET_RESTRICTION_LABEL_SHIFT)
 
+#define CMM_LABEL_FALLBACK_ALLOWED (0x10 << NET_RESTRICTION_LABEL_SHIFT)
+#define CMM_LABEL_WIFI_PREFERRED (CMM_LABEL_WIFI_ONLY | CMM_LABEL_FALLBACK_ALLOWED)
+
 #define ALL_NETWORK_RESTRICTIONS (CMM_LABEL_WIFI_ONLY | CMM_LABEL_THREEG_ONLY)
 
 
@@ -21,5 +24,7 @@ int network_fits_restriction(int type, u_long labels);
 
 #include <string>
 std::string describe_network_restrictions(u_long labels);
+
+bool fallback_allowed(u_long labels);
 
 #endif /* LIBCMM_NET_RESTRICTION_H */
