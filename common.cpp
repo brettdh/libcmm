@@ -95,5 +95,8 @@ describe_labels(u_long send_labels)
         int label_mask = 1 << (NET_RESTRICTION_LABEL_SHIFT + i);
         send_labels = modify_bits_string(send_labels, label_mask, net_restriction_strs[i], msg);
     }
+    if (fallback_allowed(send_labels)) {
+        msg << "FALLBACK_OK";
+    }
     return msg.str();
 }
