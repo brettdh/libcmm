@@ -183,6 +183,9 @@ public class ConnectivityListener extends BroadcastReceiver {
     public static final String ACTION_START_MEASUREMENT = 
         "edu.umich.intnw.scout.StartMeasurement";
     
+    public static final String INTNW_SCOUT_WIFI_AVAILABLE = 
+        "edu.umich.intnw.scout.IntNWScoutWifiAvailable";
+    
     private class MeasurementThread extends Thread {
         private ConnectivityListener mListener;
         private Map<Integer, NetUpdate> networks;
@@ -373,6 +376,10 @@ public class ConnectivityListener extends BroadcastReceiver {
                                                 !networkInfo.isConnected(),
                                                 Constants.netTypeFromAndroidType(networkInfo.getType()));
                     mScoutService.logUpdate(network);
+                    if (network.type == ConnectivityManager.TYPE_WIFI &&
+                        networkInfo.isConnected()) {
+                        mScoutService.sendBroadcast(new Intent(INTNW_SCOUT_WIFI_AVAILABLE));
+                    }
                 }
             } catch (NetworkStatusException e) {
                 // ignore; already logged

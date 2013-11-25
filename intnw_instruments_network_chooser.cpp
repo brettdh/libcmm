@@ -505,6 +505,11 @@ IntNWInstrumentsNetworkChooser::checkRedundancyAsync(CSockMapping *mapping,
                                                      PendingSenderIROB *psirob, 
                                                      const IROBSchedulingData& data)
 {
+    if (Config::getInstance()->getEstimatorErrorEvalMethod() == TRUSTED_ORACLE) {
+        // no redundancy
+        return;
+    }
+    
     auto *pcallback = getRedundancyDecisionCallback(mapping, data, chosen_singular_strategy_type);
 
     wifi_stats->setWifiSessionLengthBound(getCurrentWifiDuration());
@@ -704,7 +709,7 @@ IntNWInstrumentsNetworkChooser::reportNetStats(int network_type,
         oss << "  latency: obs " << new_latency_seconds << " est " << new_latency_estimate;
     }
     oss << "\n";
-    dbgprintf("%s", oss.str().c_str());
+    dbgprintf_always("%s", oss.str().c_str());
     
     // XXX: hackish.  Should separate bw and RTT updates.
     stats->update(new_bw, new_bw_estimate, 
@@ -732,7 +737,21 @@ IntNWInstrumentsNetworkChooser::reportNetworkTeardown(int network_type)
         dbgprintf("Ending wifi session; was %lu.%06lu seconds\n",
                   diff.tv_sec, diff.tv_usec);
         
+        unlock();
+        // updating estimators grabs a lock on each subscriber to each estimator,
+        // which can result in deadlock, so drop the eval lock first.
+
         wifi_stats->addSessionDuration(diff);
+
+        /*
+         * TODO: finish implementing these
+        if (shouldLoadErrors()) {
+            reset_to_historical_error(strategies[NETWORK_CHOICE_WIFI], getLoadErrorsFilename().c_str());
+        } else {
+            reset_to_no_error(strategies[NETWORK_CHOICE_WIFI]);
+        }
+        */
+        lock();
     }
 }
 
@@ -835,6 +854,10 @@ bool
 IntNWInstrumentsNetworkChooser::RedundancyStrategy::
 shouldTransmitRedundantly(PendingSenderIROB *psirob)
 {
+    if (Config::getInstance()->getEstimatorErrorEvalMethod() == TRUSTED_ORACLE) {
+        return false;
+    }
+
     ASSERT(chooser->has_match);
     if (chooser->chosen_strategy_type == -1) {
         dbgprintf("shouldTransmitRedundantly: redundancy decision in progress; non-redundant for now\n");
