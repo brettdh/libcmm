@@ -116,6 +116,7 @@ clean: subdirclean
 .hdrinstall: libcmm.h libcmm_irob.h
 	install libcmm.h /usr/local/include/
 	install libcmm_irob.h /usr/local/include/
+	install libcmm_net_restriction.h /usr/local/include/
 	-touch .hdrinstall
 
 .PHONY: scout_install
