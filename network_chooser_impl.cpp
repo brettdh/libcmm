@@ -153,16 +153,32 @@ LabelMatcher::choose_networks(u_long send_label, size_t num_bytes,
 
     // first, check net type restriction labels, since they take precedence
     if (send_label & CMM_LABEL_WIFI_ONLY) {
-        if (!has_wifi_match && !fallback_allowed(send_label)) {
-            return false;
+        if (!has_wifi_match) {
+            if (fallback_allowed(send_label) && has_threeg_match) {
+                // XXX: should fall back on ANY network, or choose from among the rest
+                // XXX: (but there's only one other network, most of the time)
+                local_iface = threeg_pair.first;
+                remote_iface = threeg_pair.second;
+                return true;
+            } else {
+                return false;
+            }
         }
 
         local_iface = wifi_pair.first;
         remote_iface = wifi_pair.second;
         return true;
     } else if (send_label & CMM_LABEL_THREEG_ONLY) {
-        if (!has_threeg_match && !fallback_allowed(send_label)) {
-            return false;
+        if (!has_threeg_match) {
+            if (fallback_allowed(send_label) && has_wifi_match) {
+                // XXX: should fall back on ANY network, or choose from among the rest
+                // XXX: (but there's only one other network, most of the time)
+                local_iface = wifi_pair.first;
+                remote_iface = wifi_pair.second;
+                return true;
+            } else {
+                return false;
+            }
         }
 
         local_iface = threeg_pair.first;

@@ -28,7 +28,6 @@ void dbgprintf_plain(const char *format, ...)
     do {                                                                \
         if (!(cond)) {                                                  \
             dbgprintf_always("ASSERT '" #cond "' failed at %s:%d\n", __FILE__, __LINE__); \
-            sleep(60);                                                 \
             __builtin_trap();                                          \
         }                                                              \
     } while (0)

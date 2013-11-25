@@ -375,29 +375,23 @@ choose_networks(u_long send_label, size_t num_bytes,
 
     ASSERT(has_match);
     ASSERT(wifi_present || cellular_present);
+
+    if (!wifi_present || !cellular_present ||
+        has_network_restriction(send_label)) {
+        bool success = label_matcher.choose_networks(send_label, num_bytes,
+                                                     local_iface, remote_iface);
+        if (success) {
+            if (!wifi_present || send_label & CMM_LABEL_THREEG_ONLY) {
+                chosen_singular_strategy_type = NETWORK_CHOICE_CELLULAR;
+                chosen_strategy_type = NETWORK_CHOICE_CELLULAR;
+            } else if (!cellular_present || send_label & CMM_LABEL_WIFI_ONLY) {
+                chosen_singular_strategy_type = NETWORK_CHOICE_WIFI;
+                chosen_strategy_type = NETWORK_CHOICE_WIFI;
+            }
+        }
+        return success;
+    }
     
-    if (!wifi_present || send_label & CMM_LABEL_THREEG_ONLY) {
-        if (send_label & CMM_LABEL_WIFI_ONLY && !fallback_allowed(send_label)) {
-            return false;
-        }
-        chosen_singular_strategy_type = NETWORK_CHOICE_CELLULAR;
-        chosen_strategy_type = NETWORK_CHOICE_CELLULAR;
-        local_iface = cellular_local;
-        remote_iface = cellular_remote;
-        return true;
-    }
-
-    if (!cellular_present || send_label & CMM_LABEL_WIFI_ONLY) {
-        if (send_label & CMM_LABEL_THREEG_ONLY && !fallback_allowed(send_label)) {
-            return false;
-        }
-        chosen_singular_strategy_type = NETWORK_CHOICE_WIFI;
-        chosen_strategy_type = NETWORK_CHOICE_WIFI;
-        local_iface = wifi_local;
-        remote_iface = wifi_remote;
-        return true;
-    }
-
     if (needs_reevaluation) {
         dbgprintf("About to choose a network; current wifi session length: %f seconds\n",
                   getCurrentWifiDuration());
