@@ -925,7 +925,8 @@ CSockMapping::shouldReevaluate(PendingSenderIROB *psirob)
 {
     return (psirob->can_be_redundant() &&
             count_connected() > 1 && 
-            Config::getInstance()->getPeriodicReevaluationEnabled());
+            Config::getInstance()->getPeriodicReevaluationEnabled() &&
+            Config::getInstance()->getEstimatorErrorEvalMethod() != TRUSTED_ORACLE);
 }
 
 void
