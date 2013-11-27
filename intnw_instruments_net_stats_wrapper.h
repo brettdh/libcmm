@@ -50,6 +50,12 @@ class InstrumentsWrappedNetStats {
     instruments_estimator_t getRttEstimator() {
         return rtt_estimator;
     }
+
+    // reset the estimators for this network to historical (or no-error) values,
+    // depending on whether there is a history file specified in intnw config.
+    // called upon loss of WiFi connectivity, so that we don't get stuck
+    // using old measurements and avoiding testing a new WiFi AP.
+    void resetError(const char *filename);
   private:
     IntNWInstrumentsNetworkChooser *chooser;
 
@@ -69,6 +75,10 @@ class InstrumentsWrappedNetStats {
 
     double last_bw_estimate;
     double last_RTT_estimate;
+
+    // for use during wifi stats reset.
+    double first_bw_up_estimate;
+    double first_RTT_estimate;
 };
 
 #endif /* _INTNW_INSTRUMENTS_NET_STATS_WRAPPER_H_ */

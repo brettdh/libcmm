@@ -737,14 +737,8 @@ IntNWInstrumentsNetworkChooser::reportNetworkTeardown(int network_type)
 
         wifi_stats->addSessionDuration(diff);
 
-        /*
-         * TODO: finish implementing these
-        if (shouldLoadErrors()) {
-            reset_to_historical_error(strategies[NETWORK_CHOICE_WIFI], getLoadErrorsFilename().c_str());
-        } else {
-            reset_to_no_error(strategies[NETWORK_CHOICE_WIFI]);
-        }
-        */
+        const char * filename = shouldLoadErrors() ? getLoadErrorsFilename().c_str() : nullptr;
+        wifi_stats->resetError(filename);
         lock();
     }
 }

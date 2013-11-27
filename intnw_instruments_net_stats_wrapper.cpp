@@ -40,7 +40,8 @@ get_range_hints(const string& network, const string& type)
 InstrumentsWrappedNetStats::InstrumentsWrappedNetStats(const std::string& network,
                                                        IntNWInstrumentsNetworkChooser *chooser_)
     : chooser(chooser_), session_duration(network + "_session_duration"), first_update(true),
-      last_bw_estimate(0.0), last_RTT_estimate(0.0) // will be filled in before use
+      last_bw_estimate(0.0), last_RTT_estimate(0.0), // will be filled in before use
+      first_bw_up_estimate(0.0), first_RTT_estimate(0.0)
 {
     dbgprintf("creating InstrumentsWrappedNetStats %p\n", this);
     
@@ -159,6 +160,9 @@ void InstrumentsWrappedNetStats::update(double bw_up, double bw_estimate,
                 // which can result in deadlock, so drop the eval lock first.
                 add_observation(bw_up_estimator, bw_up, bw_estimate);
                 chooser->lock();
+                if (first_update) {
+                    first_bw_up_estimate = bw_estimate;
+                }
             }
             last_bw_estimate = bw_estimate;
         }
@@ -166,6 +170,10 @@ void InstrumentsWrappedNetStats::update(double bw_up, double bw_estimate,
             chooser->unlock(); // see above.
             add_observation(rtt_estimator, RTT_seconds, RTT_estimate);
             chooser->lock();
+
+            if (first_update) {
+                first_RTT_estimate = RTT_estimate;
+            }
             last_RTT_estimate = RTT_estimate;
         }
     } while (was_first_update());
@@ -237,4 +245,22 @@ void
 InstrumentsWrappedNetStats::clearRttLowerBound()
 {
     clear_estimator_conditions(rtt_estimator);
+}
+
+void
+InstrumentsWrappedNetStats::resetError(const char *filename)
+{
+    if (filename) {
+        reset_to_historical_error(bw_up_estimator, filename);
+        reset_to_historical_error(rtt_estimator, filename);
+    } else {
+        reset_to_no_error(bw_up_estimator);
+        reset_to_no_error(rtt_estimator);
+    }
+
+    // the stats here are the only ones that matter to the strategies that use instruments.
+    // the other strategies don't care about resetting, so we don't do it on the cached NetStats.
+    
+    add_observation(bw_up_estimator, first_bw_up_estimate, first_bw_up_estimate);
+    add_observation(rtt_estimator, first_RTT_estimate, first_RTT_estimate);
 }
