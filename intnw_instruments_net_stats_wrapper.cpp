@@ -248,19 +248,15 @@ InstrumentsWrappedNetStats::clearRttLowerBound()
 }
 
 void
-InstrumentsWrappedNetStats::resetError(const char *filename)
+InstrumentsWrappedNetStats::resetError()
 {
-    if (filename) {
-        reset_to_historical_error(bw_up_estimator, filename);
-        reset_to_historical_error(rtt_estimator, filename);
-    } else {
-        reset_to_no_error(bw_up_estimator);
-        reset_to_no_error(rtt_estimator);
-    }
-
     // the stats here are the only ones that matter to the strategies that use instruments.
     // the other strategies don't care about resetting, so we don't do it on the cached NetStats.
-    
+
+    // reset these first, so that the historical error starts with the historical estimate
     add_observation(bw_up_estimator, first_bw_up_estimate, first_bw_up_estimate);
     add_observation(rtt_estimator, first_RTT_estimate, first_RTT_estimate);
+
+    reset_estimator_error(bw_up_estimator);
+    reset_estimator_error(rtt_estimator);
 }

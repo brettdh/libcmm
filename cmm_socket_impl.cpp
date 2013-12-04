@@ -1852,27 +1852,44 @@ CMMSocketImpl::teardown(struct net_interface iface, bool local)
     }
 }
 
+static bool
+should_data_check(PendingSenderIROB *psirob, in_addr_t local_ip, in_addr_t remote_ip, u_long label_mask)
+{
+    u_long send_labels = psirob->get_send_labels();
+    return (psirob->wasSentOn(local_ip, remote_ip) &&
+            (label_mask == 0 || label_mask & send_labels) &&
+            (!has_network_restriction(send_labels) || fallback_allowed(send_labels)));
+    // if an IROB has a network restriction, we should never data-check it unless
+    // fallback is allowed.  We effectively drop it if it is network-restricted.
+    // TODO: clean dropped IROBs out of the lattice.
+}
+        
+
 void CMMSocketImpl::data_check_all_irobs(in_addr_t local_ip, in_addr_t remote_ip,
                                          u_long label_mask)
 {
+    bool data_check_scheduled = false;
+    
     vector<irob_id_t> ids = outgoing_irobs.get_all_ids();
     for (size_t i = 0; i < ids.size(); ++i) {
         PendingIROBPtr pirob = outgoing_irobs.find(ids[i]);
         PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
         ASSERT(psirob);
         
-        if (psirob->wasSentOn(local_ip, remote_ip) &&
-            (label_mask == 0 ||
-             label_mask & psirob->get_send_labels())) {
+        if (should_data_check(psirob, local_ip, remote_ip, label_mask)) {
             IROBSchedulingData data(ids[i], false);
             data.data_check = true;
             irob_indexes.waiting_data_checks.insert(data);
+            
+            data_check_scheduled = true;
         }
     }
 
-    // even in the remote case, any reading threads need to
-    //  notice the csock is gone and wake up, if it's the last one
-    pthread_cond_broadcast(&scheduling_state_cv);
+    if (data_check_scheduled) {
+        // even in the remote case, any reading threads need to
+        //  notice the csock is gone and wake up, if it's the last one
+        pthread_cond_broadcast(&scheduling_state_cv);
+    }
 }
 
 /* only called with read accessor held on this */

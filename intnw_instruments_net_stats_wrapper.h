@@ -52,10 +52,10 @@ class InstrumentsWrappedNetStats {
     }
 
     // reset the estimators for this network to historical (or no-error) values,
-    // depending on whether there is a history file specified in intnw config.
+    // depending on whether the strategy evaluator has ever loaded history.
     // called upon loss of WiFi connectivity, so that we don't get stuck
     // using old measurements and avoiding testing a new WiFi AP.
-    void resetError(const char *filename);
+    void resetError();
   private:
     IntNWInstrumentsNetworkChooser *chooser;
 

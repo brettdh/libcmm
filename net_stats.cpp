@@ -564,7 +564,16 @@ NetStats::report_ack(irob_id_t irob_id, struct timeval srv_time,
             bool valid_result = false;
             bool bw_valid = false, lat_valid = false;
 
-            const size_t MIN_SIZE_FOR_BW_ESTIMATE = 1500; // ethernet MTU
+            //const size_t MIN_SIZE_FOR_BW_ESTIMATE = 1500; // ethernet MTU
+
+
+            // we get really bad bandwidth measurements when we use a 1-packet
+            // threshold.  So, for small transfers, we will treat any network
+            // performance change as being caused solely by latency.  This is
+            // usually okay, since what we really care about is total network transfer time.
+            const size_t MIN_SIZE_FOR_BW_ESTIMATE = 3000; // 2 packets; probably needs tuning
+
+
             size_t size_diff = ((req_size > last_req_size)
                                 ? (req_size - last_req_size)
                                 : (last_req_size - req_size));

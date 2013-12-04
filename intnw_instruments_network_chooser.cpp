@@ -737,8 +737,7 @@ IntNWInstrumentsNetworkChooser::reportNetworkTeardown(int network_type)
 
         wifi_stats->addSessionDuration(diff);
 
-        const char * filename = shouldLoadErrors() ? getLoadErrorsFilename().c_str() : nullptr;
-        wifi_stats->resetError(filename);
+        wifi_stats->resetError();
         lock();
     }
 }
