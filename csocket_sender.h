@@ -50,23 +50,5 @@ class CSocketSender : public CMMThread {
     void send_data_check(const IROBSchedulingData& data);
 
     bool nothingToSend();
-
-    struct DataInFlight {
-        bool data_inflight;
-        struct timespec rel_trouble_timeout;
-        DataInFlight();
-        int operator()(CSocketPtr csock);
-    };
-
-    /*
-    struct TroubleChecker {
-        CMMSocketImpl *sk;
-        std::vector<struct net_interface> troubled_ifaces;
-        TroubleChecker(CMMSocketImpl *skp) : sk(skp) {}
-        
-        int operator()(CSocketPtr csock);
-    };
-    */
-    
 };
 #endif

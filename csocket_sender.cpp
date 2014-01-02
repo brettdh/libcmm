@@ -46,52 +46,6 @@ CSocketSender::CSocketSender(CSocketPtr csock_)
     trickle_timeout.tv_nsec = 0;
 }
 
-CSocketSender::DataInFlight::DataInFlight()
-{
-    data_inflight = false;
-    rel_trouble_timeout.tv_sec = INT_MAX;
-    rel_trouble_timeout.tv_nsec = 0;
-}
-int 
-CSocketSender::DataInFlight::operator()(CSocketPtr csock)
-{
-    if (csock->data_inflight()) {
-        data_inflight = true;
-        struct timespec csock_rel_timeout = csock->trouble_check_timeout();
-        if (timercmp(&csock_rel_timeout, &rel_trouble_timeout, <)) {
-            rel_trouble_timeout = csock_rel_timeout;
-        }
-    }
-    return 0;
-}
-
-/*
-int CSocketSender::TroubleChecker::operator()(CSocketPtr csock)
-{
-    if (csock->data_inflight() &&
-        csock->is_in_trouble() && sk->csock_map->count_locked() > 1) {
-        
-        struct timespec last, now, diff, timeout;
-        timeout = csock->trouble_check_timeout();
-        last = csock->last_trouble_check;
-        TIME(now);
-        if (timercmp(&last, &now, <)) {
-            TIMEDIFF(csock->last_trouble_check, now, diff);
-            if (timercmp(&diff, &timeout, >)) {
-                // only trigger a trouble check if it's been long enough since the last one
-                csock->last_trouble_check = now;
-                troubled_ifaces.push_back(csock->local_iface);
-
-                StringifyIP local_ip(&csock->local_iface.ip_addr);
-                StringifyIP remote_ip(&csock->remote_iface.ip_addr);
-                dbgprintf("Network (%s -> %s) is in trouble\n", local_ip.c_str(), remote_ip.c_str());
-            }
-        }
-    }
-    return 0;
-}
-*/
-
 bool
 CSocketSender::nothingToSend()
 {
@@ -221,17 +175,6 @@ CSocketSender::Run()
             
             struct timespec timeout = {-1, 0};
 
-            /*
-            DataInFlight inflight;
-            sk->csock_map->for_each(inflight);
-            if ((inflight.data_inflight && inflight.rel_trouble_timeout.tv_sec != -1)) {
-                timeout = abs_time(inflight.rel_trouble_timeout);
-                dbgprintf("Data in flight; trouble-check timeout in %lu.%09lu sec\n",
-                          inflight.rel_trouble_timeout.tv_sec,
-                          inflight.rel_trouble_timeout.tv_nsec);
-            }
-            */
-            
             if (trickle_timeout.tv_sec > 0) {
                 if (timeout.tv_sec > 0) {
                     timeout = (timercmp(&timeout, &trickle_timeout, <)
@@ -276,24 +219,6 @@ CSocketSender::Run()
             if (!timercmp(&timeout, &thunk_timeout, ==)) {
                 dbgprintf("Woke up; maybe I can do some work?\n");
             }
-
-            /* TODO-REDUNDANCY: this is the periodic-reevaluation part.
-             * TODO-REDUNDANCY:  (only applicable for my redundancy code.) */
-            // TODO-REDUNDANCY: make sure that I get woken up to do this check.
-            // TODO-REDUNDANCY: maybe use a timeout, only calculated and set
-            // TODO-REDUNDANCY:   if we have sent >1 IROB non-redundantly.
-            /*
-            TroubleChecker checker(sk);
-            sk->csock_map->for_each(checker);
-            if (checker.troubled_ifaces.size() > 0) {
-                dbgprintf("Network(s) in trouble; data-checking FG IROBs\n");
-                
-                for (size_t i = 0; i < checker.troubled_ifaces.size(); ++i) {
-                    sk->data_check_all_irobs(checker.troubled_ifaces[i].ip_addr.s_addr, 0, 
-                                             CMM_LABEL_ONDEMAND);
-                }
-            }
-            */
             // something happened; we might be able to do some work
         }
     } catch (CMMFatalError& e) {
