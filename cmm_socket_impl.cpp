@@ -1433,6 +1433,7 @@ CMMSocketImpl::mc_accept(int listener_sock,
                   "for listener_sock %d\n", listener_sock);
         return accept(listener_sock, addr, addrlen);
     }
+    ac.release();
 
     lazy_scout_ipc_init();
 
@@ -1442,7 +1443,6 @@ CMMSocketImpl::mc_accept(int listener_sock,
     if (sock < 0) {
         return sock;
     }
-    ac.release();
 
     dbgprintf("mc_accept: Accepting connection from %s\n",
               StringifyIP(&ip_sockaddr.sin_addr).c_str());
