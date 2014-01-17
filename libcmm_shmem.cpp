@@ -495,7 +495,7 @@ gint ipc_last_fg_tv_sec(CSocketPtr csock)//struct in_addr ip_addr)
     // for now, just mimic the old behavior.
     return csock->get_last_fg().tv_sec;
 #else
-    TimeFunctionBody timer("SHMEM_TIMING: ipc_last_fg_tv_sec");
+    //TimeFunctionBody timer("SHMEM_TIMING: ipc_last_fg_tv_sec");
     struct iface_pair ifaces(csock->local_iface.ip_addr,
                              csock->remote_iface.ip_addr);
     FGDataPtr fg_data = map_lookup(ifaces);
@@ -527,7 +527,7 @@ void ipc_update_fg_timestamp(struct iface_pair ifaces) //struct in_addr ip_addr)
      *       to do the shared memory stuff. 
      */
 #else
-    TimeFunctionBody timer("SHMEM_TIMING: ipc_update_fg_timestamp");
+    //TimeFunctionBody timer("SHMEM_TIMING: ipc_update_fg_timestamp");
     struct timeval now;
     TIME(now);
     ipc_set_last_fg_tv_sec(ifaces, now.tv_sec);
@@ -542,7 +542,7 @@ void ipc_set_last_fg_tv_sec(struct iface_pair ifaces, //struct in_addr ip_addr,
      *       to do the shared memory stuff. 
      */
 #else
-    TimeFunctionBody timer("SHMEM_TIMING: ipc_set_last_fg_tv_sec");
+    //TimeFunctionBody timer("SHMEM_TIMING: ipc_set_last_fg_tv_sec");
 
 //     struct iface_pair ifaces(csock->local_iface.ip_addr,
 //                              csock->remote_iface.ip_addr);
@@ -616,7 +616,7 @@ bool ipc_add_iface_pair(struct iface_pair ifaces)
      */
     return true;
 #else
-    TimeFunctionBody timer("SHMEM_TIMING: ipc_add_iface");
+    //TimeFunctionBody timer("SHMEM_TIMING: ipc_add_iface");
     upgradable_lock<named_upgradable_mutex> lock(*shmem_lock);
     if (!map_lookup(ifaces, false)) {
         FGDataPtr new_data = make_managed_shared_ptr(
@@ -664,7 +664,7 @@ bool ipc_remove_iface_pair(struct iface_pair ifaces)
      */
     return true;
 #else
-    TimeFunctionBody timer("SHMEM_TIMING: ipc_remove_iface");
+    //TimeFunctionBody timer("SHMEM_TIMING: ipc_remove_iface");
     upgradable_lock<named_upgradable_mutex> lock(*shmem_lock);
     if (map_lookup(ifaces, false)) {
         // upgrade to exclusive
@@ -765,7 +765,7 @@ bool ipc_add_csocket(CSocketPtr csock, //struct in_addr ip_addr,
      
     return true;
 #else
-    TimeFunctionBody timer("SHMEM_TIMING: ipc_add_csocket");
+    //TimeFunctionBody timer("SHMEM_TIMING: ipc_add_csocket");
     struct iface_pair ifaces(csock->local_iface.ip_addr,
                              csock->remote_iface.ip_addr);
     add_or_remove_csocket(ifaces, getpid(), local_fd, local_fd, false);
@@ -782,7 +782,7 @@ bool ipc_remove_csocket(struct iface_pair ifaces, // struct in_addr ip_addr,
      */
     return true;
 #else
-    TimeFunctionBody timer("SHMEM_TIMING: ipc_remove_csocket");
+    //TimeFunctionBody timer("SHMEM_TIMING: ipc_remove_csocket");
     // struct iface_pair ifaces(csock->local_iface.ip_addr,
 //                              csock->remote_iface.ip_addr);
     add_or_remove_csocket(ifaces, getpid(), local_fd, local_fd, true);
