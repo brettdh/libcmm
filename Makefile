@@ -9,13 +9,12 @@ INSTRUMENTS_DIR := $(HOME)/src/instruments
 NODEBUG_CXXFLAGS := $(CXXFLAGS) 
 NODEBUG_CXXFLAGS +=-Wall -Werror -I. -I/usr/local/include \
 	   -I./libancillary \
-	   $(shell pkg-config --cflags --libs glib-2.0) \
-	   -pthread -fPIC -m32 -std=gnu++0x  $(OPT_FLAGS) \
+	   -pthread -fPIC -m32 -std=c++11  $(OPT_FLAGS) \
 	   -I$(INSTRUMENTS_DIR)/include -I$(INSTRUMENTS_DIR)/src
 CXXFLAGS := $(NODEBUG_CXXFLAGS) $(DEBUG_FLAGS)
 #LIBTBB:=-ltbb_debug
 LDFLAGS:=-L.  -L/usr/local/lib -L$(INSTRUMENTS_DIR)/src -m32
-LIBS:=-lrt -lglib-2.0 -lboost_thread -lpowertutor -linstruments -lconfigumerator
+LIBS:=-lrt -lboost_thread -lpowertutor -linstruments -lconfigumerator
 
 LIBRARIES:=libcmm.so libflipflop.a
 EXECUTABLES:=cmm_test_sender cmm_test_receiver cdf_test\

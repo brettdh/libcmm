@@ -67,7 +67,7 @@ static void LOG_PERROR(const char *str)
 }
 
 #include <memory>
-using std::auto_ptr;
+using std::unique_ptr;
 
 struct subscriber_proc {
     int ipc_sock;
@@ -564,7 +564,7 @@ int get_ip_address(const char *ifname, struct in_addr *ip_addr)
     }
 
     struct sockaddr_in *inaddr = (struct sockaddr_in*)&ifr.ifr_addr;
-    memcpy(ip_addr, &inaddr->sin_addr, sizeof(ip_addr));
+    memcpy(ip_addr, &inaddr->sin_addr, sizeof(*ip_addr));
 
     close(sock);
     return rc;
@@ -815,10 +815,10 @@ int main(int argc, char *argv[])
             
             sampling = true;
             try {
-                auto_ptr<CDFSampler> up_ptr(new CDFSampler(argv[argi++], 
-                                                           presample_duration));
-                auto_ptr<CDFSampler> down_ptr(new CDFSampler(argv[argi++],
+                unique_ptr<CDFSampler> up_ptr(new CDFSampler(argv[argi++], 
                                                              presample_duration));
+                unique_ptr<CDFSampler> down_ptr(new CDFSampler(argv[argi++],
+                                                               presample_duration));
                 
                 up_time_samples = up_ptr.release();
                 down_time_samples = down_ptr.release();

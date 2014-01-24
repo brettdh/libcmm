@@ -13,7 +13,7 @@ using std::setfill; using std::setw;
 
 CMMSocketControlHdr::CMMSocketControlHdr()
 {
-    memset(this, 0, sizeof(this));
+    memset(this, 0, sizeof(*this));
     type = htons(CMM_CONTROL_MSG_INVALID);
 }
 

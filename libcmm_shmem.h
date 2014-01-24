@@ -11,12 +11,9 @@
 #include <boost/interprocess/allocators/allocator.hpp>
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/smart_ptr/shared_ptr.hpp>
-#include <glib.h>
 #endif
 
-#ifndef gint
-typedef int gint;
-#endif
+#include <atomic>
 
 #include "debug.h"
 #include "common.h"
@@ -32,8 +29,8 @@ typedef int gint;
  */
 #else
 struct fg_iface_data {
-    volatile gint last_fg_tv_sec; // last fg data on this iface, in epoch-seconds
-    //volatile gint num_fg_senders; // number of processes with unACK'd FG data.
+    std::atomic<int> last_fg_tv_sec; // last fg data on this iface, in epoch-seconds
+    //std::atomic<int> num_fg_senders; // number of processes with unACK'd FG data.
 };
 
 typedef boost::interprocess::managed_shared_memory ManagedShmem;
@@ -105,11 +102,11 @@ void ipc_shmem_deinit();
 #include "csocket.h"
 // the scout doesn't care about these functions, and it
 //  certainly knows nothing about CSockets.
-gint ipc_last_fg_tv_sec(CSocketPtr csock); //struct in_addr ip_addr);
-//gint ipc_fg_sender_count(struct in_addr ip_addr);
+int ipc_last_fg_tv_sec(CSocketPtr csock); //struct in_addr ip_addr);
+//int ipc_fg_sender_count(struct in_addr ip_addr);
 void ipc_update_fg_timestamp(struct iface_pair ifaces);//struct in_addr ip_addr);
 void ipc_set_last_fg_tv_sec(struct iface_pair ifaces, //struct in_addr ip_addr,
-                            gint secs);
+                            int secs);
 //void ipc_increment_fg_senders(struct in_addr ip_addr);
 //void ipc_decrement_fg_senders(struct in_addr ip_addr);
 

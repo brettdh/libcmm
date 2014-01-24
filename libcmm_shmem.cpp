@@ -486,7 +486,7 @@ static FGDataPtr map_lookup(struct iface_pair ifaces, bool grab_lock = true)
 #endif /* !ANDROID */
 
 #ifndef BUILDING_SCOUT
-gint ipc_last_fg_tv_sec(CSocketPtr csock)//struct in_addr ip_addr)
+int ipc_last_fg_tv_sec(CSocketPtr csock)//struct in_addr ip_addr)
 {
 #ifdef ANDROID
     /* TODO: use Android's /dev/ashmem and IBinder interfaces
@@ -500,25 +500,13 @@ gint ipc_last_fg_tv_sec(CSocketPtr csock)//struct in_addr ip_addr)
                              csock->remote_iface.ip_addr);
     FGDataPtr fg_data = map_lookup(ifaces);
     if (fg_data) {
-        return g_atomic_int_get(&fg_data->last_fg_tv_sec);
+        return fg_data->last_fg_tv_sec;
     } else {
         return 0;
     }
 #endif /* !ANDROID */
 }
 
-/*
-gint ipc_fg_sender_count(struct in_addr ip_addr)
-{
-TimeFunctionBody timer("SHMEM_TIMING: ipc_fg_sender_count");
-    FGDataPtr fg_data = map_lookup(ip_addr);
-    if (fg_data) {
-        return g_atomic_int_get(&fg_data->num_fg_senders);
-    } else {
-        return 0;
-    }
-}
-*/
 
 void ipc_update_fg_timestamp(struct iface_pair ifaces) //struct in_addr ip_addr)
 {
@@ -535,7 +523,7 @@ void ipc_update_fg_timestamp(struct iface_pair ifaces) //struct in_addr ip_addr)
 }
 
 void ipc_set_last_fg_tv_sec(struct iface_pair ifaces, //struct in_addr ip_addr, 
-                            gint secs)
+                            int secs)
 {
 #ifdef ANDROID
     /* TODO: use Android's /dev/ashmem and IBinder interfaces
@@ -548,65 +536,12 @@ void ipc_set_last_fg_tv_sec(struct iface_pair ifaces, //struct in_addr ip_addr,
 //                              csock->remote_iface.ip_addr);
     FGDataPtr fg_data = map_lookup(ifaces);
     if (fg_data) {
-        g_atomic_int_set(&fg_data->last_fg_tv_sec, secs);
+        fg_data->last_fg_tv_sec = secs;
     }
 #endif
 }
 #endif // BUILDING_SCOUT
 
-/*
-void ipc_increment_fg_senders(struct in_addr ip_addr)
-{
-    FGDataPtr fg_data = map_lookup(ip_addr);
-    if (fg_data) {
-        boost::upgrade_lock<boost::shared_mutex> lock(*proc_local_lock);
-        if (proc_local_sending_fg_map.count(ip_addr) == 0 ||
-            proc_local_sending_fg_map[ip_addr] == false) {
-            // only increment once per process (until decrement)
-            boost::unique_lock<boost::shared_mutex> wrlock(boost::move(lock));
-            proc_local_sending_fg_map[ip_addr] = true;
-
-            g_atomic_int_inc(&fg_data->num_fg_senders);
-        }
-    }
-}
-
-void ipc_decrement_fg_senders(struct in_addr ip_addr)
-{
-TimeFunctionBody timer("SHMEM_TIMING: ipc_decrement_fg_senders");
-    FGDataPtr fg_data = map_lookup(ip_addr);
-    if (fg_data) {
-        boost::upgrade_lock<boost::shared_mutex> lock(*proc_local_lock);
-        if (proc_local_sending_fg_map.count(ip_addr) > 0 &&
-            proc_local_sending_fg_map[ip_addr] == true) {
-            // only decrement once per process (until increment)
-            boost::unique_lock<boost::shared_mutex> wrlock(boost::move(lock));
-            proc_local_sending_fg_map[ip_addr] = false;
-
-            (void)g_atomic_int_dec_and_test(&fg_data->num_fg_senders);
-        }
-    }
-}
-
-// call when there are now no FG IROBs in flight
-void ipc_decrement_all_fg_senders()
-{
-TimeFunctionBody timer("SHMEM_TIMING: ipc_decrement_all_fg_senders");
-    std::vector<struct in_addr> ifaces;
-    {
-        boost::shared_lock<boost::shared_mutex> lock(*proc_local_lock);
-        for (std::map<struct in_addr, bool>::iterator it 
-                 = proc_local_sending_fg_map.begin();
-             it != proc_local_sending_fg_map.end(); it++) {
-            ifaces.push_back(it->first);
-        }
-    }
-
-    for (size_t i = 0; i < ifaces.size(); ++i) {
-        ipc_decrement_fg_senders(ifaces[i]);
-    }
-}
-*/
 
 bool ipc_add_iface_pair(struct iface_pair ifaces)
 {
