@@ -21,7 +21,7 @@ LOCAL_MODULE := conn_scout
 LOCAL_SRC_FILES := \
     ../../libcmm_scout.cpp \
     $(addprefix ../../../, debug_ext.cpp cmm_thread.cpp timeops.cpp libcmm_net_restriction.cpp)
-LOCAL_CFLAGS += -DBUILDING_SCOUT_SHLIB -DBUILDING_SCOUT -DNDK_BUILD -g -ggdb
+LOCAL_CFLAGS += -DBUILDING_SCOUT_SHLIB -DBUILDING_SCOUT -DNDK_BUILD -g -ggdb -std=c++11
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/../../../ $(NETWORK_TEST_INCLUDES)
 LOCAL_LDLIBS := -L$(LOCAL_PATH)/../../../android_libs -lboost_thread -llog
 #LOCAL_SHARED_LIBRARIES := libnative_networktest
