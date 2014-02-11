@@ -291,7 +291,7 @@ struct GlobalLabelMatch {
         // already locked the sockset_mutex here, since I'm inside find_csock
         // also, since this is only called from csock_with_labels,
         // I know that the multisocket is already locked.
-        return cskmap->csock_matches_internal(get_pointer(csock), 
+        return cskmap->csock_matches_internal(csock.get(), 
                                               send_label, num_bytes,
                                               true, true);
     }
@@ -863,11 +863,11 @@ struct CSockMapping::AddRequestIfNotSent {
     
     int operator()(CSocketPtr csock) {
         if (!data.chunks_ready) {
-            if (!psirob->was_announced(get_pointer(csock))) {
+            if (!psirob->was_announced(csock.get())) {
                 csock->irob_indexes.new_irobs.insert(data);
             }
         } else {
-            if (psirob->num_ready_bytes(get_pointer(csock)) > 0) {
+            if (psirob->num_ready_bytes(csock.get()) > 0) {
                 csock->irob_indexes.new_chunks.insert(data);
             }
         }
@@ -905,7 +905,7 @@ CSockMapping::onRedundancyDecision(const IROBSchedulingData& data,
         // must have been acknowledged
         return;
     }
-    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob.get());
     ASSERT(psirob);
     
     check_redundancy(psirob, chosen_singular_strategy_type, chosen_strategy_type);

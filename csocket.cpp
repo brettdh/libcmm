@@ -18,6 +18,9 @@
 #include "libcmm_net_restriction.h"
 #include "network_chooser.h"
 
+#include <memory>
+using std::weak_ptr;
+
 using std::max;
 
 #ifdef CMM_UNIT_TESTING
@@ -28,7 +31,7 @@ CSocket::CSocket(struct net_interface local_iface_,
 }
 #else
 CSocketPtr
-CSocket::create(boost::weak_ptr<CMMSocketImpl> sk_,
+CSocket::create(weak_ptr<CMMSocketImpl> sk_,
                 struct net_interface local_iface_, 
                 struct net_interface remote_iface_,
                 int accepted_sock)
@@ -40,7 +43,7 @@ CSocket::create(boost::weak_ptr<CMMSocketImpl> sk_,
 }
 
 
-CSocket::CSocket(boost::weak_ptr<CMMSocketImpl> sk_,
+CSocket::CSocket(weak_ptr<CMMSocketImpl> sk_,
                  struct net_interface local_iface_, 
                  struct net_interface remote_iface_,
                  int accepted_sock)

@@ -397,7 +397,7 @@ PendingReceiverIROBLattice::get_ready_irob(bool block_for_data, struct timeval r
     PendingIROBPtr pi;
     PendingReceiverIROB *pirob = NULL;
     if (partially_read_irob) {
-        PendingReceiverIROB *partial_prirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(partially_read_irob));
+        PendingReceiverIROB *partial_prirob = dynamic_cast<PendingReceiverIROB*>(partially_read_irob.get());
         if (!partial_prirob->is_complete()) {
             /* TODO: block until more bytes are available */
             ASSERT(0);
@@ -464,7 +464,7 @@ PendingReceiverIROBLattice::get_ready_irob(bool block_for_data, struct timeval r
                   diff.tv_sec, diff.tv_usec);
 
         ASSERT(pi);
-        pirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(pi));
+        pirob = dynamic_cast<PendingReceiverIROB*>(pi.get());
         ASSERT(pirob);
 
         dbgprintf("get_ready_irob: returning IROB %ld\n", 
@@ -523,7 +523,7 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
         // if the socket is in blocking mode, this will block
         bool block_for_data = ((bytes_passed == 0) || (flags & MSG_WAITALL));
         PendingIROBPtr pi = get_ready_irob(block_for_data, begin);
-        PendingReceiverIROB *pirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(pi));
+        PendingReceiverIROB *pirob = dynamic_cast<PendingReceiverIROB*>(pi.get());
         TIME(one_end);
         TIMEDIFF(one_begin, one_end, one_diff);
         dbgprintf("Getting one ready IROB took %lu.%06lu seconds\n",
@@ -547,7 +547,7 @@ PendingReceiverIROBLattice::recv(void *bufp, size_t len, int flags,
 #ifndef CMM_UNIT_TESTING
         if (pirob->numbytes() == 0) {
             // sentinel; no more bytes are ready
-            ASSERT(pirob == (PendingReceiverIROB*)get_pointer(empty_sentinel_irob));
+            ASSERT(pirob == (PendingReceiverIROB*)empty_sentinel_irob.get());
             if (bytes_passed == 0) {
                 if (sk->is_non_blocking() || sk->read_timeout_expired(begin)) {
                     msock_read_errno = EWOULDBLOCK;

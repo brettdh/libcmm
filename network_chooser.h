@@ -65,7 +65,7 @@ class NetworkChooserGuard {
     NetworkChooserGuard(NetworkChooser *chooser);
     NetworkChooser *chooser;
 };
-typedef boost::shared_ptr<NetworkChooserGuard> GuardedNetworkChooser;
+typedef std::shared_ptr<NetworkChooserGuard> GuardedNetworkChooser;
 
 class NetworkChooser {
   public:

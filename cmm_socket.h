@@ -1,7 +1,7 @@
 #ifndef cmm_socket_h
 #define cmm_socket_h
 
-#include <boost/shared_ptr.hpp>
+#include <memory>
 
 #include "libcmm.h"
 #include "libcmm_ipc.h"
@@ -9,7 +9,7 @@
 
 class CMMSocket;
 
-typedef boost::shared_ptr<CMMSocket> CMMSocketPtr;
+typedef std::shared_ptr<CMMSocket> CMMSocketPtr;
 
 /* This class is a pure virtual interface to allow simple 
  * lookup-and-passthrough for multi-socket calls on regular sockets.

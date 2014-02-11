@@ -141,7 +141,7 @@ class CSockMapping {
 
     NetworkChooser *network_chooser;
 
-    boost::weak_ptr<CMMSocketImpl> sk;  /* XXX: janky.  Remove later? */
+    std::weak_ptr<CMMSocketImpl> sk;  /* XXX: janky.  Remove later? */
     CSockSet available_csocks;
     RWLOCK_T sockset_mutex;
 

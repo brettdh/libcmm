@@ -1,37 +1,38 @@
 LOCAL_PATH := $(call my-dir)
 
-INSTRUMENTS_ROOT := ../../../../../../../$(HOME)/src/instruments
-LIBPT_ROOT := ../libpowertutor/cpp_source
-MOCKTIME_ROOT := ../mocktime
+#INSTRUMENTS_ROOT := ../../../../../../../$(HOME)/src/instruments
+#LIBPT_ROOT := ../libpowertutor/cpp_source
+#MOCKTIME_ROOT := ../mocktime
 
 OPTI := -O3
 
-common_CFLAGS := -DANDROID -DNDK_BUILD -g -ggdb $(OPTI) -std=gnu++0x -I$(LOCAL_PATH)/.. \
-	-I../$(INSTRUMENTS_ROOT)/include -I../$(INSTRUMENTS_ROOT)/src -I$(LIBPT_ROOT)
+common_CFLAGS := -DANDROID -DNDK_BUILD -g -ggdb $(OPTI) -std=c++11 -I$(LOCAL_PATH)/..
+#-I../$(INSTRUMENTS_ROOT)/include -I../$(INSTRUMENTS_ROOT)/src -I$(LIBPT_ROOT)
 
-include $(CLEAR_VARS)
+# include $(CLEAR_VARS)
 
-LOCAL_MODULE=instruments
-LOCAL_SRC_FILES := ../$(INSTRUMENTS_ROOT)/obj/local/$(TARGET_ARCH_ABI)/libinstruments.so
-include $(PREBUILT_SHARED_LIBRARY)
+# LOCAL_MODULE=instruments
+# LOCAL_SRC_FILES := ../$(INSTRUMENTS_ROOT)/obj/local/$(TARGET_ARCH_ABI)/libinstruments.so
+# include $(PREBUILT_SHARED_LIBRARY)
 
-include $(CLEAR_VARS)
+# include $(CLEAR_VARS)
 
-LOCAL_MODULE=powertutor
-LOCAL_SRC_FILES := ../$(LIBPT_ROOT)/obj/local/$(TARGET_ARCH_ABI)/libpowertutor.so
-include $(PREBUILT_SHARED_LIBRARY)
+# LOCAL_MODULE=powertutor
+# LOCAL_SRC_FILES := ../$(LIBPT_ROOT)/obj/local/$(TARGET_ARCH_ABI)/libpowertutor.so
+# include $(PREBUILT_SHARED_LIBRARY)
 
-include $(CLEAR_VARS)
+# include $(CLEAR_VARS)
 
-LOCAL_MODULE=mocktime
-LOCAL_SRC_FILES := ../$(MOCKTIME_ROOT)/obj/local/$(TARGET_ARCH_ABI)/libmocktime.so
-include $(PREBUILT_SHARED_LIBRARY)
+# LOCAL_MODULE=mocktime
+# LOCAL_SRC_FILES := ../$(MOCKTIME_ROOT)/obj/local/$(TARGET_ARCH_ABI)/libmocktime.so
+# include $(PREBUILT_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
 
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libcmm
 LOCAL_CFLAGS += $(common_CFLAGS) -DCMM_DEBUG
+LOCAL_EXPORT_C_INCLUDES := $(LOCAL_PATH)/..
 
 LOCAL_SRC_FILES := $(addprefix ../, \
 	cmm_conn_bootstrapper.cpp \
@@ -198,3 +199,6 @@ include $(CLEAR_VARS)
 # include $(BUILD_EXECUTABLE)
 
 $(call import-module, edu.umich.mobility/configumerator)
+$(call import-module, edu.umich.mobility/instruments)
+$(call import-module, edu.umich.mobility/libpowertutor)
+$(call import-module, edu.umich.mobility/mocktime)

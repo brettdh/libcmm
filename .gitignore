@@ -16,3 +16,4 @@ Makeconf.local
 libs
 obj
 simple_http_client
+current_logs

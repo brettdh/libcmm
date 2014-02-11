@@ -128,7 +128,7 @@ CMM_PRIVATE_drop_irob_and_dependents(irob_id_t irob)
 {
     CMMSocketPtr sk(CMMSocket::lookup_by_irob(irob));
     if (sk) {
-        CMMSocketImpl *skp = (CMMSocketImpl *) get_pointer(sk);
+        CMMSocketImpl *skp = (CMMSocketImpl *) sk.get();
         skp->drop_irob_and_dependents(irob);
     }
 }

@@ -2,7 +2,7 @@
 #define pthread_util_incl
 
 #include <pthread.h>
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include <map>
 #include <vector>
 #include <deque>
@@ -272,7 +272,7 @@ template <typename KeyType, typename ValueType,
           typename ordering = std::less<KeyType> >
 class LockingMap {
     struct node;
-    typedef boost::shared_ptr<struct node> NodePtr;
+    typedef std::shared_ptr<struct node> NodePtr;
     typedef std::map<KeyType, NodePtr, ordering> MapType;
     typedef std::pair<KeyType, ValueType> pair_type;
 
@@ -346,7 +346,7 @@ class LockingMap {
 
     class iterator {
         friend class LockingMap;
-        typedef boost::shared_ptr<PthreadScopedRWLock> LockPtr;
+        typedef std::shared_ptr<PthreadScopedRWLock> LockPtr;
         
         bool valid;
         bool locked;

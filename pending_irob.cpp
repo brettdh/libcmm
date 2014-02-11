@@ -234,7 +234,7 @@ PendingIROBLattice::insert_locked(PendingIROB *pirob, bool infer_deps)
         ASSERT(!pirob->placeholder);
         ASSERT(pending_irobs[index]->placeholder);
         ASSERT(pending_irobs[index]->id == pirob->id);
-        pirob->subsume(get_pointer(pending_irobs[index]));
+        pirob->subsume(pending_irobs[index].get());
         
         //delete pending_irobs[index]; // shared ptr will clean up
         pending_irobs[index] = pirob_ptr;

@@ -180,7 +180,7 @@ PendingReceiverIROBLattice::release_dependents(PendingReceiverIROB *pirob,
         if (pi == NULL) {
             continue;
         }
-        PendingReceiverIROB *dependent = dynamic_cast<PendingReceiverIROB*>(get_pointer(pi));
+        PendingReceiverIROB *dependent = dynamic_cast<PendingReceiverIROB*>(pi.get());
         ASSERT(dependent);
         //dependent->dep_satisfied(pirob->id); // now done in erase()
         release_if_ready(dependent, is_ready);

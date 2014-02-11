@@ -16,7 +16,7 @@
 #include <map>
 #include <vector>
 #include <set>
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include <time.h>
 
 #include <atomic>
@@ -33,7 +33,7 @@ struct ResumeOperation;
 #define CMM_BLOCKING -3
 
 class CMMSocketImpl;
-typedef boost::shared_ptr<CMMSocketImpl> CMMSocketImplPtr;
+typedef std::shared_ptr<CMMSocketImpl> CMMSocketImplPtr;
 
 class CSocket;
 class CSockMapping;

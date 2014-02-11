@@ -9,7 +9,7 @@
 #include "intset.h"
 #include <functional>
 #include <string.h>
-#include <boost/shared_ptr.hpp>
+#include <memory>
 
 #include "pthread_util.h"
 
@@ -29,7 +29,7 @@ typedef std::set<irob_id_t> irob_id_set;
 
 class PendingIROB;
 class PendingSenderIROB;
-typedef boost::shared_ptr<PendingIROB> PendingIROBPtr;
+typedef std::shared_ptr<PendingIROB> PendingIROBPtr;
 
 class PendingIROB {
   public:

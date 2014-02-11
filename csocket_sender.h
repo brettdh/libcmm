@@ -7,7 +7,7 @@
 #include "libcmm_irob.h"
 #include "pending_irob.h"
 #include "cmm_socket_control.h"
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include "csocket.h"
 #include <vector>
 #include "pending_sender_irob.h"

@@ -33,7 +33,7 @@ CSocketReceiver::handler_fn_t CSocketReceiver::handlers[] = {
 };
 
 CSocketReceiver::CSocketReceiver(CSocketPtr csock_) 
-    : csock(csock_), sk(get_pointer(csock_->sk)) {}
+    : csock(csock_), sk(csock_->sk.get()) {}
 
 void
 CSocketReceiver::unrecognized_control_msg(struct CMMSocketControlHdr hdr)
@@ -314,7 +314,7 @@ CSocketReceiver::do_end_irob(struct CMMSocketControlHdr hdr)
         int expected_chunks = ntohl(hdr.op.end_irob.expected_chunks);
 
         ASSERT(pirob);
-        PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(pirob));
+        PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob.get());
         if (!prirob->finish(expected_bytes, expected_chunks)) {
             ostringstream s;
             s << "do_end_irob: already-finished IROB " << id;
@@ -421,7 +421,7 @@ void CSocketReceiver::do_irob_chunk(struct CMMSocketControlHdr hdr)
         chunk.data = hdr.op.irob_chunk.data;
         
         ASSERT(pirob);
-        PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(pirob));
+        PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob.get());
         ASSERT(prirob);
         if (!prirob->add_chunk(chunk)) {
             delete [] buf;

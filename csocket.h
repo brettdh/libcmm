@@ -18,26 +18,25 @@ class CSocketReceiver;
 
 struct ResumeOperation;
 
-#include <boost/shared_ptr.hpp>
-#include <boost/weak_ptr.hpp>
+#include <memory>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
 class CSocket;
-typedef boost::shared_ptr<CSocket> CSocketPtr;
+typedef std::shared_ptr<CSocket> CSocketPtr;
 
 class CSocket {
   public:
     int osfd;
     int oserr; // if non-zero, there was an error.
-    boost::shared_ptr<CMMSocketImpl> sk;
+    std::shared_ptr<CMMSocketImpl> sk;
     struct net_interface local_iface;
     struct net_interface remote_iface;
 #ifndef CMM_UNIT_TESTING
     NetStats stats;
 
-    static CSocketPtr create(boost::weak_ptr<CMMSocketImpl> sk_, 
+    static CSocketPtr create(std::weak_ptr<CMMSocketImpl> sk_, 
                              struct net_interface local_iface_,
                              struct net_interface remote_iface_,
                              int accepted_sock = -1);
@@ -99,7 +98,7 @@ class CSocket {
 
   private:
     // only allow shared_ptr creation
-    CSocket(boost::weak_ptr<CMMSocketImpl> sk_, 
+    CSocket(std::weak_ptr<CMMSocketImpl> sk_, 
             struct net_interface local_iface_,
             struct net_interface remote_iface_,
             int accepted_sock);
@@ -145,7 +144,7 @@ class CSocket {
 
     // only valid until the worker threads are created;
     // ensures that all CSocket pointers are shared
-    boost::weak_ptr<CSocket> self_ptr;
+    std::weak_ptr<CSocket> self_ptr;
 
     // indexes for the sender threads
     IROBSchedulingIndexes irob_indexes;

@@ -40,7 +40,7 @@ using std::vector; using std::max; using std::min;
 static bool striping = true;
 
 CSocketSender::CSocketSender(CSocketPtr csock_) 
-  : csock(csock_), sk(get_pointer(csock_->sk)) 
+    : csock(csock_), sk(csock_->sk.get()) 
 {
     trickle_timeout.tv_sec = -1;
     trickle_timeout.tv_nsec = 0;
@@ -413,7 +413,7 @@ void resume_operation_thunk(ResumeOperation *op)
         PthreadScopedLock lock(&op->sk->scheduling_state_lock);
         PendingIROBPtr pirob = op->sk->outgoing_irobs.find(op->data.id);
         ASSERT(pirob);
-        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
+        PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob.get());
         ASSERT(psirob);
         send_labels = psirob->get_send_labels();
     }
@@ -500,7 +500,7 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
 
     u_long send_labels = pirob->get_send_labels();
 
-    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob.get());
     ASSERT(psirob);
 
     size_t num_bytes = 0;
@@ -544,7 +544,7 @@ CSocketSender::delegate_if_necessary(irob_id_t id, PendingIROBPtr& pirob,
         // no need to send this message after all
         return true;
     }
-    psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
+    psirob = dynamic_cast<PendingSenderIROB*>(pirob.get());
     ASSERT(psirob);
 
     if (!match) {
@@ -734,7 +734,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         // Just ignore it
         return true;
     }
-    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob.get());
     ASSERT(psirob);
 
     irob_id_t id = data.id;
@@ -750,7 +750,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     // XXX:  'was_announced' is per-CSocket, I'm getting multiple
     // XXX:  announcements on the same CSocket and none at all on others, sometimes.
     // XXX:  need to consider loss+retransmission separately, I think.
-    if (!psirob->was_announced(get_pointer(csock))) {
+    if (!psirob->was_announced(csock.get())) {
         // only try to delegate if this is the first Begin_IROB 
         //  sent for this IROB.  Otherwise, it's a retransmission
         //  and we want to do it right away.
@@ -827,7 +827,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     if (psirob->is_complete() &&
         psirob->expected_bytes() < (size_t) MIN_CHUNKSIZE &&
         psirob->get_send_labels() & CMM_LABEL_ONDEMAND &&
-        !psirob->was_announced(get_pointer(csock))) {
+        !psirob->was_announced(csock.get())) {
         // XXX: this code is begging to be put in a function.
 
         memset(&chunk_hdr, 0, sizeof(chunk_hdr));
@@ -840,7 +840,7 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
         u_long seqno = 0;
         size_t offset = 0;
         vector<struct iovec> irob_vecs = 
-            psirob->get_ready_bytes(get_pointer(csock), chunksize, seqno, offset);
+            psirob->get_ready_bytes(csock.get(), chunksize, seqno, offset);
         if (chunksize > 0) {
             chunk_hdr.op.irob_chunk.id = htonl(id);
             chunk_hdr.op.irob_chunk.seqno = htonl(seqno);
@@ -931,12 +931,12 @@ CSocketSender::begin_irob(const IROBSchedulingData& data)
     }
 
     pirob = sk->outgoing_irobs.find(id);
-    psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
+    psirob = dynamic_cast<PendingSenderIROB*>(pirob.get());
     if (psirob) {
-        psirob->mark_announcement_sent(get_pointer(csock));
+        psirob->mark_announcement_sent(csock.get());
         if (sending_all_irob_info) {
             if (psirob->is_complete() && psirob->all_bytes_chunked()) {
-                psirob->mark_end_announcement_sent(get_pointer(csock));
+                psirob->mark_end_announcement_sent(csock.get());
             }
         } else {
             IROBSchedulingData new_chunk(id, true, data.send_labels);
@@ -958,7 +958,7 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
         // Just ignore it
         return;
     }
-    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob.get());
     ASSERT(psirob);
 
     struct CMMSocketControlHdr hdr;
@@ -996,7 +996,7 @@ CSocketSender::end_irob(const IROBSchedulingData& data)
     }
     
     pirob = sk->outgoing_irobs.find(data.id);
-    psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
+    psirob = dynamic_cast<PendingSenderIROB*>(pirob.get());
 }
 
 /* returns true if I actually sent it; false if not */
@@ -1040,7 +1040,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
         /* must've been ACK'd already */
         return true;
     }
-    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob.get());
     ASSERT(psirob);
 
     struct CMMSocketControlHdr hdr;
@@ -1052,7 +1052,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     size_t offset = 0;
 
     vector<struct iovec> irob_vecs = 
-        psirob->get_ready_bytes(get_pointer(csock), chunksize, seqno, offset);
+        psirob->get_ready_bytes(csock.get(), chunksize, seqno, offset);
     if (chunksize == 0) {
         return true;
     }
@@ -1170,7 +1170,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
 
     // It might've been ACK'd and removed, so check first
     pirob = sk->outgoing_irobs.find(id);
-    psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
+    psirob = dynamic_cast<PendingSenderIROB*>(pirob.get());
     if (psirob) {
         size_t total_header_size = sizeof(hdr);
         if (waiting_ack_irob != -1) {
@@ -1199,7 +1199,7 @@ CSocketSender::irob_chunk(const IROBSchedulingData& data, irob_id_t waiting_ack_
     //psirob = dynamic_cast<PendingSenderIROB*>(sk->outgoing_irobs.find(id));
     if (psirob) {
         if (psirob->is_complete() && psirob->all_bytes_chunked()) {
-            if (!psirob->end_was_announced(get_pointer(csock))) {
+            if (!psirob->end_was_announced(csock.get())) {
                 csock->irob_indexes.finished_irobs.insert(IROBSchedulingData(id, false));
             }
         } 
@@ -1413,7 +1413,7 @@ CSocketSender::resend_request(const IROBSchedulingData& data)
     resend_request_type_t req_type = data.resend_request;
     vector<struct irob_chunk_data> missing_chunks;
     PendingIROBPtr pirob = sk->incoming_irobs.find(data.id);
-    PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(get_pointer(pirob));
+    PendingReceiverIROB *prirob = dynamic_cast<PendingReceiverIROB*>(pirob.get());
     if (req_type & CMM_RESEND_REQUEST_DATA) {
         if (prirob) {
             // tell the remote sender which bytes we need
@@ -1520,7 +1520,7 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
     memset(&chunk, 0, sizeof(chunk));
 
     PendingIROBPtr pirob = sk->outgoing_irobs.find(data.id);
-    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(get_pointer(pirob));
+    PendingSenderIROB *psirob = dynamic_cast<PendingSenderIROB*>(pirob.get());
     if (psirob) { 
         if (delegate_if_necessary(data.id, pirob, data)) {
             // should try data checks on label-matched thread first
@@ -1533,10 +1533,10 @@ CSocketSender::send_data_check(const IROBSchedulingData& data)
         u_long seqno = 0;
         size_t offset = 0;
         vector<struct iovec> chunk_vecs = 
-            psirob->get_ready_bytes(get_pointer(csock), chunksize, seqno, offset);
+            psirob->get_ready_bytes(csock.get(), chunksize, seqno, offset);
         if (chunk_vecs.empty()) {
             // if there's no next chunk to send, re-send the last sent chunk.
-            chunk_vecs = psirob->get_last_sent_chunk_htonl(get_pointer(csock), &chunk);
+            chunk_vecs = psirob->get_last_sent_chunk_htonl(csock.get(), &chunk);
         } else {
             chunk.id = htonl(data.id);
             chunk.seqno = htonl(seqno);
