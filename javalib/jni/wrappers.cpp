@@ -166,7 +166,9 @@ Java_edu_umich_intnw_SystemCalls_ms_1write(JNIEnv *jenv, jclass, jint msock_fd,
                                            jbyteArray byteArray, jint offset, jint length,
                                            jint labels)
 {
+#ifndef NDEBUG
     size_t arrayLength = jenv->GetArrayLength(byteArray);
+#endif
     assert(offset + length <= arrayLength); // checked in caller
 
     jbyte *realBuffer = jenv->GetByteArrayElements(byteArray, NULL);
@@ -238,7 +240,9 @@ Java_edu_umich_intnw_SystemCalls_ms_1read(JNIEnv *jenv, jclass,
                                           jint msock_fd, jbyteArray byteArray, 
                                           jint offset, jint length, jintArray outLabels)
 {
+#ifndef NDEBUG
     size_t arrayLength = jenv->GetArrayLength(byteArray);
+#endif
     assert(offset + length <= arrayLength); // checked in caller
 
     u_long labels = 0;
@@ -440,8 +444,6 @@ JNIEXPORT jint JNICALL
 Java_edu_umich_intnw_SystemCalls_get_1receive_1timeout(JNIEnv *jenv, jclass, 
                                                        jint msock_fd)
 {
-    jint timeoutMillis = 0;
-    
     struct timeval timeout = {0, 0};
     socklen_t optlen = sizeof(timeout);
     int rc = cmm_getsockopt(msock_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, &optlen);

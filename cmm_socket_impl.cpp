@@ -1528,7 +1528,7 @@ CMMSocketImpl::mc_getsockopt(int level, int optname,
     }
 
     if (optname == SO_RCVTIMEO) {
-        if (*optlen < sizeof(struct timeval)) {
+        if (*optlen < (socklen_t) sizeof(struct timeval)) {
             errno = EINVAL;
             return -1;
         }
@@ -2319,7 +2319,7 @@ CMMSocketImpl::default_irob_writev(irob_id_t next_irob,
 
     char *data = new char[total_bytes];
     ssize_t bytes_copied = 0;
-    dbgprintf("Copying %d bytes into default IROB %ld\n", total_bytes, next_irob);
+    dbgprintf("Copying %ld bytes into default IROB %ld\n", total_bytes, next_irob);
     for (int i = 0; i < count; ++i) {
         memcpy(data + bytes_copied, vec[i].iov_base, vec[i].iov_len);
         bytes_copied += vec[i].iov_len;

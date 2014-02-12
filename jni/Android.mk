@@ -1,31 +1,8 @@
 LOCAL_PATH := $(call my-dir)
 
-#INSTRUMENTS_ROOT := ../../../../../../../$(HOME)/src/instruments
-#LIBPT_ROOT := ../libpowertutor/cpp_source
-#MOCKTIME_ROOT := ../mocktime
-
 OPTI := -O3
 
 common_CFLAGS := -DANDROID -DNDK_BUILD -g -ggdb $(OPTI) -std=c++11 -I$(LOCAL_PATH)/..
-#-I../$(INSTRUMENTS_ROOT)/include -I../$(INSTRUMENTS_ROOT)/src -I$(LIBPT_ROOT)
-
-# include $(CLEAR_VARS)
-
-# LOCAL_MODULE=instruments
-# LOCAL_SRC_FILES := ../$(INSTRUMENTS_ROOT)/obj/local/$(TARGET_ARCH_ABI)/libinstruments.so
-# include $(PREBUILT_SHARED_LIBRARY)
-
-# include $(CLEAR_VARS)
-
-# LOCAL_MODULE=powertutor
-# LOCAL_SRC_FILES := ../$(LIBPT_ROOT)/obj/local/$(TARGET_ARCH_ABI)/libpowertutor.so
-# include $(PREBUILT_SHARED_LIBRARY)
-
-# include $(CLEAR_VARS)
-
-# LOCAL_MODULE=mocktime
-# LOCAL_SRC_FILES := ../$(MOCKTIME_ROOT)/obj/local/$(TARGET_ARCH_ABI)/libmocktime.so
-# include $(PREBUILT_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
 
