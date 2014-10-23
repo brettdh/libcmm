@@ -28,7 +28,6 @@ For full details, see the [paper][intnw_paper] and
 ### How to use
 
 Prerequisites:
-- [Premake4](http://industriousone.com/premake/download)
 - [Mocktime](http://github.com/brettdh/mocktime)
 - [LibPowertutor](http://github.com/brettdh/libpowertutor)
 - [Configumerator](http://github.com/brettdh/configumerator)
