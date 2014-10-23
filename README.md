@@ -25,7 +25,17 @@ without breaking application expectations on delivery order.
 For full details, see the [paper][intnw_paper] and
 [presentation][intnw_talk] published in MobiCom 2010.
 
-### Usage
+### How to use
+
+Prerequisites:
+- [Premake4](http://industriousone.com/premake/download)
+- [Mocktime](http://github.com/brettdh/mocktime)
+- [LibPowertutor](http://github.com/brettdh/libpowertutor)
+- [Configumerator](http://github.com/brettdh/configumerator)
+- [Instruments](http://github.com/brettdh/instruments)
+
+For tests:
+- [CppUnit](http://cppunit.sourceforge.net/doc/cvs/)
 
 Build:
 
