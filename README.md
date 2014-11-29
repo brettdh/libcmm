@@ -43,6 +43,22 @@ Build:
     $ make
     $ sudo make install
 
+Android
+
+The `javalib` directory contains an Android library that you can use
+by importing it in Eclipse and adding it as a library project to your Android
+project.  See the Android documentation for more details.
+
+Alternatively, to use from JNI (or to build other projects that depend on
+Intentional Networking), first symlink the `jni` directory into your NDK modules path:
+
+    $ mkdir -p $NDK_MODULE_PATH/edu.umich.mobility
+    $ ln -s /path/to/libcmm/jni $NDK_MODULE_PATH/edu.umich.mobility/libcmm
+
+then add this line to the end of your `Android.mk`:
+
+    $(call import-module, edu.umich.mobility/libcmm)
+
 Use:
 
 Here I must refer you to the API documentation in
