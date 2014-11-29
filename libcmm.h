@@ -10,7 +10,7 @@
  * with the desired characteristics becomes available.
  */
 
-#ifndef BUILDING_SCOUT
+#ifndef BUILDING_EXTERNAL
 #include <instruments.h>
 #include <eval_method.h>
 #endif
@@ -229,7 +229,7 @@ intnw_network_strategy_t
 cmm_get_network_strategy_with_restriction(mc_socket_t sock, instruments_context_t context,
                                           u_long net_restriction_labels);
 
-#ifndef BUILDING_SCOUT
+#ifndef BUILDING_EXTERNAL
 instruments_estimator_t
 cmm_get_latency_estimator(mc_socket_t sock, u_long net_restriction_labels);
 #endif
@@ -263,7 +263,7 @@ double cmm_estimate_transfer_data(mc_socket_t sock,
  * Returns 0.0 if there are no unack'd IROBs. */
 double cmm_get_oldest_irob_delay(mc_socket_t sock);
 
-#ifndef BUILDING_SCOUT
+#ifndef BUILDING_EXTERNAL
 /* return the configured eval method. */
 enum EvalMethod cmm_get_estimator_error_eval_method();
 #endif

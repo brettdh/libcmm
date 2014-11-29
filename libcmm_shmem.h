@@ -98,7 +98,7 @@ typedef boost::interprocess::set<int, std::less<int>, IntAllocator> ShmemIntSet;
 void ipc_shmem_init(bool create);
 void ipc_shmem_deinit();
 
-#ifndef BUILDING_SCOUT
+#ifndef BUILDING_EXTERNAL
 #include "csocket.h"
 // the scout doesn't care about these functions, and it
 //  certainly knows nothing about CSockets.

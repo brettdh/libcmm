@@ -485,7 +485,7 @@ static FGDataPtr map_lookup(struct iface_pair ifaces, bool grab_lock = true)
 }
 #endif /* !ANDROID */
 
-#ifndef BUILDING_SCOUT
+#ifndef BUILDING_EXTERNAL
 int ipc_last_fg_tv_sec(CSocketPtr csock)//struct in_addr ip_addr)
 {
 #ifdef ANDROID
@@ -540,7 +540,7 @@ void ipc_set_last_fg_tv_sec(struct iface_pair ifaces, //struct in_addr ip_addr,
     }
 #endif
 }
-#endif // BUILDING_SCOUT
+#endif // BUILDING_EXTERNAL
 
 
 bool ipc_add_iface_pair(struct iface_pair ifaces)
@@ -689,7 +689,7 @@ bool send_csocket_to_all_pids(struct iface_pair ifaces, int local_fd,
 }
 #endif /* !ANDROID */
 
-#ifndef BUILDING_SCOUT
+#ifndef BUILDING_EXTERNAL
 bool ipc_add_csocket(CSocketPtr csock, //struct in_addr ip_addr,
                      int local_fd)
 {
@@ -769,4 +769,4 @@ size_t ipc_total_bytes_inflight(CSocketPtr csock)//struct in_addr ip_addr)
     return bytes;
 #endif /* !ANDROID */
 }
-#endif // BUILDING_SCOUT
+#endif // BUILDING_EXTERNAL

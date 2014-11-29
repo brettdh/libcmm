@@ -168,7 +168,7 @@ include $(CLEAR_VARS)
 # 	scout/libcmm_scout.cpp cmm_thread.cpp timeops.cpp cdf_sampler.cpp \
 #     libcmm_net_preference.cpp)
 # LOCAL_CFLAGS += $(common_CFLAGS)
-# LOCAL_CFLAGS += -DBUILDING_SCOUT -DANDROID -DNDK_BUILD -I$(LOCAL_PATH)/..
+# LOCAL_CFLAGS += -DBUILDING_EXTERNAL -DANDROID -DNDK_BUILD -I$(LOCAL_PATH)/..
 # LOCAL_C_INCLUDES += $(LOCAL_PATH)/../
 # LOCAL_SHARED_LIBRARIES := liblog
 # LOCAL_LDLIBS := -llog

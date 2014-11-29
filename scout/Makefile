@@ -5,7 +5,7 @@ DEBUG_FLAGS:=-g -DCMM_DEBUG
 endif
 CXXFLAGS+=-Wall -Werror -I.. -I../libancillary -I/usr/local/include -pthread -fPIC -m32 \
 	  -std=c++11 \
-	  $(DEBUG_FLAGS) -DBUILDING_SCOUT
+	  $(DEBUG_FLAGS) -DBUILDING_EXTERNAL
 LDFLAGS+=-lrt -lglib-2.0 -lboost_thread -lboost_system
 
 all: conn_scout virgil_server

@@ -1,5 +1,4 @@
 #include "debug.h"
-#include "intnw_config.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <errno.h>
@@ -15,6 +14,10 @@
 using std::ostringstream; using std::string; 
 using std::setw; using std::setfill;
 using std::runtime_error;
+
+#ifndef BUILDING_EXTERNAL
+#include "intnw_config.h"
+#endif
 
 #ifdef ANDROID
 #define LIBCMM_LOGFILE "/sdcard/intnw/intnw.log"
@@ -74,7 +77,7 @@ static void vdbgprintf(bool plain, const char *fmt, va_list ap)
     ostringstream stream;
     if (!plain) {
         struct timeval now;
-        TIME(now);
+        gettimeofday(&now, NULL);
         stream << "[" << now.tv_sec << "." << setw(6) << setfill('0') << now.tv_usec << "]";
         stream << "[" << getpid() << "]";
         stream << "[";
@@ -122,7 +125,11 @@ void dbgprintf_always(const char *fmt, ...)
 
 bool is_debugging_on()
 {
+#ifdef BUILDING_EXTERNAL
+    return false;
+#else
     return Config::getInstance()->getDebugOn();
+#endif
 }
 
 void dbgprintf(const char *fmt, ...)
