@@ -314,7 +314,7 @@ IntNWInstrumentsNetworkChooser::IntNWInstrumentsNetworkChooser()
         set_strategy_name(strategies[i], strategy_names[i]);
     }
 
-    strategies[NETWORK_CHOICE_BOTH] = make_redundant_strategy(strategies, 2);
+    strategies[NETWORK_CHOICE_BOTH] = make_redundant_strategy(strategies, 2, nullptr);
     set_strategy_name(strategies[NETWORK_CHOICE_BOTH], strategy_names[NETWORK_CHOICE_BOTH]);
 
     EvalMethod method = Config::getInstance()->getEstimatorErrorEvalMethod();
